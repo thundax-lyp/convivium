@@ -145,6 +145,14 @@ export const PublishRoundActionV1Schema = z.object({
     kind: z.literal("publish_round"),
     roundId: id
 });
+export const PauseMeetingActionV1Schema = z.object({
+    kind: z.literal("pause_meeting"),
+    reason: text
+});
+export const ResumeMeetingActionV1Schema = z.object({
+    kind: z.literal("resume_meeting"),
+    reason: text
+});
 
 const actions = [
     CreateMeetingActionV1Schema,
@@ -175,6 +183,8 @@ const actions = [
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         }),
     PublishRoundActionV1Schema,
+    PauseMeetingActionV1Schema,
+    ResumeMeetingActionV1Schema,
     z.object({
         kind: z.literal("end_meeting"),
         outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),

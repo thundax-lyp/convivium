@@ -19,14 +19,7 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-const meetingServices = [
-    "agents",
-    "sessions",
-    "subagents",
-    "systemPrompt",
-    "tools",
-    "webServer"
-] as const;
+const meetingServices = ["agents", "sessions", "subagents", "systemPrompt", "tools"] as const;
 
 export const inject = [] as const;
 
@@ -62,7 +55,6 @@ const meetingConsumerPlugin = {
                 "conviviumMeetingRuntime",
                 runtime
             );
-            if (!new Set(["127.0.0.1", "localhost"]).has(ctx.webServer?.host ?? "")) return;
             registerMeetingToolsV1({
                 registry: ctx.tools,
                 application,
@@ -83,7 +75,10 @@ const meetingConsumerPlugin = {
                     ensureTargetMeetingDeliveryV1(ctx, meetingId, parent);
                 }
             });
-            ctx.plugin(ConviviumRemoteService, runtime);
+            ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {
+                if (new Set(["127.0.0.1", "localhost"]).has(remoteContext.webServer.host))
+                    remoteContext.plugin(ConviviumRemoteService, runtime);
+            });
         }
     }
 };

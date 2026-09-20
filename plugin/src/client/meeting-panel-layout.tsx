@@ -14,6 +14,8 @@ export interface MeetingPanelLayoutProps {
     writePending: boolean;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
+    pauseMeeting(): Promise<void>;
+    resumeMeeting(): Promise<void>;
     endMeeting(): Promise<void>;
 }
 
@@ -28,6 +30,32 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
             { type: "button", variant: "outline", size: "sm", onClick: ctx.requestRefresh },
             "Refresh"
         ),
+        ctx.detail?.controls.includes("pause_meeting")
+            ? createElement(
+                  Button,
+                  {
+                      type: "button",
+                      variant: "primary",
+                      size: "sm",
+                      disabled: ctx.writePending || ctx.detailCached,
+                      onClick: () => void ctx.pauseMeeting()
+                  },
+                  "Pause meeting"
+              )
+            : null,
+        ctx.detail?.controls.includes("resume_meeting")
+            ? createElement(
+                  Button,
+                  {
+                      type: "button",
+                      variant: "primary",
+                      size: "sm",
+                      disabled: ctx.writePending || ctx.detailCached,
+                      onClick: () => void ctx.resumeMeeting()
+                  },
+                  "Resume meeting"
+              )
+            : null,
         ctx.detail?.controls.includes("end_meeting")
             ? createElement(
                   Button,

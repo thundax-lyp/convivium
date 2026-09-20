@@ -292,6 +292,17 @@ export function createEvidenceReviewDispatcherV1(
                 ],
                 signal
             });
+            const completed = await dependencies.repository.recover();
+            if (!completed.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (
+                pending.some(
+                    ({ version }) =>
+                        !completed.snapshot!.state.reviews.some(
+                            (review) => review.versionId === version.id
+                        )
+                )
+            )
+                retry("REVIEW_NOT_COMPLETED");
             for (const item of pending) notifiedVersionIds.add(item.version.id);
         }
     };

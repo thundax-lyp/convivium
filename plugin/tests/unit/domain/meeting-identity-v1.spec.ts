@@ -74,12 +74,14 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1"
+                childSessionId: "meeting-v1-participant-identity-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );
         expect(admitted.kind).toBe("accepted");
         if (admitted.kind !== "accepted") return;
+        expect(admitted.state.identityRecommendations[0]?.definitionHash).toBe("a".repeat(64));
         const result = recordIdentityAdmissionResultV1(
             admitted.state,
             "recommendation-1",
@@ -107,6 +109,55 @@ describe("identity domain transitions", () => {
         });
     });
 
+    it("rejects an admission result with a different Definition hash", () => {
+        const admitted = recommendIdentityV1(
+            makeRunningMeetingStateV1(),
+            {
+                candidateId: "candidate-1",
+                definitionId: "domain_architect",
+                definitionVersion: "1",
+                catalogId: "catalog-1",
+                catalogVersion: "1",
+                agendaId: "agenda-v1",
+                decision: "admit",
+                rationale: "需要专门贡献",
+                expectedContribution: "形成证据",
+                evidenceGap: "缺少验证"
+            },
+            "manager-v1",
+            {
+                recommendationId: "recommendation-1",
+                identityId: "identity-1",
+                childSessionId: "meeting-v1-participant-identity-1",
+                definitionHash: "a".repeat(64)
+            },
+            1
+        );
+        if (admitted.kind !== "accepted") throw new Error("recommendation");
+
+        const result = recordIdentityAdmissionResultV1(
+            admitted.state,
+            "recommendation-1",
+            {
+                kind: "admitted",
+                admissionId: "recommendation-1",
+                meetingId: "meeting-v1",
+                identityId: "identity-1",
+                childSessionId: "meeting-v1-participant-identity-1",
+                ownershipId: "ownership-1",
+                descriptorId: "descriptor-1",
+                displayName: "Architect",
+                definitionId: "domain_architect",
+                definitionVersion: "1",
+                definitionHash: "b".repeat(64)
+            },
+            2
+        );
+
+        expect(result).toMatchObject({ kind: "rejected", errorCode: "PRECONDITION_FAILED" });
+        expect(result.state).toBe(admitted.state);
+    });
+
     it("reuses an active candidate across agendas without a new identity or effect", () => {
         const first = recommendIdentityV1(
             secondAgendaState(),
@@ -126,7 +177,8 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1"
+                childSessionId: "session-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );
@@ -165,7 +217,7 @@ describe("identity domain transitions", () => {
                 evidenceGap: "无"
             },
             "manager-v1",
-            { recommendationId: "recommendation-2" },
+            { recommendationId: "recommendation-2", definitionHash: "a".repeat(64) },
             3
         );
         expect(reused.kind).toBe("accepted");
@@ -195,7 +247,7 @@ describe("identity domain transitions", () => {
                     evidenceGap: "缺口"
                 },
                 "manager-v1",
-                { recommendationId: "recommendation-3" },
+                { recommendationId: "recommendation-3", definitionHash: "a".repeat(64) },
                 4
             )
         ).toMatchObject({
@@ -223,7 +275,8 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1"
+                childSessionId: "session-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );

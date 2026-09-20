@@ -210,6 +210,43 @@ describe("outbox worker", () => {
         });
     });
 
+    it("keeps an explicitly preserved retry pending after the attempt limit", async () => {
+        const completions: { status: string; availableAt?: number; errorCode?: string }[] = [];
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [item(5)],
+                completeOutbox: async (input) => {
+                    completions.push(input.completion);
+                    return { id: input.id, status: input.completion.status };
+                }
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            retryDelayMs: 50,
+            maxAttempts: 5,
+            dispatch: async () => {
+                throw Object.assign(new Error("recovery unavailable"), {
+                    code: "RECOVERY_UNAVAILABLE",
+                    retryable: true,
+                    terminalOnAttemptLimit: false
+                });
+            },
+            now: () => 10
+        });
+
+        expect(await worker.runOnce()).toEqual({
+            claimed: 1,
+            delivered: 0,
+            retried: 1,
+            failed: 0
+        });
+        expect(completions).toEqual([
+            { status: "retry", availableAt: 60, errorCode: "RECOVERY_UNAVAILABLE" }
+        ]);
+    });
+
     it("does not retry a deterministic dispatch failure", async () => {
         const completions: { status: string }[] = [];
         const worker = createOutboxWorker({

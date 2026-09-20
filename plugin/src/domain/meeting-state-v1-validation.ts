@@ -1055,7 +1055,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = publications[i];
         const path = `$.publications[${i}]`;
         publicationIds.add(r.id as string);
-        if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
+        const round = roundById.get(r.roundId as string);
+        if (!round || round.status !== "published" || round.publicationId !== r.id)
+            return fail(`${path}.roundId`);
         for (const [key, ids] of [
             ["finalVersionIds", versionIds],
             ["finalReviewIds", reviewIds]
@@ -1160,6 +1162,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     }
     const acceptedByRevision = new Set<string>();
     const decidedCandidates = new Set<string>();
+    const replacementCounts = new Map<string, number>();
     for (let i = 0; i < decisions.length; i++) {
         const d = decisions[i];
         if (decidedCandidates.has(d.candidateId)) return fail(`$.decisions[${i}].candidateId`);
@@ -1173,10 +1176,27 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
             if (previous < 0 || previous >= i || decisions[previous].status !== "superseded")
                 return fail(`$.decisions[${i}].replacesDecisionId`);
-            if (decisions[previous].proposalRevisionId !== d.proposalRevisionId)
+            const previousRevision = proposals.find(
+                (revision) => revision.id === decisions[previous].proposalRevisionId
+            );
+            const replacementRevision = proposals.find(
+                (revision) => revision.id === d.proposalRevisionId
+            );
+            if (
+                !previousRevision ||
+                !replacementRevision ||
+                previousRevision.proposalId !== replacementRevision.proposalId
+            )
                 return fail(`$.decisions[${i}].replacesDecisionId`);
+            replacementCounts.set(
+                d.replacesDecisionId,
+                (replacementCounts.get(d.replacesDecisionId) ?? 0) + 1
+            );
         }
     }
+    for (let i = 0; i < decisions.length; i++)
+        if (decisions[i].status === "superseded" && replacementCounts.get(decisions[i].id) !== 1)
+            return fail(`$.decisions[${i}].status`);
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as RecordValue;
         const path = `$.rounds[${i}]`;

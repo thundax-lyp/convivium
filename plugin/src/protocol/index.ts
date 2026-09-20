@@ -96,9 +96,6 @@ export {
     RoleErrorCodeV1Schema,
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema,
-    ManagerCatalogViewV1Schema,
-    IdentityRecommendationViewV1Schema,
-    IdentityViewV1Schema,
     type MeetingRoleV1,
     type RoleErrorCodeV1
 } from "./meeting-identity-v1.js";

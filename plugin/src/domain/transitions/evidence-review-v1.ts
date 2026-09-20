@@ -195,7 +195,8 @@ export function recordReviewDeliveryV1(
             contributions:
                 input.status === "sent"
                     ? state.contributions.map((contribution) =>
-                          contribution.packageId === packageValue.id
+                          contribution.packageId === packageValue.id &&
+                          contribution.status === "under_review"
                               ? { ...contribution, status: "awaiting_response" as const }
                               : contribution
                       )

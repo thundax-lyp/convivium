@@ -162,9 +162,22 @@ describe("private mail transitions", () => {
         if (sent.kind !== "accepted") return;
         const withLaterPublication = {
             ...sent.state,
+            rounds: [
+                ...sent.state.rounds,
+                {
+                    ...sent.state.rounds[0],
+                    id: "round-2",
+                    publicationId: "pub-2"
+                }
+            ],
             publications: [
                 ...sent.state.publications,
-                { ...sent.state.publications[0], id: "pub-2", seq: 2 }
+                {
+                    ...sent.state.publications[0],
+                    id: "pub-2",
+                    roundId: "round-2",
+                    seq: 2
+                }
             ]
         } as MeetingState;
         const result = startPrivateMailV1(withLaterPublication, {
@@ -609,6 +622,16 @@ describe("private mail transitions", () => {
             });
         const malformed = expirePrivateMailV1(processing, undefined as never);
         rejected(malformed, "INVALID_ARGUMENT");
+        for (const reason of [undefined, 1]) {
+            const invalidReason = expirePrivateMailV1(processing, {
+                mailId: "mail-1",
+                actorKind: "deadline_handler",
+                reason,
+                now: 110
+            } as never);
+            rejected(invalidReason, "INVALID_ARGUMENT");
+            expect(invalidReason.state).toBe(processing);
+        }
     });
 
     it("releases the recipient gate after cancellation so the next mail can start", () => {

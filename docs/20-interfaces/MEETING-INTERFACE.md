@@ -336,8 +336,10 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface ContinuationFormalMessageContentView { kind: string; body: string; createdAt: EpochMs }
     interface ContinuationAcceptedDecisionContentView { outcome: "adopt" | "reject" | "defer"; rationale: string; createdAt: EpochMs }
     interface ContinuationCompletionFactContentView { statement: string; rationale: string; createdAt: EpochMs }
+    interface ContinuationReviewDimensionView { score: 0 | 1 | 2 | 3 | "unable_to_assess"; scope: string; reason: string }
+    interface ContinuationEvidenceReviewContentView { scope: string; dimensions: { source: ContinuationReviewDimensionView; credibility: ContinuationReviewDimensionView; completeness: ContinuationReviewDimensionView; support: ContinuationReviewDimensionView }; createdAt: EpochMs }
     type ContinuationMaterialView =
-      | { kind: "published_evidence"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; evidence: { version: EvidenceVersionView; review: Omit<EvidenceReviewView, "reviewerId"> } }
+      | { kind: "published_evidence"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; evidence: { version: EvidenceVersionView; review: ContinuationEvidenceReviewContentView } }
       | { kind: "formal_message"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; message: ContinuationFormalMessageContentView }
       | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: ContinuationAcceptedDecisionContentView }
       | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: ContinuationCompletionFactContentView };
@@ -350,7 +352,7 @@ evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Public
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 
-ArchiveView 仅从完整 ArchivePackageV1 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message、accepted_decision 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|proposalRevisionId|evidenceIds|positionIds|outputId|criterionId|decisionIds` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和去除旧 reviewer identity 的最终 Review。
+ArchiveView 仅从完整 ArchivePackageV1 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message、accepted_decision 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|proposalRevisionId|evidenceIds|positionIds|outputId|criterionId|decisionIds` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和最终 Review 的内容 DTO，不保留旧 `reviewerId|id|versionId|baselinePublicationIds|baselineEvidenceIds` 引用。
 
 ```ts
 interface MarkdownProjectionInputV1 {

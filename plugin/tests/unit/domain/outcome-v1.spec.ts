@@ -14,6 +14,7 @@ import {
     recalculateMeetingCompletionV1
 } from "@/domain/transitions/outcome-v1.js";
 import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
 
 function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
     const state = {
@@ -80,8 +81,9 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 agendaId: "a",
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
-                status: "open",
-                contributionIds: ["c"]
+                status: "published",
+                contributionIds: ["c"],
+                publicationId: "pub"
             }
         ],
         opportunityRequests: [],
@@ -1557,6 +1559,43 @@ describe("decision gates", () => {
         expect(result.state.updatedAt).toBe(2);
         expect(state).toEqual(before);
     });
+    it("supersedes with a replacement candidate from the current revision of the same proposal", () => {
+        const state = decidedState();
+        state.proposals.push({
+            ...state.proposals[0],
+            id: "rev-2",
+            ordinal: 2,
+            supersedesRevisionId: "rev"
+        });
+        state.positions.push({ ...state.positions[0], id: "pos-2", proposalRevisionId: "rev-2" });
+        state.decisionCandidates[1] = {
+            ...state.decisionCandidates[1],
+            proposalRevisionId: "rev-2",
+            positionIds: ["pos-2"]
+        };
+
+        const result = changeDecisionV1(state, {
+            decisionId: "old-decision",
+            status: "superseded",
+            replacementCandidateId: "replacement",
+            replacementDecisionId: "new-decision",
+            rationale: "replace",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "captain" },
+            now: 2
+        });
+
+        expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
+    });
+    it("rejects a superseded decision without an atomic replacement", () => {
+        const state = decidedState();
+        state.decisions[0] = { ...state.decisions[0], status: "superseded" };
+
+        expect(validateMeetingStateV1(state)).toMatchObject({
+            kind: "invalid",
+            path: "$.decisions[0].status"
+        });
+    });
     it.each(["contributor"] as const)("rejects %s decision actors", (id) => {
         const state = decisionReadyState();
         const decideResult = decideV1(state, {
@@ -1702,7 +1741,10 @@ describe("decision gates", () => {
             });
         }
     );
-    it.each(["revoked", "superseded"] as const)("change rejects old %s", (status) => {
+    it.each([
+        ["revoked", "PRECONDITION_FAILED"],
+        ["superseded", "INVALID_ARGUMENT"]
+    ] as const)("change rejects old %s", (status, code) => {
         const state = decidedState();
         state.decisions[0].status = status;
         expect(
@@ -1715,7 +1757,7 @@ describe("decision gates", () => {
                 now: 2
             })
         ).toMatchObject({
-            error: { code: "PRECONDITION_FAILED" },
+            error: { code },
             state,
             relatedIds: [],
             effectRequests: []
@@ -3054,6 +3096,31 @@ describe("Recompute/Convergence", () => {
             }
         ];
         state.issues = [blockingIssue()];
+        state.rounds.push({
+            id: "pending-round",
+            agendaId: "a",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "open",
+            contributionIds: []
+        });
+        state.pendingHandRaises = [
+            {
+                roundId: "pending-round",
+                contributorId: "contributor",
+                purpose: "contribute",
+                raisedAt: 0
+            }
+        ];
+        state.opportunityRequests = [
+            {
+                id: "opportunity",
+                agendaId: "a",
+                contributorId: "contributor",
+                purpose: "contribute",
+                requestedAt: 0
+            }
+        ];
         const result = disposeRiskV1(state, {
             dispositionId: "risk",
             issueId: "issue",
@@ -3082,6 +3149,8 @@ describe("Recompute/Convergence", () => {
         });
         expect(result.state.termination).toBeUndefined();
         expect(result.state.archive).toBeUndefined();
+        expect(result.state.pendingHandRaises).toEqual([]);
+        expect(result.state.opportunityRequests).toEqual([]);
     });
     it("rejecting the blocking risk preserves running satisfied state", () => {
         const state = completionReadyState();

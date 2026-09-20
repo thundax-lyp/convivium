@@ -21,6 +21,7 @@ export interface MeetingIdentityEffectHandlerDependenciesV1 {
         meetingId: string;
         signal: AbortSignal;
     }) => Promise<IdentityProvisionResultV1>;
+    readonly cleanupProvisioned: (recommendationId: string) => Promise<void>;
 }
 
 export function createMeetingIdentityEffectHandlerV1(
@@ -46,20 +47,48 @@ export function createMeetingIdentityEffectHandlerV1(
                 recommendation.status !== "provisioning"
             )
                 throw new Error("INVALID_STATE");
+            if (snapshot.state.lifecycle.status !== "running")
+                throw Object.assign(new Error("INVALID_STATE"), {
+                    code: "INVALID_STATE",
+                    retryable: true
+                });
             const result = await dependencies.provision({
                 recommendation,
                 meetingId: snapshot.meetingId,
                 signal
             });
+            if (result.kind === "rejected" && result.failureCode === "RECOVERY_UNAVAILABLE")
+                throw Object.assign(new Error(result.failureCode), {
+                    code: result.failureCode,
+                    retryable: true,
+                    terminalOnAttemptLimit: false
+                });
             const context: IdentityAdmissionResultContextV1 =
                 result.kind === "admitted"
                     ? result.result
                     : { kind: "rejected", failureCode: result.failureCode };
+            const latest = await dependencies.repository.read();
+            const latestRecommendation = latest.state.identityRecommendations.find(
+                (item) => item.id === recommendationId
+            );
+            if (
+                latest.state.lifecycle.status !== "running" ||
+                latestRecommendation?.decision !== "admit" ||
+                latestRecommendation.status !== "provisioning"
+            ) {
+                if (result.kind === "admitted")
+                    await dependencies.cleanupProvisioned(recommendationId);
+                if (latestRecommendation?.status !== "provisioning") return;
+                throw Object.assign(new Error("INVALID_STATE"), {
+                    code: "INVALID_STATE",
+                    retryable: true
+                });
+            }
             const committed = await dependencies.application.execute(
                 {
                     protocolVersion: 1,
-                    meetingId: snapshot.meetingId,
-                    expectedMeetingVersion: snapshot.version,
+                    meetingId: latest.meetingId,
+                    expectedMeetingVersion: latest.version,
                     requestId: `identity-admission:${outboxItem.id}`,
                     action: { kind: "record_identity_admission_result", recommendationId }
                 },
@@ -69,8 +98,21 @@ export function createMeetingIdentityEffectHandlerV1(
                 },
                 signal
             );
-            if (committed.kind !== "accepted" && committed.error.code !== "NOT_FOUND")
-                throw new Error(committed.error.code);
+            if (committed.kind === "accepted") return;
+            const afterCommit = await dependencies.repository.read();
+            const afterRecommendation = afterCommit.state.identityRecommendations.find(
+                (item) => item.id === recommendationId
+            );
+            if (
+                result.kind === "admitted" &&
+                (afterCommit.state.lifecycle.status !== "running" ||
+                    afterRecommendation?.decision !== "admit" ||
+                    afterRecommendation.status !== "provisioning")
+            ) {
+                await dependencies.cleanupProvisioned(recommendationId);
+                return;
+            }
+            if (committed.error.code !== "NOT_FOUND") throw new Error(committed.error.code);
         }
     };
 }

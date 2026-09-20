@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { MeetingCommandV1Schema } from "@/protocol/meeting-command-v1.js";
 import {
+    IdentityViewV1Schema,
     IdentityRecommendationViewV1Schema,
     RecommendIdentityActionV1Schema,
     RoleErrorCodeV1Schema
-} from "@/protocol/meeting-identity-v1.js";
+} from "@/protocol/index.js";
 
 const action = {
     kind: "recommend_identity" as const,
@@ -70,5 +71,19 @@ describe("meeting identity protocol", () => {
         });
         expect(result).not.toHaveProperty("actorId");
         expect(result).not.toHaveProperty("sessionId");
+    });
+
+    it("exports the caller-filtered identity DTO schema from the protocol entrypoint", () => {
+        expect(
+            IdentityViewV1Schema.parse({
+                id: "identity-1",
+                displayName: "Architect",
+                roles: ["contributor"]
+            })
+        ).toEqual({
+            id: "identity-1",
+            displayName: "Architect",
+            roles: ["contributor"]
+        });
     });
 });

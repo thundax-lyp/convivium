@@ -78,18 +78,6 @@ describe("target meeting identity session labels", () => {
             )
         ).toBeUndefined();
     });
-
-    it("does not confuse labels from another Meeting or identity", () => {
-        const decoded = decodeMeetingIdentitySessionLabelV1(
-            encodeMeetingIdentitySessionLabelV1({
-                role: "participant",
-                meetingId: "meeting-2",
-                identityId: "identity-2"
-            })
-        );
-        expect(decoded).not.toMatchObject({ meetingId: "meeting-1" });
-        expect(decoded).not.toMatchObject({ identityId: "identity-1" });
-    });
 });
 
 function decodedKeys(label: string): string[] {

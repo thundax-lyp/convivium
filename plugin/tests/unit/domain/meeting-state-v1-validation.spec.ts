@@ -41,6 +41,70 @@ describe("canonical MeetingState validation", () => {
         ).toMatchObject({ kind: "invalid" });
     });
 
+    it("rejects a publication whose round is not published and bound back", () => {
+        const state = makeRunningMeetingStateV1();
+        const round = {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "open" as const,
+            contributionIds: []
+        };
+        const publication = {
+            id: "publication-1",
+            roundId: round.id,
+            seq: 1,
+            finalVersionIds: [],
+            finalReviewIds: [],
+            publishedAt: 1,
+            exitReasons: []
+        };
+
+        expect(
+            validateMeetingStateV1({ ...state, rounds: [round], publications: [publication] })
+        ).toMatchObject({
+            kind: "invalid",
+            path: "$.publications[0].roundId"
+        });
+    });
+
+    it("rejects an extra publication not selected by its published round", () => {
+        const state = makeRunningMeetingStateV1();
+        const selectedPublication = {
+            id: "publication-1",
+            roundId: "round-1",
+            seq: 1,
+            finalVersionIds: [],
+            finalReviewIds: [],
+            publishedAt: 1,
+            exitReasons: []
+        };
+        const round = {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "published" as const,
+            contributionIds: [],
+            publicationId: selectedPublication.id
+        };
+
+        expect(
+            validateMeetingStateV1({
+                ...state,
+                rounds: [round],
+                publications: [
+                    selectedPublication,
+                    { ...selectedPublication, id: "publication-2", seq: 2 }
+                ]
+            })
+        ).toMatchObject({
+            kind: "invalid",
+            path: "$.publications[1].roundId"
+        });
+    });
+
     it("accepts a complete canonical archive package by value", () => {
         const state = makeRunningMeetingStateV1();
         const termination = {

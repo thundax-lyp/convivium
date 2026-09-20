@@ -32,6 +32,7 @@ import type {
 } from "@/repository/types.js";
 import type { MeetingRepositoryPort as MeetingRepositoryType } from "@/repository/meeting-repository-port.js";
 import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
+import { RepositoryError } from "@/repository/errors.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
 import type { MeetingCommandResultV1 } from "@/protocol/index.js";
 import {
@@ -587,7 +588,26 @@ export function createMeetingCreationCoordinatorV1(
                         message: "Trusted Captain parent is required"
                     }
                 };
+            const authorization = {
+                callerBinding: `dsh_tool:${context.caller.principalId}`,
+                capabilityId: context.caller.principalId
+            };
+            const requestHash = JSON.stringify(command.action);
             try {
+                try {
+                    const existing = await dependencies.registry.openMeeting({ meetingId });
+                    const replay = await existing.replayReceipt({
+                        requestId: command.requestId,
+                        commandKind: command.action.kind,
+                        authorization,
+                        requestHash
+                    });
+                    if (replay !== undefined)
+                        return replay.result as unknown as MeetingCommandResultV1;
+                } catch (error) {
+                    if (!(error instanceof RepositoryError) || error.code !== "MEETING_NOT_FOUND")
+                        throw error;
+                }
                 assertInitialTargetIdentities(command, dependencies.definitions);
                 const roles = await resolveMeetingRoles(
                     {
@@ -645,11 +665,8 @@ export function createMeetingCreationCoordinatorV1(
                 };
                 const createInput: CreateMeetingInput<MeetingState> = {
                     requestId: command.requestId,
-                    authorization: {
-                        callerBinding: `dsh_tool:${context.caller.principalId}`,
-                        capabilityId: context.caller.principalId
-                    },
-                    requestHash: JSON.stringify(command.action),
+                    authorization,
+                    requestHash,
                     initialState: state,
                     createResult: result,
                     outbox: transition.effectRequests.map((effect, index) => ({
@@ -786,12 +803,21 @@ export function createMeetingCreationCoordinatorV1(
     };
     return {
         create(command, context, meetingId, now, signal) {
-            const running = inFlight.get(meetingId);
+            const inFlightKey = sha256Hex(
+                encodeCanonicalJson([
+                    meetingId,
+                    context.caller.channel,
+                    context.caller.principalId,
+                    context.caller.sessionBindingId ?? "",
+                    JSON.stringify(command.action)
+                ])
+            );
+            const running = inFlight.get(inFlightKey);
             if (running) return running;
             const attempt = coordinator.create(command, context, meetingId, now, signal);
-            inFlight.set(meetingId, attempt);
+            inFlight.set(inFlightKey, attempt);
             const release = () => {
-                if (inFlight.get(meetingId) === attempt) inFlight.delete(meetingId);
+                if (inFlight.get(inFlightKey) === attempt) inFlight.delete(inFlightKey);
             };
             void attempt.then(release, release);
             return attempt;

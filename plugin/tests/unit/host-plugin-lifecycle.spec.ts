@@ -8,6 +8,7 @@ import { apply, assertContinuableProvider, inject } from "@/index.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
 import {
     activateTargetMeetingApplicationV1,
+    getLocalMeetingWebRuntimeV1,
     getMeetingCommandApplicationV1
 } from "@/runtime/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
@@ -105,9 +106,33 @@ describe("target Meeting lifecycle", () => {
             interrupt: vi.fn(),
             drainContinuableChildren: vi.fn()
         };
+        const readSnapshot = vi.fn(async () => ({
+            kind: "available" as const,
+            snapshot: {
+                protocolVersion: 1 as const,
+                meetingId: "placeholder",
+                catalogId: "catalog-1",
+                catalogVersion: "1",
+                generatedAt: 1,
+                candidates: [
+                    {
+                        candidateId: "candidate-1",
+                        definition: { id: "domain_architect", version: "1" },
+                        definitionHash: "a".repeat(64),
+                        displayName: "Architect",
+                        availability: "available" as const,
+                        meetingRoles: ["contributor" as const],
+                        responsibilitySummary: "Architecture evidence",
+                        capabilitySummary: [],
+                        suitability: []
+                    }
+                ]
+            }
+        }));
         const owner = {
             storageDomain: createFakeDomainFacility(),
-            subagents
+            subagents,
+            get: (key: string) => (key === "convivium.agentCatalog" ? { readSnapshot } : undefined)
         };
         const dispose = await activateTargetMeetingApplicationV1(owner as never, config);
         const application = getMeetingCommandApplicationV1(owner);
@@ -190,12 +215,79 @@ describe("target Meeting lifecycle", () => {
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
         expect(replay).toEqual(result);
         expect(starts).toHaveLength(7);
+        const runtime = getLocalMeetingWebRuntimeV1(owner);
+        const managerStart = starts.find((item) =>
+            String((item as { label?: string }).label).includes(":manager:")
+        ) as { childId: string };
+        const manager = await runtime.findBySessionId(
+            managerStart.childId,
+            new AbortController().signal
+        );
+        expect(manager?.ownership.id).toBeDefined();
+        readSnapshot.mockImplementationOnce(async () => ({
+            kind: "available" as const,
+            snapshot: {
+                protocolVersion: 1 as const,
+                meetingId: result.meetingId,
+                catalogId: "catalog-1",
+                catalogVersion: "1",
+                generatedAt: 1,
+                candidates: [
+                    {
+                        candidateId: "candidate-1",
+                        definition: { id: "domain_architect", version: "1" },
+                        definitionHash: "a".repeat(64),
+                        displayName: "Architect",
+                        availability: "available" as const,
+                        meetingRoles: ["contributor" as const],
+                        responsibilitySummary: "Architecture evidence",
+                        capabilitySummary: [],
+                        suitability: []
+                    }
+                ]
+            }
+        }));
         await expect(
             application.execute(
                 {
                     protocolVersion: 1,
                     meetingId: result.meetingId,
                     expectedMeetingVersion: 1,
+                    requestId: "recommend-identity-1",
+                    action: {
+                        kind: "recommend_identity",
+                        candidateId: "candidate-1",
+                        definitionId: "domain_architect",
+                        definitionVersion: "1",
+                        catalogId: "catalog-1",
+                        catalogVersion: "1",
+                        agendaId: "agenda-1",
+                        decision: "admit",
+                        rationale: "Need architecture evidence",
+                        expectedContribution: "Architecture analysis",
+                        evidenceGap: "Architecture evidence is missing"
+                    }
+                },
+                {
+                    caller: {
+                        channel: "dsh_tool",
+                        principalId: manager!.ownership.identityId!,
+                        sessionBindingId: manager!.ownership.id
+                    }
+                },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({
+            kind: "accepted",
+            identityDecision: { decision: "admit", status: "provisioning" }
+        });
+        expect(readSnapshot).toHaveBeenCalledOnce();
+        await expect(
+            application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: result.meetingId,
+                    expectedMeetingVersion: 2,
                     requestId: "runtime-review-delivery-1",
                     action: {
                         kind: "record_review_delivery",
@@ -217,7 +309,7 @@ describe("target Meeting lifecycle", () => {
                 {
                     protocolVersion: 1,
                     meetingId: result.meetingId,
-                    expectedMeetingVersion: 1,
+                    expectedMeetingVersion: 2,
                     requestId: "deadline-close-1",
                     action: {
                         kind: "close_contribution",
@@ -306,7 +398,6 @@ describe("Convivium local Meeting route lifecycle", () => {
                             "subagents",
                             "systemPrompt",
                             "tools",
-                            "webServer",
                             "storageDomain"
                         ]
                     });
@@ -342,14 +433,14 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(8);
-        expect(fixture.get).not.toHaveBeenCalled();
+        expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(0);
+        expect(fixture.toolDisposers).toHaveLength(8);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
@@ -375,7 +466,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(0);
+        expect(fixture.toolDisposers).toHaveLength(8);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
@@ -446,7 +537,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(0)
+                    ).toBe(8)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -459,7 +550,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(0);
+                ).toBe(8);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {

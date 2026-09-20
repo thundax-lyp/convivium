@@ -376,14 +376,28 @@ export const ArchiveMaterialViewV1Schema = z.object({
     title: text,
     sourceObjectIds: z.array(id)
 });
-const reviewWithoutReviewer = z.object(reviewFields);
+const continuationReviewDimension = z.object({
+    score: dimension.shape.score,
+    reason: text,
+    scope: text
+});
+const continuationReview = z.object({
+    scope: text,
+    dimensions: z.object({
+        source: continuationReviewDimension,
+        credibility: continuationReviewDimension,
+        completeness: continuationReviewDimension,
+        support: continuationReviewDimension
+    }),
+    createdAt: epoch
+});
 export const ContinuationMaterialViewV1Schema = z.discriminatedUnion("kind", [
     z.object({
         kind: z.literal("published_evidence"),
         sourceArchiveId: id,
         sourceMaterialId: id,
         title: text,
-        evidence: z.object({ version: EvidenceVersionViewV1Schema, review: reviewWithoutReviewer })
+        evidence: z.object({ version: EvidenceVersionViewV1Schema, review: continuationReview })
     }),
     z.object({
         kind: z.literal("formal_message"),
@@ -560,6 +574,8 @@ export const AllowedControlV1Schema = z.enum([
     "submit_review_batch",
     "record_review_delivery",
     "publish_round",
+    "pause_meeting",
+    "resume_meeting",
     "end_meeting",
     "start_archive",
     "record_archive_session_result",

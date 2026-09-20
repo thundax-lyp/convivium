@@ -12,6 +12,7 @@ import {
     startMeetingArchiveV1,
     submitEvidenceV1,
     submitReviewBatchV1,
+    transitionMeetingStateV1,
     type MeetingState,
     type MeetingTransitionResultV1,
     type IdentityAdmissionResultContextV1
@@ -132,7 +133,8 @@ function sameCaller(left: CallerBindingV1, right: CallerBindingV1): boolean {
 }
 
 function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerScopeV1): boolean {
-    if (action === "end_meeting") return scope.role === "local";
+    if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
+        return scope.role === "local";
     if (
         action === "record_review_delivery" ||
         action === "start_archive" ||
@@ -313,6 +315,7 @@ export function createMeetingCommandApplicationV1(
                 const repository = await deps.registry.openMeeting({
                     meetingId: command.meetingId
                 });
+                let catalogDefinitionHash: string | undefined;
                 if (command.action.kind === "recommend_identity") {
                     const replay = await repository.replayReceipt({
                         requestId: command.requestId,
@@ -347,6 +350,7 @@ export function createMeetingCommandApplicationV1(
                         catalog.snapshot.catalogVersion !== identityAction.catalogVersion
                     )
                         return rejected("PRECONDITION_FAILED", "Catalog candidate does not match");
+                    catalogDefinitionHash = candidate.definitionHash;
                 }
                 const committedFacts =
                     command.action.kind === "start_archive"
@@ -492,6 +496,25 @@ export function createMeetingCommandApplicationV1(
                                 });
                                 break;
                             }
+                            case "pause_meeting":
+                            case "resume_meeting": {
+                                const result = transitionMeetingStateV1(
+                                    snapshot.state,
+                                    action,
+                                    { kind: "local_controller", id: actorId },
+                                    now,
+                                    factId
+                                );
+                                if (result.kind === "rejected")
+                                    throw new TransitionRejected(result.code, result.code);
+                                transition = {
+                                    kind: "accepted",
+                                    state: result.state,
+                                    relatedIds: result.facts[0].relatedIds,
+                                    effectRequests: []
+                                };
+                                break;
+                            }
                             case "end_meeting":
                                 transition = endMeetingV1(snapshot.state, {
                                     ...action,
@@ -559,7 +582,8 @@ export function createMeetingCommandApplicationV1(
                                         ...(action.decision === "admit"
                                             ? {
                                                   identityId: generated("meeting_identity"),
-                                                  childSessionId: generated("child_session")
+                                                  childSessionId: generated("child_session"),
+                                                  definitionHash: catalogDefinitionHash
                                               }
                                             : {})
                                     },

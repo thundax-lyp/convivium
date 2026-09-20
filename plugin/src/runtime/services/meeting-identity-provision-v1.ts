@@ -1,7 +1,13 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
+import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
+import {
+    resolveDynamicMeetingDefinitionV1,
+    resolveMeetingRoles,
+    RoleCompositionError
+} from "@/role-composition/resolve.js";
+import { preflightDynamicMeetingIdentityV1 } from "@/role-composition/dsh-capabilities.js";
 import { startMeetingIdentitySessionV1 } from "@/dsh/index.js";
 import type { SessionOwnership } from "@/repository/types.js";
 
@@ -26,6 +32,7 @@ export type IdentityProvisionResultV1 =
 
 export interface MeetingIdentityProvisionDependenciesV1 {
     readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly parent: Agent;
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
@@ -63,17 +70,53 @@ export async function provisionMeetingIdentityV1(
         !recommendation.childSessionId
     )
         return { kind: "rejected", failureCode: "INVALID_STATE" };
+    const identityId = recommendation.identityId;
     const resolved = resolveDynamicMeetingDefinitionV1(
         dependencies.definitions,
         { id: recommendation.definitionId, version: recommendation.definitionVersion },
         recommendation.definitionHash
     );
     if (resolved.kind !== "resolved") return { kind: "rejected", failureCode: resolved.code };
-    const existing = await dependencies.owner.readOwnership(recommendation.id);
-    const owner: SessionOwnership = existing ?? {
+    const prepareComposition = async () => {
+        const preflight = await preflightDynamicMeetingIdentityV1(
+            dependencies.parent,
+            recommendation,
+            resolved.definition,
+            resolved.binding,
+            input.signal
+        );
+        if (preflight.kind !== "ready")
+            return { kind: "rejected" as const, failureCode: preflight.error.code };
+        try {
+            const roles = await resolveMeetingRoles(
+                {
+                    definitions: dependencies.definitions,
+                    agentModelOverrides: dependencies.agentModelOverrides,
+                    participants: [
+                        {
+                            participantKey: identityId,
+                            agentDefinitionId: recommendation.definitionId
+                        }
+                    ]
+                },
+                async () => undefined
+            );
+            const composition = roles.participants[identityId];
+            if (!composition) throw new RoleCompositionError();
+            return { kind: "ready" as const, composition };
+        } catch {
+            return { kind: "rejected" as const, failureCode: "CAPABILITY_MISSING" };
+        }
+    };
+    const expectedOwner: SessionOwnership = {
         id: `session-ownership:${recommendation.id}`,
         meetingId: input.meetingId,
         identityId: recommendation.identityId,
+        agentDefinition: {
+            agentDefinitionId: recommendation.definitionId,
+            definitionVersion: recommendation.definitionVersion,
+            definitionHash: recommendation.definitionHash
+        },
         sessionId: recommendation.childSessionId,
         parentSessionId: String(dependencies.parent.id),
         sessionLabel: `convivium:meeting-identity:participant:${input.meetingId}:${recommendation.identityId}`,
@@ -84,15 +127,46 @@ export async function provisionMeetingIdentityV1(
         createdAt: dependencies.now(),
         updatedAt: dependencies.now()
     };
+    const existing = await dependencies.owner.readOwnership(recommendation.id);
+    if (
+        existing !== undefined &&
+        (existing.id !== expectedOwner.id ||
+            existing.meetingId !== expectedOwner.meetingId ||
+            existing.identityId !== expectedOwner.identityId ||
+            existing.sessionId !== expectedOwner.sessionId ||
+            existing.parentSessionId !== expectedOwner.parentSessionId ||
+            existing.sessionLabel !== expectedOwner.sessionLabel ||
+            existing.provider !== expectedOwner.provider ||
+            existing.agentDefinition?.agentDefinitionId !== recommendation.definitionId ||
+            existing.agentDefinition?.definitionVersion !== recommendation.definitionVersion ||
+            existing.agentDefinition?.definitionHash !== recommendation.definitionHash)
+    )
+        return { kind: "rejected", failureCode: "OWNERSHIP_CONFLICT" };
+    let composition;
+    if (!existing) {
+        const prepared = await prepareComposition();
+        if (prepared.kind === "rejected") return prepared;
+        composition = prepared.composition;
+    }
+    let owner = existing ?? expectedOwner;
     const stored = existing
         ? { kind: "same" as const, owner: existing }
         : await dependencies.owner.putProvisioning(owner);
     if (stored.kind === "conflict") return { kind: "rejected", failureCode: "OWNERSHIP_CONFLICT" };
     const child = await dependencies.owner.inspectOwnedChild(stored.owner);
     if (child === "unavailable") return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    if (child === "absent" && composition === undefined) {
+        const prepared = await prepareComposition();
+        if (prepared.kind === "rejected") {
+            await dependencies.owner.revokeAndDrainOwned(stored.owner);
+            return prepared;
+        }
+        composition = prepared.composition;
+    }
     try {
         if (child === "absent") {
             const started = await startMeetingIdentitySessionV1({
+                composition,
                 runtime: dependencies.runtime,
                 provider: dependencies.provider,
                 parent: dependencies.parent,
@@ -104,8 +178,9 @@ export async function provisionMeetingIdentityV1(
             });
             if (started.childId !== recommendation.childSessionId)
                 throw new Error("OWNERSHIP_CONFLICT");
+            owner = { ...stored.owner, initialMessageId: String(started.messageId) };
         }
-        const active = await dependencies.owner.markActive(stored.owner);
+        const active = await dependencies.owner.markActive(owner);
         return {
             kind: "admitted",
             result: {
@@ -123,7 +198,7 @@ export async function provisionMeetingIdentityV1(
             }
         };
     } catch (error) {
-        if (!existing) await dependencies.owner.revokeAndDrainOwned(stored.owner);
+        if (child === "absent") await dependencies.owner.revokeAndDrainOwned(stored.owner);
         return {
             kind: "rejected",
             failureCode: error instanceof Error ? error.message : "ADMISSION_FAILED"

@@ -1,4 +1,10 @@
-import type { ArchivePackageV1, MeetingRole, MeetingState, OpaqueId } from "@/domain/index.js";
+import {
+    pendingDecisionCandidatesV1,
+    type ArchivePackageV1,
+    type MeetingRole,
+    type MeetingState,
+    type OpaqueId
+} from "@/domain/index.js";
 import type { MeetingAgentCatalogV1 } from "@/dsh/index.js";
 import {
     ArchiveViewV1Schema,
@@ -12,6 +18,7 @@ import type { MeetingSnapshot } from "@/repository/types.js";
 
 export type MeetingProjectionCallerV1 =
     | { readonly kind: "local" }
+    | { readonly kind: "captain" }
     | {
           readonly kind: "identity";
           readonly identityId: OpaqueId;
@@ -36,7 +43,7 @@ function visibleVersions(state: MeetingState, caller: MeetingProjectionCallerV1)
             );
             if (registered && !reviewed) visible.add(item.currentVersionId);
         }
-    } else if (!hasRole(caller, "manager")) {
+    } else if (caller.kind === "identity" && !hasRole(caller, "manager")) {
         state.evidencePackages
             .filter(({ authorId }) => authorId === caller.identityId)
             .forEach(({ currentVersionId }) => visible.add(currentVersionId));
@@ -69,7 +76,15 @@ function catalogView(catalog: MeetingAgentCatalogV1) {
 
 function allowedControls(state: MeetingState, caller: MeetingProjectionCallerV1) {
     if (!["running", "paused", "converging"].includes(state.lifecycle.status)) return [];
-    if (caller.kind === "local") return ["end_meeting"] as const;
+    if (caller.kind === "local") {
+        if (state.lifecycle.status === "running") return ["pause_meeting", "end_meeting"] as const;
+        if (
+            state.lifecycle.status === "paused" &&
+            state.lifecycle.reason !== "message budget exhausted"
+        )
+            return ["resume_meeting", "end_meeting"] as const;
+        return ["end_meeting"] as const;
+    }
     if (hasRole(caller, "manager"))
         return ["open_round", "dispose_hand_raise", "publish_round", "recommend_identity"] as const;
     if (hasRole(caller, "evidence_reviewer")) return ["submit_review_batch"] as const;
@@ -127,6 +142,7 @@ export function projectMeetingViewV1(
     );
     const deliveries = state.reviewDeliveries.filter((delivery) => {
         if (caller.kind === "local" || manager) return true;
+        if (caller.kind === "captain") return false;
         if (reviewer)
             return state.reviews.some(
                 ({ id, reviewerId }) => id === delivery.reviewId && reviewerId === caller.identityId
@@ -147,7 +163,7 @@ export function projectMeetingViewV1(
             displayName,
             roles: [...roles]
         })),
-        ...(caller.kind === "local" || manager
+        ...(caller.kind === "local" || caller.kind === "captain" || manager
             ? {
                   identityRecommendations: state.identityRecommendations.map((item) => ({
                       id: item.id,
@@ -160,13 +176,17 @@ export function projectMeetingViewV1(
                       ...(item.identityId ? { identityId: item.identityId } : {}),
                       ...(item.failureCode ? { failureCode: item.failureCode } : {})
                   })),
-                  ...(managerCatalog ? { managerCatalog: catalogView(managerCatalog) } : {})
+                  ...(manager && managerCatalog
+                      ? { managerCatalog: catalogView(managerCatalog) }
+                      : {})
               }
             : {}),
         agenda: copy(state.agenda),
         opportunityRequests: state.opportunityRequests.filter(
             ({ contributorId }) =>
-                caller.kind === "local" || manager || contributorId === caller.identityId
+                caller.kind === "local" ||
+                manager ||
+                (caller.kind === "identity" && contributorId === caller.identityId)
         ),
         rounds: state.rounds.map((round) => ({
             id: round.id,
@@ -181,7 +201,9 @@ export function projectMeetingViewV1(
             pendingHandRaises: state.pendingHandRaises.filter(
                 (hand) =>
                     hand.roundId === round.id &&
-                    (caller.kind === "local" || manager || hand.contributorId === caller.identityId)
+                    (caller.kind === "local" ||
+                        manager ||
+                        (caller.kind === "identity" && hand.contributorId === caller.identityId))
             ),
             contributions: state.contributions
                 .filter(({ roundId }) => roundId === round.id)
@@ -229,8 +251,8 @@ export function projectMeetingViewV1(
             decisions: copy(state.decisions),
             completionFacts: copy(state.completionFacts),
             riskDispositions: caller.kind === "local" ? copy(state.riskDispositions) : [],
-            ...(caller.kind === "local"
-                ? { pendingDecisionCandidates: copy(state.decisionCandidates) }
+            ...(caller.kind === "local" || caller.kind === "captain"
+                ? { pendingDecisionCandidates: copy(pendingDecisionCandidatesV1(state)) }
                 : {}),
             ...(state.termination ? { termination: copy(state.termination) } : {})
         },
@@ -241,8 +263,8 @@ export function projectMeetingViewV1(
             .filter(
                 ({ senderId, recipientId }) =>
                     caller.kind === "local" ||
-                    senderId === caller.identityId ||
-                    recipientId === caller.identityId
+                    (caller.kind === "identity" &&
+                        (senderId === caller.identityId || recipientId === caller.identityId))
             )
             .map(copy),
         controls: [...allowedControls(state, caller)]
