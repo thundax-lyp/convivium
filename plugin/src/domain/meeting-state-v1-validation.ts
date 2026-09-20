@@ -1055,7 +1055,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = publications[i];
         const path = `$.publications[${i}]`;
         publicationIds.add(r.id as string);
-        if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
+        const round = roundById.get(r.roundId as string);
+        if (!round || round.status !== "published" || round.publicationId !== r.id)
+            return fail(`${path}.roundId`);
         for (const [key, ids] of [
             ["finalVersionIds", versionIds],
             ["finalReviewIds", reviewIds]

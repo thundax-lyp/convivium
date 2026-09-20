@@ -6,6 +6,28 @@ import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js"
 
 function openState() {
     const state = makeRunningMeetingStateV1();
+    state.rounds = [
+        {
+            id: "round-0",
+            agendaId: "agenda-v1",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "published",
+            contributionIds: [],
+            publicationId: "publication-0"
+        }
+    ];
+    state.publications = [
+        {
+            id: "publication-0",
+            roundId: "round-0",
+            seq: 1,
+            finalVersionIds: [],
+            finalReviewIds: [],
+            publishedAt: 0,
+            exitReasons: []
+        }
+    ];
     const opened = openRoundV1(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
@@ -22,15 +44,7 @@ function stateWithMail(
     recipientId = "contributor-v1"
 ) {
     const state = openState();
-    const publication = {
-        id: "publication-v1",
-        roundId: "round-v1",
-        seq: 1,
-        finalVersionIds: [],
-        finalReviewIds: [],
-        publishedAt: 0,
-        exitReasons: []
-    };
+    const publication = state.publications[0];
     const mail = {
         id: "mail-v1",
         senderId: "manager-v1",
@@ -50,7 +64,6 @@ function stateWithMail(
     };
     const candidate = {
         ...state,
-        publications: [publication],
         privateMails: [mail]
     } as MeetingState;
     expect(validateMeetingStateV1(candidate)).toMatchObject({ kind: "valid" });
@@ -117,7 +130,9 @@ describe("hand raise transitions", () => {
             acceptedAt: 3,
             substantiveSupplementCount: 0
         });
-        expect(result.state.rounds[0].contributionIds).toEqual(["contribution-v1"]);
+        expect(result.state.rounds.find(({ id }) => id === "round-v1")?.contributionIds).toEqual([
+            "contribution-v1"
+        ]);
         expect(result.effectRequests).toEqual([
             {
                 kind: "agent_notice",

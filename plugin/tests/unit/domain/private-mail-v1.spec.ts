@@ -162,9 +162,22 @@ describe("private mail transitions", () => {
         if (sent.kind !== "accepted") return;
         const withLaterPublication = {
             ...sent.state,
+            rounds: [
+                ...sent.state.rounds,
+                {
+                    ...sent.state.rounds[0],
+                    id: "round-2",
+                    publicationId: "pub-2"
+                }
+            ],
             publications: [
                 ...sent.state.publications,
-                { ...sent.state.publications[0], id: "pub-2", seq: 2 }
+                {
+                    ...sent.state.publications[0],
+                    id: "pub-2",
+                    roundId: "round-2",
+                    seq: 2
+                }
             ]
         } as MeetingState;
         const result = startPrivateMailV1(withLaterPublication, {

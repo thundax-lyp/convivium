@@ -80,8 +80,9 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 agendaId: "a",
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
-                status: "open",
-                contributionIds: ["c"]
+                status: "published",
+                contributionIds: ["c"],
+                publicationId: "pub"
             }
         ],
         opportunityRequests: [],
