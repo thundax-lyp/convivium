@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round-v1.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 function openState() {
     const state = makeRunningMeetingStateV1();

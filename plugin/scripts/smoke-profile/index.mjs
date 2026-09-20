@@ -643,15 +643,24 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     return result;
 }
 
-async function assertPortReleased(port) {
-    const server = createServer();
-    await new Promise((resolveListen, rejectListen) => {
-        server.once("error", rejectListen);
-        server.listen({ host: HOST, port, exclusive: true }, resolveListen);
-    });
-    await new Promise((resolveClose, rejectClose) =>
-        server.close((error) => (error ? rejectClose(error) : resolveClose()))
-    );
+export async function assertPortReleased(port) {
+    const deadline = Date.now() + 5000;
+    while (true) {
+        const server = createServer();
+        try {
+            await new Promise((resolveListen, rejectListen) => {
+                server.once("error", rejectListen);
+                server.listen({ host: HOST, port, exclusive: true }, resolveListen);
+            });
+            await new Promise((resolveClose, rejectClose) =>
+                server.close((error) => (error ? rejectClose(error) : resolveClose()))
+            );
+            return;
+        } catch (error) {
+            if (error?.code !== "EADDRINUSE" || Date.now() >= deadline) throw error;
+            await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+        }
+    }
 }
 
 async function main() {

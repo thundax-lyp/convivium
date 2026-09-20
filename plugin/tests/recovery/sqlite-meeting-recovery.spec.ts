@@ -71,7 +71,7 @@ describe("target Meeting persistence on SQLite", () => {
         const repository = await first.registry.openMeeting({ meetingId: state.id, create });
         await repository.completeCreate(create);
         await repository.recordSessionOwnership({
-            id: "session-1",
+            id: "ownership-1",
             meetingId: state.id,
             identityId: "manager-v1",
             sessionId: "session-1",
@@ -102,7 +102,7 @@ describe("target Meeting persistence on SQLite", () => {
                     resultingState
                 }
             ],
-            archiveSessionResult: { sessionOwnershipId: "session-1", status: "closed" },
+            archiveSessionResult: { sessionOwnershipId: "ownership-1", status: "closed" },
             transition: () => ({
                 state: resultingState,
                 result: { accepted: true },
@@ -119,7 +119,8 @@ describe("target Meeting persistence on SQLite", () => {
         await expect(reopened.recover()).resolves.toMatchObject({
             sessionOwnership: [
                 {
-                    id: "session-1",
+                    id: "ownership-1",
+                    sessionId: "session-1",
                     identityId: "manager-v1",
                     lifecycleStatus: "closed",
                     capabilityStatus: "revoked"

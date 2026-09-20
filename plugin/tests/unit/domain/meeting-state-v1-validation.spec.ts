@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 describe("canonical MeetingState validation", () => {
     it("accepts the target fixture", () => {

@@ -5,9 +5,9 @@ import type {
     OpaqueId,
     RiskLevel,
     TargetDomainFactPayloadV1
-} from "./meeting-state-v1.js";
-export type { TargetDomainFactPayloadV1 } from "./meeting-state-v1.js";
-import { validateMeetingStateV1 } from "./meeting-state-v1-validation.js";
+} from "./meeting-state.js";
+export type { TargetDomainFactPayloadV1 } from "./meeting-state.js";
+import { validateMeetingStateV1 } from "./meeting-state-validation.js";
 import { z } from "zod";
 import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
 

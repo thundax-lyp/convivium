@@ -85,7 +85,7 @@ export {
     type IdentityAdmissionResultContextV1,
     type IdentityRecommendationDraftV1,
     type IdentityTransitionResultV1
-} from "./meeting-identity-v1.js";
+} from "./meeting-identity.js";
 
 export * from "./attendance-rejection.js";
 export {

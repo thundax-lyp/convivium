@@ -13,8 +13,8 @@ import {
     isObjectiveSatisfiedV1,
     recalculateMeetingCompletionV1
 } from "@/domain/transitions/outcome-v1.js";
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+import type { MeetingState } from "@/domain/meeting-state.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
     const state = {

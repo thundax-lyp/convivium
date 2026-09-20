@@ -1,67 +1,68 @@
 # Current Implementation Coverage
 
-## Read This First
+## Scope And Status
 
-本文件记录当前 checkout 已由源码与验证证明的实现范围。设计文档描述目标，不自动构成实现证据；下列 `Not Covered` 项不得从相邻能力推断为已完成。
+本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
 
-## Meeting Runtime Cutover
+当前基线为插件版本 `0.1.0-alpha.1`、2026-09-20 合并的 PR #89。矩阵中的版本证据只记录形成、接入 target runtime 或后续收口该能力的 PR 编号；当前仓库没有对应 release tag。状态含义：
 
-截至 2026-09-18，Meeting target activity graph 已切换到同一条 V1 数据与命令路径：
+- `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
+- `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
+- `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
-- `MeetingState`、target codec、`DomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox dispatch 与 archive lifecycle 使用同一 `meetingId` namespace。
-- 创建链 provision 七个固定 Meeting identities；Web Research Analyst 已从 Definition、Skill、协议角色枚举和初始阵容完全禁用；其余 Contributor 接收 `meeting_started`；唯一 evidence reviewer coordinator 使用受限 one-shot workers 评审，并通过 `submit_review_batch` 原子提交合法结果。
-- review request、review delivery、round publication、partial termination、archive materialization、Session closure 与同 SQLite storage 冷重启读取均已接入 target lifecycle。
-- DSH Storage Domain adapter、`DomainRepositoryRegistry`、`DomainMeetingRepository` 与唯一 `MeetingRepositoryPort` 保留；它们是 target 持久化核心，不属于已删除的 legacy facade。
-- `projection/status.ts` 与直接依赖的 `projection/contribution.ts` 成对保留，但不从 target projection public entrypoint 导出。
+## Feature Coverage
 
-## Removed Legacy Surface
+| 需求编号 | 功能 | 状态 | 版本证据 | 当前覆盖 | 缺口 |
+| --- | --- | --- | --- | --- | --- |
+| MO-FR-1 | DSH 插件加载与版本门禁 | 已实现 | PR #60、#88 | 插件注册、环境检查、Host integration 与 package contract 已进入 `verify`。 | 未覆盖跨 DSH 版本兼容。 |
+| MO-FR-2、MO-FR-14 | 会议创建与初始身份隔离 | 已实现 | PR #86、#89、#90 | `convivium_create_meeting` 使用 Captain parent 创建七个独立、meeting-owned continuable Sessions；Definition、Preset、Skill 在首个 child 创建前预检；真实 business-loop 已完成 archive 与 cold reopen。 | Browser 人工验收未执行。 |
+| MO-FR-3、MO-FR-4；ER-FR-1～7 | 证据轮次与公开 | 已实现 | PR #81、#87、#88 | `open_round`、举手处置、Evidence 提交、独立 review、批量 review 提交与 `publish_round` 已形成同一 target command/outbox 链；自动化 business-loop 覆盖轮末统一公开。 | Browser 人工验收未执行。 |
+| ER-FR-6、ER-FR-7 | Contribution 关闭与期限处理 | 部分实现 | PR #86、#89 | `close_contribution` 已有 protocol、Domain 与 command core。 | 无 Agent tool；无 target deadline scanner。 |
+| MO-FR-5；ER-FR-2、ER-FR-8 | 举手与异步 MeetingTask | 部分实现 | PR #11、#81、#88 | `raise_hand` 与 Manager 的 `dispose_hand_raise` 有生产 Agent tool；MeetingTask 状态、授权和命令逻辑存在。 | MeetingTask 没有 target Agent tool/dispatcher 的完整生产入口证据。 |
+| MO-FR-6 | 议题范围、Question、Issue 与 Agenda candidate | 部分实现 | PR #80、#89 | 状态模型、授权、原子 transition 与 caller-filtered projection 已有自动化测试。 | 结构化记录和处置未暴露为 target Agent tool；不能用自然语言或 local control 替代。 |
+| MO-FR-7 | Proposal、Position 与 Decision | 部分实现 | PR #55、#84、#89 | Domain/command contract、Captain/local 可见的 candidate/decision projection，以及 loopback decision controls 已实现并测试。 | Participant/Captain 的完整 target Agent command surface 尚未接入。 |
+| MO-FR-8 | Risk 与 Completion | 部分实现 | PR #55、#84、#89 | 风险处置、完成声明/事实和确定性完成重算已有 Domain/command tests；loopback risk control 已接入。 | Agent 侧结构化入口不完整；未取得端到端完成路径 smoke。 |
+| MO-FR-9、MO-FR-11 | 暂停、恢复与结束 | 部分实现 | PR #80、#88、#89 | loopback Remote 与面板使用同一 command path 支持 `pause_meeting`、`resume_meeting`、`end_meeting`。 | Captain parent 的自然语言 pause/resume 入口及正式 caller binding 尚未实现。 |
+| MO-FR-10 | 私信 | 部分实现 | PR #83 | Private mail 的状态、权限、deadline 和 serial gate 已进入协议与 command core。 | target dispatcher、deadline handler 与 Agent 生产入口没有完整覆盖证据。 |
+| MO-FR-11 | 状态读取与面板 | 已实现 | PR #87、#88、#89 | Meeting list/detail、schema-backed DTO、caller-filtered projection、刷新通知和面板只读展示共用已提交状态；Captain/local 专属数组不会暴露给普通 Participant。 | Browser 人工交互与断线恢复验收未执行。 |
+| MO-FR-12 | Agent 内部能力边界 | 已实现 | PR #87、#88、#90 | reviewer 对每个 immutable version 只派发一个 one-shot worker，只提交 completed 且可规范化的非空子集，失败项保持待审；caller authority 与公开提交边界已接入 target runtime，并由正式 Meeting facts 隔离内部执行过程。 | 不证明任意第三方 Tool/MCP 的生产可用性。 |
+| MO-FR-13 | 动态身份推荐与准入 | 已实现 | PR #82、#89 | `convivium_recommend_identity` 覆盖 Catalog snapshot 校验、Definition provenance、capability preflight/composition、durable ownership、既有 child recovery、跨 Agenda 复用及终态竞态清理。 | 自动 research freshness/source-scope 去重未实现。 |
+| MO-FR-10 | Archive 与冷恢复 | 已实现 | PR #86、#87、#88、#90 | partial termination、archive materialization、Session closure、SQLite reopen 与 caller-filtered archive view 有自动化覆盖；PR #90 修复 ownership closure、端口释放竞态与 Reviewer 提交阻塞后，真实 business-loop 已通过 `archived` 和 cold reopen。 | Browser 人工验收未执行。 |
+| MO-FR-10 | Continuation | 部分实现 | PR #26、#89 | create schema、按值复制的 continuation material 与引用剥离规则已实现并测试。 | 未取得从真实 source Archive 选择材料到新会议的完整运行证据。 |
+| MO-FR-14 | Meeting Agent Definition | 部分实现 | PR #56、#82、#89、#90 | 七个发布 Definition/Skills、共享 Preset、hash 固化、role/tool/Skill composition 和 recovery invariants 已通过自动化验证；真实 Loader/profile business-loop 已完成 Reviewer batch、archive 与 cold reopen。 | GitHub/arXiv 角色的真实能力验收尚未取得。 |
+| MO-FR-15 | Developer Markdown Projection | 未覆盖 | PR #46、#88 | PR #46 的旧实现已随 target cutover 移除，无当前 target 实现。 | `current.md`、`archive.md` 的 best-effort projection 尚未实现；旧 legacy projection 不构成该需求的当前覆盖。 |
 
-从固定基线 `f170deb` 到当前收口分支，累计删除 37 个 plugin 文件：
+生产 Agent command surface 当前仅包括：`convivium_create_meeting`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_raise_hand`、`convivium_submit_evidence`、`convivium_submit_review_batch`、`convivium_recommend_identity`。loopback local controller 是独立入口，不得据此推断 Agent 已获得同等 command surface。
 
-| 分类 | 数量 | 说明 |
-| --- | ---: | --- |
-| Scribe-only skill resource | 1 | 删除 `referenced-minutes/SKILL.md` |
-| redundant command repository facade | 1 | 删除旧 command repository facade，保留 Storage Domain repository core |
-| legacy application-service | 13 | 删除旧 create/control/turn/contribution/decision/query 等 orchestration |
-| legacy runtime service | 6 | 删除旧 contribution/dispatch/session/Markdown application services |
-| legacy projection | 1 | 删除 Developer Markdown projection |
-| direct legacy tests | 15 | 删除 4 个 archive test、旧 assembly/continuation/contribution/dispatch/Markdown/recovery 直接测试 |
+## Validated Contract
 
-删除数比原 RUNBOOK 预估多 2 个测试：执行中确认 `tests/contract/meeting-runtime.spec.ts` 与 `tests/recovery/contribution-recovery.spec.ts` 仍直接调用已删除的 legacy runtime；保留它们会造成不可执行的悬空测试。对应 target 创建、archive、lifecycle 与 SQLite recovery 证据由 target suites 承担。fixture 零删除。
-
-## Verified Coverage
-
-| 边界 | 当前证据 |
-| --- | --- |
-| domain and command core | target validator、transition、command contract 与非法输入/权限/CAS/idempotency/atomicity tests |
-| repository and recovery | repository contract、failure injection、SQLite reopen 与 target command recovery tests |
-| runtime and DSH integration | identity provisioning/notice、review request/delivery、archive dispatcher、lifecycle 与 Host plugin tests |
-| tools and transport | 八个 Meeting target tools、loopback Remote、caller resolution、read projection 与 Client tests |
-| real business loop | `meeting-business-loop` scenario 覆盖七个启用 roles、初始 notice、两份 Evidence、不同 one-shot workers、worker 无 command authority、review batch/delivery、publish、partial、archive、close 与 cold reopen |
-
-## Explicitly Not Covered
-
-- `close_contribution` 已有 Domain/command core，但没有 Agent tool，也没有 target deadline scanner；两项均为 `Not Covered`。
-- Browser 人工交互验收、性能与并发压力、跨 Host、发布流程、旧 snapshot migration/compatibility 不在本轮覆盖范围。
-- 自动 research freshness/source-scope 去重、远端文件系统与未列入删除清单的 legacy Domain/protocol/runtime services/tests 尚未清理；它们不得重新进入 target activity graph。
-- 默认 smoke 使用真实 DSH Loader、Storage、Session 与 Tool，但不证明生产环境外部网络、长期运行稳定性或跨版本迁移。
+- `MeetingState`、target codec、`DomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox 与 archive lifecycle 使用同一 `meetingId` namespace。
+- 创建、状态变更、read projection、identity provisioning/recovery、review delivery、round publication 与 archive 均从同一已提交状态派生。
+- command 边界覆盖协议校验、caller ownership、权限、expected version、request idempotency、原子 commit、终态拒写与 storage recovery。
+- `RECOVERY_UNAVAILABLE` identity effect 保持 pending retry；进入终态的并发路径不会激活新身份，并清理已创建但未激活的 Session。
+- target runtime 不依赖已删除的 legacy application facade；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
 
 ## Executed Validation
 
-| 日期 | 范围 | 结果 |
-| --- | --- | --- |
-| 2026-09-18 | T22 focused unit/integration/contract checks | PASS：7 files、34 tests；`typecheck:host` 与 focused lint 通过。 |
-| 2026-09-18 | T25 legacy application removal gate | PASS：lint 0 errors、完整 typecheck、111 files/1240 tests。 |
-| 2026-09-18 | T29 legacy dispatch removal gate | PASS：lint 0 errors、完整 typecheck、104 files/1221 tests。 |
-| 2026-09-18 | T30 runtime fixes focused checks | PASS：6 files、31 tests，覆盖 runtime caller scope、review delivery、round publication 与 archive dispatcher。 |
-| 2026-09-18 | T30 documentation close checks | PASS：434 个 Markdown local links、`git diff --check` 与 RUNBOOK 文件删除检查。 |
-| 2026-09-18 | T30 final smoke | 未完成：用户要求停止；停止前的运行已通过结构化 review、delivery、publish 与 archive materialization，但停在 Session teardown，未取得 `archived`/cold-reopen PASS。 |
-| 2026-09-20 | Web Research Analyst disablement | PASS：完整 `pnpm verify`，105 files、1224 tests；format、lint（0 errors、19 existing warnings）、typecheck、build、environment、contract、7-role Definition 与 package gates 全部通过。真实 `meeting-business-loop` smoke 未在本次重跑。 |
+| 日期 | 版本/环境 | 方法 | 结果 |
+| --- | --- | --- | --- |
+| 2026-09-20 | PR #90 working tree，本地 plugin workspace | `pnpm --dir plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、106 files / 1252 tests、build、environment、contract、7-role Definition 与 package。 |
+| 2026-09-20 | PR #90 working tree，DSH `0.1.2-rc.1` | Reviewer `1.2.2` focused `meeting-business-loop` | PASS（68.4s）：短三步中文提示词以 `submit.toolArguments` 固定原生参数层级；创建七角色会议、提交两份 Evidence、Reviewer 各派发一个 one-shot worker 并一次 batch 提交、publish、archive、Restore 与 cold reopen 全部通过。 |
+| 2026-09-20 | PR #89，本地 plugin workspace | `pnpm --dir=plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、build、environment、contract、7-role Definition、package；106 files、1251 tests。 |
+| 2026-09-20 | PR #89，GitHub CI | Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract | PASS：7 项检查全部通过。 |
+| 2026-09-20 | PR #89 recovery/domain change set | focused outbox/identity recovery、identity lifecycle race、domain/provisioning regressions | PASS：2 files/19 tests、10 contract tests、5 files/193 tests。 |
 
-`pnpm --dir=plugin verify` 曾在后续 runtime 修复前通过；修复后的完整 verify 未重跑。不得把 focused checks 或已停止的 smoke 描述为完整门禁通过。
+## 未覆盖范围
 
-## Closure Rule
+除矩阵中逐项列出的缺口外，当前证据不覆盖：
 
-当前可声明 target Meeting runtime 已形成单一活动链并完成 legacy application-side cutover；不得把该结论扩张到上述 `Not Covered` 外设、Browser、性能、迁移或发布。
+- Browser 人工交互、性能与并发压力、长期运行及跨 Host；
+- 发布流程、生产外部网络、远端文件系统；
+- 旧 snapshot migration、跨版本 compatibility；
+- 未进入 target activity graph 的 legacy Domain/protocol/runtime surface 的清理完成度。
 
-相关依据：[Domain Design](../30-designs/DOMAIN-DESIGN.md)、[Meeting Design](../30-designs/MEETING-DESIGN.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
+## Closure
+
+当前可以声明 Meeting target runtime 已完成单一活动链切换，并对会议创建、证据轮次、状态读取、动态身份准入、持久化恢复和归档核心路径形成自动化覆盖。只有标为 `已实现` 的行可作为当前功能覆盖结论；`部分实现` 与 `未覆盖` 必须保留为交付缺口，不能由相邻 Domain 类型、测试 helper 或旧 legacy 实现推断为可用。
+
+相关依据：[Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。

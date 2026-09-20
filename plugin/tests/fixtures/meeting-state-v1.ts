@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import type { MeetingState } from "@/domain/meeting-state.js";
 
 export function makeRunningMeetingStateV1(): MeetingState {
     return {

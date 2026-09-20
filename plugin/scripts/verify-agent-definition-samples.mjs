@@ -115,9 +115,11 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
-                            (["meeting_manager", "verification_reviewer"].includes(role)
+                            (role === "meeting_manager"
                                 ? "1.2.0"
-                                : "1.0.0") ||
+                                : role === "verification_reviewer"
+                                  ? "1.2.2"
+                                  : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||
