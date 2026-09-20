@@ -256,4 +256,64 @@ describe("dynamic identity provisioning", () => {
             })
         );
     });
+
+    it("recovers an existing child without repeating capability preflight", async () => {
+        const initial = dependencies(true);
+        const recommendation = await dynamicRecommendation();
+        await provisionMeetingIdentityV1(
+            {
+                recommendation,
+                meetingId: "meeting-1",
+                signal: new AbortController().signal
+            },
+            initial.value as never
+        );
+        const owner = initial.putProvisioning.mock.calls[0]![0];
+        const recovered = dependencies(false);
+        recovered.value.owner.readOwnership = async () => owner;
+        recovered.value.owner.inspectOwnedChild = async () => "present" as const;
+
+        const result = await provisionMeetingIdentityV1(
+            {
+                recommendation,
+                meetingId: "meeting-1",
+                signal: new AbortController().signal
+            },
+            recovered.value as never
+        );
+
+        expect(result.kind).toBe("admitted");
+        expect(recovered.startContinuable).not.toHaveBeenCalled();
+        expect(recovered.value.owner.revokeAndDrainOwned).not.toHaveBeenCalled();
+    });
+
+    it("revokes existing provisioning ownership when a missing child cannot be recreated", async () => {
+        const initial = dependencies(true);
+        const recommendation = await dynamicRecommendation();
+        await provisionMeetingIdentityV1(
+            {
+                recommendation,
+                meetingId: "meeting-1",
+                signal: new AbortController().signal
+            },
+            initial.value as never
+        );
+        const owner = initial.putProvisioning.mock.calls[0]![0];
+        const recovered = dependencies(false);
+        recovered.value.owner.readOwnership = async () => owner;
+        recovered.value.owner.inspectOwnedChild = async () => "absent" as const;
+
+        const result = await provisionMeetingIdentityV1(
+            {
+                recommendation,
+                meetingId: "meeting-1",
+                signal: new AbortController().signal
+            },
+            recovered.value as never
+        );
+
+        expect(result).toEqual({ kind: "rejected", failureCode: "CAPABILITY_MISSING" });
+        expect(recovered.startContinuable).not.toHaveBeenCalled();
+        expect(recovered.value.owner.revokeAndDrainOwned).toHaveBeenCalledWith(owner);
+    });
 });
