@@ -233,8 +233,12 @@ describe("evidence review request dispatcher v1", () => {
             ]
         });
         expect(envelope.instructions).toContain("convivium_submit_review_batch");
-        expect(envelope.instructions).toContain("call subagent once for every pending item");
-        expect(envelope.instructions).toContain("intersection with reviewConstraints");
+        expect(envelope.instructions).toContain("每个 pending item 只调用一次 subagent");
+        expect(envelope.instructions).toContain("省略失败、取消或非法的结果");
+        expect(envelope.instructions).toContain("没有合法结果时不得调用提交工具");
+        expect(envelope.instructions).toContain("交给 outbox 重试");
+        expect(envelope.instructions).toContain("不得再次调用 skill");
+        expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
         expect(envelope.reviewConstraints).toEqual([
             {
                 versionId: "version-pending",
@@ -246,30 +250,30 @@ describe("evidence review request dispatcher v1", () => {
             allowedScores: [0, 1, 2, 3, "unable_to_assess"],
             itemTemplate: {
                 versionId: "copy-pending-version-id",
-                scope: "non-empty-review-scope",
+                scope: "填写非空审核范围",
                 dimensions: {
                     source: {
                         score: "unable_to_assess",
-                        scope: "non-empty-dimension-scope",
-                        reason: "non-empty-reason",
+                        scope: "填写非空维度范围",
+                        reason: "填写非空判断理由",
                         baselineEvidenceIds: []
                     },
                     credibility: {
                         score: "unable_to_assess",
-                        scope: "non-empty-dimension-scope",
-                        reason: "non-empty-reason",
+                        scope: "填写非空维度范围",
+                        reason: "填写非空判断理由",
                         baselineEvidenceIds: []
                     },
                     completeness: {
                         score: "unable_to_assess",
-                        scope: "non-empty-dimension-scope",
-                        reason: "non-empty-reason",
+                        scope: "填写非空维度范围",
+                        reason: "填写非空判断理由",
                         baselineEvidenceIds: []
                     },
                     support: {
                         score: "unable_to_assess",
-                        scope: "non-empty-dimension-scope",
-                        reason: "non-empty-reason",
+                        scope: "填写非空维度范围",
+                        reason: "填写非空判断理由",
                         baselineEvidenceIds: []
                     }
                 }
@@ -293,9 +297,9 @@ describe("evidence review request dispatcher v1", () => {
                 additionalProperties: false
             }
         });
-        expect(envelope.instructions).toContain("Never use an array or numeric keys");
+        expect(envelope.instructions).toContain("不得使用数组或 0、1、2、3 等数字键");
         expect(envelope.instructions).toContain("workerOutputSchema");
-        expect(envelope.instructions).toContain("replacement one-shot worker");
+        expect(envelope.instructions).not.toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",
             input: {
@@ -305,7 +309,7 @@ describe("evidence review request dispatcher v1", () => {
                 requestId: "review-batch:effect-review-1",
                 action: {
                     kind: "submit_review_batch",
-                    reviews: "replace-with-valid-completed-review-items"
+                    reviews: []
                 }
             }
         });

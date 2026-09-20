@@ -153,7 +153,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     ];
     const definitions = [
         ["manager", "convivium.meeting_manager", "1.2.0", "manager"],
-        ["reviewer", "convivium.verification_reviewer", "1.2.0", "evidence_reviewer"],
+        ["reviewer", "convivium.verification_reviewer", "1.2.1", "evidence_reviewer"],
         ["contributor-a", "convivium.domain_architect", "1.0.0", "contributor"],
         ["contributor-b", "convivium.runtime_engineer", "1.0.0", "contributor"],
         ["contributor-c", "convivium.protocol_ui_engineer", "1.0.0", "contributor"],

@@ -237,34 +237,33 @@ export function createEvidenceReviewDispatcherV1(
                                 ],
                                 allowedScores: [0, 1, 2, 3, "unable_to_assess"],
                                 scoringRubric: {
-                                    0: "No usable support, or the available evidence directly contradicts the criterion.",
-                                    1: "Weak support with material gaps, ambiguity, or unverified assumptions.",
-                                    2: "Adequate support for the scoped claim, with bounded limitations that do not overturn it.",
-                                    3: "Strong, direct, independently checkable support with no material unresolved gap.",
+                                    0: "没有可用支持，或现有证据直接反驳该判断标准。",
+                                    1: "支持较弱，存在实质缺口、歧义或未经验证的假设。",
+                                    2: "对限定范围内的主张有充分支持，剩余限制明确且不会推翻结论。",
+                                    3: "存在强、直接且可独立核验的支持，没有实质性未解决缺口。",
                                     unable_to_assess:
-                                        "The supplied immutable version and allowed baselines do not contain enough information to judge this criterion."
+                                        "给定 immutable version 与允许使用的 baseline 不足以判断该标准。"
                                 },
                                 dimensionCriteria: {
-                                    source: "Assess source identity, provenance, retrievability, and chain of custody.",
-                                    credibility:
-                                        "Assess trustworthiness, method quality, corroboration, and disclosed uncertainty.",
+                                    source: "评估来源身份、出处、可检索性与保管链。",
+                                    credibility: "评估可信度、方法质量、交叉印证与已披露不确定性。",
                                     completeness:
-                                        "Assess whether the material includes the information needed to evaluate the scoped claim and its limitations.",
+                                        "评估材料是否包含判断限定主张及其限制所需的信息。",
                                     support:
-                                        "Assess whether the cited material directly supports the claim and qualification without an unstated inference."
+                                        "评估引用材料是否无需未声明推断即可直接支持主张及其限定条件。"
                                 },
                                 workerOutputSchema: workerReviewOutputSchema,
                                 itemTemplate: {
                                     versionId: "copy-pending-version-id",
-                                    scope: "non-empty-review-scope",
+                                    scope: "填写非空审核范围",
                                     dimensions: Object.fromEntries(
                                         ["source", "credibility", "completeness", "support"].map(
                                             (dimension) => [
                                                 dimension,
                                                 {
                                                     score: "unable_to_assess",
-                                                    scope: "non-empty-dimension-scope",
-                                                    reason: "non-empty-reason",
+                                                    scope: "填写非空维度范围",
+                                                    reason: "填写非空判断理由",
                                                     baselineEvidenceIds: []
                                                 }
                                             ]
@@ -281,12 +280,12 @@ export function createEvidenceReviewDispatcherV1(
                                     requestId: `review-batch:${outboxItem.id}`,
                                     action: {
                                         kind: "submit_review_batch",
-                                        reviews: "replace-with-valid-completed-review-items"
+                                        reviews: []
                                     }
                                 }
                             },
                             instructions:
-                                "This is an executable review request, not an informational notice. In one assistant turn, call subagent once for every pending item so the native one-shot workers run independently. Include reviewItemRules.workerOutputSchema, scoringRubric, dimensionCriteria, and the item's allowed baselines verbatim in each worker prompt; require the worker to return only one JSON review item matching that schema, with no Markdown or prose wrapper. If a worker fails or returns an invalid item, immediately call a replacement one-shot worker for that same pending version; do not submit while a pending version lacks one valid completed worker item. Build each submitted item by copying reviewItemRules.itemTemplate and replacing its placeholder values. The dimensions value must be an object with exactly the four literal property names source, credibility, completeness, and support. Never use an array or numeric keys such as 0, 1, 2, and 3 for dimensions. Before submission, replace every dimension's baselineEvidenceIds with its intersection with reviewConstraints.allowedBaselineEvidenceIds for that version; an empty allowed list requires []. Current version and material IDs are never baseline IDs. Every score must exactly equal one reviewItemRules.allowedScores value; replace fractions, decimals, percentages, or any other score with unable_to_assess. After every pending version has one valid worker item, call convivium_submit_review_batch exactly once with one argument named input: copy submit.input exactly and replace only submit.input.action.reviews with all valid completed review items. Do not answer in prose before attempting these tools."
+                                "这是可执行的审核请求，不是信息通知。`verification-review` 已经加载，本次不得再次调用 skill。在同一个 assistant turn 内，对每个 pending item 只调用一次 subagent，让原生 one-shot worker 独立执行；不得创建 replacement worker。每个 worker prompt 必须原样包含 reviewItemRules.workerOutputSchema、scoringRubric、dimensionCriteria 以及该 item 允许使用的 baseline，并要求 worker 只返回一个符合 schema 的 JSON Review item，不得附加 Markdown 或说明文字。省略失败、取消或非法的结果，不得为它们再次调用 subagent。构造提交项时复制 reviewItemRules.itemTemplate，并替换其中所有占位值。dimensions 必须是只含 source、credibility、completeness、support 四个字面属性名的 object，不得使用数组或 0、1、2、3 等数字键。提交前，将每个维度的 baselineEvidenceIds 与 reviewConstraints 取交集，具体使用该 version 的 allowedBaselineEvidenceIds；允许列表为空时必须填写 []。当前 version ID 和 material ID 都不是 baseline ID。每个 score 必须精确等于 reviewItemRules.allowedScores 中的一个值；分数、小数、百分比或其他值一律替换为 unable_to_assess。全部 worker 结束后，如果至少有一个合法 Review item，只调用一次 convivium_submit_review_batch，并只传一个名为 input 的参数：完整复制 submit.input，只把 submit.input.action.reviews 的空数组替换为本轮全部合法 Review item。没有合法结果时不得调用提交工具，直接结束本轮并交给 outbox 重试。尝试完成上述工具调用前不要用自然语言回复。"
                         })
                     }
                 ],

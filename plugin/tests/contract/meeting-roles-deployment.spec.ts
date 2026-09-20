@@ -54,7 +54,7 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.0",
+        definitionVersion: "1.2.1",
         toolFilter: {
             allow: ["skill", "subagent", "convivium_submit_review_batch"]
         }
@@ -78,6 +78,8 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
+    expect(currentGuidance[1]).toContain("每个 pending item 只创建一个");
+    expect(currentGuidance[1]).toContain("没有合法结果时不调用提交工具");
 });
 
 it("exposes the native foreground one-shot worker tool to Meeting roles", () => {
