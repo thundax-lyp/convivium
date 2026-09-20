@@ -8,7 +8,7 @@ export {
 } from "./transitions/contribution.js";
 export * from "./errors.js";
 export * from "./model.js";
-export * from "./meeting-state-v1.js";
+export * from "./meeting-state.js";
 export { isMeetingStateV2 } from "./meeting-state-validation.js";
 export * from "./meeting-task.js";
 export * from "./hand-raise.js";
@@ -17,7 +17,7 @@ export * from "./transitions/index.js";
 export {
     validateMeetingStateV1,
     type MeetingStateValidationResultV1
-} from "./meeting-state-v1-validation.js";
+} from "./meeting-state-validation.js";
 export {
     transitionMeetingStateV1,
     type TargetDomainActorV1,
@@ -33,4 +33,4 @@ export {
     type IdentityAdmissionResultContextV1,
     type IdentityRecommendationDraftV1,
     type IdentityTransitionResultV1
-} from "./transitions/meeting-identity-v1.js";
+} from "./transitions/meeting-identity.js";

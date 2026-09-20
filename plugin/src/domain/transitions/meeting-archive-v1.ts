@@ -3,8 +3,8 @@ import type {
     ArchiveQuestionIssueDispositionFactV1,
     MeetingState,
     OpaqueId
-} from "@/domain/meeting-state-v1.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+} from "@/domain/meeting-state.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 export interface StartMeetingArchiveInputV1 {

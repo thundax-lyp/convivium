@@ -10,7 +10,7 @@ import {
 import { isRoundClosableV1 } from "@/domain/transitions/round-v1.js";
 import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
 import { closeContributionV1 } from "@/domain/transitions/contribution-exit-v1.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();

@@ -6,7 +6,7 @@ import {
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import type { MeetingState } from "@/domain/meeting-state.js";
 
 const authorization = { callerBinding: "runtime", capabilityId: "runtime" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import type { MeetingState } from "@/domain/meeting-state.js";
 import { transitionMeetingStateV1 } from "@/domain/meeting-state-v1-transitions.js";
 
 function state(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
