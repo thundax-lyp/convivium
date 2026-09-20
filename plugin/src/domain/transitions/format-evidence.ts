@@ -4,7 +4,7 @@ import type {
     OpaqueId,
     TextWithReasonV1
 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 
 export interface EvidenceInputV1 {
     observation: string;

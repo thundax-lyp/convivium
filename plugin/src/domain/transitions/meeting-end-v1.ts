@@ -1,7 +1,7 @@
 import type { MeetingState, OpaqueId } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { isObjectiveSatisfiedV1 } from "./outcome-v1.js";
-import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { isObjectiveSatisfiedV1 } from "./outcome.js";
+import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result.js";
 
 export interface EndMeetingInputV1 {
     terminationId: OpaqueId;

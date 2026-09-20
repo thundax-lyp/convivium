@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { requestEvidenceOpportunityV1 } from "@/domain/transitions/opportunity-v1.js";
-import { abortRoundV1, isRoundClosableV1, openRoundV1 } from "@/domain/transitions/round-v1.js";
+import { requestEvidenceOpportunityV1 } from "@/domain/transitions/opportunity.js";
+import { abortRoundV1, isRoundClosableV1, openRoundV1 } from "@/domain/transitions/round.js";
 
 describe("round transitions", () => {
     it("opens with all current publications as baseline and transfers queued requests to hands", () => {

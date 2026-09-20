@@ -9,7 +9,7 @@ import type {
 export type { TargetDomainFactPayloadV1 } from "./meeting-state.js";
 import { validateMeetingStateV1 } from "./meeting-state-validation.js";
 import { z } from "zod";
-import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
+import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome.js";
 
 export type TargetDomainActorV1 =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };

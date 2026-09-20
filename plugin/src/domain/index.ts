@@ -26,7 +26,7 @@ export {
     type TargetDomainFactPayloadV1,
     type TargetDomainFactV1,
     type TargetTransitionResultV1
-} from "./meeting-state-v1-transitions.js";
+} from "./meeting-state-transitions.js";
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { openRoundV1 } from "@/domain/transitions/round-v1.js";
-import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
+import { openRoundV1 } from "@/domain/transitions/round.js";
+import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
 import {
     disposeSupplementHandV1,
     raiseSupplementHandV1
-} from "@/domain/transitions/supplement-hand-v1.js";
+} from "@/domain/transitions/supplement-hand.js";
 
 function contributionState() {
     const opened = openRoundV1(makeRunningMeetingStateV1(), {

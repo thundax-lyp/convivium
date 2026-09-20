@@ -10,8 +10,8 @@ import type { DecisionV1 } from "@/domain/meeting-state.js";
 import type { IssueV1 } from "@/domain/meeting-state.js";
 import type { CompletionDeclarationV1, CompletionFactV1 } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
-import { rejectedTransitionV1 } from "./result-v1.js";
+import type { MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 } from "./result.js";
 
 export type OutcomeActorV1 =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };

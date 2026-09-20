@@ -5,7 +5,7 @@ import type {
     OpaqueId
 } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result.js";
 
 export interface StartMeetingArchiveInputV1 {
     archiveId: OpaqueId;

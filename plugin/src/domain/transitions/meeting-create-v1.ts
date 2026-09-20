@@ -1,6 +1,6 @@
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result.js";
 
 export function createMeetingV1(state: MeetingState): MeetingTransitionResultV1 {
     const validation = validateMeetingStateV1(state);

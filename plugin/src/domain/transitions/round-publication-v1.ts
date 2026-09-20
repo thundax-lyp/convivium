@@ -1,7 +1,7 @@
 import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
-import { isRoundClosableV1 } from "./round-v1.js";
-import { isObjectiveSatisfiedV1 } from "./outcome-v1.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { isRoundClosableV1 } from "./round.js";
+import { isObjectiveSatisfiedV1 } from "./outcome.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 type Input = {
     roundId: OpaqueId;
     managerId: OpaqueId;

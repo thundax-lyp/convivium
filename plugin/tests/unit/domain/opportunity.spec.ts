@@ -3,7 +3,7 @@ import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import {
     disposeEvidenceOpportunityV1,
     requestEvidenceOpportunityV1
-} from "@/domain/transitions/opportunity-v1.js";
+} from "@/domain/transitions/opportunity.js";
 
 describe("evidence opportunity transitions", () => {
     it("queues one opportunity and emits a manager notice", () => {

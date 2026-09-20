@@ -29,7 +29,7 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }

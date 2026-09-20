@@ -12,7 +12,7 @@ import {
     changeCompletionFactV1,
     isObjectiveSatisfiedV1,
     recalculateMeetingCompletionV1
-} from "@/domain/transitions/outcome-v1.js";
+} from "@/domain/transitions/outcome.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 

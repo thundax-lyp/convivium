@@ -46,10 +46,10 @@ export type {
     SubmittedQuestionInput,
     SubmitSpeakerAdvanceContext
 } from "./types.js";
-export * from "./result-v1.js";
-export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity-v1.js";
-export { openRoundV1, isRoundClosableV1 } from "./round-v1.js";
-export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise-v1.js";
+export * from "./result.js";
+export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity.js";
+export { openRoundV1, isRoundClosableV1 } from "./round.js";
+export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise.js";
 export {
     sendPrivateMailV1,
     startPrivateMailV1,
@@ -62,12 +62,12 @@ export {
     type CancelPrivateMailInputV1,
     type ExpirePrivateMailInputV1
 } from "./private-mail-v1.js";
-export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand-v1.js";
+export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
 export {
     submitEvidenceV1,
     type EvidenceInputV1,
     type SubmitEvidenceInputV1
-} from "./format-evidence-v1.js";
+} from "./format-evidence.js";
 export {
     submitReviewBatchV1,
     recordReviewDeliveryV1,
@@ -100,7 +100,7 @@ export {
     recordCompletionFactV1,
     changeCompletionFactV1,
     isObjectiveSatisfiedV1
-} from "./outcome-v1.js";
+} from "./outcome.js";
 export type {
     OutcomeActorV1,
     RecordProposalRevisionInputV1,
@@ -112,4 +112,4 @@ export type {
     SubmitCompletionDeclarationInputV1,
     RecordCompletionFactInputV1,
     ChangeCompletionFactInputV1
-} from "./outcome-v1.js";
+} from "./outcome.js";

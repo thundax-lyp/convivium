@@ -5,7 +5,7 @@ import {
     type OpaqueId,
     type PrivateMailV1
 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 
 export interface SendPrivateMailInputV1 {
     mailId: OpaqueId;
