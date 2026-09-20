@@ -217,17 +217,22 @@ export function recalculateMeetingCompletionV1(
         criteria.every((t) => t.status === "satisfied") &&
         state.objective.hardConstraints.every((t) => t.status === "satisfied") &&
         !state.issues.some((i) => i.blocking);
-    const lifecycle =
-        satisfied && state.lifecycle.status === "running"
-            ? {
-                  ...state.lifecycle,
-                  status: "converging" as const,
-                  changedAt: now,
-                  changedBy: actorId,
-                  reason: "objective_satisfied"
-              }
-            : state.lifecycle;
-    return { ...state, objective, lifecycle };
+    const enteringConverging = satisfied && state.lifecycle.status === "running";
+    const lifecycle = enteringConverging
+        ? {
+              ...state.lifecycle,
+              status: "converging" as const,
+              changedAt: now,
+              changedBy: actorId,
+              reason: "objective_satisfied"
+          }
+        : state.lifecycle;
+    return {
+        ...state,
+        objective,
+        lifecycle,
+        ...(enteringConverging ? { pendingHandRaises: [] } : {})
+    };
 }
 
 export function recordProposalRevisionV1(
