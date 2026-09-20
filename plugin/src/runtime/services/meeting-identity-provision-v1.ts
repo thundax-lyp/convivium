@@ -1,7 +1,13 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
+import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
+import {
+    resolveDynamicMeetingDefinitionV1,
+    resolveMeetingRoles,
+    RoleCompositionError
+} from "@/role-composition/resolve.js";
+import { preflightDynamicMeetingIdentityV1 } from "@/role-composition/dsh-capabilities.js";
 import { startMeetingIdentitySessionV1 } from "@/dsh/index.js";
 import type { SessionOwnership } from "@/repository/types.js";
 
@@ -26,6 +32,7 @@ export type IdentityProvisionResultV1 =
 
 export interface MeetingIdentityProvisionDependenciesV1 {
     readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly parent: Agent;
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
@@ -69,6 +76,34 @@ export async function provisionMeetingIdentityV1(
         recommendation.definitionHash
     );
     if (resolved.kind !== "resolved") return { kind: "rejected", failureCode: resolved.code };
+    const preflight = await preflightDynamicMeetingIdentityV1(
+        dependencies.parent,
+        recommendation,
+        resolved.definition,
+        resolved.binding,
+        input.signal
+    );
+    if (preflight.kind !== "ready") return { kind: "rejected", failureCode: preflight.error.code };
+    let composition;
+    try {
+        const roles = await resolveMeetingRoles(
+            {
+                definitions: dependencies.definitions,
+                agentModelOverrides: dependencies.agentModelOverrides,
+                participants: [
+                    {
+                        participantKey: recommendation.identityId,
+                        agentDefinitionId: recommendation.definitionId
+                    }
+                ]
+            },
+            async () => undefined
+        );
+        composition = roles.participants[recommendation.identityId];
+        if (!composition) throw new RoleCompositionError();
+    } catch {
+        return { kind: "rejected", failureCode: "CAPABILITY_MISSING" };
+    }
     const existing = await dependencies.owner.readOwnership(recommendation.id);
     const owner: SessionOwnership = existing ?? {
         id: `session-ownership:${recommendation.id}`,
@@ -93,6 +128,7 @@ export async function provisionMeetingIdentityV1(
     try {
         if (child === "absent") {
             const started = await startMeetingIdentitySessionV1({
+                composition,
                 runtime: dependencies.runtime,
                 provider: dependencies.provider,
                 parent: dependencies.parent,

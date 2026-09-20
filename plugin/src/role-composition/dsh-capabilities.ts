@@ -27,7 +27,7 @@ export type PreflightIdentityResultV1 =
 
 export async function preflightDynamicMeetingIdentityV1(
     parent: Agent,
-    intent: IdentityRecommendationV1,
+    intent: Pick<IdentityRecommendationV1, "id" | "definitionHash">,
     definition: MeetingAgentDefinitionV1,
     binding: AgentDefinitionBindingV1,
     signal: AbortSignal
