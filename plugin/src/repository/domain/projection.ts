@@ -25,7 +25,7 @@ export const MAX_APPLICATION_CHECKPOINT_BYTES = 16_777_216;
 
 export class UnsupportedMeetingStateFormatError extends Error {
     constructor(readonly formatVersion: unknown) {
-        super(`Unsupported LegacyMeetingState format: ${String(formatVersion)}`);
+        super(`Unsupported MeetingState format: ${String(formatVersion)}`);
         this.name = "UnsupportedMeetingStateFormatError";
     }
 }

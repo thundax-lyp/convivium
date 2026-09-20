@@ -1,8 +1,6 @@
 import type { MeetingState } from "./meeting-state.js";
 import { z } from "zod";
 
-export { isMeetingMinutesDraft, isMeetingStateV2 } from "./meeting-state-legacy-validation.js";
-
 export type MeetingStateValidationResultV1 =
     | { kind: "valid"; state: MeetingState }
     | { kind: "invalid"; code: "INVALID_ARGUMENT"; path: string };

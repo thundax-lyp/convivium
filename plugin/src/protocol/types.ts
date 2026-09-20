@@ -1,6 +1,16 @@
-import type { MeetingStatusResultV1 } from "./meeting-status-types.js";
-export type * from "./meeting-status-types.js";
-export type * from "./contribution-types.js";
+type LegacyMeetingStatus =
+    | "created"
+    | "running"
+    | "waiting"
+    | "paused"
+    | "converging"
+    | "completed"
+    | "partial"
+    | "no_consensus"
+    | "cancelled"
+    | "failed"
+    | "archiving"
+    | "archived";
 
 export type ProtocolVersion = 1;
 
@@ -151,7 +161,7 @@ export interface LocalMeetingListItemV1 {
     meetingId: string;
     teamId: string;
     topic: string;
-    status: MeetingStatusResultV1["status"];
+    status: LegacyMeetingStatus;
     meetingVersion: number;
     updatedAt: number;
 }
@@ -257,7 +267,7 @@ export interface CaptainRiskDispositionResultV1 {
     issueId: string;
     disposition: "accepted" | "rejected";
     completionFactId: string;
-    meetingStatus: MeetingStatusResultV1["status"];
+    meetingStatus: LegacyMeetingStatus;
 }
 
 export interface ReassignTurnInputV1 {
@@ -901,7 +911,7 @@ export interface TurnSubmissionResultV1 {
     messageSeq: number;
     turnStatus: "running" | "completed" | "truncated";
     nextStepId?: string;
-    meetingStatus: MeetingStatusResultV1["status"];
+    meetingStatus: LegacyMeetingStatus;
 }
 
 export interface HandRaiseResultV1 {

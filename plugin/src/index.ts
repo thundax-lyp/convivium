@@ -61,14 +61,7 @@ const meetingConsumerPlugin = {
                 callers: {
                     async resolve(agent, signal) {
                         const resolved = await resolveMeetingCallerV1(agent, runtime, signal);
-                        if (resolved) return resolved;
-                        return {
-                            protocolVersion: 1,
-                            ok: false,
-                            code: "UNAUTHORIZED_CALLER",
-                            message: "The caller is not an active meeting identity.",
-                            retryable: false
-                        };
+                        return resolved;
                     }
                 },
                 onMeetingCreated(meetingId, parent) {

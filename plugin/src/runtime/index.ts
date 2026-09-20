@@ -18,48 +18,17 @@ export interface LocalMeetingWebRuntime {
 
 export type { MeetingToolCaller, MeetingToolRuntime } from "./application-service/index.js";
 
-export {
-    createMeetingCreationCoordinatorV1,
-    createMeetingRuntime,
-    openMeetingRepository
-} from "./meeting-runtime.js";
+export { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 export {
     activateTargetMeetingApplicationV1,
     getMeetingCommandApplicationV1,
     getLocalMeetingWebRuntimeV1,
     ensureTargetMeetingDeliveryV1
 } from "./meeting-lifecycle.js";
-export type {
-    DomainEventInput,
-    JsonObject,
-    MeetingCreationRuntimeDependencies,
-    MeetingRepositoryOpenInput,
-    MeetingRepositoryRuntime,
-    RepositoryAuthorizationValidator
-} from "./meeting-runtime.js";
 export { createOutboxWorker } from "./outbox-worker.js";
-export {
-    archiveBeginCommandKind,
-    archiveFinalizeCommandKind,
-    beginArchiveFromTermination,
-    cleanupOwnedSessions,
-    finalizeArchive,
-    materializeArchivePackage,
-    recoverArchive,
-    requireExpectedArchiveOwnerships,
-    terminationIdentity
-} from "./services/meeting-archive-service.js";
-export type {
-    BeginArchiveFromTerminationInput,
-    CleanupOwnedSessionsInput,
-    FinalizeArchiveInput,
-    RecoverArchiveInput,
-    ArchiveRecoveryResult
-} from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
-export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
 export {
     createMeetingCommandApplicationV1,
     type MeetingCommandApplicationV1

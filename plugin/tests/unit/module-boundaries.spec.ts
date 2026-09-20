@@ -8,7 +8,6 @@ import {
     createMeetingIdentityEffectHandlerV1,
     createMeetingNoticeDispatcherV1,
     createReviewDeliveryDispatcherV1,
-    openMeetingRepository,
     provisionMeetingIdentityV1,
     recoverMeetingCommandsV1
 } from "@/runtime/index.js";
@@ -186,10 +185,9 @@ describe("plugin module boundaries", () => {
             createEvidenceReviewDispatcherV1,
             createReviewDeliveryDispatcherV1,
             createMeetingArchiveDispatcherV1,
-            recoverMeetingCommandsV1,
-            openMeetingRepository
+            recoverMeetingCommandsV1
         ];
-        expect(targetExports).toHaveLength(9);
+        expect(targetExports).toHaveLength(8);
         expect(targetExports.every((value) => typeof value === "function")).toBe(true);
 
         const wakeup: MeetingOutboxWakeupV1 | undefined = undefined;

@@ -40,7 +40,7 @@
 - 创建、状态变更、read projection、identity provisioning/recovery、review delivery、round publication 与 archive 均从同一已提交状态派生。
 - command 边界覆盖协议校验、caller ownership、权限、expected version、request idempotency、原子 commit、终态拒写与 storage recovery。
 - `RECOVERY_UNAVAILABLE` identity effect 保持 pending retry；进入终态的并发路径不会激活新身份，并清理已创建但未激活的 Session。
-- target runtime 不依赖已删除的 legacy application facade；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
+- target runtime 不依赖 legacy Domain、protocol 或 runtime surface；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
 
 ## Executed Validation
 
@@ -59,7 +59,6 @@
 - Browser 人工交互、性能与并发压力、长期运行及跨 Host；
 - 发布流程、生产外部网络、远端文件系统；
 - 旧 snapshot migration、跨版本 compatibility；
-- 未进入 target activity graph 的 legacy Domain/protocol/runtime surface 的清理完成度。
 
 ## Closure
 
