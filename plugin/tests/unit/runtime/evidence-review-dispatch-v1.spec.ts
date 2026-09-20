@@ -165,7 +165,15 @@ function stateWithPendingReview() {
 describe("evidence review request dispatcher v1", () => {
     it("delivers immutable pending versions and ordered publication baselines to the coordinator", async () => {
         const { state, ownership, pendingVersion, baselineVersion } = stateWithPendingReview();
-        const sendMessage = vi.fn().mockResolvedValue("message-1");
+        const sendMessage = vi.fn(async () => {
+            state.reviews.push({
+                ...state.reviews[0]!,
+                id: "review-pending",
+                versionId: pendingVersion.id,
+                baselinePublicationIds: ["publication-baseline"]
+            });
+            return "message-1";
+        });
         const dispatcher = createEvidenceReviewDispatcherV1({
             sessions: { sendMessage },
             repository: {
@@ -302,6 +310,39 @@ describe("evidence review request dispatcher v1", () => {
             }
         });
         expect(envelope).not.toHaveProperty("sessionId");
+    });
+
+    it("keeps the review effect retryable when the coordinator returns without committing", async () => {
+        const { state, ownership } = stateWithPendingReview();
+        const dispatcher = createEvidenceReviewDispatcherV1({
+            sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 6,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 5
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: outboxItem({
+                    kind: "agent_notice",
+                    noticeKind: "review_request",
+                    recipientId: "reviewer-v1",
+                    agendaId: "agenda-v1",
+                    versionId: "version-pending"
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({ code: "REVIEW_NOT_COMPLETED", retryable: true });
     });
 
     it("does not notify when no current complete version is pending", async () => {
