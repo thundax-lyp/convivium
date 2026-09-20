@@ -104,11 +104,15 @@ export async function provisionMeetingIdentityV1(
     } catch {
         return { kind: "rejected", failureCode: "CAPABILITY_MISSING" };
     }
-    const existing = await dependencies.owner.readOwnership(recommendation.id);
-    const owner: SessionOwnership = existing ?? {
+    const expectedOwner: SessionOwnership = {
         id: `session-ownership:${recommendation.id}`,
         meetingId: input.meetingId,
         identityId: recommendation.identityId,
+        agentDefinition: {
+            agentDefinitionId: recommendation.definitionId,
+            definitionVersion: recommendation.definitionVersion,
+            definitionHash: recommendation.definitionHash
+        },
         sessionId: recommendation.childSessionId,
         parentSessionId: String(dependencies.parent.id),
         sessionLabel: `convivium:meeting-identity:participant:${input.meetingId}:${recommendation.identityId}`,
@@ -119,6 +123,22 @@ export async function provisionMeetingIdentityV1(
         createdAt: dependencies.now(),
         updatedAt: dependencies.now()
     };
+    const existing = await dependencies.owner.readOwnership(recommendation.id);
+    if (
+        existing !== undefined &&
+        (existing.id !== expectedOwner.id ||
+            existing.meetingId !== expectedOwner.meetingId ||
+            existing.identityId !== expectedOwner.identityId ||
+            existing.sessionId !== expectedOwner.sessionId ||
+            existing.parentSessionId !== expectedOwner.parentSessionId ||
+            existing.sessionLabel !== expectedOwner.sessionLabel ||
+            existing.provider !== expectedOwner.provider ||
+            existing.agentDefinition?.agentDefinitionId !== recommendation.definitionId ||
+            existing.agentDefinition?.definitionVersion !== recommendation.definitionVersion ||
+            existing.agentDefinition?.definitionHash !== recommendation.definitionHash)
+    )
+        return { kind: "rejected", failureCode: "OWNERSHIP_CONFLICT" };
+    let owner = existing ?? expectedOwner;
     const stored = existing
         ? { kind: "same" as const, owner: existing }
         : await dependencies.owner.putProvisioning(owner);
@@ -140,8 +160,9 @@ export async function provisionMeetingIdentityV1(
             });
             if (started.childId !== recommendation.childSessionId)
                 throw new Error("OWNERSHIP_CONFLICT");
+            owner = { ...stored.owner, initialMessageId: String(started.messageId) };
         }
-        const active = await dependencies.owner.markActive(stored.owner);
+        const active = await dependencies.owner.markActive(owner);
         return {
             kind: "admitted",
             result: {

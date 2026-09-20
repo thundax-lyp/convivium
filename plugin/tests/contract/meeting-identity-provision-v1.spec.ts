@@ -128,6 +128,50 @@ describe("identity provision effect handler", () => {
             )
         ).rejects.toThrow("INVALID_ARGUMENT");
     });
+
+    it("keeps a recovery-unavailable admission effect retryable without committing failure", async () => {
+        const execute = vi.fn();
+        const handler = createMeetingIdentityEffectHandlerV1({
+            application: { execute } as never,
+            repository: {
+                read: async () => ({
+                    meetingId: "meeting-1",
+                    version: 4,
+                    state: {
+                        identityRecommendations: [
+                            {
+                                id: "rec-1",
+                                decision: "admit",
+                                status: "provisioning",
+                                definitionId: "domain_architect",
+                                definitionVersion: "1",
+                                definitionHash: "a".repeat(64),
+                                identityId: "identity-1",
+                                childSessionId: "child-1"
+                            }
+                        ]
+                    }
+                })
+            } as never,
+            definitions: [],
+            provision: vi.fn(async () => ({
+                kind: "rejected" as const,
+                failureCode: "RECOVERY_UNAVAILABLE"
+            }))
+        });
+
+        await expect(
+            handler.dispatch(
+                effect({
+                    kind: "identity_provision",
+                    recommendationId: "rec-1",
+                    admissionId: "rec-1"
+                }) as never,
+                new AbortController().signal
+            )
+        ).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE", retryable: true });
+        expect(execute).not.toHaveBeenCalled();
+    });
 });
 
 describe("dynamic identity provisioning", () => {

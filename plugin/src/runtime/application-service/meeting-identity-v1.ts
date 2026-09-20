@@ -51,6 +51,11 @@ export function createMeetingIdentityEffectHandlerV1(
                 meetingId: snapshot.meetingId,
                 signal
             });
+            if (result.kind === "rejected" && result.failureCode === "RECOVERY_UNAVAILABLE")
+                throw Object.assign(new Error(result.failureCode), {
+                    code: result.failureCode,
+                    retryable: true
+                });
             const context: IdentityAdmissionResultContextV1 =
                 result.kind === "admitted"
                     ? result.result
