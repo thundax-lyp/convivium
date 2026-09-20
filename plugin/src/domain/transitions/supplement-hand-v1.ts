@@ -86,8 +86,12 @@ export function raiseSupplementHandV1(
         const version = packageValue.versions.find(
             (candidate) => candidate.id === packageValue.currentVersionId
         );
-        if (version !== undefined)
-            deadlines.push(version.submittedAt + state.limits.taskDeadlineMs);
+        if (version !== undefined) {
+            const versionDeadline = version.submittedAt + state.limits.taskDeadlineMs;
+            if (!Number.isSafeInteger(versionDeadline))
+                return reject(state, "PRECONDITION_FAILED", "invalid supplement deadline");
+            deadlines.push(versionDeadline);
+        }
     }
     if (deadlines.some((deadline) => input.now >= deadline))
         return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");

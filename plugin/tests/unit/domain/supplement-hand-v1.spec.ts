@@ -145,4 +145,53 @@ describe("supplement hand transitions", () => {
 
         expect(result.kind).toBe("accepted");
     });
+
+    it("fails closed when the registered version deadline exceeds safe integer range", () => {
+        const base = contributionState();
+        const state = {
+            ...base,
+            limits: { ...base.limits, taskDeadlineMs: Number.MAX_SAFE_INTEGER },
+            contributions: base.contributions.map((contribution) => ({
+                ...contribution,
+                packageId: "package-v1",
+                status: "awaiting_response" as const
+            })),
+            evidencePackages: [
+                {
+                    id: "package-v1",
+                    roundId: "round-v1",
+                    contributionId: "contribution-v1",
+                    authorId: "contributor-v1",
+                    agendaId: "agenda-v1",
+                    currentVersionId: "version-v1",
+                    versions: [
+                        {
+                            id: "version-v1",
+                            ordinal: 1,
+                            submittedAt: 12,
+                            observation: "观察",
+                            interpretation: "解释",
+                            method: "方法",
+                            falsifiers: [],
+                            uncertainties: [],
+                            limitations: [],
+                            claims: [],
+                            materials: []
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const result = raiseSupplementHandV1(state, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            purpose: "补充",
+            now: 14
+        });
+
+        expect(result.kind).toBe("rejected");
+        expect(result.kind === "rejected" && result.error.code).toBe("PRECONDITION_FAILED");
+        expect(result.kind === "rejected" && result.state).toBe(state);
+    });
 });
