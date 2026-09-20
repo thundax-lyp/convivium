@@ -1,5 +1,6 @@
 import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
 import { projectMeetingStatus } from "@/projection/status.js";
+import { ContinuationMaterialViewV1Schema } from "@/protocol/meeting-view-v1.js";
 import { describe, expect, it } from "vitest";
 import { validArchivePackage, validArchivedProjection } from "../fixtures/protocol-archive.js";
 import {
@@ -30,6 +31,58 @@ const targetTermination = {
     unresolvedIssueIds: [],
     unclosedContributionIds: []
 };
+
+it("strips old meeting references from continuation evidence reviews", () => {
+    const result = ContinuationMaterialViewV1Schema.parse({
+        kind: "published_evidence",
+        sourceArchiveId: "archive-1",
+        sourceMaterialId: "material-1",
+        title: "evidence",
+        evidence: {
+            version: {
+                id: "version-1",
+                ordinal: 1,
+                observation: "observation",
+                interpretation: "interpretation",
+                method: "method",
+                falsifiers: [],
+                uncertainties: [],
+                limitations: [],
+                claims: [],
+                materials: [],
+                submittedAt: 1
+            },
+            review: {
+                id: "review-1",
+                versionId: "version-1",
+                baselinePublicationIds: ["publication-1"],
+                scope: "scope",
+                dimensions: Object.fromEntries(
+                    ["source", "credibility", "completeness", "support"].map((key) => [
+                        key,
+                        {
+                            score: 3,
+                            scope: "scope",
+                            reason: "reason",
+                            baselineEvidenceIds: ["version-0"]
+                        }
+                    ])
+                ),
+                createdAt: 1
+            }
+        }
+    });
+    expect(result.evidence.review).toEqual({
+        scope: "scope",
+        dimensions: {
+            source: { score: 3, scope: "scope", reason: "reason" },
+            credibility: { score: 3, scope: "scope", reason: "reason" },
+            completeness: { score: 3, scope: "scope", reason: "reason" },
+            support: { score: 3, scope: "scope", reason: "reason" }
+        },
+        createdAt: 1
+    });
+});
 
 const targetArchive = {
     id: "archive-1",
