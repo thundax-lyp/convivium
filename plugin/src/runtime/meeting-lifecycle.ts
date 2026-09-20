@@ -29,7 +29,7 @@ import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js"
 import {
     createEvidenceReviewDispatcherV1,
     createReviewDeliveryDispatcherV1
-} from "./services/evidence-review-dispatch-v1.js";
+} from "./services/evidence-review-dispatch.js";
 import { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";
 import type { MeetingIdentityProvisionDependenciesV1 } from "./services/meeting-identity-provision.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { createEvidenceReviewDispatcherV1 } from "@/runtime/services/evidence-review-dispatch-v1.js";
+import { createEvidenceReviewDispatcherV1 } from "@/runtime/services/evidence-review-dispatch.js";
 
 const outboxItem = (payload: Record<string, unknown>) => ({
     id: "effect-review-1",

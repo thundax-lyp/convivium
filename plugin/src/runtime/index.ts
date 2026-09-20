@@ -70,7 +70,7 @@ export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispa
 export {
     createEvidenceReviewDispatcherV1,
     createReviewDeliveryDispatcherV1
-} from "./services/evidence-review-dispatch-v1.js";
+} from "./services/evidence-review-dispatch.js";
 export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js";
-export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
+export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery.js";
 export type { MeetingOutboxWakeupV1 } from "./outbox-worker.js";
