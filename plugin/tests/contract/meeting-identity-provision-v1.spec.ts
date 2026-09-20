@@ -174,7 +174,11 @@ describe("identity provision effect handler", () => {
                 }) as never,
                 new AbortController().signal
             )
-        ).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE", retryable: true });
+        ).rejects.toMatchObject({
+            code: "RECOVERY_UNAVAILABLE",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
         expect(execute).not.toHaveBeenCalled();
     });
 

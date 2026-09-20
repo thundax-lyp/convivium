@@ -60,7 +60,8 @@ export function createMeetingIdentityEffectHandlerV1(
             if (result.kind === "rejected" && result.failureCode === "RECOVERY_UNAVAILABLE")
                 throw Object.assign(new Error(result.failureCode), {
                     code: result.failureCode,
-                    retryable: true
+                    retryable: true,
+                    terminalOnAttemptLimit: false
                 });
             const context: IdentityAdmissionResultContextV1 =
                 result.kind === "admitted"

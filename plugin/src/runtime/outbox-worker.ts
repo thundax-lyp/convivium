@@ -76,6 +76,15 @@ function isRetryable(error: unknown): boolean {
     );
 }
 
+function terminatesOnAttemptLimit(error: unknown): boolean {
+    return !(
+        error &&
+        typeof error === "object" &&
+        "terminalOnAttemptLimit" in error &&
+        (error as { terminalOnAttemptLimit?: unknown }).terminalOnAttemptLimit === false
+    );
+}
+
 export function createOutboxWorker(options: OutboxWorkerOptions) {
     if (options.batchSize < 1 || options.ttlMs < 1 || options.pollMs < 1) {
         throw new Error("Outbox worker batchSize, ttlMs and pollMs must be positive");
@@ -120,7 +129,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 if (controller.signal.aborted)
                     return { claimed: items.length, delivered, retried, failed };
                 const code = errorCode(error);
-                const terminal = !isRetryable(error) || item.attempts >= maxAttempts;
+                const terminal =
+                    !isRetryable(error) ||
+                    (terminatesOnAttemptLimit(error) && item.attempts >= maxAttempts);
                 const completionNow = now();
                 await options.repository.completeOutbox({
                     id: item.id,
