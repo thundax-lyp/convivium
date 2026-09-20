@@ -57,7 +57,9 @@ export function raiseSupplementHandV1(
             ? undefined
             : state.evidencePackages.find((candidate) => candidate.id === contribution.packageId);
     const deadlines = [
-        contribution.acceptedAt + state.limits.taskDeadlineMs,
+        ...(packageValue === undefined
+            ? [contribution.acceptedAt + state.limits.taskDeadlineMs]
+            : []),
         ...(round.deadlineAt === undefined ? [] : [round.deadlineAt]),
         ...state.tasks
             .filter(
