@@ -202,6 +202,7 @@ export function recordIdentityAdmissionResultV1(
             result.childSessionId !== intent.childSessionId ||
             result.definitionId !== intent.definitionId ||
             result.definitionVersion !== intent.definitionVersion ||
+            result.definitionHash !== intent.definitionHash ||
             !valid(result.ownershipId) ||
             !valid(result.descriptorId) ||
             !valid(result.displayName) ||
