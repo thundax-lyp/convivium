@@ -41,6 +41,18 @@ describe("Meeting business-loop smoke result", () => {
         ]);
     });
 
+    it("rejects the removed legacy contribution selector", () => {
+        expect(() => selectScenarios([], "parallel-contribution", false)).toThrow(
+            "Unsupported CONVIVIUM_SMOKE_SCENARIO"
+        );
+    });
+
+    it("rejects Browser mode until a target-runtime Browser scenario exists", () => {
+        expect(() => selectScenarios([], undefined, true)).toThrow(
+            "Browser smoke is not implemented for the target runtime"
+        );
+    });
+
     it("accepts the result only after the archived Meeting survives a cold reopen", () => {
         const completed = completeMeetingBusinessLoopResult(hotResult, {
             ok: true,

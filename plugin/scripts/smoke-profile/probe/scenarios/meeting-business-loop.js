@@ -61,11 +61,25 @@ function reviewerToolSummary(agent) {
             ...(call.name === "convivium_submit_review_batch"
                 ? {
                       input: {
+                          inputType: Array.isArray(call.args?.input)
+                              ? "array"
+                              : typeof call.args?.input,
                           shape: {
                               root: Object.keys(call.args ?? {}),
-                              input: Object.keys(call.args?.input ?? {}),
-                              nestedInput: Object.keys(call.args?.input?.input ?? {}),
-                              action: Object.keys(call.args?.input?.action ?? {})
+                              input:
+                                  call.args?.input && typeof call.args.input === "object"
+                                      ? Object.keys(call.args.input)
+                                      : [],
+                              nestedInput:
+                                  call.args?.input?.input &&
+                                  typeof call.args.input.input === "object"
+                                      ? Object.keys(call.args.input.input)
+                                      : [],
+                              action:
+                                  call.args?.input?.action &&
+                                  typeof call.args.input.action === "object"
+                                      ? Object.keys(call.args.input.action)
+                                      : []
                           },
                           expectedMeetingVersion: call.args?.input?.expectedMeetingVersion,
                           reviews: call.args?.input?.action?.reviews?.map((review) => ({
