@@ -574,6 +574,8 @@ export const AllowedControlV1Schema = z.enum([
     "submit_review_batch",
     "record_review_delivery",
     "publish_round",
+    "pause_meeting",
+    "resume_meeting",
     "end_meeting",
     "start_archive",
     "record_archive_session_result",

@@ -471,6 +471,31 @@ describe("meeting lifecycle transitions", () => {
         ]);
     });
 
+    it("rejects resuming a message-budget pause without changing the state", () => {
+        const current = {
+            ...state("paused"),
+            lifecycle: {
+                status: "paused" as const,
+                changedAt: 3,
+                changedBy: "manager-1",
+                reason: "message budget exhausted"
+            }
+        };
+        const result = transitionMeetingStateV1(
+            current,
+            { kind: "resume_meeting", reason: "continue" },
+            local,
+            10,
+            "fact-1"
+        );
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "LIMIT_EXCEEDED",
+            facts: []
+        });
+    });
+
     it.each([
         ["identity actor", identity, "running", "UNAUTHORIZED"],
         ["wrong lifecycle", local, "preparing", "INVALID_STATE"]

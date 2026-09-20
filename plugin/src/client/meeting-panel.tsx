@@ -122,6 +122,39 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         }
     }, [api, detail, loadDetail, loadList, writePending]);
 
+    const changePause = useCallback(
+        async (kind: "pause_meeting" | "resume_meeting") => {
+            const current = detail;
+            const meetingId = selectedRef.current;
+            if (current === undefined || meetingId === undefined || writePending) return;
+            setWritePending(true);
+            setDetailCached(true);
+            setDetailError(undefined);
+            try {
+                await api.control({
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: current.version,
+                    requestId: crypto.randomUUID(),
+                    action: {
+                        kind,
+                        reason:
+                            kind === "pause_meeting"
+                                ? "Paused from Meeting panel."
+                                : "Resumed from Meeting panel."
+                    }
+                });
+                await loadDetail(meetingId);
+                await loadList();
+            } catch (error) {
+                setDetailError(failureMessage(error));
+            } finally {
+                setWritePending(false);
+            }
+        },
+        [api, detail, loadDetail, loadList, writePending]
+    );
+
     return renderMeetingPanelLayout({
         meetings,
         selectedId,
@@ -133,6 +166,8 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         writePending,
         requestRefresh: refresh,
         selectMeeting,
+        pauseMeeting: () => changePause("pause_meeting"),
+        resumeMeeting: () => changePause("resume_meeting"),
         endMeeting
     });
 }

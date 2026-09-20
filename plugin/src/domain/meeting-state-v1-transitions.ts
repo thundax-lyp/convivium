@@ -107,6 +107,7 @@ export type TargetTransitionResultV1 =
               | "MEETING_TERMINAL"
               | "NOT_FOUND"
               | "INVALID_STATE"
+              | "LIMIT_EXCEEDED"
               | "PRECONDITION_FAILED";
           facts: readonly [];
       };
@@ -117,6 +118,7 @@ type RejectionCode =
     | "MEETING_TERMINAL"
     | "NOT_FOUND"
     | "INVALID_STATE"
+    | "LIMIT_EXCEEDED"
     | "PRECONDITION_FAILED";
 
 const invalid = (state: MeetingState, code: RejectionCode): TargetTransitionResultV1 => ({
@@ -365,6 +367,11 @@ export function transitionMeetingStateV1(
         const expected = action.kind === "pause_meeting" ? "running" : "paused";
         nextStatus = action.kind === "pause_meeting" ? "paused" : "running";
         if (state.lifecycle.status !== expected) return invalid(state, "INVALID_STATE");
+        if (
+            action.kind === "resume_meeting" &&
+            state.lifecycle.reason === "message budget exhausted"
+        )
+            return invalid(state, "LIMIT_EXCEEDED");
         relatedIds = [state.id];
     } else if (action.kind === "activate_agenda") {
         if (state.lifecycle.status !== "running") return invalid(state, "INVALID_STATE");

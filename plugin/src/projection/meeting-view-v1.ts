@@ -76,7 +76,15 @@ function catalogView(catalog: MeetingAgentCatalogV1) {
 
 function allowedControls(state: MeetingState, caller: MeetingProjectionCallerV1) {
     if (!["running", "paused", "converging"].includes(state.lifecycle.status)) return [];
-    if (caller.kind === "local") return ["end_meeting"] as const;
+    if (caller.kind === "local") {
+        if (state.lifecycle.status === "running") return ["pause_meeting", "end_meeting"] as const;
+        if (
+            state.lifecycle.status === "paused" &&
+            state.lifecycle.reason !== "message budget exhausted"
+        )
+            return ["resume_meeting", "end_meeting"] as const;
+        return ["end_meeting"] as const;
+    }
     if (hasRole(caller, "manager"))
         return ["open_round", "dispose_hand_raise", "publish_round", "recommend_identity"] as const;
     if (hasRole(caller, "evidence_reviewer")) return ["submit_review_batch"] as const;

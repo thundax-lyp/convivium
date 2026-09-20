@@ -9,6 +9,35 @@ afterEach(cleanup);
 beforeEach(() => vi.stubGlobal("crypto", { randomUUID: () => "request-local" }));
 
 describe("Meeting panel local controls", () => {
+    it("uses the current projection version and rereads after pause_meeting", async () => {
+        const { summary, view } = meetingProjectionFixture();
+        const stream = {
+            async *[Symbol.asyncIterator]() {
+                await new Promise<void>(() => {});
+                yield undefined as never;
+            },
+            dispose: vi.fn(async () => {})
+        };
+        const api = {
+            list: vi.fn(async () => ({ meetings: [summary] })),
+            read: vi.fn(async () => view),
+            control: vi.fn(async () => ({ kind: "accepted" as const })),
+            subscribeRefresh: vi.fn(() => stream)
+        } as unknown as MeetingClient;
+        render(createElement(ConviviumMeetingPanel, { api }));
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
+        await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
+        expect(api.control).toHaveBeenCalledWith({
+            protocolVersion: 1,
+            meetingId: summary.meetingId,
+            expectedMeetingVersion: view.version,
+            requestId: "request-local",
+            action: { kind: "pause_meeting", reason: "Paused from Meeting panel." }
+        });
+        await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
+    });
+
     it("uses the current projection version and rereads after end_meeting", async () => {
         const { summary, view } = meetingProjectionFixture();
         const stream = {

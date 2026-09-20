@@ -12,6 +12,7 @@ import {
     startMeetingArchiveV1,
     submitEvidenceV1,
     submitReviewBatchV1,
+    transitionMeetingStateV1,
     type MeetingState,
     type MeetingTransitionResultV1,
     type IdentityAdmissionResultContextV1
@@ -132,7 +133,8 @@ function sameCaller(left: CallerBindingV1, right: CallerBindingV1): boolean {
 }
 
 function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerScopeV1): boolean {
-    if (action === "end_meeting") return scope.role === "local";
+    if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
+        return scope.role === "local";
     if (
         action === "record_review_delivery" ||
         action === "start_archive" ||
@@ -492,6 +494,25 @@ export function createMeetingCommandApplicationV1(
                                     ),
                                     now
                                 });
+                                break;
+                            }
+                            case "pause_meeting":
+                            case "resume_meeting": {
+                                const result = transitionMeetingStateV1(
+                                    snapshot.state,
+                                    action,
+                                    { kind: "local_controller", id: actorId },
+                                    now,
+                                    factId
+                                );
+                                if (result.kind === "rejected")
+                                    throw new TransitionRejected(result.code, result.code);
+                                transition = {
+                                    kind: "accepted",
+                                    state: result.state,
+                                    relatedIds: result.facts[0].relatedIds,
+                                    effectRequests: []
+                                };
                                 break;
                             }
                             case "end_meeting":
