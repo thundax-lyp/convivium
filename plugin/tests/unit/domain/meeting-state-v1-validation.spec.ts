@@ -69,6 +69,42 @@ describe("canonical MeetingState validation", () => {
         });
     });
 
+    it("rejects an extra publication not selected by its published round", () => {
+        const state = makeRunningMeetingStateV1();
+        const selectedPublication = {
+            id: "publication-1",
+            roundId: "round-1",
+            seq: 1,
+            finalVersionIds: [],
+            finalReviewIds: [],
+            publishedAt: 1,
+            exitReasons: []
+        };
+        const round = {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "published" as const,
+            contributionIds: [],
+            publicationId: selectedPublication.id
+        };
+
+        expect(
+            validateMeetingStateV1({
+                ...state,
+                rounds: [round],
+                publications: [
+                    selectedPublication,
+                    { ...selectedPublication, id: "publication-2", seq: 2 }
+                ]
+            })
+        ).toMatchObject({
+            kind: "invalid",
+            path: "$.publications[1].roundId"
+        });
+    });
+
     it("accepts a complete canonical archive package by value", () => {
         const state = makeRunningMeetingStateV1();
         const termination = {
