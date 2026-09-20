@@ -231,7 +231,7 @@ export function recalculateMeetingCompletionV1(
         ...state,
         objective,
         lifecycle,
-        ...(enteringConverging ? { pendingHandRaises: [] } : {})
+        ...(enteringConverging ? { pendingHandRaises: [], opportunityRequests: [] } : {})
     };
 }
 
