@@ -1,4 +1,4 @@
-import { createProbeSupport } from "./support.js";
+import { collectAgentPromptEvidence, createProbeSupport } from "./support.js";
 import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
 import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
 import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
@@ -17,6 +17,7 @@ export const inject = [
 ];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
+const agentPromptsPath = process.env.CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "parallel-contribution";
 const {
@@ -286,6 +287,19 @@ async function run(ctx) {
             error: error instanceof Error ? (error.stack ?? error.message) : String(error)
         });
     } finally {
+        if (agentPromptsPath && process.env.CONVIVIUM_SMOKE_PHASE !== "cold-reopen") {
+            const fs = await import("node:fs/promises");
+            const promptEvidence = collectAgentPromptEvidence(
+                observedAgents,
+                observedInboxMessages
+            );
+            await fs.writeFile(
+                agentPromptsPath + ".tmp",
+                JSON.stringify(promptEvidence, null, 2),
+                "utf8"
+            );
+            await fs.rename(agentPromptsPath + ".tmp", agentPromptsPath);
+        }
         if (!browserMode) await captain?.dispose();
     }
 }

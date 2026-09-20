@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
 
+export const MEETING_BUSINESS_LOOP_TOPIC = {
+    objective:
+        "评估 JEV 大模型的公开能力主张是否有充分、可验证的证据支持，并以 mono-jev 为具体案例分析是否存在过度包装。",
+    title: "JEV 大模型能力主张与过度包装",
+    question:
+        "JEV 大模型（以 mono-jev 为例）的公开能力主张是否有充分、可验证的证据支持，是否存在过度包装？"
+};
+
 function canonical(value) {
     if (Array.isArray(value)) return value.map(canonical);
     if (value && typeof value === "object")
@@ -162,7 +170,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         action: {
             kind: "create_meeting",
             objective: {
-                statement: "Verify target business loop",
+                statement: MEETING_BUSINESS_LOOP_TOPIC.objective,
                 requiredOutputs: [],
                 acceptanceCriteria: [],
                 hardConstraints: [],
@@ -183,8 +191,8 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             initialAgenda: [
                 {
                     id: "agenda-1",
-                    title: "Target loop",
-                    question: "Can the target loop complete?",
+                    title: MEETING_BUSINESS_LOOP_TOPIC.title,
+                    question: MEETING_BUSINESS_LOOP_TOPIC.question,
                     requiredOutputIds: [],
                     ownerIdentityKey: "manager"
                 }
@@ -464,10 +472,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     for (let attempt = 0; attempt < 900; attempt += 1) {
         for (const key of raised) {
             const turns = reviewerTurnSummary(currentAgent(key));
-            if (
-                turns.starts > turns.ends &&
-                interruptedTurnCount.get(key) !== turns.starts
-            ) {
+            if (turns.starts > turns.ends && interruptedTurnCount.get(key) !== turns.starts) {
                 ctx.subagents.interrupt(agents[key].id, {
                     kind: "ancestor",
                     agent: captain.agent

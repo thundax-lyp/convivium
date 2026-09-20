@@ -1,3 +1,22 @@
+export function collectAgentPromptEvidence(observedAgents, observedInboxMessages) {
+    return [...observedAgents.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([sessionId]) => ({
+            sessionId,
+            prompts: (observedInboxMessages.get(sessionId) ?? []).map((message, index) => ({
+                index,
+                texts: Array.isArray(message.content)
+                    ? message.content
+                          .filter((part) => part?.type === "text" && typeof part.text === "string")
+                          .map((part) => part.text)
+                    : typeof message.content === "string"
+                      ? [message.content]
+                      : [],
+                source: message.source ?? null
+            }))
+        }));
+}
+
 export function createProbeSupport(outputPath) {
     function assert(condition, message) {
         if (!condition) throw new Error(message);
