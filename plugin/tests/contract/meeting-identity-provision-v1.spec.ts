@@ -75,6 +75,7 @@ describe("identity provision effect handler", () => {
                     meetingId: "meeting-1",
                     version: 4,
                     state: {
+                        lifecycle: { status: "running" },
                         identityRecommendations: [
                             {
                                 id: "rec-1",
@@ -91,7 +92,8 @@ describe("identity provision effect handler", () => {
                 })
             } as never,
             definitions: [],
-            provision
+            provision,
+            cleanupProvisioned: vi.fn()
         });
         await handler.dispatch(
             effect({
@@ -115,7 +117,8 @@ describe("identity provision effect handler", () => {
             application: { execute: vi.fn() } as never,
             repository: { read: vi.fn() } as never,
             definitions: [],
-            provision: vi.fn() as never
+            provision: vi.fn() as never,
+            cleanupProvisioned: vi.fn()
         });
         await expect(
             handler.dispatch(
@@ -138,6 +141,7 @@ describe("identity provision effect handler", () => {
                     meetingId: "meeting-1",
                     version: 4,
                     state: {
+                        lifecycle: { status: "running" },
                         identityRecommendations: [
                             {
                                 id: "rec-1",
@@ -157,7 +161,8 @@ describe("identity provision effect handler", () => {
             provision: vi.fn(async () => ({
                 kind: "rejected" as const,
                 failureCode: "RECOVERY_UNAVAILABLE"
-            }))
+            })),
+            cleanupProvisioned: vi.fn()
         });
 
         await expect(
@@ -171,6 +176,179 @@ describe("identity provision effect handler", () => {
             )
         ).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE", retryable: true });
         expect(execute).not.toHaveBeenCalled();
+    });
+
+    it("does not start provisioning while the Meeting is paused", async () => {
+        const provision = vi.fn();
+        const handler = createMeetingIdentityEffectHandlerV1({
+            application: { execute: vi.fn() } as never,
+            repository: {
+                read: async () => ({
+                    meetingId: "meeting-1",
+                    version: 4,
+                    state: {
+                        lifecycle: { status: "paused" },
+                        identityRecommendations: [
+                            {
+                                id: "rec-1",
+                                decision: "admit",
+                                status: "provisioning",
+                                definitionId: "domain_architect",
+                                definitionVersion: "1",
+                                definitionHash: "a".repeat(64),
+                                identityId: "identity-1",
+                                childSessionId: "child-1"
+                            }
+                        ]
+                    }
+                })
+            } as never,
+            definitions: [],
+            provision,
+            cleanupProvisioned: vi.fn()
+        });
+
+        await expect(
+            handler.dispatch(
+                effect({
+                    kind: "identity_provision",
+                    recommendationId: "rec-1",
+                    admissionId: "rec-1"
+                }) as never,
+                new AbortController().signal
+            )
+        ).rejects.toThrow("INVALID_STATE");
+        expect(provision).not.toHaveBeenCalled();
+    });
+
+    it("cleans a child created concurrently with Meeting termination", async () => {
+        const execute = vi.fn();
+        const cleanupProvisioned = vi.fn();
+        let reads = 0;
+        const handler = createMeetingIdentityEffectHandlerV1({
+            application: { execute } as never,
+            repository: {
+                read: async () => {
+                    reads += 1;
+                    return {
+                        meetingId: "meeting-1",
+                        version: reads === 1 ? 4 : 5,
+                        state: {
+                            lifecycle: { status: reads === 1 ? "running" : "terminal" },
+                            identityRecommendations: [
+                                {
+                                    id: "rec-1",
+                                    decision: "admit",
+                                    status: reads === 1 ? "provisioning" : "failed",
+                                    definitionId: "domain_architect",
+                                    definitionVersion: "1",
+                                    definitionHash: "a".repeat(64),
+                                    identityId: "identity-1",
+                                    childSessionId: "child-1"
+                                }
+                            ]
+                        }
+                    };
+                }
+            } as never,
+            definitions: [],
+            provision: vi.fn(async () => ({
+                kind: "admitted" as const,
+                result: {
+                    kind: "admitted" as const,
+                    admissionId: "rec-1",
+                    meetingId: "meeting-1",
+                    identityId: "identity-1",
+                    childSessionId: "child-1",
+                    ownershipId: "owner-1",
+                    descriptorId: "descriptor:rec-1",
+                    displayName: "Architect",
+                    definitionId: "domain_architect",
+                    definitionVersion: "1",
+                    definitionHash: "a".repeat(64)
+                }
+            })),
+            cleanupProvisioned
+        });
+
+        await handler.dispatch(
+            effect({
+                kind: "identity_provision",
+                recommendationId: "rec-1",
+                admissionId: "rec-1"
+            }) as never,
+            new AbortController().signal
+        );
+
+        expect(cleanupProvisioned).toHaveBeenCalledWith("rec-1");
+        expect(execute).not.toHaveBeenCalled();
+    });
+
+    it("cleans a provisioned child when admission CAS loses to Meeting termination", async () => {
+        const cleanupProvisioned = vi.fn();
+        let reads = 0;
+        const handler = createMeetingIdentityEffectHandlerV1({
+            application: {
+                execute: vi.fn(async () => ({
+                    kind: "rejected" as const,
+                    error: { code: "VERSION_CONFLICT" as const, message: "stale" }
+                }))
+            } as never,
+            repository: {
+                read: async () => {
+                    reads += 1;
+                    const terminal = reads === 3;
+                    return {
+                        meetingId: "meeting-1",
+                        version: terminal ? 5 : 4,
+                        state: {
+                            lifecycle: { status: terminal ? "terminal" : "running" },
+                            identityRecommendations: [
+                                {
+                                    id: "rec-1",
+                                    decision: "admit",
+                                    status: terminal ? "failed" : "provisioning",
+                                    definitionId: "domain_architect",
+                                    definitionVersion: "1",
+                                    definitionHash: "a".repeat(64),
+                                    identityId: "identity-1",
+                                    childSessionId: "child-1"
+                                }
+                            ]
+                        }
+                    };
+                }
+            } as never,
+            definitions: [],
+            provision: vi.fn(async () => ({
+                kind: "admitted" as const,
+                result: {
+                    kind: "admitted" as const,
+                    admissionId: "rec-1",
+                    meetingId: "meeting-1",
+                    identityId: "identity-1",
+                    childSessionId: "child-1",
+                    ownershipId: "owner-1",
+                    descriptorId: "descriptor:rec-1",
+                    displayName: "Architect",
+                    definitionId: "domain_architect",
+                    definitionVersion: "1",
+                    definitionHash: "a".repeat(64)
+                }
+            })),
+            cleanupProvisioned
+        });
+
+        await handler.dispatch(
+            effect({
+                kind: "identity_provision",
+                recommendationId: "rec-1",
+                admissionId: "rec-1"
+            }) as never,
+            new AbortController().signal
+        );
+
+        expect(cleanupProvisioned).toHaveBeenCalledWith("rec-1");
     });
 });
 

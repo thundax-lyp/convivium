@@ -361,6 +361,11 @@ export async function activateTargetMeetingApplicationV1(
             repository,
             application
         });
+        const identityOwner = createIdentityProvisionOwnerV1({
+            repository,
+            sessions: ctx.subagents,
+            parent
+        });
         const identity = createMeetingIdentityEffectHandlerV1({
             application,
             repository,
@@ -373,12 +378,12 @@ export async function activateTargetMeetingApplicationV1(
                     runtime: ctx.subagents,
                     provider: config.provider,
                     now: Date.now,
-                    owner: createIdentityProvisionOwnerV1({
-                        repository,
-                        sessions: ctx.subagents,
-                        parent
-                    })
-                })
+                    owner: identityOwner
+                }),
+            cleanupProvisioned: async (recommendationId) => {
+                const ownership = await identityOwner.readOwnership(recommendationId);
+                if (ownership !== undefined) await identityOwner.revokeAndDrainOwned(ownership);
+            }
         });
         const dispatch = createTargetMeetingEffectDispatcherV1({
             parent,
