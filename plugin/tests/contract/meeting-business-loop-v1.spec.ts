@@ -4,11 +4,11 @@ import {
     MeetingActionV1Schema,
     ListMeetingsRequestV1Schema,
     ReadMeetingRequestV1Schema
-} from "@/protocol/meeting-command-v1.js";
+} from "@/protocol/meeting-command.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec-v1.js";
+} from "@/repository/domain/meeting-state-codec.js";
 import {
     MeetingActionV1Schema as PublicMeetingActionV1Schema,
     MeetingCommandResultV1Schema as PublicMeetingCommandResultV1Schema,

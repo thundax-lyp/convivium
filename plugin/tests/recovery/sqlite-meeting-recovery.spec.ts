@@ -10,7 +10,7 @@ import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec-v1.js";
+} from "@/repository/domain/meeting-state-codec.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };

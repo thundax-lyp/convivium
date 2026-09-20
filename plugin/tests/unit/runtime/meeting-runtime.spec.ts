@@ -4,7 +4,7 @@ import {
     createMeetingRuntime
 } from "@/runtime/meeting-runtime.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
-import { MeetingCommandV1Schema } from "@/protocol/meeting-command-v1.js";
+import { MeetingCommandV1Schema } from "@/protocol/meeting-command.js";
 import { LocalMeetingRecoveryUnavailableError } from "@/runtime/application-service/index.js";
 import { RepositoryError } from "@/repository/errors.js";
 

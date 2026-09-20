@@ -1,6 +1,6 @@
 import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
 import { projectMeetingStatus } from "@/projection/status.js";
-import { ContinuationMaterialViewV1Schema } from "@/protocol/meeting-view-v1.js";
+import { ContinuationMaterialViewV1Schema } from "@/protocol/meeting-view.js";
 import { describe, expect, it } from "vitest";
 import { validArchivePackage, validArchivedProjection } from "../fixtures/protocol-archive.js";
 import {

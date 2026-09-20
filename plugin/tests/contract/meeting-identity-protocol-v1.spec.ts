@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MeetingCommandV1Schema } from "@/protocol/meeting-command-v1.js";
+import { MeetingCommandV1Schema } from "@/protocol/meeting-command.js";
 import {
     IdentityViewV1Schema,
     IdentityRecommendationViewV1Schema,

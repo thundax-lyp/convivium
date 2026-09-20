@@ -28,7 +28,7 @@ export {
     getMeetingCommandApplicationV1,
     getLocalMeetingWebRuntimeV1,
     ensureTargetMeetingDeliveryV1
-} from "./meeting-lifecycle-v1.js";
+} from "./meeting-lifecycle.js";
 export type {
     DomainEventInput,
     JsonObject,
@@ -63,14 +63,14 @@ export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
 export {
     createMeetingCommandApplicationV1,
     type MeetingCommandApplicationV1
-} from "./application-service/meeting-command-v1.js";
-export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity-v1.js";
-export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision-v1.js";
-export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
+} from "./application-service/meeting-command.js";
+export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
+export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";
+export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch.js";
 export {
     createEvidenceReviewDispatcherV1,
     createReviewDeliveryDispatcherV1
 } from "./services/evidence-review-dispatch-v1.js";
-export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
+export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js";
 export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
 export type { MeetingOutboxWakeupV1 } from "./outbox-worker.js";

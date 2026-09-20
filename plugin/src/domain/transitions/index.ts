@@ -61,7 +61,7 @@ export {
     type CompletePrivateMailInputV1,
     type CancelPrivateMailInputV1,
     type ExpirePrivateMailInputV1
-} from "./private-mail-v1.js";
+} from "./private-mail.js";
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
 export {
     submitEvidenceV1,
@@ -73,12 +73,12 @@ export {
     recordReviewDeliveryV1,
     type SubmitReviewBatchInputV1,
     type SubmitReviewBatchItemV1
-} from "./evidence-review-v1.js";
-export { closeContributionV1 } from "./contribution-exit-v1.js";
-export { publishRoundV1 } from "./round-publication-v1.js";
-export { createMeetingV1 } from "./meeting-create-v1.js";
-export { endMeetingV1 } from "./meeting-end-v1.js";
-export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archive-v1.js";
+} from "./evidence-review.js";
+export { closeContributionV1 } from "./contribution-exit.js";
+export { publishRoundV1 } from "./round-publication.js";
+export { createMeetingV1 } from "./meeting-create.js";
+export { endMeetingV1 } from "./meeting-end.js";
+export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archive.js";
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,

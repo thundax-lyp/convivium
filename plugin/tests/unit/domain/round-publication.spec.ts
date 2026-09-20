@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round.js";
-import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
+import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
 
 describe("round publication", () => {
     it("publishes an empty closable round once", () => {

@@ -43,7 +43,7 @@ import {
 import type {
     CreateMeetingCommandV1,
     MeetingCreationCoordinatorV1
-} from "@/runtime/application-service/meeting-command-v1.js";
+} from "@/runtime/application-service/meeting-command.js";
 
 export interface MeetingRepositoryOpenInput {
     readonly registry: Promise<DomainRepositoryRegistry>;

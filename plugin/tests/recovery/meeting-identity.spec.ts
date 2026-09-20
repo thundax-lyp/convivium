@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end-v1.js";
+import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
 import { recoverMeetingCommandsV1 } from "@/runtime/services/meeting-command-recovery-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 describe("identity admission recovery", () => {

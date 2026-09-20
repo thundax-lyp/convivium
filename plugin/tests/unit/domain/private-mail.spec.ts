@@ -5,7 +5,7 @@ import {
     expirePrivateMailV1,
     sendPrivateMailV1,
     startPrivateMailV1
-} from "@/domain/transitions/private-mail-v1.js";
+} from "@/domain/transitions/private-mail.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 

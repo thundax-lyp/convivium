@@ -4,14 +4,14 @@ import type { MeetingState } from "@/domain/index.js";
 import {
     MeetingCommandResultV1Schema,
     MeetingCommandV1Schema
-} from "@/protocol/meeting-command-v1.js";
+} from "@/protocol/meeting-command.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec-v1.js";
+} from "@/repository/domain/meeting-state-codec.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
-import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command-v1.js";
+import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RepositoryCommand } from "@/repository/types.js";

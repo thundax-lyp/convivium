@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { createMeetingV1 } from "@/domain/transitions/meeting-create-v1.js";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end-v1.js";
+import { createMeetingV1 } from "@/domain/transitions/meeting-create.js";
+import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
 import {
     completeMeetingArchiveV1,
     startMeetingArchiveV1
-} from "@/domain/transitions/meeting-archive-v1.js";
+} from "@/domain/transitions/meeting-archive.js";
 
 describe("meeting lifecycle", () => {
     it("creates an isolated target aggregate", () => {

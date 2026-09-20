@@ -6,10 +6,10 @@ import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
 import {
     recordReviewDeliveryV1,
     submitReviewBatchV1
-} from "@/domain/transitions/evidence-review-v1.js";
+} from "@/domain/transitions/evidence-review.js";
 import { isRoundClosableV1 } from "@/domain/transitions/round.js";
-import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
-import { closeContributionV1 } from "@/domain/transitions/contribution-exit-v1.js";
+import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
+import { closeContributionV1 } from "@/domain/transitions/contribution-exit.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 function evidenceState() {

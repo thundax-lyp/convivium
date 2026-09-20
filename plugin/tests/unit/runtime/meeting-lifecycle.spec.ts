@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     createTargetMeetingEffectDispatcherV1,
     recoverTargetMeetingDeliveriesV1
-} from "@/runtime/meeting-lifecycle-v1.js";
+} from "@/runtime/meeting-lifecycle.js";
 
 const item = (kind: string) =>
     ({

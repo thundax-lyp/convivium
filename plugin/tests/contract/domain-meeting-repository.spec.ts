@@ -14,7 +14,7 @@ import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec-v1.js";
+} from "@/repository/domain/meeting-state-codec.js";
 
 defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contract", {
     open: async (authorizationValidator = allow) =>

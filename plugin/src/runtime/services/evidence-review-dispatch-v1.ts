@@ -13,7 +13,7 @@ import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplicationV1
-} from "@/runtime/application-service/meeting-command-v1.js";
+} from "@/runtime/application-service/meeting-command.js";
 
 class EvidenceReviewDispatchError extends Error {
     constructor(

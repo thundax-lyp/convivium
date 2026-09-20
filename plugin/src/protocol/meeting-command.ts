@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema
-} from "./meeting-identity-v1.js";
+} from "./meeting-identity.js";
 
 const id = z.string().trim().min(1);
 const text = z.string().trim().min(1);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
-import { projectMeetingViewV1 } from "@/projection/meeting-view-v1.js";
+import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
 import { endMeetingV1, startMeetingArchiveV1 } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {
     it("hides Manager catalog from Participant and does not expose Session fields", () => {

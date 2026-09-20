@@ -9,7 +9,7 @@ import { projectMeetingSummaryV1, projectMeetingViewV1 } from "@/projection/inde
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec-v1.js";
+} from "@/repository/domain/meeting-state-codec.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import {
@@ -17,21 +17,21 @@ import {
     DEADLINE_HANDLER_PRINCIPAL_ID,
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplicationV1
-} from "./application-service/meeting-command-v1.js";
-import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity-v1.js";
+} from "./application-service/meeting-command.js";
+import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 import { requireContinuableProvider, type RoleCatalogPortV1 } from "@/dsh/index.js";
 import type { MeetingOwnershipLookupV1 } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
-import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
-import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
+import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch.js";
+import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js";
 import {
     createEvidenceReviewDispatcherV1,
     createReviewDeliveryDispatcherV1
 } from "./services/evidence-review-dispatch-v1.js";
-import { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision-v1.js";
-import type { MeetingIdentityProvisionDependenciesV1 } from "./services/meeting-identity-provision-v1.js";
+import { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";
+import type { MeetingIdentityProvisionDependenciesV1 } from "./services/meeting-identity-provision.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";

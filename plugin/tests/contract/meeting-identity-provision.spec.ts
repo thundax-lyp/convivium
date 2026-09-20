@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMeetingIdentityEffectHandlerV1 } from "@/runtime/application-service/meeting-identity-v1.js";
-import { provisionMeetingIdentityV1 } from "@/runtime/services/meeting-identity-provision-v1.js";
+import { createMeetingIdentityEffectHandlerV1 } from "@/runtime/application-service/meeting-identity.js";
+import { provisionMeetingIdentityV1 } from "@/runtime/services/meeting-identity-provision.js";
 import { resolveMeetingRoles } from "@/role-composition/resolve.js";
 
 const dynamicDefinition = {

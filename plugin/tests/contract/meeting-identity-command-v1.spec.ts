@@ -4,8 +4,8 @@ import type { MeetingState } from "@/domain/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RepositoryCommand } from "@/repository/types.js";
-import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command-v1.js";
-import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity-v1.js";
+import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
+import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity.js";
 
 const managerCaller = {
     channel: "dsh_tool" as const,

@@ -90,7 +90,7 @@ export {
     type ListMeetingsRequestV1,
     type ReadMeetingRequestV1,
     type MeetingCommandResultV1
-} from "./meeting-command-v1.js";
+} from "./meeting-command.js";
 export {
     MeetingRoleV1Schema,
     RoleErrorCodeV1Schema,
@@ -98,9 +98,9 @@ export {
     RecordIdentityAdmissionResultActionV1Schema,
     type MeetingRoleV1,
     type RoleErrorCodeV1
-} from "./meeting-identity-v1.js";
+} from "./meeting-identity.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
-export * from "./meeting-view-v1.js";
+export * from "./meeting-view.js";
 export type {
     ContributionDelivery,
     ContributionContextV1,
