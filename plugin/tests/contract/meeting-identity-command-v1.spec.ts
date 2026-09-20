@@ -91,6 +91,9 @@ describe("meeting identity command", () => {
             });
             expect(command.facts).toHaveLength(1);
             expect(transition.state.identityRecommendations).toHaveLength(1);
+            expect(transition.state.identityRecommendations[0]).toMatchObject({
+                definitionHash: "a".repeat(64)
+            });
             return {
                 requestId: command.requestId,
                 meetingId: state.id,
@@ -152,7 +155,7 @@ describe("meeting identity command", () => {
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v1",
-                    decision: "reject",
+                    decision: "admit",
                     rationale: "理由",
                     expectedContribution: "贡献",
                     evidenceGap: "缺口"
@@ -169,8 +172,8 @@ describe("meeting identity command", () => {
             factIds: ["fact-1"],
             identityDecision: {
                 recommendationId: "identity_recommendation-1",
-                decision: "reject",
-                status: "rejected"
+                decision: "admit",
+                status: "provisioning"
             }
         });
         expect(execute).toHaveBeenCalledOnce();

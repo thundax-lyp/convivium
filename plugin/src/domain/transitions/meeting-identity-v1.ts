@@ -58,7 +58,12 @@ export function recommendIdentityV1(
     state: MeetingState,
     action: IdentityRecommendationDraftV1,
     managerId: string,
-    ids: { recommendationId: string; identityId?: string; childSessionId?: string },
+    ids: {
+        recommendationId: string;
+        identityId?: string;
+        childSessionId?: string;
+        definitionHash?: string;
+    },
     now: EpochMs
 ): IdentityTransitionResultV1 {
     if (
@@ -102,7 +107,8 @@ export function recommendIdentityV1(
         (action.decision !== "admit" ||
             active.definitionId !== action.definitionId ||
             active.definitionVersion !== action.definitionVersion ||
-            active.definitionHash === undefined)
+            active.definitionHash === undefined ||
+            active.definitionHash !== ids.definitionHash)
     )
         return reject(state, "PRECONDITION_FAILED");
     const recommendation: IdentityRecommendationV1 =
@@ -126,7 +132,7 @@ export function recommendIdentityV1(
                     status: "provisioning",
                     identityId: ids.identityId ?? "",
                     childSessionId: ids.childSessionId ?? "",
-                    definitionHash: "0".repeat(64)
+                    definitionHash: ids.definitionHash ?? ""
                 }
               : {
                     ...action,
@@ -140,6 +146,8 @@ export function recommendIdentityV1(
                     definitionHash: active.definitionHash,
                     resolvedAt: now
                 };
+    if (action.decision === "admit" && !/^[a-f0-9]{64}$/.test(ids.definitionHash ?? ""))
+        return reject(state, "INVALID_ARGUMENT");
     if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.childSessionId)))
         if (active === undefined) return reject(state, "INVALID_ARGUMENT");
     const nextState = {

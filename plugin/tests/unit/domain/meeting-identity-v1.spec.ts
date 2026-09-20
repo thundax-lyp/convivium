@@ -74,12 +74,14 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1"
+                childSessionId: "meeting-v1-participant-identity-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );
         expect(admitted.kind).toBe("accepted");
         if (admitted.kind !== "accepted") return;
+        expect(admitted.state.identityRecommendations[0]?.definitionHash).toBe("a".repeat(64));
         const result = recordIdentityAdmissionResultV1(
             admitted.state,
             "recommendation-1",
@@ -126,7 +128,8 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1"
+                childSessionId: "session-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );
@@ -165,7 +168,7 @@ describe("identity domain transitions", () => {
                 evidenceGap: "无"
             },
             "manager-v1",
-            { recommendationId: "recommendation-2" },
+            { recommendationId: "recommendation-2", definitionHash: "a".repeat(64) },
             3
         );
         expect(reused.kind).toBe("accepted");
@@ -195,7 +198,7 @@ describe("identity domain transitions", () => {
                     evidenceGap: "缺口"
                 },
                 "manager-v1",
-                { recommendationId: "recommendation-3" },
+                { recommendationId: "recommendation-3", definitionHash: "a".repeat(64) },
                 4
             )
         ).toMatchObject({
@@ -223,7 +226,8 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1"
+                childSessionId: "session-1",
+                definitionHash: "a".repeat(64)
             },
             1
         );

@@ -313,6 +313,7 @@ export function createMeetingCommandApplicationV1(
                 const repository = await deps.registry.openMeeting({
                     meetingId: command.meetingId
                 });
+                let catalogDefinitionHash: string | undefined;
                 if (command.action.kind === "recommend_identity") {
                     const replay = await repository.replayReceipt({
                         requestId: command.requestId,
@@ -347,6 +348,7 @@ export function createMeetingCommandApplicationV1(
                         catalog.snapshot.catalogVersion !== identityAction.catalogVersion
                     )
                         return rejected("PRECONDITION_FAILED", "Catalog candidate does not match");
+                    catalogDefinitionHash = candidate.definitionHash;
                 }
                 const committedFacts =
                     command.action.kind === "start_archive"
@@ -559,7 +561,8 @@ export function createMeetingCommandApplicationV1(
                                         ...(action.decision === "admit"
                                             ? {
                                                   identityId: generated("meeting_identity"),
-                                                  childSessionId: generated("child_session")
+                                                  childSessionId: generated("child_session"),
+                                                  definitionHash: catalogDefinitionHash
                                               }
                                             : {})
                                     },
