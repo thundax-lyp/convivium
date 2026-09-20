@@ -287,7 +287,7 @@ export function createEvidenceReviewDispatcherV1(
                                 }
                             },
                             instructions:
-                                "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 subagent，不创建 replacement worker；worker prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.workerOutputSchema、scoringRubric 和 dimensionCriteria，并要求只返回一个 JSON Review item。第二步：只保留 completed 且可规范化的结果；失败、取消或不可规范化项保持待审。规范化时 dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；非法 score 改为 unable_to_assess；baselineEvidenceIds 与 reviewConstraints 取交集。第三步：没有合法结果时直接结束，不调用提交工具；有合法结果时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。原生 tool call 的最外层参数必须直接等于 submit.toolArguments，即只有 input 一个键；input 必须是 object，不得序列化为字符串，不得添加 arguments 包装层、submit 包装层或其他键。只允许调用一次提交工具。"
+                                "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 subagent，不创建 replacement worker；worker prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.workerOutputSchema、scoringRubric 和 dimensionCriteria，并要求只返回一个 JSON Review item。第二步：只保留 completed 且可规范化的结果；失败、取消或不可规范化项保持待审。规范化时 dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；非法 score 改为 unable_to_assess；baselineEvidenceIds 与 reviewConstraints 取交集。第三步：没有合法结果时直接结束，不调用提交工具；有合法结果时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。现在直接以 object 作为函数调用参数，不要先生成 JSON 文本；最外层参数必须直接等于 submit.toolArguments，即只有 input 一个键。input 必须是 object，不得序列化为字符串，不得添加 arguments 包装层、submit 包装层或其他键。只允许调用一次提交工具。"
                         })
                     }
                 ],

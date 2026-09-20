@@ -46,6 +46,8 @@
 
 | 日期 | 版本/环境 | 方法 | 结果 |
 | --- | --- | --- | --- |
+| 2026-09-20 | `471aa48` 后的本地 plugin workspace，vLLM KV Cache 量化议题 | `pnpm --dir plugin smoke:profile --json` | PASS：`identity-admission`（8.9s）与 `meeting-business-loop`（68.0s）均通过并 Restore；后者完成两份 fixture Evidence、Reviewer batch、publish、archive 与 SQLite cold reopen。该运行不构成 KV Cache 量化的研究结论。 |
+| 2026-09-20 | `471aa48` 后的本地 plugin workspace，DSH `0.1.2-rc.1` | `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` | PASS（78.5s）：Reviewer 以 object 直接调用 `convivium_submit_review_batch`，两个 one-shot worker 的 Review 原子提交；目标工具链完成两份 Evidence、publish、archive、SQLite cold reopen 与 wrapper Restore。 |
 | 2026-09-20 | `afa860b` 后的本地 plugin workspace，重设计后的 smoke wrapper | `CONVIVIUM_SMOKE_SCENARIO=identity-admission pnpm --dir plugin smoke:profile --json` | PASS（约 9s）：真实 DSH Host 加载 target Role catalog 与 `verification-review` 原生 Skill，创建并清理独立 child Session，wrapper Restore PASS。 |
 | 2026-09-20 | 同上 | `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` | FAIL：Reviewer 的 `convivium_submit_review_batch` 调用把顶层 `input` 传为 string，Host 返回 `INVALID_ARGUMENT`，因此未提交 worker review batch；wrapper 已清理临时 profile。未取得当前 business-loop 的 publish/archive/cold-reopen 证据。 |
 | 2026-09-20 | `afa860b` 后的本地 plugin workspace | `CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile --json` | FAIL：放宽 `dev.env` 后真实 DSH Host 已启动，但 probe 仍调用已移除的 `convivium_create_meeting`，返回 `unknown tool`；wrapper 已清理临时 profile。未取得当前目标命令面上的 DSH/SQLite/Restore smoke 证据，需重写该场景的 command 输入与断言。 |

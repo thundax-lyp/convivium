@@ -300,6 +300,9 @@ describe("evidence review request dispatcher v1", () => {
         });
         expect(envelope.instructions).toContain("不得使用数组或 0、1、2、3 等数字键");
         expect(envelope.instructions).toContain("workerOutputSchema");
+        expect(envelope.instructions).toContain(
+            "直接以 object 作为函数调用参数，不要先生成 JSON 文本"
+        );
         expect(envelope.instructions).not.toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",

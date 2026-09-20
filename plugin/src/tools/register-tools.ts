@@ -33,7 +33,7 @@ const toolParameters = {
         type: "json",
         required: true,
         description:
-            "Complete MeetingCommandV1 object. The tool-call arguments must have exactly one top-level field named input."
+            "Complete MeetingCommandV1 object. The tool-call arguments must have exactly one top-level field named input; input must be an object, never a serialized JSON string."
     }
 } as const;
 
