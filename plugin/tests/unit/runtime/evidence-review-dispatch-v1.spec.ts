@@ -234,11 +234,12 @@ describe("evidence review request dispatcher v1", () => {
         });
         expect(envelope.instructions).toContain("convivium_submit_review_batch");
         expect(envelope.instructions).toContain("每个 pending item 只调用一次 subagent");
-        expect(envelope.instructions).toContain("省略失败、取消或非法的结果");
-        expect(envelope.instructions).toContain("没有合法结果时不得调用提交工具");
-        expect(envelope.instructions).toContain("交给 outbox 重试");
-        expect(envelope.instructions).toContain("不得再次调用 skill");
+        expect(envelope.instructions).toContain("只保留 completed 且可规范化");
+        expect(envelope.instructions).toContain("没有合法结果时直接结束");
+        expect(envelope.instructions).toContain("不得添加 arguments 包装层");
+        expect(envelope.instructions).toContain("只允许调用一次提交工具");
         expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
+        expect(envelope.instructions).not.toContain("fallback");
         expect(envelope.reviewConstraints).toEqual([
             {
                 versionId: "version-pending",
@@ -302,14 +303,16 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope.instructions).not.toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",
-            input: {
-                protocolVersion: 1,
-                meetingId: "meeting-v1",
-                expectedMeetingVersion: 6,
-                requestId: "review-batch:effect-review-1",
-                action: {
-                    kind: "submit_review_batch",
-                    reviews: []
+            toolArguments: {
+                input: {
+                    protocolVersion: 1,
+                    meetingId: "meeting-v1",
+                    expectedMeetingVersion: 6,
+                    requestId: "review-batch:effect-review-1",
+                    action: {
+                        kind: "submit_review_batch",
+                        reviews: []
+                    }
                 }
             }
         });

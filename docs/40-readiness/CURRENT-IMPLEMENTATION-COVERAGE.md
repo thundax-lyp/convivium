@@ -25,7 +25,7 @@
 | MO-FR-9、MO-FR-11 | 暂停、恢复与结束 | 部分实现 | PR #80、#88、#89 | loopback Remote 与面板使用同一 command path 支持 `pause_meeting`、`resume_meeting`、`end_meeting`。 | Captain parent 的自然语言 pause/resume 入口及正式 caller binding 尚未实现。 |
 | MO-FR-10 | 私信 | 部分实现 | PR #83 | Private mail 的状态、权限、deadline 和 serial gate 已进入协议与 command core。 | target dispatcher、deadline handler 与 Agent 生产入口没有完整覆盖证据。 |
 | MO-FR-11 | 状态读取与面板 | 已实现 | PR #87、#88、#89 | Meeting list/detail、schema-backed DTO、caller-filtered projection、刷新通知和面板只读展示共用已提交状态；Captain/local 专属数组不会暴露给普通 Participant。 | Browser 人工交互与断线恢复验收未执行。 |
-| MO-FR-12 | Agent 内部能力边界 | 已实现 | PR #87、#88、#90 | reviewer 对每个 immutable version 只派发一个 one-shot worker，省略失败结果并由 outbox 重试；caller authority 与公开提交边界已接入 target runtime，并由正式 Meeting facts 隔离内部执行过程。 | 不证明任意第三方 Tool/MCP 的生产可用性。 |
+| MO-FR-12 | Agent 内部能力边界 | 已实现 | PR #87、#88、#90 | reviewer 对每个 immutable version 只派发一个 one-shot worker，只提交 completed 且可规范化的非空子集，失败项保持待审；caller authority 与公开提交边界已接入 target runtime，并由正式 Meeting facts 隔离内部执行过程。 | 不证明任意第三方 Tool/MCP 的生产可用性。 |
 | MO-FR-13 | 动态身份推荐与准入 | 已实现 | PR #82、#89 | `convivium_recommend_identity` 覆盖 Catalog snapshot 校验、Definition provenance、capability preflight/composition、durable ownership、既有 child recovery、跨 Agenda 复用及终态竞态清理。 | 自动 research freshness/source-scope 去重未实现。 |
 | MO-FR-10 | Archive 与冷恢复 | 已实现 | PR #86、#87、#88、#90 | partial termination、archive materialization、Session closure、SQLite reopen 与 caller-filtered archive view 有自动化覆盖；PR #90 修复 ownership closure、端口释放竞态与 Reviewer 提交阻塞后，真实 business-loop 已通过 `archived` 和 cold reopen。 | Browser 人工验收未执行。 |
 | MO-FR-10 | Continuation | 部分实现 | PR #26、#89 | create schema、按值复制的 continuation material 与引用剥离规则已实现并测试。 | 未取得从真实 source Archive 选择材料到新会议的完整运行证据。 |
@@ -47,7 +47,7 @@
 | 日期 | 版本/环境 | 方法 | 结果 |
 | --- | --- | --- | --- |
 | 2026-09-20 | PR #90 working tree，本地 plugin workspace | `pnpm --dir plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、106 files / 1252 tests、build、environment、contract、7-role Definition 与 package。 |
-| 2026-09-20 | PR #90 working tree，DSH `0.1.2-rc.1` | focused `meeting-business-loop` | PASS（68.4s）：创建七角色会议、提交两份 Evidence、Reviewer 各派发一个 one-shot worker 并一次 batch 提交、publish、archive、Restore 与 cold reopen 全部通过。 |
+| 2026-09-20 | PR #90 working tree，DSH `0.1.2-rc.1` | Reviewer `1.2.2` focused `meeting-business-loop` | PASS（68.4s）：短三步中文提示词以 `submit.toolArguments` 固定原生参数层级；创建七角色会议、提交两份 Evidence、Reviewer 各派发一个 one-shot worker 并一次 batch 提交、publish、archive、Restore 与 cold reopen 全部通过。 |
 | 2026-09-20 | PR #89，本地 plugin workspace | `pnpm --dir=plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、build、environment、contract、7-role Definition、package；106 files、1251 tests。 |
 | 2026-09-20 | PR #89，GitHub CI | Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract | PASS：7 项检查全部通过。 |
 | 2026-09-20 | PR #89 recovery/domain change set | focused outbox/identity recovery、identity lifecycle race、domain/provisioning regressions | PASS：2 files/19 tests、10 contract tests、5 files/193 tests。 |

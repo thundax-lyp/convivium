@@ -273,19 +273,21 @@ export function createEvidenceReviewDispatcherV1(
                             },
                             submit: {
                                 tool: "convivium_submit_review_batch",
-                                input: {
-                                    protocolVersion: 1,
-                                    meetingId: recovered.snapshot.meetingId,
-                                    expectedMeetingVersion: recovered.snapshot.version,
-                                    requestId: `review-batch:${outboxItem.id}`,
-                                    action: {
-                                        kind: "submit_review_batch",
-                                        reviews: []
+                                toolArguments: {
+                                    input: {
+                                        protocolVersion: 1,
+                                        meetingId: recovered.snapshot.meetingId,
+                                        expectedMeetingVersion: recovered.snapshot.version,
+                                        requestId: `review-batch:${outboxItem.id}`,
+                                        action: {
+                                            kind: "submit_review_batch",
+                                            reviews: []
+                                        }
                                     }
                                 }
                             },
                             instructions:
-                                "这是可执行的审核请求，不是信息通知。`verification-review` 已经加载，本次不得再次调用 skill。在同一个 assistant turn 内，对每个 pending item 只调用一次 subagent，让原生 one-shot worker 独立执行；不得创建 replacement worker。每个 worker prompt 必须原样包含 reviewItemRules.workerOutputSchema、scoringRubric、dimensionCriteria 以及该 item 允许使用的 baseline，并要求 worker 只返回一个符合 schema 的 JSON Review item，不得附加 Markdown 或说明文字。省略失败、取消或非法的结果，不得为它们再次调用 subagent。构造提交项时复制 reviewItemRules.itemTemplate，并替换其中所有占位值。dimensions 必须是只含 source、credibility、completeness、support 四个字面属性名的 object，不得使用数组或 0、1、2、3 等数字键。提交前，将每个维度的 baselineEvidenceIds 与 reviewConstraints 取交集，具体使用该 version 的 allowedBaselineEvidenceIds；允许列表为空时必须填写 []。当前 version ID 和 material ID 都不是 baseline ID。每个 score 必须精确等于 reviewItemRules.allowedScores 中的一个值；分数、小数、百分比或其他值一律替换为 unable_to_assess。全部 worker 结束后，如果至少有一个合法 Review item，只调用一次 convivium_submit_review_batch，并只传一个名为 input 的参数：完整复制 submit.input，只把 submit.input.action.reviews 的空数组替换为本轮全部合法 Review item。没有合法结果时不得调用提交工具，直接结束本轮并交给 outbox 重试。尝试完成上述工具调用前不要用自然语言回复。"
+                                "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 subagent，不创建 replacement worker；worker prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.workerOutputSchema、scoringRubric 和 dimensionCriteria，并要求只返回一个 JSON Review item。第二步：只保留 completed 且可规范化的结果；失败、取消或不可规范化项保持待审。规范化时 dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；非法 score 改为 unable_to_assess；baselineEvidenceIds 与 reviewConstraints 取交集。第三步：没有合法结果时直接结束，不调用提交工具；有合法结果时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。原生 tool call 的最外层参数必须直接等于 submit.toolArguments，即只有 input 一个键；input 必须是 object，不得序列化为字符串，不得添加 arguments 包装层、submit 包装层或其他键。只允许调用一次提交工具。"
                         })
                     }
                 ],

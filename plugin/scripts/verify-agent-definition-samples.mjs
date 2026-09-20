@@ -118,7 +118,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                             (role === "meeting_manager"
                                 ? "1.2.0"
                                 : role === "verification_reviewer"
-                                  ? "1.2.1"
+                                  ? "1.2.2"
                                   : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
