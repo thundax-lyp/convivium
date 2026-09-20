@@ -1,9 +1,10 @@
+import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 import {
     completeMeetingBusinessLoopResult,
     validateScenarioResult
 } from "../../scripts/smoke-profile/result.mjs";
-import { selectScenarios } from "../../scripts/smoke-profile/index.mjs";
+import { assertPortReleased, selectScenarios } from "../../scripts/smoke-profile/index.mjs";
 
 const hotResult = {
     ok: true,
@@ -64,5 +65,18 @@ describe("Meeting business-loop smoke result", () => {
                 archiveStatus: "complete"
             })
         ).toThrow("cold reopen");
+    });
+
+    it("waits for the stopped host to release its port", async () => {
+        const server = createServer();
+        await new Promise<void>((resolve, reject) => {
+            server.once("error", reject);
+            server.listen(0, "127.0.0.1", resolve);
+        });
+        const address = server.address();
+        if (address === null || typeof address === "string") throw new Error("missing test port");
+        setTimeout(() => server.close(), 50);
+
+        await expect(assertPortReleased(address.port)).resolves.toBeUndefined();
     });
 });

@@ -15,7 +15,7 @@
 | 需求编号 | 功能 | 状态 | 版本证据 | 当前覆盖 | 缺口 |
 | --- | --- | --- | --- | --- | --- |
 | MO-FR-1 | DSH 插件加载与版本门禁 | 已实现 | PR #60、#88 | 插件注册、环境检查、Host integration 与 package contract 已进入 `verify`。 | 未覆盖跨 DSH 版本兼容。 |
-| MO-FR-2、MO-FR-14 | 会议创建与初始身份隔离 | 已实现 | PR #86、#89 | `convivium_create_meeting` 使用 Captain parent 创建七个独立、meeting-owned continuable Sessions；Definition、Preset、Skill 在首个 child 创建前预检。 | 完整真实 profile smoke 未重跑。 |
+| MO-FR-2、MO-FR-14 | 会议创建与初始身份隔离 | 已实现 | PR #86、#89 | `convivium_create_meeting` 使用 Captain parent 创建七个独立、meeting-owned continuable Sessions；Definition、Preset、Skill 在首个 child 创建前预检。 | 完整真实 profile smoke 已重跑，但尚未取得 cold-reopen PASS。 |
 | MO-FR-3、MO-FR-4；ER-FR-1～7 | 证据轮次与公开 | 已实现 | PR #81、#87、#88 | `open_round`、举手处置、Evidence 提交、独立 review、批量 review 提交与 `publish_round` 已形成同一 target command/outbox 链；自动化 business-loop 覆盖轮末统一公开。 | Browser 人工验收未执行。 |
 | ER-FR-6、ER-FR-7 | Contribution 关闭与期限处理 | 部分实现 | PR #86、#89 | `close_contribution` 已有 protocol、Domain 与 command core。 | 无 Agent tool；无 target deadline scanner。 |
 | MO-FR-5；ER-FR-2、ER-FR-8 | 举手与异步 MeetingTask | 部分实现 | PR #11、#81、#88 | `raise_hand` 与 Manager 的 `dispose_hand_raise` 有生产 Agent tool；MeetingTask 状态、授权和命令逻辑存在。 | MeetingTask 没有 target Agent tool/dispatcher 的完整生产入口证据。 |
@@ -27,7 +27,7 @@
 | MO-FR-11 | 状态读取与面板 | 已实现 | PR #87、#88、#89 | Meeting list/detail、schema-backed DTO、caller-filtered projection、刷新通知和面板只读展示共用已提交状态；Captain/local 专属数组不会暴露给普通 Participant。 | Browser 人工交互与断线恢复验收未执行。 |
 | MO-FR-12 | Agent 内部能力边界 | 已实现 | PR #87、#88 | reviewer one-shot workers、caller authority 与公开提交边界已接入 target runtime，并由正式 Meeting facts 隔离内部执行过程。 | 不证明任意第三方 Tool/MCP 的生产可用性。 |
 | MO-FR-13 | 动态身份推荐与准入 | 已实现 | PR #82、#89 | `convivium_recommend_identity` 覆盖 Catalog snapshot 校验、Definition provenance、capability preflight/composition、durable ownership、既有 child recovery、跨 Agenda 复用及终态竞态清理。 | 自动 research freshness/source-scope 去重未实现。 |
-| MO-FR-10 | Archive 与冷恢复 | 已实现 | PR #86、#87、#88 | partial termination、archive materialization、Session closure、SQLite reopen 与 caller-filtered archive view 有自动化 scenario/contract 覆盖。 | 真实 smoke 尚未取得完整 `archived` 与 cold-reopen PASS。 |
+| MO-FR-10 | Archive 与冷恢复 | 已实现 | PR #86、#87、#88、#90 | partial termination、archive materialization、Session closure、SQLite reopen 与 caller-filtered archive view 有自动化 scenario/contract 覆盖；PR #90 修复 ownership `id` 与 `sessionId` 不同导致的 closure commit 拒绝。 | 修复后两次真实 hot smoke 已通过 `archived` 校验；cold reopen 先被端口释放竞态阻断，runner 修复后的复跑又在 reviewer 提交无效输入后提前失败，尚未取得完整 cold-reopen PASS。 |
 | MO-FR-10 | Continuation | 部分实现 | PR #26、#89 | create schema、按值复制的 continuation material 与引用剥离规则已实现并测试。 | 未取得从真实 source Archive 选择材料到新会议的完整运行证据。 |
 | MO-FR-14 | Meeting Agent Definition | 部分实现 | PR #56、#82、#89 | 七个发布 Definition/Skills、共享 Preset、hash 固化、role/tool/Skill composition 和 recovery invariants 已通过自动化验证。 | 正式需求要求的完整真实 Loader/profile、GitHub/arXiv 能力及冷恢复验收尚未全部取得。 |
 | MO-FR-15 | Developer Markdown Projection | 未覆盖 | PR #46、#88 | PR #46 的旧实现已随 target cutover 移除，无当前 target 实现。 | `current.md`、`archive.md` 的 best-effort projection 尚未实现；旧 legacy projection 不构成该需求的当前覆盖。 |
@@ -46,10 +46,12 @@
 
 | 日期 | 版本/环境 | 方法 | 结果 |
 | --- | --- | --- | --- |
+| 2026-09-20 | PR #90 working tree，本地 plugin workspace | `pnpm --dir plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、106 files / 1252 tests、build、environment、contract、7-role Definition 与 package。 |
+| 2026-09-20 | PR #90 working tree，DSH `0.1.2-rc.1` | 修复后默认 smoke 两次及 focused `meeting-business-loop` 一次 | 部分通过：两次默认运行的 `identity-admission` 与 Restore 均通过；两次 business-loop hot result 均已通过 `archived` 校验，随后在 cold reopen 前因 DSH 子进程端口未立即释放而失败。端口等待已补 RED→GREEN 回归测试；后续 focused 复跑在 reviewer 多次生成无效 `convivium_submit_review_batch` 输入后、归档前失败，因此仍未取得 cold-reopen PASS。 |
 | 2026-09-20 | PR #89，本地 plugin workspace | `pnpm --dir=plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、build、environment、contract、7-role Definition、package；106 files、1251 tests。 |
 | 2026-09-20 | PR #89，GitHub CI | Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract | PASS：7 项检查全部通过。 |
 | 2026-09-20 | PR #89 recovery/domain change set | focused outbox/identity recovery、identity lifecycle race、domain/provisioning regressions | PASS：2 files/19 tests、10 contract tests、5 files/193 tests。 |
-| 2026-09-20 | 真实 DSH Loader/Storage/Session/Tool smoke | `identity-admission` 与默认 profile follow-up | 部分通过：`identity-admission` 通过；默认场景未取得完整进展后中止，进程与临时资源已清理。 |
+| 2026-09-20 | PR #90 head，DSH `0.1.2-rc.1` | `pnpm --dir plugin smoke:profile --json` | FAIL：`identity-admission` 与 Restore 通过；business loop 到达两份 Evidence、真实 review、两次 delivery、publish、end、`start_archive` 和完整 archive package，随后 Session closure result commit 以 `ARCHIVE_SESSION_RESULT_COMMIT_FAILED` 连续失败五次，停在 version 14 / `archiving`，未执行 cold reopen。archive outbox 已进入终态 `failed` 且三分钟无新 commit 后提前停止；临时目录、进程和端口恢复通过。 |
 | 2026-09-18 | 真实 DSH Loader/Storage/Session/Tool smoke | business-loop final run | 部分通过：到达 review、delivery、publish 与 archive materialization；停在 Session teardown，未取得 `archived`/cold-reopen PASS。 |
 
 ## 未覆盖范围
