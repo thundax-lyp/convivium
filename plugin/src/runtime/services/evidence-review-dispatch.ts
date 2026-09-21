@@ -18,7 +18,8 @@ import {
 class EvidenceReviewDispatchError extends Error {
     constructor(
         readonly code: string,
-        readonly retryable: boolean
+        readonly retryable: boolean,
+        readonly terminalOnAttemptLimit = true
     ) {
         super(code);
     }
@@ -28,14 +29,28 @@ function fail(code: string): never {
     throw new EvidenceReviewDispatchError(code, false);
 }
 
-function retry(code: string): never {
-    throw new EvidenceReviewDispatchError(code, true);
+function retry(code: string, terminalOnAttemptLimit = true): never {
+    throw new EvidenceReviewDispatchError(code, true, terminalOnAttemptLimit);
 }
 
 function stringField(payload: Record<string, unknown>, key: string): string {
     const value = payload[key];
     if (typeof value !== "string" || value.trim() === "") fail("REVIEW_PAYLOAD_INVALID");
     return value;
+}
+
+function claimReleaseReason(
+    error: unknown,
+    signal: AbortSignal
+): "turn_timed_out" | "turn_interrupted" | "dispatch_failed" {
+    if (signal.aborted) return "turn_interrupted";
+    const detail =
+        error instanceof Error
+            ? `${error.name} ${error.message}`.toLowerCase()
+            : String(error).toLowerCase();
+    return detail.includes("timeout") || detail.includes("timed out") || detail.includes("deadline")
+        ? "turn_timed_out"
+        : "dispatch_failed";
 }
 
 function findIdentity(
@@ -114,7 +129,7 @@ function pendingReviews(state: MeetingState) {
                 evidence: publicationEvidence(state, publication)
             };
         });
-        return [{ version, baseline }];
+        return [{ version, baseline, roundId: round.id }];
     });
 }
 
@@ -127,6 +142,8 @@ interface DispatchEvidenceReviewBatchInputV1 {
 interface EvidenceReviewDispatcherDependenciesV1 {
     readonly sessions: Pick<SubagentRuntime, "sendMessage">;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
+    readonly application: MeetingCommandApplicationV1;
+    readonly clock: { now(): number };
 }
 
 const reviewDimensionOutputSchema = {
@@ -165,7 +182,44 @@ const workerReviewOutputSchema = {
 export function createEvidenceReviewDispatcherV1(
     dependencies: EvidenceReviewDispatcherDependenciesV1
 ): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
-    const notifiedVersionIds = new Set<string>();
+    async function releaseClaim(
+        meetingId: string,
+        roundId: string,
+        claimId: string,
+        reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed"
+    ): Promise<void> {
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const recovered = await dependencies.repository.recover();
+            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (
+                !recovered.snapshot.state.reviewClaims.some(
+                    (claim) => claim.id === claimId && claim.roundId === roundId
+                )
+            )
+                return;
+            const released = await dependencies.application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: recovered.snapshot.version,
+                    requestId: `review-claim-release:${claimId}:${reason}`,
+                    action: { kind: "release_review_batch_claim", roundId, claimId, reason }
+                },
+                {
+                    caller: {
+                        channel: "runtime_recovery",
+                        principalId: RUNTIME_RECOVERY_PRINCIPAL_ID
+                    }
+                },
+                new AbortController().signal
+            );
+            if (released.kind === "accepted") return;
+            if (["NOT_FOUND", "REVIEWER_CONFLICT"].includes(released.error.code)) return;
+            if (released.error.code !== "VERSION_CONFLICT") retry("REVIEW_CLAIM_RELEASE_FAILED");
+        }
+        retry("REVIEW_CLAIM_RELEASE_FAILED");
+    }
+
     return {
         async dispatch({ outboxItem, parent, signal }) {
             const payload = outboxItem.payload as Record<string, unknown>;
@@ -178,14 +232,26 @@ export function createEvidenceReviewDispatcherV1(
             const recipientId = stringField(payload, "recipientId");
             const agendaId = stringField(payload, "agendaId");
             const requestedVersionId = stringField(payload, "versionId");
-            if (notifiedVersionIds.has(requestedVersionId)) return;
             const recovered = await dependencies.repository.recover();
             if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             const { state } = recovered.snapshot;
             if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
             const pending = pendingReviews(state);
-            if (pending.length === 0) return;
-            const reviewConstraints = pending.map((item) => ({
+            const requested = pending.find(({ version }) => version.id === requestedVersionId);
+            if (!requested) return;
+            const activeClaim = state.reviewClaims.find(
+                (claim) =>
+                    claim.roundId === requested.roundId &&
+                    claim.reviewerId === recipientId &&
+                    claim.versionIds.includes(requestedVersionId) &&
+                    claim.expiresAt > dependencies.clock.now()
+            );
+            if (activeClaim) {
+                if (activeClaim.sourceEffectId !== outboxItem.id) return;
+                retry("REVIEW_CLAIM_IN_PROGRESS", false);
+            }
+            const roundPending = pending.filter((item) => item.roundId === requested.roundId);
+            const reviewConstraints = roundPending.map((item) => ({
                 versionId: item.version.id,
                 allowedBaselineEvidenceIds: [
                     ...new Set(
@@ -213,52 +279,100 @@ export function createEvidenceReviewDispatcherV1(
                 "evidence_reviewer",
                 parent
             );
-            await followupMeetingIdentitySessionV1({
-                runtime: dependencies.sessions,
-                parent,
-                ownership,
-                meetingId: recovered.snapshot.meetingId,
-                identityId: identity.id,
-                prompt: [
-                    {
-                        type: "text",
-                        text: JSON.stringify({
-                            effectId: outboxItem.id,
-                            meetingId: recovered.snapshot.meetingId,
-                            expectedMeetingVersion: recovered.snapshot.version,
-                            pending,
-                            reviewConstraints,
-                            reviewItemRules: {
-                                requiredDimensions: [
-                                    "source",
-                                    "credibility",
-                                    "completeness",
-                                    "support"
-                                ],
-                                allowedScores: [0, 1, 2, 3, "unable_to_assess"],
-                                scoringRubric: {
-                                    0: "没有可用支持，或现有证据直接反驳该判断标准。",
-                                    1: "支持较弱，存在实质缺口、歧义或未经验证的假设。",
-                                    2: "对限定范围内的主张有充分支持，剩余限制明确且不会推翻结论。",
-                                    3: "存在强、直接且可独立核验的支持，没有实质性未解决缺口。",
-                                    unable_to_assess:
-                                        "给定 immutable version 与允许使用的 baseline 不足以判断该标准。"
-                                },
-                                dimensionCriteria: {
-                                    source: "评估来源身份、出处、可检索性与保管链。",
-                                    credibility: "评估可信度、方法质量、交叉印证与已披露不确定性。",
-                                    completeness:
-                                        "评估材料是否包含判断限定主张及其限制所需的信息。",
-                                    support:
-                                        "评估引用材料是否无需未声明推断即可直接支持主张及其限定条件。"
-                                },
-                                workerOutputSchema: workerReviewOutputSchema,
-                                itemTemplate: {
-                                    versionId: "copy-pending-version-id",
-                                    scope: "填写非空审核范围",
-                                    dimensions: Object.fromEntries(
-                                        ["source", "credibility", "completeness", "support"].map(
-                                            (dimension) => [
+            const claim = await dependencies.application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: recovered.snapshot.meetingId,
+                    expectedMeetingVersion: recovered.snapshot.version,
+                    requestId: `review-claim:${outboxItem.id}:${outboxItem.attempts}`,
+                    action: {
+                        kind: "claim_review_batch",
+                        sourceEffectId: outboxItem.id,
+                        roundId: requested.roundId,
+                        versionIds: roundPending.map(({ version }) => version.id)
+                    }
+                },
+                {
+                    caller: {
+                        channel: "runtime_recovery",
+                        principalId: RUNTIME_RECOVERY_PRINCIPAL_ID
+                    }
+                },
+                signal
+            );
+            if (claim.kind === "rejected") {
+                if (["VERSION_CONFLICT", "REVIEWER_CONFLICT"].includes(claim.error.code)) {
+                    const current = await dependencies.repository.recover();
+                    if (!current.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+                    const activeClaim = current.snapshot.state.reviewClaims.find(
+                        (candidate) =>
+                            candidate.roundId === requested.roundId &&
+                            candidate.reviewerId === recipientId &&
+                            candidate.versionIds.includes(requestedVersionId) &&
+                            candidate.expiresAt > dependencies.clock.now()
+                    );
+                    if (activeClaim) {
+                        if (activeClaim.sourceEffectId !== outboxItem.id) return;
+                        retry("REVIEW_CLAIM_IN_PROGRESS", false);
+                    }
+                    retry("REVIEW_CLAIM_UNAVAILABLE");
+                }
+                fail(claim.error.code);
+            }
+            const claimId = claim.relatedIds?.[0];
+            if (!claimId) retry("REVIEW_CLAIM_UNAVAILABLE");
+            try {
+                await followupMeetingIdentitySessionV1({
+                    runtime: dependencies.sessions,
+                    parent,
+                    ownership,
+                    meetingId: recovered.snapshot.meetingId,
+                    identityId: identity.id,
+                    prompt: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({
+                                effectId: outboxItem.id,
+                                meetingId: recovered.snapshot.meetingId,
+                                expectedMeetingVersion: recovered.snapshot.version,
+                                pending: roundPending,
+                                reviewConstraints,
+                                reviewItemRules: {
+                                    requiredDimensions: [
+                                        "source",
+                                        "credibility",
+                                        "completeness",
+                                        "support"
+                                    ],
+                                    allowedScores: [0, 1, 2, 3, "unable_to_assess"],
+                                    scoringRubric: {
+                                        0: "没有可用支持，或现有证据直接反驳该判断标准。",
+                                        1: "支持较弱，存在实质缺口、歧义或未经验证的假设。",
+                                        2: "对限定范围内的主张有充分支持，剩余限制明确且不会推翻结论。",
+                                        3: "存在强、直接且可独立核验的支持，没有实质性未解决缺口。",
+                                        unable_to_assess:
+                                            "给定 immutable version 与允许使用的 baseline 不足以判断该标准。"
+                                    },
+                                    dimensionCriteria: {
+                                        source: "评估来源身份、出处、可检索性与保管链。",
+                                        credibility:
+                                            "评估可信度、方法质量、交叉印证与已披露不确定性。",
+                                        completeness:
+                                            "评估材料是否包含判断限定主张及其限制所需的信息。",
+                                        support:
+                                            "评估引用材料是否无需未声明推断即可直接支持主张及其限定条件。"
+                                    },
+                                    workerOutputSchema: workerReviewOutputSchema,
+                                    itemTemplate: {
+                                        versionId: "copy-pending-version-id",
+                                        scope: "填写非空审核范围",
+                                        dimensions: Object.fromEntries(
+                                            [
+                                                "source",
+                                                "credibility",
+                                                "completeness",
+                                                "support"
+                                            ].map((dimension) => [
                                                 dimension,
                                                 {
                                                     score: "unable_to_assess",
@@ -266,50 +380,61 @@ export function createEvidenceReviewDispatcherV1(
                                                     reason: "填写非空判断理由",
                                                     baselineEvidenceIds: []
                                                 }
-                                            ]
+                                            ])
                                         )
-                                    )
-                                }
-                            },
-                            submit: {
-                                tool: "convivium_submit_review_batch",
-                                toolArguments: {
-                                    input: {
-                                        protocolVersion: 1,
-                                        meetingId: recovered.snapshot.meetingId,
-                                        expectedMeetingVersion: recovered.snapshot.version,
-                                        requestId: `review-batch:${outboxItem.id}`,
-                                        action: {
-                                            kind: "submit_review_batch",
-                                            reviews: []
+                                    }
+                                },
+                                submit: {
+                                    tool: "convivium_submit_review_batch",
+                                    toolArguments: {
+                                        input: {
+                                            protocolVersion: 1,
+                                            meetingId: recovered.snapshot.meetingId,
+                                            requestId: `review-batch:${claimId}`,
+                                            action: {
+                                                kind: "submit_review_batch",
+                                                roundId: requested.roundId,
+                                                claimId,
+                                                reviews: []
+                                            }
                                         }
                                     }
-                                }
-                            },
-                            instructions:
-                                "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 subagent，不创建 replacement worker；worker prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.workerOutputSchema、scoringRubric 和 dimensionCriteria，并要求只返回一个 JSON Review item。第二步：只保留 completed 且可规范化的结果；失败、取消或不可规范化项保持待审。规范化时 dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；非法 score 改为 unable_to_assess；baselineEvidenceIds 与 reviewConstraints 取交集。第三步：没有合法结果时直接结束，不调用提交工具；有合法结果时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。现在直接以 object 作为函数调用参数，不要先生成 JSON 文本；最外层参数必须直接等于 submit.toolArguments，即只有 input 一个键。input 必须是 object，不得序列化为字符串，不得添加 arguments 包装层、submit 包装层或其他键。只允许调用一次提交工具。"
-                        })
-                    }
-                ],
-                signal
-            });
+                                },
+                                instructions:
+                                    "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 subagent，不创建 replacement worker；worker prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.workerOutputSchema、reviewItemRules.itemTemplate、scoringRubric 和 dimensionCriteria，并要求严格按 itemTemplate 只返回一个 JSON object，不返回 Markdown、代码围栏或说明文字。第二步：规范化每个 worker 结果；dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；非法 score 改为 unable_to_assess；baselineEvidenceIds 与 reviewConstraints 取交集。reviews 必须逐项覆盖全部 pending，versionId 集合必须与 pending 精确相等；任一 pending item 未得到 completed 且可规范化的结果时直接结束，不调用提交工具，也不得提交部分结果。第三步：全部结果齐备时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。现在直接以 object 作为函数调用参数，不要先生成 JSON 文本；最外层参数必须直接等于 submit.toolArguments，即只有 input 一个键。input 必须是 object，不得序列化为字符串，不得添加 arguments 包装层、submit 包装层或其他键。只允许调用一次提交工具。"
+                            })
+                        }
+                    ],
+                    signal
+                });
+            } catch (error) {
+                await releaseClaim(
+                    recovered.snapshot.meetingId,
+                    requested.roundId,
+                    claimId,
+                    claimReleaseReason(error, signal)
+                );
+                throw error;
+            }
             const completed = await dependencies.repository.recover();
             if (!completed.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             if (
-                pending.some(
+                roundPending.some(
                     ({ version }) =>
                         !completed.snapshot!.state.reviews.some(
                             (review) => review.versionId === version.id
                         )
                 )
             )
-                retry("REVIEW_NOT_COMPLETED");
-            for (const item of pending) notifiedVersionIds.add(item.version.id);
+                retry("REVIEW_NOT_COMPLETED", false);
         }
     };
 }
 
-interface ReviewDeliveryDispatcherDependenciesV1 extends EvidenceReviewDispatcherDependenciesV1 {
+interface ReviewDeliveryDispatcherDependenciesV1 extends Omit<
+    EvidenceReviewDispatcherDependenciesV1,
+    "clock"
+> {
     readonly application: MeetingCommandApplicationV1;
 }
 

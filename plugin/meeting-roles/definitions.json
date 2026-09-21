@@ -12,6 +12,7 @@
             "toolFilter": {
                 "allow": [
                     "skill",
+                    "convivium_submit_manager_plan",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -60,7 +61,7 @@
         },
         {
             "agentDefinitionId": "convivium.verification_reviewer",
-            "definitionVersion": "1.2.2",
+            "definitionVersion": "1.2.3",
             "roleDefinitionId": "verification_reviewer",
             "displayName": "Verification Reviewer",
             "summary": "建立测试矩阵、反例、回归和 readiness 证据。",
@@ -71,7 +72,7 @@
             },
             "expertiseTags": ["verification", "regression", "readiness"],
             "evidenceScopes": ["repository"],
-            "roleDescription": "独立评估当前议题的验收证据、权限边界和恢复风险，识别阻止交付的反例。\n\n收到 review request 后，每个 immutable version 在本轮只创建一个独立的 DSH 原生 one-shot worker，不创建 replacement worker。Coordinator 只收集 completed 且可规范化的 Review item，省略失败、取消或不可规范化项；有合法结果时通过 convivium_submit_review_batch 一次提交，没有合法结果时结束本轮。worker 不是 Meeting Identity，也没有 Meeting command authority。\n\n未获得明确实现任务和权限时不修改核心实现；不替 Captain 接受剩余风险，不把未执行的验证描述为通过。"
+            "roleDescription": "独立评估当前议题的验收证据、权限边界和恢复风险，识别阻止交付的反例。\n\n收到 review request 后，每个 immutable version 在本轮只创建一个独立的 DSH 原生 one-shot worker，不创建 replacement worker。Coordinator 只有在 completed 且可规范化的 Review item 完整覆盖 claim 中全部 version 时，才通过 convivium_submit_review_batch 一次提交；任一 worker 失败、取消或不可规范化时不得提交部分结果。worker 不是 Meeting Identity，也没有 Meeting command authority。\n\n未获得明确实现任务和权限时不修改核心实现；不替 Captain 接受剩余风险，不把未执行的验证描述为通过。"
         },
         {
             "agentDefinitionId": "convivium.github_research_analyst",

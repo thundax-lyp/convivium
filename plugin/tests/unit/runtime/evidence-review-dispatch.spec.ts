@@ -162,9 +162,78 @@ function stateWithPendingReview() {
     return { state, ownership, pendingVersion, baselineVersion };
 }
 
+function claimApplication(state: ReturnType<typeof stateWithPendingReview>["state"]) {
+    const execute = vi.fn(
+        async (command: {
+            action:
+                | {
+                      kind: "claim_review_batch";
+                      sourceEffectId: string;
+                      roundId: string;
+                      versionIds: string[];
+                  }
+                | {
+                      kind: "release_review_batch_claim";
+                      roundId: string;
+                      claimId: string;
+                      reason: string;
+                  };
+        }) => {
+            if (command.action.kind === "release_review_batch_claim") {
+                const found = state.reviewClaims.some(
+                    (claim) =>
+                        claim.id === command.action.claimId &&
+                        claim.roundId === command.action.roundId
+                );
+                if (!found)
+                    return {
+                        kind: "rejected" as const,
+                        error: { code: "NOT_FOUND", message: "missing", retryable: false }
+                    };
+                state.reviewClaims = state.reviewClaims.filter(
+                    (claim) => claim.id !== command.action.claimId
+                );
+                return {
+                    kind: "accepted" as const,
+                    meetingId: state.id,
+                    committedVersion: 8,
+                    receiptId: "receipt-release",
+                    relatedIds: [command.action.claimId],
+                    effects: []
+                };
+            }
+            state.reviewClaims = state.reviewClaims.filter((claim) => claim.expiresAt > 6);
+            if (state.reviewClaims.some((claim) => claim.roundId === command.action.roundId))
+                return {
+                    kind: "rejected" as const,
+                    error: { code: "REVIEWER_CONFLICT", message: "claimed", retryable: true }
+                };
+            state.reviewClaims.push({
+                id: "review-claim-v1",
+                sourceEffectId: command.action.sourceEffectId,
+                roundId: command.action.roundId,
+                reviewerId: state.evidenceReviewerId,
+                versionIds: command.action.versionIds,
+                claimedAt: 6,
+                expiresAt: 100
+            });
+            return {
+                kind: "accepted" as const,
+                meetingId: state.id,
+                committedVersion: 7,
+                receiptId: "receipt-claim",
+                relatedIds: ["review-claim-v1", ...command.action.versionIds],
+                effects: []
+            };
+        }
+    );
+    return { execute };
+}
+
 describe("evidence review request dispatcher v1", () => {
     it("delivers immutable pending versions and ordered publication baselines to the coordinator", async () => {
         const { state, ownership, pendingVersion, baselineVersion } = stateWithPendingReview();
+        const application = claimApplication(state);
         const sendMessage = vi.fn(async () => {
             state.reviews.push({
                 ...state.reviews[0]!,
@@ -172,10 +241,13 @@ describe("evidence review request dispatcher v1", () => {
                 versionId: pendingVersion.id,
                 baselinePublicationIds: ["publication-baseline"]
             });
+            state.reviewClaims = [];
             return "message-1";
         });
         const dispatcher = createEvidenceReviewDispatcherV1({
             sessions: { sendMessage },
+            application: application as never,
+            clock: { now: () => 6 },
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -214,6 +286,17 @@ describe("evidence review request dispatcher v1", () => {
         });
 
         expect(sendMessage).toHaveBeenCalledOnce();
+        expect(application.execute).toHaveBeenCalledOnce();
+        expect(application.execute.mock.calls[0]?.[0]).toMatchObject({
+            expectedMeetingVersion: 6,
+            requestId: "review-claim:effect-review-1:1",
+            action: {
+                kind: "claim_review_batch",
+                sourceEffectId: "effect-review-1",
+                roundId: "round-current",
+                versionIds: ["version-pending"]
+            }
+        });
         const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ text: string }>;
         const envelope = JSON.parse(prompt[0]!.text);
         expect(envelope).toMatchObject({
@@ -234,8 +317,11 @@ describe("evidence review request dispatcher v1", () => {
         });
         expect(envelope.instructions).toContain("convivium_submit_review_batch");
         expect(envelope.instructions).toContain("每个 pending item 只调用一次 subagent");
-        expect(envelope.instructions).toContain("只保留 completed 且可规范化");
-        expect(envelope.instructions).toContain("没有合法结果时直接结束");
+        expect(envelope.instructions).toContain("reviews 必须逐项覆盖全部 pending");
+        expect(envelope.instructions).toContain(
+            "任一 pending item 未得到 completed 且可规范化的结果时直接结束"
+        );
+        expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
         expect(envelope.instructions).toContain("不得添加 arguments 包装层");
         expect(envelope.instructions).toContain("只允许调用一次提交工具");
         expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
@@ -300,6 +386,8 @@ describe("evidence review request dispatcher v1", () => {
         });
         expect(envelope.instructions).toContain("不得使用数组或 0、1、2、3 等数字键");
         expect(envelope.instructions).toContain("workerOutputSchema");
+        expect(envelope.instructions).toContain("reviewItemRules.itemTemplate");
+        expect(envelope.instructions).toContain("不返回 Markdown、代码围栏或说明文字");
         expect(envelope.instructions).toContain(
             "直接以 object 作为函数调用参数，不要先生成 JSON 文本"
         );
@@ -310,10 +398,11 @@ describe("evidence review request dispatcher v1", () => {
                 input: {
                     protocolVersion: 1,
                     meetingId: "meeting-v1",
-                    expectedMeetingVersion: 6,
-                    requestId: "review-batch:effect-review-1",
+                    requestId: "review-batch:review-claim-v1",
                     action: {
                         kind: "submit_review_batch",
+                        roundId: "round-current",
+                        claimId: "review-claim-v1",
                         reviews: []
                     }
                 }
@@ -324,8 +413,11 @@ describe("evidence review request dispatcher v1", () => {
 
     it("keeps the review effect retryable when the coordinator returns without committing", async () => {
         const { state, ownership } = stateWithPendingReview();
+        const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcherV1({
             sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
+            application: application as never,
+            clock: { now: () => 6 },
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -352,7 +444,203 @@ describe("evidence review request dispatcher v1", () => {
                 parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
-        ).rejects.toMatchObject({ code: "REVIEW_NOT_COMPLETED", retryable: true });
+        ).rejects.toMatchObject({
+            code: "REVIEW_NOT_COMPLETED",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
+    });
+
+    it("releases the claim when the reviewer turn times out", async () => {
+        const { state, ownership } = stateWithPendingReview();
+        const application = claimApplication(state);
+        const dispatcher = createEvidenceReviewDispatcherV1({
+            sessions: {
+                sendMessage: vi.fn().mockRejectedValue(new Error("review turn timed out"))
+            },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: state.version,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 5
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: outboxItem({
+                    kind: "agent_notice",
+                    noticeKind: "review_request",
+                    recipientId: "reviewer-v1",
+                    agendaId: "agenda-v1",
+                    versionId: "version-pending"
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            })
+        ).rejects.toThrow("review turn timed out");
+        expect(state.reviewClaims).toEqual([]);
+        expect(application.execute).toHaveBeenCalledTimes(2);
+        expect(application.execute.mock.calls[1]?.[0]).toMatchObject({
+            requestId: "review-claim-release:review-claim-v1:turn_timed_out",
+            action: {
+                kind: "release_review_batch_claim",
+                roundId: "round-current",
+                claimId: "review-claim-v1",
+                reason: "turn_timed_out"
+            }
+        });
+    });
+
+    it("allows only one dispatcher instance to wake the reviewer for an active claim", async () => {
+        const { state, ownership, pendingVersion } = stateWithPendingReview();
+        const application = claimApplication(state);
+        let releaseFirst: (() => void) | undefined;
+        const firstSend = vi.fn(
+            () =>
+                new Promise<string>((resolve) => {
+                    releaseFirst = () => {
+                        state.reviews.push({
+                            ...state.reviews[0]!,
+                            id: "review-pending",
+                            versionId: pendingVersion.id,
+                            baselinePublicationIds: ["publication-baseline"]
+                        });
+                        state.reviewClaims = [];
+                        resolve("message-1");
+                    };
+                })
+        );
+        const secondSend = vi.fn();
+        const repository = {
+            recover: async () => ({
+                snapshot: {
+                    meetingId: state.id,
+                    version: 6,
+                    state,
+                    createdAt: 0,
+                    updatedAt: 5
+                },
+                sessionOwnership: ownership
+            })
+        } as never;
+        const first = createEvidenceReviewDispatcherV1({
+            sessions: { sendMessage: firstSend },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository
+        });
+        const second = createEvidenceReviewDispatcherV1({
+            sessions: { sendMessage: secondSend },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository
+        });
+        const input = {
+            outboxItem: outboxItem({
+                kind: "agent_notice",
+                noticeKind: "review_request",
+                recipientId: "reviewer-v1",
+                agendaId: "agenda-v1",
+                versionId: "version-pending"
+            }),
+            parent: { id: "captain-1" } as never,
+            signal: new AbortController().signal
+        };
+
+        const firstDispatch = first.dispatch(input);
+        await vi.waitFor(() => expect(firstSend).toHaveBeenCalledOnce());
+        await expect(
+            second.dispatch({
+                ...input,
+                outboxItem: {
+                    ...input.outboxItem,
+                    id: "effect-review-2",
+                    deliveryId: "effect-review-2"
+                }
+            })
+        ).resolves.toBeUndefined();
+        expect(secondSend).not.toHaveBeenCalled();
+        await expect(second.dispatch(input)).rejects.toMatchObject({
+            code: "REVIEW_CLAIM_IN_PROGRESS",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
+        releaseFirst?.();
+        await firstDispatch;
+    });
+
+    it("lets the source effect reclaim the batch after its claim expires", async () => {
+        const { state, ownership, pendingVersion } = stateWithPendingReview();
+        state.reviewClaims = [
+            {
+                id: "review-claim-expired",
+                sourceEffectId: "effect-review-1",
+                roundId: "round-current",
+                reviewerId: "reviewer-v1",
+                versionIds: [pendingVersion.id],
+                claimedAt: 1,
+                expiresAt: 5
+            }
+        ];
+        const application = claimApplication(state);
+        const sendMessage = vi.fn(async () => {
+            state.reviews.push({
+                ...state.reviews[0]!,
+                id: "review-pending",
+                versionId: pendingVersion.id,
+                baselinePublicationIds: ["publication-baseline"]
+            });
+            state.reviewClaims = [];
+            return "message-1";
+        });
+        const dispatcher = createEvidenceReviewDispatcherV1({
+            sessions: { sendMessage },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 6,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 5
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+
+        await dispatcher.dispatch({
+            outboxItem: outboxItem({
+                kind: "agent_notice",
+                noticeKind: "review_request",
+                recipientId: "reviewer-v1",
+                agendaId: "agenda-v1",
+                versionId: pendingVersion.id
+            }),
+            parent: { id: "captain-1" } as never,
+            signal: new AbortController().signal
+        });
+
+        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(application.execute).toHaveBeenCalledOnce();
+        expect(application.execute.mock.calls[0]?.[0]).toMatchObject({
+            action: {
+                kind: "claim_review_batch",
+                sourceEffectId: "effect-review-1",
+                versionIds: [pendingVersion.id]
+            }
+        });
     });
 
     it("does not notify when no current complete version is pending", async () => {
@@ -362,8 +650,11 @@ describe("evidence review request dispatcher v1", () => {
             { ...state.reviews[0]!, id: "review-pending", versionId: "version-pending" }
         ];
         const sendMessage = vi.fn();
+        const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcherV1({
             sessions: { sendMessage },
+            application: application as never,
+            clock: { now: () => 6 },
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -389,5 +680,6 @@ describe("evidence review request dispatcher v1", () => {
             signal: new AbortController().signal
         });
         expect(sendMessage).not.toHaveBeenCalled();
+        expect(application.execute).not.toHaveBeenCalled();
     });
 });
