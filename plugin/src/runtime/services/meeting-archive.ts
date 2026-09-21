@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
-import { decodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
+import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
@@ -100,7 +100,7 @@ function targetOwnerships(
             (ownership.lifecycleStatus === "closed" && ownership.capabilityStatus !== "revoked")
         )
             unavailable();
-        const label = decodeMeetingIdentitySessionLabelV1(ownership.sessionLabel);
+        const label = decodeMeetingIdentitySessionLabel(ownership.sessionLabel);
         if (
             !label ||
             label.meetingId !== state.id ||

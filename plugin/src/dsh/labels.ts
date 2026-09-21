@@ -39,12 +39,12 @@ function assertTargetMeetingIdentity(value: MeetingIdentitySessionLabel): void {
     assertIdentitySegment(value.identityId, "identityId");
 }
 
-export function encodeMeetingIdentitySessionLabelV1(value: MeetingIdentitySessionLabel): string {
+export function encodeMeetingIdentitySessionLabel(value: MeetingIdentitySessionLabel): string {
     assertTargetMeetingIdentity(value);
     return `${LABEL_PREFIX}:${MEETING_IDENTITY_KIND}:${value.role}:${value.meetingId}:${value.identityId}`;
 }
 
-export function decodeMeetingIdentitySessionLabelV1(
+export function decodeMeetingIdentitySessionLabel(
     label: string
 ): MeetingIdentitySessionLabel | undefined {
     const parts = label.split(":");

@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
-import type { ResolvedMeetingCallerV1 } from "@/dsh/index.js";
+import type { ResolvedMeetingCaller } from "@/dsh/index.js";
 import {
     CreateMeetingActionV1Schema,
     DisposeHandRaiseActionV1Schema,
@@ -19,7 +19,7 @@ import {
 import type { MeetingCommandApplicationV1 } from "@/runtime/index.js";
 
 export interface TargetMeetingToolCallerResolver {
-    resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCallerV1 | undefined>;
+    resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCaller | undefined>;
 }
 
 export interface MeetingCommandToolDependencies {

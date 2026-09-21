@@ -36,7 +36,7 @@ export const LifecycleViewV1Schema = z.object({
     changedAt: epoch,
     reason: text.optional()
 });
-export const AgendaViewV1Schema = z.object({
+export const AgendaViewSchema = z.object({
     id,
     title: text,
     question: text,
@@ -44,7 +44,7 @@ export const AgendaViewV1Schema = z.object({
     ownerId: id.optional(),
     requiredOutputIds: z.array(id)
 });
-export const AgendaCandidateViewV1Schema = z.object({
+export const AgendaCandidateViewSchema = z.object({
     id,
     title: text,
     reason: text,
@@ -491,8 +491,8 @@ export const ArchiveViewV1Schema = z
         publicSnapshotVersion: z.number().int().nonnegative(),
         terminationId: id,
         objective: ObjectiveViewV1Schema,
-        agenda: z.array(AgendaViewV1Schema),
-        agendaCandidates: z.array(AgendaCandidateViewV1Schema),
+        agenda: z.array(AgendaViewSchema),
+        agendaCandidates: z.array(AgendaCandidateViewSchema),
         publications: z.array(PublicationViewV1Schema),
         messages: z.array(FormalMessageViewV1Schema),
         evidenceBundles: z.array(
@@ -605,7 +605,7 @@ export const MeetingViewV1Schema = z.object({
     identities: z.array(IdentityViewV1Schema),
     identityRecommendations: z.array(IdentityRecommendationViewV1Schema).optional(),
     managerCatalog: ManagerCatalogViewV1Schema.optional(),
-    agenda: z.array(AgendaViewV1Schema),
+    agenda: z.array(AgendaViewSchema),
     opportunityRequests: z.array(EvidenceOpportunityRequestViewV1Schema),
     rounds: z.array(RoundViewV1Schema),
     publications: z.array(PublicationViewV1Schema),
@@ -632,8 +632,8 @@ export const RefreshNoticeV1Schema = z.object({
 
 export type ObjectiveViewV1 = z.infer<typeof ObjectiveViewV1Schema>;
 export type LifecycleViewV1 = z.infer<typeof LifecycleViewV1Schema>;
-export type AgendaViewV1 = z.infer<typeof AgendaViewV1Schema>;
-export type AgendaCandidateViewV1 = z.infer<typeof AgendaCandidateViewV1Schema>;
+export type AgendaView = z.infer<typeof AgendaViewSchema>;
+export type AgendaCandidateView = z.infer<typeof AgendaCandidateViewSchema>;
 export type EvidenceOpportunityRequestViewV1 = z.infer<
     typeof EvidenceOpportunityRequestViewV1Schema
 >;

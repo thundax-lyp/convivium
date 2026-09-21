@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { readMeetingRoleCatalogV1, type MeetingAgentCatalog } from "@/dsh/meeting-role-catalog.js";
+import { readMeetingRoleCatalog, type MeetingAgentCatalog } from "@/dsh/meeting-role-catalog.js";
 const snapshot: MeetingAgentCatalog = {
     protocolVersion: 1,
     meetingId: "meeting-1",
@@ -32,7 +32,7 @@ describe("meeting role catalog port", () => {
             return { kind: "available" as const, snapshot };
         });
         expect(
-            await readMeetingRoleCatalogV1(
+            await readMeetingRoleCatalog(
                 { readSnapshot },
                 "meeting-1",
                 "captain-session",
@@ -47,7 +47,7 @@ describe("meeting role catalog port", () => {
             meetingId: "other",
             candidates: [snapshot.candidates[0], snapshot.candidates[0]]
         };
-        const result = await readMeetingRoleCatalogV1(
+        const result = await readMeetingRoleCatalog(
             { readSnapshot: async () => ({ kind: "available", snapshot: bad }) },
             "meeting-1",
             "captain-session",

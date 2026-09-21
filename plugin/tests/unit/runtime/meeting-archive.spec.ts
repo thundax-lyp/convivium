@@ -5,7 +5,7 @@ import {
     startMeetingArchive,
     type MeetingState
 } from "@/domain/index.js";
-import { encodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
+import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
 import { createMeetingArchiveDispatcherV1 } from "@/runtime/services/meeting-archive.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 
@@ -50,7 +50,7 @@ function ownerships(state: MeetingState) {
             identityId: identity.id,
             sessionId: `session:${identity.id}`,
             parentSessionId: "captain-1",
-            sessionLabel: encodeMeetingIdentitySessionLabelV1({
+            sessionLabel: encodeMeetingIdentitySessionLabel({
                 role,
                 meetingId: state.id,
                 identityId: identity.id

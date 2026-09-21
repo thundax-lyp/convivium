@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    decodeMeetingIdentitySessionLabelV1,
+    decodeMeetingIdentitySessionLabel,
     decodeMeetingSessionLabel,
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     encodeMeetingSessionLabel
 } from "@/dsh/labels.js";
 
@@ -49,31 +49,31 @@ describe("target meeting identity session labels", () => {
         "round-trips the %s identity without legacy namespace fields",
         (role) => {
             const value = { role, meetingId: "meeting-1", identityId: `${role}-1` };
-            const encoded = encodeMeetingIdentitySessionLabelV1(value);
+            const encoded = encodeMeetingIdentitySessionLabel(value);
             expect(encoded).toBe(`convivium:meeting-identity:${role}:meeting-1:${role}-1`);
-            expect(decodeMeetingIdentitySessionLabelV1(encoded)).toEqual(value);
+            expect(decodeMeetingIdentitySessionLabel(encoded)).toEqual(value);
             expect(decodedKeys(encoded)).toEqual(["identityId", "meetingId", "role"]);
         }
     );
 
     it("fails closed for arity, role and ambiguous identity segments", () => {
         expect(
-            decodeMeetingIdentitySessionLabelV1(
+            decodeMeetingIdentitySessionLabel(
                 "convivium:meeting-identity:manager:meeting-1:identity-1:extra"
             )
         ).toBeUndefined();
         expect(
-            decodeMeetingIdentitySessionLabelV1(
+            decodeMeetingIdentitySessionLabel(
                 "convivium:meeting-identity:scribe:meeting-1:identity-1"
             )
         ).toBeUndefined();
         expect(
-            decodeMeetingIdentitySessionLabelV1(
+            decodeMeetingIdentitySessionLabel(
                 "convivium:meeting-identity:participant:meeting/1:identity-1"
             )
         ).toBeUndefined();
         expect(
-            decodeMeetingIdentitySessionLabelV1(
+            decodeMeetingIdentitySessionLabel(
                 "convivium:meeting-identity:participant:meeting-1:identity:1"
             )
         ).toBeUndefined();
@@ -81,5 +81,5 @@ describe("target meeting identity session labels", () => {
 });
 
 function decodedKeys(label: string): string[] {
-    return Object.keys(decodeMeetingIdentitySessionLabelV1(label) ?? {}).sort();
+    return Object.keys(decodeMeetingIdentitySessionLabel(label) ?? {}).sort();
 }

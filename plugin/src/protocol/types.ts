@@ -104,7 +104,7 @@ export interface ObjectiveContractSpecV1 {
     acceptableRiskLevel: "low" | "medium" | "high";
 }
 
-export interface AgendaItemSpecV1 {
+export interface AgendaItemSpec {
     key: string;
     title: string;
     objective: string;
@@ -135,7 +135,7 @@ export interface CreateMeetingInputV1 {
     topic: string;
     objective: string;
     objectiveContract: ObjectiveContractSpecV1;
-    agenda: readonly AgendaItemSpecV1[];
+    agenda: readonly AgendaItemSpec[];
     participants: readonly ParticipantSpecV1[];
     continuation?: ContinuationSelectionV1;
     selectionMode?: "round_robin" | "rule_based" | "manager" | "hybrid";
@@ -610,7 +610,7 @@ export interface PublicMeetingMessageV1 {
     minutesDraft?: PublicMinutesDraftV1;
 }
 
-export type AgentRoleDefinitionIdV1 =
+export type AgentRoleDefinitionId =
     | "domain_architect"
     | "runtime_engineer"
     | "protocol_ui_engineer"
@@ -619,15 +619,15 @@ export type AgentRoleDefinitionIdV1 =
     | "arxiv_research_analyst"
     | "meeting_scribe";
 
-export type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";
+export type AgentEvidenceScope = "repository" | "github" | "arxiv" | "web";
 
 export interface AgentRoleDefinitionV1 {
-    roleDefinitionId: AgentRoleDefinitionIdV1;
+    roleDefinitionId: AgentRoleDefinitionId;
     version: string;
     displayName: string;
     summary: string;
     expertiseTags: readonly string[];
-    evidenceScopes: readonly AgentEvidenceScopeV1[];
+    evidenceScopes: readonly AgentEvidenceScope[];
     responsibilities: readonly string[];
     nonResponsibilities: readonly string[];
 }
@@ -641,7 +641,7 @@ export interface MeetingAgentCatalogSnapshotV1 {
     roles: readonly AgentRoleDefinitionV1[];
     candidates: readonly {
         candidateId: string;
-        roleDefinitionId: AgentRoleDefinitionIdV1;
+        roleDefinitionId: AgentRoleDefinitionId;
         roleDefinitionVersion: string;
         sourceMemberName: string;
         agentDefinitionId: string;
@@ -651,12 +651,12 @@ export interface MeetingAgentCatalogSnapshotV1 {
 
 export interface MeetingAgentCandidateV1 {
     candidateId: string;
-    roleDefinitionId: AgentRoleDefinitionIdV1;
+    roleDefinitionId: AgentRoleDefinitionId;
     roleDefinitionVersion: string;
     displayName: string;
     summary: string;
     expertiseTags: readonly string[];
-    evidenceScopes: readonly AgentEvidenceScopeV1[];
+    evidenceScopes: readonly AgentEvidenceScope[];
     responsibilities: readonly string[];
     nonResponsibilities: readonly string[];
     availability: "available" | "unavailable";
@@ -666,7 +666,7 @@ export interface ManagerResearchNeedV1 {
     evidenceGapId: string;
     agendaItemId: string;
     question: string;
-    requiredScopes: readonly AgentEvidenceScopeV1[];
+    requiredScopes: readonly AgentEvidenceScope[];
     existingEvidenceIds: readonly string[];
     status: "open" | "stale" | "satisfied";
 }
@@ -706,7 +706,7 @@ export interface AttendanceRecommendationClaimV1 {
 export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
     rejection?: { reason: string; rejectedAt: number };
     recommendationId: string;
-    roleDefinitionId: AgentRoleDefinitionIdV1;
+    roleDefinitionId: AgentRoleDefinitionId;
     displayName: string;
     status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
     admissionStatus?: "approved" | "provisioning" | "active" | "failed" | "cancelled";
@@ -758,7 +758,7 @@ export interface PublicMeetingChangesV1 {
     positions?: readonly PositionClaimV1[];
     issues?: readonly IssueClaimV1[];
     decisionProposals?: readonly DecisionProposalClaimV1[];
-    agendaCandidates?: readonly AgendaCandidateClaimV1[];
+    agendaCandidates?: readonly AgendaCandidateClaim[];
 }
 
 export interface QuestionClaimV1 {
@@ -823,7 +823,7 @@ export interface CaptainDecisionAcceptanceResultV1 {
     completionFactId: string;
 }
 
-export interface AgendaCandidateClaimV1 {
+export interface AgendaCandidateClaim {
     title: string;
     reason: string;
     relationToActiveAgenda: "related" | "adjacent" | "unrelated";
@@ -834,7 +834,7 @@ export interface AgendaCandidateClaimV1 {
 export interface CompletionClaimsV1 {
     outputClaims?: readonly EvidenceClaimV1[];
     criterionClaims?: readonly EvidenceClaimV1[];
-    agendaResolution?: AgendaResolutionClaimV1;
+    agendaResolution?: AgendaResolutionClaim;
     review?: ReviewClaimV1;
     questionResolutions?: readonly QuestionResolutionClaimV1[];
     riskAcceptance?: RiskAcceptanceClaimV1;
@@ -846,7 +846,7 @@ export interface EvidenceClaimV1 {
     taskIds: readonly string[];
 }
 
-export interface AgendaResolutionClaimV1 {
+export interface AgendaResolutionClaim {
     agendaItemId: string;
     resolution: string;
     evidenceMessageIds: readonly string[];

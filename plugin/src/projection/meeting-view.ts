@@ -16,7 +16,7 @@ import {
 } from "@/protocol/index.js";
 import type { MeetingSnapshot } from "@/repository/types.js";
 
-export type MeetingProjectionCallerV1 =
+export type MeetingProjectionCaller =
     | { readonly kind: "local" }
     | { readonly kind: "captain" }
     | {
@@ -26,10 +26,10 @@ export type MeetingProjectionCallerV1 =
       };
 
 const copy = <T>(value: T): T => structuredClone(value);
-const hasRole = (caller: MeetingProjectionCallerV1, role: MeetingRole): boolean =>
+const hasRole = (caller: MeetingProjectionCaller, role: MeetingRole): boolean =>
     caller.kind === "identity" && caller.roles.includes(role);
 
-function visibleVersions(state: MeetingState, caller: MeetingProjectionCallerV1): Set<string> {
+function visibleVersions(state: MeetingState, caller: MeetingProjectionCaller): Set<string> {
     const visible = new Set(state.publications.flatMap(({ finalVersionIds }) => finalVersionIds));
     if (caller.kind === "local") {
         state.evidencePackages.forEach(({ currentVersionId }) => visible.add(currentVersionId));
@@ -74,7 +74,7 @@ function catalogView(catalog: MeetingAgentCatalog) {
     };
 }
 
-function allowedControls(state: MeetingState, caller: MeetingProjectionCallerV1) {
+function allowedControls(state: MeetingState, caller: MeetingProjectionCaller) {
     if (!["running", "paused", "converging"].includes(state.lifecycle.status)) return [];
     if (caller.kind === "local") {
         if (state.lifecycle.status === "running") return ["pause_meeting", "end_meeting"] as const;
@@ -98,7 +98,7 @@ function allowedControls(state: MeetingState, caller: MeetingProjectionCallerV1)
     return [];
 }
 
-export function projectMeetingSummaryV1(snapshot: MeetingSnapshot<MeetingState>): MeetingSummaryV1 {
+export function projectMeetingSummary(snapshot: MeetingSnapshot<MeetingState>): MeetingSummaryV1 {
     const active = snapshot.state.agenda.find(({ status }) => status === "active");
     return MeetingSummaryV1Schema.parse({
         meetingId: snapshot.meetingId,
@@ -110,9 +110,9 @@ export function projectMeetingSummaryV1(snapshot: MeetingSnapshot<MeetingState>)
     });
 }
 
-export function projectArchiveViewV1(
+export function projectArchiveView(
     archive: ArchivePackage,
-    caller: MeetingProjectionCallerV1
+    caller: MeetingProjectionCaller
 ): ArchiveView {
     const used = new Set(archive.decisions.map(({ candidateId }) => candidateId));
     return ArchiveViewV1Schema.parse({
@@ -124,9 +124,9 @@ export function projectArchiveViewV1(
     });
 }
 
-export function projectMeetingViewV1(
+export function projectMeetingView(
     snapshot: MeetingSnapshot<MeetingState>,
-    caller: MeetingProjectionCallerV1,
+    caller: MeetingProjectionCaller,
     managerCatalog?: MeetingAgentCatalog
 ): MeetingViewV1 {
     const state = snapshot.state;
@@ -264,7 +264,7 @@ export function projectMeetingViewV1(
                 : {}),
             ...(state.termination ? { termination: copy(state.termination) } : {})
         },
-        ...(state.archive ? { archive: projectArchiveViewV1(state.archive, caller) } : {}),
+        ...(state.archive ? { archive: projectArchiveView(state.archive, caller) } : {}),
         managerPlans: copy(state.managerPlans),
         tasks: copy(state.tasks),
         privateMail: state.privateMails

@@ -5,9 +5,9 @@ import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilit
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import { createMeeting, type MeetingState } from "@/domain/index.js";
 import {
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     interruptAndDrainOwnedSessions,
-    startMeetingIdentitySessionV1
+    startMeetingIdentitySession
 } from "@/dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
@@ -312,7 +312,7 @@ export function createMeetingCreationCoordinatorV1(
                             identity.source.roles[0] === "contributor"
                                 ? "participant"
                                 : (identity.source.roles[0] as "manager" | "evidence_reviewer");
-                        const sessionLabel = encodeMeetingIdentitySessionLabelV1({
+                        const sessionLabel = encodeMeetingIdentitySessionLabel({
                             role,
                             meetingId,
                             identityId: identity.id
@@ -358,7 +358,7 @@ export function createMeetingCreationCoordinatorV1(
                                     now
                                 ))
                         );
-                        const started = await startMeetingIdentitySessionV1({
+                        const started = await startMeetingIdentitySession({
                             composition: identity.composition,
                             runtime: dependencies.continuable,
                             provider: dependencies.provider,

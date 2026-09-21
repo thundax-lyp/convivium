@@ -8,7 +8,7 @@ import {
     RoleCompositionError
 } from "@/role-composition/resolve.js";
 import { preflightDynamicMeetingIdentityV1 } from "@/role-composition/dsh-capabilities.js";
-import { startMeetingIdentitySessionV1 } from "@/dsh/index.js";
+import { startMeetingIdentitySession } from "@/dsh/index.js";
 import type { SessionOwnership } from "@/repository/types.js";
 
 export type IdentityProvisionResultV1 =
@@ -165,7 +165,7 @@ export async function provisionMeetingIdentityV1(
     }
     try {
         if (child === "absent") {
-            const started = await startMeetingIdentitySessionV1({
+            const started = await startMeetingIdentitySession({
                 composition,
                 runtime: dependencies.runtime,
                 provider: dependencies.provider,

@@ -21,24 +21,24 @@ Definition 与 Catalog 不得携带完整 Agent 配置、prompt、凭据、MCP �
 
 ## Meeting Agent Definition
 
-    type AgentRoleDefinitionIdV1 =
+    type AgentRoleDefinitionId =
       | "meeting_manager" | "domain_architect" | "runtime_engineer"
       | "protocol_ui_engineer" | "verification_reviewer"
       | "github_research_analyst" | "arxiv_research_analyst";
-    type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";
+    type AgentEvidenceScope = "repository" | "github" | "arxiv" | "web";
     interface ToolRestrictionV1 { allow?: string[]; deny?: string[] }
     interface MeetingAgentDefinitionV1 {
       agentDefinitionId: DefinitionId; definitionVersion: string;
-      roleDefinitionId: AgentRoleDefinitionIdV1; displayName: string; summary: string;
+      roleDefinitionId: AgentRoleDefinitionId; displayName: string; summary: string;
       roleDescription: string; dshPresetId: string; requiredSkillNames: string[];
       toolFilter?: ToolRestrictionV1; expertiseTags: string[];
-      evidenceScopes: AgentEvidenceScopeV1[];
+      evidenceScopes: AgentEvidenceScope[];
     }
     interface AgentDefinitionBindingV1 {
       agentDefinitionId: DefinitionId; definitionVersion: string; definitionHash: string;
     }
 
-Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-14共享-preset-下的-meeting-agent-definition) 的当前发布字段：`agentDefinitionId/definitionVersion` 固定同一语义，`roleDescription` 只写会议职责，通用方法由原生 DSH Skill 承担。`meeting_manager` 与 `verification_reviewer` 只能在创建时分别绑定唯一 Manager 与唯一专职 evidence reviewer，不能作为动态普通 Participant 准入；其他 roleDefinitionId 经 Runtime 固定映射为 `roles:["contributor"]`、空 agenda responsibility、`riskAuthority:false`、`required:false`，Definition 不授予 Meeting 控制权。`web_research_analyst` 当前不属于有效 `AgentRoleDefinitionIdV1`，Host producer 和 Runtime 均不得发布或接纳该 Definition。Reviewer Definition 可以引用 Host-approved 的材料读取、代码核验、Web/GitHub/arXiv 查询与运行验证能力，具体工具仍由 Host policy 决定。`dshPresetId` 与 `requiredSkillNames` 是精确 Host 引用；共享 Captain parent Preset 或任一 required Skill 缺失时 fail closed。`toolFilter` 只收窄继承工具，模型覆盖仅由 Host 独立配置提供，不在 Definition 或 Manager 输入中保存。`AgentDefinitionBindingV1` 的内容指纹由 Runtime 对已验证 Definition 规范化计算并与 Session descriptor 固化；不从 displayName 或当前默认定义推断。
+Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-14共享-preset-下的-meeting-agent-definition) 的当前发布字段：`agentDefinitionId/definitionVersion` 固定同一语义，`roleDescription` 只写会议职责，通用方法由原生 DSH Skill 承担。`meeting_manager` 与 `verification_reviewer` 只能在创建时分别绑定唯一 Manager 与唯一专职 evidence reviewer，不能作为动态普通 Participant 准入；其他 roleDefinitionId 经 Runtime 固定映射为 `roles:["contributor"]`、空 agenda responsibility、`riskAuthority:false`、`required:false`，Definition 不授予 Meeting 控制权。`web_research_analyst` 当前不属于有效 `AgentRoleDefinitionId`，Host producer 和 Runtime 均不得发布或接纳该 Definition。Reviewer Definition 可以引用 Host-approved 的材料读取、代码核验、Web/GitHub/arXiv 查询与运行验证能力，具体工具仍由 Host policy 决定。`dshPresetId` 与 `requiredSkillNames` 是精确 Host 引用；共享 Captain parent Preset 或任一 required Skill 缺失时 fail closed。`toolFilter` 只收窄继承工具，模型覆盖仅由 Host 独立配置提供，不在 Definition 或 Manager 输入中保存。`AgentDefinitionBindingV1` 的内容指纹由 Runtime 对已验证 Definition 规范化计算并与 Session descriptor 固化；不从 displayName 或当前默认定义推断。
 
 ## Catalog Snapshot And Recommendation Input
 
@@ -50,17 +50,17 @@ Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMEN
       protocolVersion: 1; meetingId: string;
       captainSessionId: string; managerSessionId: string;
     }
-    type ReadCatalogResultV1 =
+    type ReadCatalogResult =
       | { kind: "available"; snapshot: MeetingAgentCatalog }
-      | { kind: "rejected"; error: RoleErrorV1 };
+      | { kind: "rejected"; error: RoleError };
     interface CatalogCandidate {
       candidateId: string; definition: VersionedRef; definitionHash: string; displayName: string;
       availability: "available" | "unavailable"; meetingRoles: MeetingRole[];
       responsibilitySummary: string;
-      capabilitySummary: CapabilitySummary[]; suitability: SuitabilityV1[];
+      capabilitySummary: CapabilitySummary[]; suitability: Suitability[];
     }
     interface CapabilitySummary { kind: CapabilityKind; label: string }
-    interface SuitabilityV1 { scope: string; rationale: string }
+    interface Suitability { scope: string; rationale: string }
     interface IdentityRecommendationInputV1 {
       candidateId: string; definition: VersionedRef; catalog: VersionedRef; agendaId: string;
       decision: "admit" | "reject"; rationale: string;
@@ -74,14 +74,14 @@ Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围�
     interface ResolveDefinitionRequestV1 { protocolVersion: 1; definition: VersionedRef }
     type ResolveDefinitionResultV1 =
       | { kind: "resolved"; definition: MeetingAgentDefinitionV1; binding: AgentDefinitionBindingV1 }
-      | { kind: "rejected"; error: RoleErrorV1 };
+      | { kind: "rejected"; error: RoleError };
     interface PreflightIdentityRequestV1 {
       protocolVersion: 1; meetingId: string; parentSessionId: string;
       definition: VersionedRef; requestedRoles: MeetingRole[];
     }
 type PreflightIdentityResultV1 =
       | { kind: "ready"; descriptor: PreparedDescriptor; verifiedPresetId: string; verifiedSkillNames: string[]; verifiedCapabilities: VerifiedCapabilityV1[] }
-      | { kind: "rejected"; error: RoleErrorV1; missing: MissingCapabilityV1[] };
+      | { kind: "rejected"; error: RoleError; missing: MissingCapabilityV1[] };
     interface PreparedDescriptor {
       descriptorId: DescriptorId; meetingId: string; parentSessionId: string;
       definition: VersionedRef; definitionHash: string;
@@ -103,9 +103,9 @@ Runtime 在创建动态身份 Session 或写入 MeetingIdentity 前调用 prefli
       };
     }
     type AdmitIdentityResult =
-      | { kind: "admitted"; identityId: string; ownership: SessionOwnershipV1 }
-      | { kind: "rejected"; error: RoleErrorV1 };
-    interface SessionOwnershipV1 {
+      | { kind: "admitted"; identityId: string; ownership: SessionOwnership }
+      | { kind: "rejected"; error: RoleError };
+    interface SessionOwnership {
       id: string; admissionId: string; meetingId: string; identityId: string; parentSessionId: string;
       descriptorId: DescriptorId; descriptorHash: string; descriptorExpiresAt: EpochMs;
       definition: VersionedRef; definitionHash: string;
@@ -119,7 +119,7 @@ Manager 的 `admit` 只先形成不可调度的 Meeting provisioning 意图，�
 
 ## Role Errors And Authorization
 
-    interface RoleErrorV1 {
+    interface RoleError {
       code:
         | "INVALID_ARGUMENT" | "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH"
         | "CATALOG_NOT_FOUND" | "CATALOG_STALE" | "CATALOG_CANDIDATE_MISMATCH"

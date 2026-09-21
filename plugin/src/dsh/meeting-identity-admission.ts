@@ -9,7 +9,7 @@ export interface PreparedDescriptor {
     definitionHash: string;
     expiresAt: number;
 }
-export interface SessionOwnershipV1 {
+export interface SessionOwnership {
     id: string;
     admissionId: string;
     meetingId: string;
@@ -24,26 +24,26 @@ export interface SessionOwnershipV1 {
     createdAt: number;
     status: "provisioning" | "active" | "interrupted" | "stopped" | "unrecoverable";
 }
-export type RoleErrorV1 = { code: string; message: string; targetId?: string };
+export type RoleError = { code: string; message: string; targetId?: string };
 export interface IdentityAdmissionPort {
-    readOwnership(admissionId: string): Promise<SessionOwnershipV1 | undefined>;
+    readOwnership(admissionId: string): Promise<SessionOwnership | undefined>;
     putProvisioning(
-        owner: SessionOwnershipV1
-    ): Promise<{ kind: "created" | "same"; owner: SessionOwnershipV1 } | { kind: "conflict" }>;
-    inspectOwnedChild(owner: SessionOwnershipV1): Promise<"present" | "absent" | "unavailable">;
+        owner: SessionOwnership
+    ): Promise<{ kind: "created" | "same"; owner: SessionOwnership } | { kind: "conflict" }>;
+    inspectOwnedChild(owner: SessionOwnership): Promise<"present" | "absent" | "unavailable">;
     startOwnedChild(
-        owner: SessionOwnershipV1,
+        owner: SessionOwnership,
         parent: Agent,
         definition: MeetingAgentDefinitionV1,
         signal: AbortSignal
-    ): Promise<{ kind: "ready"; sessionId: string } | { kind: "rejected"; error: RoleErrorV1 }>;
-    markActive(owner: SessionOwnershipV1): Promise<SessionOwnershipV1 | RoleErrorV1>;
-    revokeAndDrainOwned(owner: SessionOwnershipV1): Promise<void>;
+    ): Promise<{ kind: "ready"; sessionId: string } | { kind: "rejected"; error: RoleError }>;
+    markActive(owner: SessionOwnership): Promise<SessionOwnership | RoleError>;
+    revokeAndDrainOwned(owner: SessionOwnership): Promise<void>;
 }
 export type AdmitIdentityResult =
-    | { kind: "admitted"; identityId: string; ownership: SessionOwnershipV1 }
-    | { kind: "rejected"; error: RoleErrorV1 };
-export async function admitMeetingIdentityV1(
+    | { kind: "admitted"; identityId: string; ownership: SessionOwnership }
+    | { kind: "rejected"; error: RoleError };
+export async function admitMeetingIdentity(
     intent: IdentityRecommendation,
     descriptor: PreparedDescriptor,
     parent: Agent,
@@ -69,7 +69,7 @@ export async function admitMeetingIdentityV1(
                   kind: "rejected",
                   error: { code: "ADMISSION_CONFLICT", message: "Admission ownership conflicts" }
               };
-    const owner: SessionOwnershipV1 = {
+    const owner: SessionOwnership = {
         id: `session-ownership:${intent.id}`,
         admissionId: intent.id,
         meetingId: descriptor.meetingId,

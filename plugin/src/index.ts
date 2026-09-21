@@ -3,7 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider, resolveMeetingCallerV1 } from "./dsh/index.js";
+import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import {
     activateTargetMeetingApplicationV1,
@@ -60,7 +60,7 @@ const meetingConsumerPlugin = {
                 application,
                 callers: {
                     async resolve(agent, signal) {
-                        const resolved = await resolveMeetingCallerV1(agent, runtime, signal);
+                        const resolved = await resolveMeetingCaller(agent, runtime, signal);
                         return resolved;
                     }
                 },

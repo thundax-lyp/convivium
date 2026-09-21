@@ -5,7 +5,7 @@ import type { Config } from "@/config.js";
 import type { MeetingState } from "@/domain/index.js";
 import type { MeetingCommandV1, ReadMeetingRequestV1 } from "@/protocol/index.js";
 import { MeetingCommandResultV1Schema } from "@/protocol/index.js";
-import { projectMeetingSummaryV1, projectMeetingViewV1 } from "@/projection/index.js";
+import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
@@ -20,7 +20,7 @@ import {
 } from "./application-service/meeting-command.js";
 import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
-import { requireContinuableProvider, type RoleCatalogPortV1 } from "@/dsh/index.js";
+import { requireContinuableProvider, type RoleCatalogPort } from "@/dsh/index.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
@@ -274,7 +274,7 @@ export async function activateTargetMeetingApplicationV1(
     const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
     const catalog = (ctx as Context & { get?: (key: string) => unknown }).get?.(
         "convivium.agentCatalog"
-    ) as RoleCatalogPortV1 | undefined;
+    ) as RoleCatalogPort | undefined;
     const resolveCallerScope = async (input: {
         meetingId: string;
         caller: {
@@ -434,7 +434,7 @@ export async function activateTargetMeetingApplicationV1(
             for (const record of registry.listMeetings()) {
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const snapshot = (await repository.recover()).snapshot;
-                if (snapshot) meetings.push(projectMeetingSummaryV1(snapshot));
+                if (snapshot) meetings.push(projectMeetingSummary(snapshot));
             }
             return { meetings };
         },
@@ -443,7 +443,7 @@ export async function activateTargetMeetingApplicationV1(
             const repository = await registry.openMeeting({ meetingId: request.meetingId });
             const snapshot = (await repository.recover()).snapshot;
             if (!snapshot) throw new Error("Meeting is not ready.");
-            return projectMeetingViewV1(snapshot, { kind: "local" });
+            return projectMeetingView(snapshot, { kind: "local" });
         },
         async control(command: MeetingCommandV1, signal: AbortSignal) {
             if (!["pause_meeting", "resume_meeting", "end_meeting"].includes(command.action.kind))

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { followupMeetingIdentitySessionV1 } from "@/dsh/index.js";
+import { followupMeetingIdentitySession } from "@/dsh/index.js";
 
 const ownership = {
     id: "owner-1",
@@ -20,7 +20,7 @@ describe("meeting identity notice adapter", () => {
     it("sends through the exact parent and persisted child without adding business facts", async () => {
         const sendMessage = vi.fn().mockResolvedValue("message-1");
         await expect(
-            followupMeetingIdentitySessionV1({
+            followupMeetingIdentitySession({
                 runtime: { sendMessage },
                 parent: { id: "captain-1" } as never,
                 ownership,
@@ -45,7 +45,7 @@ describe("meeting identity notice adapter", () => {
         ["closed", { ownership: { ...ownership, lifecycleStatus: "closed" } }]
     ])("rejects %s", async (_name, override) => {
         await expect(
-            followupMeetingIdentitySessionV1({
+            followupMeetingIdentitySession({
                 runtime: { sendMessage: vi.fn() },
                 parent: { id: "captain-1" } as never,
                 ownership,

@@ -25,7 +25,7 @@ import {
     type MeetingCommandResultV1,
     type MeetingCommandV1
 } from "@/protocol/index.js";
-import { readMeetingRoleCatalogV1, type RoleCatalogPortV1 } from "@/dsh/index.js";
+import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
 import { RepositoryError } from "@/repository/errors.js";
@@ -99,7 +99,7 @@ export interface MeetingCommandApplicationDependenciesV1 {
     ids: { nextId(kind: string): string };
     clock: { now(): number };
     resolveCallerScope: ResolveCallerScopeV1;
-    catalog?: RoleCatalogPortV1;
+    catalog?: RoleCatalogPort;
 }
 
 class TransitionRejected extends Error {
@@ -340,7 +340,7 @@ async function prepareIdentityCatalog(
         return {
             result: rejected("PRECONDITION_FAILED", "Meeting role catalog is unavailable")
         };
-    const catalog = await readMeetingRoleCatalogV1(
+    const catalog = await readMeetingRoleCatalog(
         deps.catalog,
         command.meetingId,
         scope.ownership.parentSessionId,

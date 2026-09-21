@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
-import { followupMeetingIdentitySessionV1, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
+import { followupMeetingIdentitySession, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
@@ -272,7 +272,7 @@ export function createMeetingNoticeDispatcherV1(
                     })
                 }
             ];
-            await followupMeetingIdentitySessionV1({
+            await followupMeetingIdentitySession({
                 runtime: dependencies.sessions,
                 parent,
                 ownership,

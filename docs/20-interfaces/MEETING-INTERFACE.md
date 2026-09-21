@@ -653,7 +653,7 @@ interface MeetingCommandAcceptedV1 {
     decision: "admit" | "reject";
     status: "provisioning" | "rejected" | "active" | "failed";
     identityId?: OpaqueId;
-    failureCode?: RoleErrorV1["code"];
+    failureCode?: RoleError["code"];
   };
 }
 interface MeetingCommandRejectedV1 {
@@ -685,7 +685,7 @@ interface MeetingErrorV1 {
 }
 ```
 
-本接口的 `MeetingRole` 与 `RoleErrorV1["code"]` 引用 [DSH Role Interface](./DSH-ROLE-INTERFACE.md) 的同名定义；Protocol 仅公开该 code union 和角色枚举，不导入 Host adapter 类型。错误优先级固定为：协议结构 → Meeting 可见性 → caller ownership/authorization → requestId binding → terminal/archive → expected version → 对象存在性 → action state/precondition → Domain invariant/limit → storage/recovery。拒绝结果不含 effects、隐藏事实或其他 caller 的版本。
+本接口的 `MeetingRole` 与 `RoleError["code"]` 引用 [DSH Role Interface](./DSH-ROLE-INTERFACE.md) 的同名定义；Protocol 仅公开该 code union 和角色枚举，不导入 Host adapter 类型。错误优先级固定为：协议结构 → Meeting 可见性 → caller ownership/authorization → requestId binding → terminal/archive → expected version → 对象存在性 → action state/precondition → Domain invariant/limit → storage/recovery。拒绝结果不含 effects、隐藏事实或其他 caller 的版本。
 
 ## Read, Remote And Projection
 
@@ -728,7 +728,7 @@ interface IdentityRecommendationView {
   rationale: string;
   createdAt: EpochMs;
   identityId?: OpaqueId;
-  failureCode?: RoleErrorV1["code"];
+  failureCode?: RoleError["code"];
 }
 interface ManagerCatalogView {
   catalogId: OpaqueId;

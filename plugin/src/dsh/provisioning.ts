@@ -23,7 +23,7 @@ const identitySegment = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const meetingIdentityInstruction =
     "This message establishes your Meeting identity only and grants no work capability. Wait for a formal Meeting notice before acting.";
 
-export function createMeetingIdentityProvisioningEnvelopeV1(input: {
+export function createMeetingIdentityProvisioningEnvelope(input: {
     readonly role: MeetingIdentityProvisioningEnvelope["role"];
     readonly meetingId: string;
     readonly identityId: string;
@@ -47,7 +47,7 @@ export function createMeetingIdentityProvisioningEnvelopeV1(input: {
     };
 }
 
-export function serializeMeetingIdentityProvisioningEnvelopeV1(
+export function serializeMeetingIdentityProvisioningEnvelope(
     envelope: MeetingIdentityProvisioningEnvelope
 ): string {
     return JSON.stringify(envelope);

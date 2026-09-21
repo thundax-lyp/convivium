@@ -6,63 +6,21 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `dsh` | 17 |
-| `projection` | 4 |
-| `protocol` | 209 |
+| `protocol` | 200 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 297 |
+| 合计（按模块去重） | 267 |
 
-声明出现次数：301
+声明出现次数：270
 
-全局唯一名称数：297
-
-## dsh
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `ReadCatalogResultV1` | `ReadCatalogResult` |
-| `ResolvedMeetingCallerV1` | `ResolvedMeetingCaller` |
-| `RoleCatalogPortV1` | `RoleCatalogPort` |
-| `RoleErrorV1` | `RoleError` |
-| `SessionOwnershipV1` | `SessionOwnership` |
-| `StartMeetingIdentitySessionInputV1` | `StartMeetingIdentitySessionInput` |
-| `SuitabilityV1` | `Suitability` |
-| `admitMeetingIdentityV1` | `admitMeetingIdentity` |
-| `createMeetingIdentityProvisioningEnvelopeV1` | `createMeetingIdentityProvisioningEnvelope` |
-| `decodeMeetingIdentitySessionLabelV1` | `decodeMeetingIdentitySessionLabel` |
-| `encodeMeetingIdentitySessionLabelV1` | `encodeMeetingIdentitySessionLabel` |
-| `followupMeetingIdentitySessionV1` | `followupMeetingIdentitySession` |
-| `isActiveMeetingIdentityOwnershipV1` | `isActiveMeetingIdentityOwnership` |
-| `readMeetingRoleCatalogV1` | `readMeetingRoleCatalog` |
-| `resolveMeetingCallerV1` | `resolveMeetingCaller` |
-| `serializeMeetingIdentityProvisioningEnvelopeV1` | `serializeMeetingIdentityProvisioningEnvelope` |
-| `startMeetingIdentitySessionV1` | `startMeetingIdentitySession` |
-
-## projection
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `MeetingProjectionCallerV1` | `MeetingProjectionCaller` |
-| `projectArchiveViewV1` | `projectArchiveView` |
-| `projectMeetingSummaryV1` | `projectMeetingSummary` |
-| `projectMeetingViewV1` | `projectMeetingView` |
+全局唯一名称数：267
 
 ## protocol
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `AgendaCandidateClaimV1` | `AgendaCandidateClaim` |
-| `AgendaCandidateViewV1` | `AgendaCandidateView` |
-| `AgendaCandidateViewV1Schema` | `AgendaCandidateViewSchema` |
-| `AgendaItemSpecV1` | `AgendaItemSpec` |
-| `AgendaResolutionClaimV1` | `AgendaResolutionClaim` |
-| `AgendaViewV1` | `AgendaView` |
-| `AgendaViewV1Schema` | `AgendaViewSchema` |
-| `AgentEvidenceScopeV1` | `AgentEvidenceScope` |
-| `AgentRoleDefinitionIdV1` | `AgentRoleDefinitionId` |
 | `AgentRoleDefinitionV1` | `AgentRoleDefinition` |
 | `AllowedControlV1` | `AllowedControl` |
 | `AllowedControlV1Schema` | `AllowedControlSchema` |

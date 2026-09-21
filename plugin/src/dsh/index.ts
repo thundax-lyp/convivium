@@ -1,7 +1,7 @@
 export {
-    decodeMeetingIdentitySessionLabelV1,
+    decodeMeetingIdentitySessionLabel,
     decodeMeetingSessionLabel,
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     encodeMeetingSessionLabel,
     type MeetingIdentitySessionLabel,
     type ManagerSessionLabel,
@@ -9,25 +9,25 @@ export {
     type ParticipantSessionLabel
 } from "./labels.js";
 export {
+    resolveLabeledMeetingCaller,
     resolveMeetingCaller,
-    resolveMeetingCallerV1,
     type LabeledMeetingOwnershipLookup,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
-    type ResolvedMeetingCaller,
-    type ResolvedMeetingCallerV1
+    type LabeledMeetingCaller,
+    type ResolvedMeetingCaller
 } from "./caller-resolver.js";
 export {
-    createMeetingIdentityProvisioningEnvelopeV1,
+    createMeetingIdentityProvisioningEnvelope,
     createSessionProvisioningEnvelope,
-    serializeMeetingIdentityProvisioningEnvelopeV1,
+    serializeMeetingIdentityProvisioningEnvelope,
     serializeSessionProvisioningEnvelope,
     type MeetingIdentityProvisioningEnvelope,
     type SessionProvisioningEnvelope
 } from "./provisioning.js";
 export {
     requireContinuableProvider,
-    startMeetingIdentitySessionV1,
+    startMeetingIdentitySession,
     startManagerSession,
     startParticipantSession,
     followupParticipantSession,
@@ -35,7 +35,7 @@ export {
     followupMeetingMailSession,
     followupManagerSession,
     followupContributionSession,
-    followupMeetingIdentitySessionV1,
+    followupMeetingIdentitySession,
     type FollowupContributionSessionInput,
     type FollowupMeetingIdentitySessionInput,
     interruptAndDrainOwnedSessions,
@@ -57,14 +57,14 @@ export {
     type OwnedSessionObservation,
     type SpeakerFollowupAttempt,
     type StartManagerSessionInput,
-    type StartMeetingIdentitySessionInputV1,
+    type StartMeetingIdentitySessionInput,
     type StartParticipantSessionInput
 } from "./session-adapter.js";
 export * from "./meeting-role-catalog.js";
 export {
-    admitMeetingIdentityV1,
+    admitMeetingIdentity,
     type AdmitIdentityResult,
     type IdentityAdmissionPort,
     type PreparedDescriptor,
-    type SessionOwnershipV1
+    type SessionOwnership
 } from "./meeting-identity-admission.js";

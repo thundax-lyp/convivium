@@ -7,7 +7,7 @@ import type {
     MeetingState,
     Publication
 } from "@/domain/index.js";
-import { followupMeetingIdentitySessionV1 } from "@/dsh/index.js";
+import { followupMeetingIdentitySession } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
@@ -322,7 +322,7 @@ export function createEvidenceReviewDispatcherV1(
             const claimId = claim.relatedIds?.[0];
             if (!claimId) retry("REVIEW_CLAIM_UNAVAILABLE");
             try {
-                await followupMeetingIdentitySessionV1({
+                await followupMeetingIdentitySession({
                     runtime: dependencies.sessions,
                     parent,
                     ownership,
@@ -520,7 +520,7 @@ export function createReviewDeliveryDispatcherV1(
                     "participant",
                     parent
                 );
-                await followupMeetingIdentitySessionV1({
+                await followupMeetingIdentitySession({
                     runtime: dependencies.sessions,
                     parent,
                     ownership,

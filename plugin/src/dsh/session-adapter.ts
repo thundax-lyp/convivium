@@ -10,14 +10,14 @@ import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
 import type { SessionOwnership } from "@/repository/types.js";
 import {
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     encodeMeetingSessionLabel,
     type MeetingIdentitySessionLabel
 } from "./labels.js";
 import {
-    createMeetingIdentityProvisioningEnvelopeV1,
+    createMeetingIdentityProvisioningEnvelope,
     createSessionProvisioningEnvelope,
-    serializeMeetingIdentityProvisioningEnvelopeV1,
+    serializeMeetingIdentityProvisioningEnvelope,
     serializeSessionProvisioningEnvelope
 } from "./provisioning.js";
 
@@ -46,7 +46,7 @@ export function requireContinuableProvider(
     return provider;
 }
 
-export interface StartMeetingIdentitySessionInputV1 {
+export interface StartMeetingIdentitySessionInput {
     readonly composition?: {
         readonly persona: string;
         readonly toolFilter?: ToolRestriction;
@@ -62,8 +62,8 @@ export interface StartMeetingIdentitySessionInputV1 {
     readonly signal: AbortSignal;
 }
 
-export async function startMeetingIdentitySessionV1(
-    input: StartMeetingIdentitySessionInputV1
+export async function startMeetingIdentitySession(
+    input: StartMeetingIdentitySessionInput
 ): Promise<ContinuableStart> {
     const identity = {
         role: input.role,
@@ -73,14 +73,14 @@ export async function startMeetingIdentitySessionV1(
     const prompt: ContinuableStartSpec["request"]["prompt"] = [
         {
             type: "text",
-            text: serializeMeetingIdentityProvisioningEnvelopeV1(
-                createMeetingIdentityProvisioningEnvelopeV1(identity)
+            text: serializeMeetingIdentityProvisioningEnvelope(
+                createMeetingIdentityProvisioningEnvelope(identity)
             )
         }
     ];
     const started = await input.runtime.startContinuable({
         provider: input.provider,
-        label: encodeMeetingIdentitySessionLabelV1(identity),
+        label: encodeMeetingIdentitySessionLabel(identity),
         childId: input.childId,
         request: {
             parent: input.parent,
@@ -449,10 +449,10 @@ export interface FollowupMeetingIdentitySessionInput {
 }
 
 /** Deliver to one persisted target identity; inbox acceptance is not a Meeting fact. */
-export async function followupMeetingIdentitySessionV1(
+export async function followupMeetingIdentitySession(
     input: FollowupMeetingIdentitySessionInput
 ): Promise<ContinuableStart["messageId"]> {
-    const expectedLabel = encodeMeetingIdentitySessionLabelV1({
+    const expectedLabel = encodeMeetingIdentitySessionLabel({
         role: input.ownership.role,
         meetingId: input.meetingId,
         identityId: input.identityId
