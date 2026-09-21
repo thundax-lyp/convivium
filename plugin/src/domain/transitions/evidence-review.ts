@@ -41,7 +41,7 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
@@ -71,7 +71,7 @@ function validDimensions(
 export function claimReviewBatchV1(
     state: MeetingState,
     input: ClaimReviewBatchInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.sourceEffectId.trim() ||
@@ -143,7 +143,7 @@ export function claimReviewBatchV1(
 export function submitReviewBatchV1(
     state: MeetingState,
     input: SubmitReviewBatchInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         !input.reviewerId.trim() ||
         !input.roundId.trim() ||
@@ -245,7 +245,7 @@ export function submitReviewBatchV1(
 export function releaseReviewBatchClaimV1(
     state: MeetingState,
     input: ReleaseReviewBatchClaimInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.roundId.trim() ||
@@ -277,7 +277,7 @@ export function releaseReviewBatchClaimV1(
 export function recordReviewDeliveryV1(
     state: MeetingState,
     input: DeliveryInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.reviewId.trim() === "" ||
         input.dispatcherId.trim() === "" ||

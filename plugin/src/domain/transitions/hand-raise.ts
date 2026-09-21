@@ -1,5 +1,5 @@
 import type { Contribution, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -38,7 +38,7 @@ function validTime(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
 
-export function raiseHandV1(state: MeetingState, input: RaiseInput): MeetingTransitionResultV1 {
+export function raiseHandV1(state: MeetingState, input: RaiseInput): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.contributorId.trim() === "" ||
@@ -126,7 +126,7 @@ export function raiseHandV1(state: MeetingState, input: RaiseInput): MeetingTran
 export function disposeHandRaiseV1(
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.contributorId.trim() === "" ||

@@ -3,7 +3,7 @@ import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
     EvidenceReview,
     EvidenceVersion,
-    MeetingIdentityV1,
+    MeetingIdentity,
     MeetingState,
     PublicationV1
 } from "@/domain/index.js";
@@ -57,7 +57,7 @@ function findIdentity(
     state: MeetingState,
     identityId: string,
     role: "evidence_reviewer" | "contributor"
-): MeetingIdentityV1 {
+): MeetingIdentity {
     const identity = state.identities.find((candidate) => candidate.id === identityId);
     if (!identity || identity.roles.length !== 1 || identity.roles[0] !== role)
         fail("REVIEW_VISIBILITY_INVALID");
@@ -66,7 +66,7 @@ function findIdentity(
 
 function findOwnership(
     ownerships: readonly SessionOwnership[],
-    identity: MeetingIdentityV1,
+    identity: MeetingIdentity,
     meetingId: string,
     role: "evidence_reviewer" | "participant",
     parent: Agent

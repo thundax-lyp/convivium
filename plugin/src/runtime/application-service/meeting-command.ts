@@ -16,8 +16,8 @@ import {
     submitReviewBatchV1,
     transitionMeetingStateV1,
     type MeetingState,
-    type MeetingTransitionResultV1,
-    type IdentityAdmissionResultContextV1
+    type MeetingTransitionResult,
+    type IdentityAdmissionResultContext
 } from "@/domain/index.js";
 import {
     MeetingCommandV1Schema,
@@ -55,7 +55,7 @@ export interface MeetingCommandExecutionContextV1 {
     /** Trusted Captain parent injected by the create tool; never decoded from command input. */
     captainParent?: Agent;
     archiveEffect?: { effectId: string; archiveId: string };
-    identityAdmissionResult?: IdentityAdmissionResultContextV1;
+    identityAdmissionResult?: IdentityAdmissionResultContext;
 }
 
 export type CreateMeetingCommandV1 = Omit<MeetingCommandV1, "action"> & {
@@ -262,7 +262,7 @@ function mapRepositoryError(error: unknown): MeetingCommandResultV1 {
 }
 
 type CommandTransition =
-    | MeetingTransitionResultV1
+    | MeetingTransitionResult
     | {
           kind: "accepted";
           state: MeetingState;

@@ -1,5 +1,5 @@
 import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as rejected, type MeetingTransitionResult } from "./result.js";
 
 type RequestInput = {
     requestId: OpaqueId;
@@ -27,13 +27,13 @@ const terminalContributionStatuses = new Set([
 function accepted(
     state: MeetingState,
     relatedIds: readonly OpaqueId[],
-    effectRequests: MeetingTransitionResultV1 extends infer _T
+    effectRequests: MeetingTransitionResult extends infer _T
         ? readonly Extract<
-              MeetingTransitionResultV1,
+              MeetingTransitionResult,
               { kind: "accepted" }
           >["effectRequests"][number][]
         : never
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     return { kind: "accepted", state, relatedIds, effectRequests };
 }
 
@@ -53,7 +53,7 @@ function findManager(state: MeetingState, agendaId: OpaqueId) {
 export function requestEvidenceOpportunityV1(
     state: MeetingState,
     input: RequestInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         !hasCommonValidInput(input.requestId, input.purpose, input.now) ||
         input.agendaId.trim().length === 0 ||
@@ -138,7 +138,7 @@ export function requestEvidenceOpportunityV1(
 export function disposeEvidenceOpportunityV1(
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (!hasCommonValidInput(input.requestId, input.reason, input.now))
         return rejected(state, "INVALID_ARGUMENT", "invalid opportunity disposition");
     const request = state.opportunityRequests.find((item) => item.id === input.requestId);

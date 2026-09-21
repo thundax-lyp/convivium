@@ -9,11 +9,11 @@ import { validateMeetingStateOutcomes } from "./validations/meeting-state-outcom
 import { validateMeetingStateReferences } from "./validations/meeting-state-references.js";
 import { parseMeetingStateShape } from "./validations/meeting-state-schema.js";
 
-export type MeetingStateValidationResultV1 =
+export type MeetingStateValidationResult =
     | { kind: "valid"; state: MeetingState }
     | { kind: "invalid"; code: "INVALID_ARGUMENT"; path: string };
 
-function fail(path: string): MeetingStateValidationResultV1 {
+function fail(path: string): MeetingStateValidationResult {
     return { kind: "invalid", code: "INVALID_ARGUMENT", path };
 }
 
@@ -66,7 +66,7 @@ function schemaIssuePath(issue: { path: readonly PropertyKey[] }): string {
     return `$${suffix}`;
 }
 
-export function validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1 {
+export function validateMeetingStateV1(value: unknown): MeetingStateValidationResult {
     if (!record(value)) return fail("$");
     const rawPath = validateRawMeetingState(value);
     if (rawPath) return fail(rawPath);

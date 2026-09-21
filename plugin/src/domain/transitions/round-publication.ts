@@ -1,7 +1,7 @@
-import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
+import type { FormalMessage, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
 import { isRoundClosableV1 } from "./round.js";
 import { isObjectiveSatisfiedV1 } from "./outcome.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 type Input = {
     roundId: OpaqueId;
     managerId: OpaqueId;
@@ -36,7 +36,7 @@ function body(version: {
         ...version.limitations.map((item) => `- ${item.value}${suffix(item.reason)}`)
     ].join("\n");
 }
-export function publishRoundV1(state: MeetingState, input: Input): MeetingTransitionResultV1 {
+export function publishRoundV1(state: MeetingState, input: Input): MeetingTransitionResult {
     if (
         !input.roundId.trim() ||
         !input.managerId.trim() ||
@@ -93,7 +93,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
             ...state.publications.map((publication) => publication.seq),
             ...state.messages.map((message) => message.seq)
         ) + 1;
-    const messages: FormalMessageV1[] = packages.map((pkg, index) => ({
+    const messages: FormalMessage[] = packages.map((pkg, index) => ({
         id: input.messageIds[index],
         seq: publicationSeq + 1 + index,
         actorId: pkg.authorId,

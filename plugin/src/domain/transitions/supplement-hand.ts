@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, SupplementHandV1 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -28,7 +28,7 @@ function managerFor(state: MeetingState, agendaId: OpaqueId) {
 export function raiseSupplementHandV1(
     state: MeetingState,
     input: RaiseInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.contributionId.trim() === "" ||
         input.authorId.trim() === "" ||
@@ -132,7 +132,7 @@ export function raiseSupplementHandV1(
 export function disposeSupplementHandV1(
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.contributionId.trim() === "" ||
         input.managerId.trim() === "" ||

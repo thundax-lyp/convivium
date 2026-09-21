@@ -1,6 +1,6 @@
 import type { MeetingState, OpaqueId } from "@/domain/index.js";
 
-export type MeetingDomainErrorCodeV1 =
+export type MeetingDomainErrorCode =
     | "INVALID_ARGUMENT"
     | "UNAUTHORIZED"
     | "MEETING_TERMINAL"
@@ -67,7 +67,7 @@ export type AgentNoticeEffectRequest =
           publicMessageId: OpaqueId;
       });
 
-export type MeetingDomainEffectRequestV1 =
+export type MeetingDomainEffectRequest =
     | AgentNoticeEffectRequest
     | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
     | { kind: "materialize_archive"; terminationId: OpaqueId }
@@ -78,12 +78,12 @@ export type MeetingDomainEffectRequestV1 =
           contextPublicationUpperBound: readonly OpaqueId[];
       };
 
-export type MeetingTransitionResultV1 =
+export type MeetingTransitionResult =
     | {
           kind: "accepted";
           state: MeetingState;
           relatedIds: readonly OpaqueId[];
-          effectRequests: readonly MeetingDomainEffectRequestV1[];
+          effectRequests: readonly MeetingDomainEffectRequest[];
       }
     | {
           kind: "rejected";
@@ -91,7 +91,7 @@ export type MeetingTransitionResultV1 =
           relatedIds: readonly [];
           effectRequests: readonly [];
           error: {
-              code: MeetingDomainErrorCodeV1;
+              code: MeetingDomainErrorCode;
               message: string;
               targetKind?: string;
               targetId?: OpaqueId;
@@ -100,10 +100,10 @@ export type MeetingTransitionResultV1 =
 
 export function rejectedTransitionV1(
     state: MeetingState,
-    code: MeetingDomainErrorCodeV1,
+    code: MeetingDomainErrorCode,
     message: string,
     targetId?: OpaqueId
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     return {
         kind: "rejected",
         state,

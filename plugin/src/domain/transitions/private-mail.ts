@@ -5,7 +5,7 @@ import {
     type OpaqueId,
     type PrivateMailV1
 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
 export interface SendPrivateMailInputV1 {
     mailId: OpaqueId;
@@ -32,7 +32,7 @@ export interface CancelPrivateMailInput {
     reason: string;
     now: EpochMs;
 }
-export interface ExpirePrivateMailInputV1 {
+export interface ExpirePrivateMailInput {
     mailId: OpaqueId;
     actorKind: "deadline_handler";
     reason: string;
@@ -62,7 +62,7 @@ function busy(s: MeetingState, id: string, except?: string) {
 export function sendPrivateMailV1(
     s: MeetingState,
     i: SendPrivateMailInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     const text = (value: unknown): value is string =>
@@ -140,7 +140,7 @@ export function sendPrivateMailV1(
 export function startPrivateMailV1(
     s: MeetingState,
     i: StartPrivateMailInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !valid(i.now))
@@ -184,7 +184,7 @@ function finish(
     status: "completed" | "cancelled" | "timed_out",
     reason: string,
     actor?: string
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (
@@ -253,7 +253,7 @@ export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInp
 export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInput) {
     return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
 }
-export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInputV1) {
+export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInput) {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (

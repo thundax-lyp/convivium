@@ -7,10 +7,10 @@ import type {
     DecisionCandidate
 } from "@/domain/meeting-state.js";
 import type { Decision } from "@/domain/meeting-state.js";
-import type { IssueV1 } from "@/domain/meeting-state.js";
+import type { Issue } from "@/domain/meeting-state.js";
 import type { CompletionDeclaration, CompletionFact } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import type { MeetingTransitionResultV1 } from "./result.js";
+import type { MeetingTransitionResult } from "./result.js";
 import { rejectedTransitionV1 } from "./result.js";
 
 export type OutcomeActorV1 =
@@ -117,7 +117,7 @@ const base = (
     s: MeetingState,
     actor: OutcomeActorV1,
     now: number
-): MeetingTransitionResultV1 | undefined => {
+): MeetingTransitionResult | undefined => {
     if (validateMeetingStateV1(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
     if (!validId(actor.id) || !validTime(now)) return bad(s, "INVALID_ARGUMENT");
     return undefined;
@@ -238,7 +238,7 @@ export function recalculateMeetingCompletionV1(
 export function recordProposalRevisionV1(
     state: MeetingState,
     input: RecordProposalRevisionInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -317,7 +317,7 @@ export function recordProposalRevisionV1(
 export function recordPositionV1(
     state: MeetingState,
     input: RecordPositionInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -369,7 +369,7 @@ export function recordPositionV1(
 export function recordDecisionCandidateV1(
     state: MeetingState,
     input: RecordDecisionCandidateInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -443,7 +443,7 @@ export function pendingDecisionCandidatesV1(state: MeetingState): readonly Decis
         (c) => current.has(c.proposalRevisionId) && !used.has(c.id)
     );
 }
-export function decideV1(state: MeetingState, _input: DecideInput): MeetingTransitionResultV1 {
+export function decideV1(state: MeetingState, _input: DecideInput): MeetingTransitionResult {
     const input = _input;
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -493,7 +493,7 @@ export function decideV1(state: MeetingState, _input: DecideInput): MeetingTrans
 export function changeDecisionV1(
     state: MeetingState,
     input: ChangeDecisionInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds))
@@ -592,7 +592,7 @@ export function changeDecisionV1(
 export function disposeRiskV1(
     state: MeetingState,
     input: DisposeRiskInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -648,7 +648,7 @@ export function disposeRiskV1(
         evidenceIds: [...input.evidenceIds],
         createdAt: input.now
     };
-    const issues: readonly IssueV1[] = state.issues.map((i) =>
+    const issues: readonly Issue[] = state.issues.map((i) =>
         i.id === issue.id
             ? {
                   ...i,
@@ -677,7 +677,7 @@ export function disposeRiskV1(
 export function submitCompletionDeclarationV1(
     state: MeetingState,
     input: SubmitCompletionDeclarationInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -752,7 +752,7 @@ export function submitCompletionDeclarationV1(
 export function recordCompletionFactV1(
     state: MeetingState,
     input: RecordCompletionFactInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -841,7 +841,7 @@ export function recordCompletionFactV1(
 export function changeCompletionFactV1(
     state: MeetingState,
     input: ChangeCompletionFactInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (!validId(input.factId) || !validId(input.rationale)) return bad(state, "INVALID_ARGUMENT");

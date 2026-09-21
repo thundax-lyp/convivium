@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, RoundV1 } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as rejected, type MeetingTransitionResult } from "./result.js";
 
 type OpenRoundInput = {
     roundId: OpaqueId;
@@ -26,7 +26,7 @@ function reservedFormalMessages(state: MeetingState): number {
         .reduce((total, round) => total + round.contributionIds.length, 0);
 }
 
-export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResultV1 {
+export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim().length === 0 ||
         input.agendaId.trim().length === 0 ||
@@ -116,10 +116,7 @@ type AbortRoundInput = {
     now: number;
 };
 
-export function abortRoundV1(
-    state: MeetingState,
-    input: AbortRoundInput
-): MeetingTransitionResultV1 {
+export function abortRoundV1(state: MeetingState, input: AbortRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.actor.id.trim() === "" ||

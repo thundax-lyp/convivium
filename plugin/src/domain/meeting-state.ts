@@ -18,7 +18,7 @@ export type MeetingLifecycleStatus =
     | "archiving"
     | "archived";
 
-export interface MeetingLifecycleV1 {
+export interface MeetingLifecycle {
     status: MeetingLifecycleStatus;
     changedAt: EpochMs;
     changedBy: OpaqueId;
@@ -31,21 +31,21 @@ export interface ObjectiveTargetV1 {
     status: "pending" | "satisfied" | "unsatisfied";
 }
 
-export interface HardConstraintV1 {
+export interface HardConstraint {
     id: OpaqueId;
     text: string;
     status: "pending" | "satisfied" | "violated";
 }
 
-export interface ObjectiveContractV1 {
+export interface ObjectiveContract {
     statement: string;
     requiredOutputs: readonly ObjectiveTargetV1[];
     acceptanceCriteria: readonly ObjectiveTargetV1[];
-    hardConstraints: readonly HardConstraintV1[];
+    hardConstraints: readonly HardConstraint[];
     acceptableRiskLevel: RiskLevel;
 }
 
-export interface MeetingIdentityV1 {
+export interface MeetingIdentity {
     id: OpaqueId;
     displayName: string;
     roles: readonly MeetingRole[];
@@ -58,7 +58,7 @@ export interface MeetingIdentityV1 {
     sessionOwnershipId?: string;
 }
 
-export interface IdentityRecommendationCoreV1 {
+export interface IdentityRecommendationCore {
     id: string;
     candidateId: string;
     definitionId: string;
@@ -72,7 +72,7 @@ export interface IdentityRecommendationCoreV1 {
     evidenceGap: string;
     createdAt: number;
 }
-export type IdentityRecommendationV1 = IdentityRecommendationCoreV1 &
+export type IdentityRecommendation = IdentityRecommendationCore &
     (
         | {
               decision: "reject";
@@ -123,7 +123,7 @@ export interface QuestionV1 {
     status: "open" | "answered" | "withdrawn" | "deferred";
 }
 
-export interface IssueV1 {
+export interface Issue {
     id: OpaqueId;
     actorId: OpaqueId;
     agendaId: OpaqueId;
@@ -161,12 +161,12 @@ export interface RoundGoalV1 {
     expectedOutput: string;
 }
 
-export interface HandRaiseV1 {
+export interface HandRaise {
     raisedAt: EpochMs;
     purpose: string;
 }
 
-export interface SupplementHandV1 extends HandRaiseV1 {
+export interface SupplementHandV1 extends HandRaise {
     status: "pending" | "accepted";
     acceptedAt?: EpochMs;
 }
@@ -190,7 +190,7 @@ export interface Contribution {
     id: OpaqueId;
     roundId: OpaqueId;
     contributorId: OpaqueId;
-    handRaise: HandRaiseV1;
+    handRaise: HandRaise;
     acceptedAt: EpochMs;
     status:
         | "preparing"
@@ -328,7 +328,7 @@ export interface PublicationV1 {
     exitReasons: readonly string[];
 }
 
-export interface FormalMessageV1 {
+export interface FormalMessage {
     id: OpaqueId;
     seq: number;
     actorId: OpaqueId;
@@ -416,7 +416,7 @@ export interface CompletionFact {
     createdAt: EpochMs;
 }
 
-export interface MeetingTaskV1 {
+export interface MeetingTask {
     id: OpaqueId;
     createdBy: OpaqueId;
     assigneeId: OpaqueId;
@@ -438,7 +438,7 @@ export interface MeetingTaskV1 {
     completedAt?: EpochMs;
 }
 
-export interface ManagerPlanV1 {
+export interface ManagerPlan {
     id: OpaqueId;
     agendaId: OpaqueId;
     managerId: OpaqueId;
@@ -564,11 +564,11 @@ export interface ArchivePackage {
     createdAt: EpochMs;
     publicSnapshotVersion: number;
     terminationId: OpaqueId;
-    objective: ObjectiveContractV1;
+    objective: ObjectiveContract;
     agenda: readonly AgendaItem[];
     agendaCandidates: readonly AgendaCandidate[];
     publications: readonly PublicationV1[];
-    messages: readonly FormalMessageV1[];
+    messages: readonly FormalMessage[];
     evidenceBundles: readonly ArchiveEvidenceBundle[];
     proposalRevisions: readonly ProposalRevisionV1[];
     positions: readonly PositionV1[];
@@ -576,7 +576,7 @@ export interface ArchivePackage {
     decisions: readonly Decision[];
     completionFacts: readonly CompletionFact[];
     questions: readonly QuestionV1[];
-    issues: readonly IssueV1[];
+    issues: readonly Issue[];
     riskDispositions: readonly RiskDispositionV1[];
     questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFact[];
     termination: TerminationV1;
@@ -595,7 +595,7 @@ export interface ContinuationProvenance {
     importedBy: OpaqueId;
 }
 
-export interface MeetingLimitsV1 {
+export interface MeetingLimits {
     maxFormalMessages: number;
     maxDurationMs: number;
     taskDeadlineMs: number;
@@ -609,10 +609,10 @@ export interface MeetingState {
     createdAt: EpochMs;
     updatedAt: EpochMs;
     continuation?: ContinuationProvenance;
-    objective: ObjectiveContractV1;
-    lifecycle: MeetingLifecycleV1;
-    identities: readonly MeetingIdentityV1[];
-    identityRecommendations: readonly IdentityRecommendationV1[];
+    objective: ObjectiveContract;
+    lifecycle: MeetingLifecycle;
+    identities: readonly MeetingIdentity[];
+    identityRecommendations: readonly IdentityRecommendation[];
     agenda: readonly AgendaItem[];
     agendaCandidates: readonly AgendaCandidate[];
     rounds: readonly RoundV1[];
@@ -627,19 +627,19 @@ export interface MeetingState {
     reviewClaims: readonly ReviewBatchClaimV1[];
     reviewDeliveries: readonly ReviewDeliveryV1[];
     publications: readonly PublicationV1[];
-    messages: readonly FormalMessageV1[];
+    messages: readonly FormalMessage[];
     proposals: readonly ProposalRevisionV1[];
     positions: readonly PositionV1[];
     decisionCandidates: readonly DecisionCandidate[];
     decisions: readonly Decision[];
     questions: readonly QuestionV1[];
-    issues: readonly IssueV1[];
+    issues: readonly Issue[];
     riskDispositions: readonly RiskDispositionV1[];
-    tasks: readonly MeetingTaskV1[];
-    managerPlans: readonly ManagerPlanV1[];
+    tasks: readonly MeetingTask[];
+    managerPlans: readonly ManagerPlan[];
     privateMails: readonly PrivateMailV1[];
     completionFacts: readonly CompletionFact[];
-    limits: MeetingLimitsV1;
+    limits: MeetingLimits;
     termination?: TerminationV1;
     archive?: ArchivePackage;
 }

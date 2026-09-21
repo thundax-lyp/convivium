@@ -1,6 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingIdentityV1, MeetingState } from "@/domain/index.js";
+import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
 import { decodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
@@ -46,7 +46,7 @@ interface MeetingArchiveDispatcherDependenciesV1 {
     readonly application: MeetingCommandApplicationV1;
 }
 
-function roleFor(identity: MeetingIdentityV1): SessionOwnership["role"] {
+function roleFor(identity: MeetingIdentity): SessionOwnership["role"] {
     if (identity.roles.length !== 1) unavailable();
     switch (identity.roles[0]) {
         case "manager":

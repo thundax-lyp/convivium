@@ -1,4 +1,4 @@
-import type { IdentityAdmissionResultContextV1, MeetingState } from "@/domain/index.js";
+import type { IdentityAdmissionResultContext, MeetingState } from "@/domain/index.js";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import type { MeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -63,7 +63,7 @@ export function createMeetingIdentityEffectHandlerV1(
                     retryable: true,
                     terminalOnAttemptLimit: false
                 });
-            const context: IdentityAdmissionResultContextV1 =
+            const context: IdentityAdmissionResultContext =
                 result.kind === "admitted"
                     ? result.result
                     : { kind: "rejected", failureCode: result.failureCode };

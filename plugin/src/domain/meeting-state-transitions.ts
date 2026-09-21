@@ -1,6 +1,6 @@
 import type {
     EpochMs,
-    ManagerPlanV1,
+    ManagerPlan,
     MeetingRole,
     MeetingState,
     OpaqueId,
@@ -84,7 +84,7 @@ export type TargetMeetingActionV1 =
     | {
           kind: "plan_next_step";
           agendaId: OpaqueId;
-          planKind: ManagerPlanV1["kind"];
+          planKind: ManagerPlan["kind"];
           roundGoal?: RoundGoalV1;
           rationale: string;
           blockingReason?: string;

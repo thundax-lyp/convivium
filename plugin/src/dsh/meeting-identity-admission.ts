@@ -1,6 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import type { IdentityRecommendationV1 } from "@/domain/index.js";
+import type { IdentityRecommendation } from "@/domain/index.js";
 export interface PreparedDescriptorV1 {
     descriptorId: string;
     meetingId: string;
@@ -44,7 +44,7 @@ export type AdmitIdentityResultV1 =
     | { kind: "admitted"; identityId: string; ownership: SessionOwnershipV1 }
     | { kind: "rejected"; error: RoleErrorV1 };
 export async function admitMeetingIdentityV1(
-    intent: IdentityRecommendationV1,
+    intent: IdentityRecommendation,
     descriptor: PreparedDescriptorV1,
     parent: Agent,
     definition: MeetingAgentDefinitionV1,

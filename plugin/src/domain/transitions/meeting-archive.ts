@@ -5,7 +5,7 @@ import type {
     OpaqueId
 } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
 
 export interface StartMeetingArchiveInputV1 {
     archiveId: OpaqueId;
@@ -113,7 +113,7 @@ function materializeArchive(
 export function startMeetingArchiveV1(
     state: MeetingState,
     input: StartMeetingArchiveInputV1
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (
@@ -143,7 +143,7 @@ export function startMeetingArchiveV1(
 export function completeMeetingArchiveV1(
     state: MeetingState,
     input: CompleteMeetingArchiveInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (state.lifecycle.status !== "archiving" || state.archive?.status !== "complete")

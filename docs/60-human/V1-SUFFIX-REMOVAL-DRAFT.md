@@ -6,7 +6,7 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `domain` | 99 |
+| `domain` | 79 |
 | `dsh` | 28 |
 | `projection` | 4 |
 | `protocol` | 209 |
@@ -14,36 +14,16 @@
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 407 |
+| 合计（按模块去重） | 387 |
 
-声明出现次数：411
+声明出现次数：391
 
-全局唯一名称数：407
+全局唯一名称数：387
 
 ## domain
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `ExpirePrivateMailInputV1` | `ExpirePrivateMailInput` |
-| `FormalMessageV1` | `FormalMessage` |
-| `HandRaiseV1` | `HandRaise` |
-| `HardConstraintV1` | `HardConstraint` |
-| `IdentityAdmissionResultContextV1` | `IdentityAdmissionResultContext` |
-| `IdentityRecommendationCoreV1` | `IdentityRecommendationCore` |
-| `IdentityRecommendationDraftV1` | `IdentityRecommendationDraft` |
-| `IdentityRecommendationV1` | `IdentityRecommendation` |
-| `IdentityTransitionResultV1` | `IdentityTransitionResult` |
-| `IssueV1` | `Issue` |
-| `ManagerPlanV1` | `ManagerPlan` |
-| `MeetingDomainEffectRequestV1` | `MeetingDomainEffectRequest` |
-| `MeetingDomainErrorCodeV1` | `MeetingDomainErrorCode` |
-| `MeetingIdentityV1` | `MeetingIdentity` |
-| `MeetingLifecycleV1` | `MeetingLifecycle` |
-| `MeetingLimitsV1` | `MeetingLimits` |
-| `MeetingStateValidationResultV1` | `MeetingStateValidationResult` |
-| `MeetingTaskV1` | `MeetingTask` |
-| `MeetingTransitionResultV1` | `MeetingTransitionResult` |
-| `ObjectiveContractV1` | `ObjectiveContract` |
 | `ObjectiveTargetV1` | `ObjectiveTarget` |
 | `OutcomeActorV1` | `OutcomeActor` |
 | `PendingHandRaiseV1` | `PendingHandRaise` |

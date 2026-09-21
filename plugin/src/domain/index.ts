@@ -3,7 +3,7 @@ export * from "./meeting-state.js";
 export * from "./transitions/index.js";
 export {
     validateMeetingStateV1,
-    type MeetingStateValidationResultV1
+    type MeetingStateValidationResult
 } from "./meeting-state-validation.js";
 export {
     transitionMeetingStateV1,
@@ -17,7 +17,7 @@ export {
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,
-    type IdentityAdmissionResultContextV1,
-    type IdentityRecommendationDraftV1,
-    type IdentityTransitionResultV1
+    type IdentityAdmissionResultContext,
+    type IdentityRecommendationDraft,
+    type IdentityTransitionResult
 } from "./transitions/meeting-identity.js";

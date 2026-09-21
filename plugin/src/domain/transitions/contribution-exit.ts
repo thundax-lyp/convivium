@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 type Input = {
     contributionId: OpaqueId;
     actorId: OpaqueId;
@@ -8,7 +8,7 @@ type Input = {
     reason: string;
     now: number;
 };
-export function closeContributionV1(state: MeetingState, input: Input): MeetingTransitionResultV1 {
+export function closeContributionV1(state: MeetingState, input: Input): MeetingTransitionResult {
     if (
         !input.contributionId.trim() ||
         !input.actorId.trim() ||

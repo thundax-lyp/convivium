@@ -12,7 +12,7 @@ export {
     type StartPrivateMailInputV1,
     type CompletePrivateMailInput,
     type CancelPrivateMailInput,
-    type ExpirePrivateMailInputV1
+    type ExpirePrivateMailInput
 } from "./private-mail.js";
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
 export {
@@ -38,9 +38,9 @@ export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archi
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,
-    type IdentityAdmissionResultContextV1,
-    type IdentityRecommendationDraftV1,
-    type IdentityTransitionResultV1
+    type IdentityAdmissionResultContext,
+    type IdentityRecommendationDraft,
+    type IdentityTransitionResult
 } from "./meeting-identity.js";
 
 export {

@@ -5,7 +5,7 @@ import type {} from "@deepseek-ai/dsh-skill";
 import type { MeetingAgentDefinitionV1 } from "./model.js";
 import { RoleCompositionError } from "./resolve.js";
 import type { AgentDefinitionBindingV1 } from "./model.js";
-import type { IdentityRecommendationV1 } from "@/domain/index.js";
+import type { IdentityRecommendation } from "@/domain/index.js";
 
 export type PreflightIdentityResultV1 =
     | {
@@ -27,7 +27,7 @@ export type PreflightIdentityResultV1 =
 
 export async function preflightDynamicMeetingIdentityV1(
     parent: Agent,
-    intent: Pick<IdentityRecommendationV1, "id" | "definitionHash">,
+    intent: Pick<IdentityRecommendation, "id" | "definitionHash">,
     definition: MeetingAgentDefinitionV1,
     binding: AgentDefinitionBindingV1,
     signal: AbortSignal
