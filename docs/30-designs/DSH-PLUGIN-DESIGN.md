@@ -6,7 +6,7 @@
 
 ## Scope And Non-goals
 
-V1 运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边界。本文覆盖插件生命周期、必需 DSH 能力、角色资源、Session 归属、受控读写入口和本地面板；不定义会议领域规则、持久化算法、远程多用户、跨 Host 协作或独立服务。
+当前实现运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边界。本文覆盖插件生命周期、必需 DSH 能力、角色资源、Session 归属、受控读写入口和本地面板；不定义会议领域规则、持久化算法、远程多用户、跨 Host 协作或独立服务。
 
 ## Related Requirements And Interfaces
 
@@ -53,7 +53,7 @@ Meeting Agent Catalog 是 Host 提供的只读安全投影；Convivium 只在 Ma
 
 Runtime 从既有 outbox 投递 `identity_provision`，仅解析意图中记录的精确 Definition identity、执行 preflight 并以 recommendationId 作为 admissionId 幂等地创建 Session/ownership；在 ownership 可证实后，使用受控系统 action 原子激活普通可选 MeetingIdentity。缺 Definition/required capability、descriptor 过期或 provisioning 失败时，同一系统 action 将意图置为 `failed` 并显示安全错误码，不暴露部分可用身份。进程重启只重放未完成的同一 outbox/admissionId；历史 MeetingIdentity 的 descriptor 缺失时明确拒绝恢复，不能套用当前 Definition 重建。
 
-V1 只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。同一 candidate 的 provisioning 意图在 Meeting 内全局互斥，避免并发创建多个 Session；已有 active identity 后，另一 Agenda 的合法准入直接复用既有 identity/Session/Definition provenance，只新增独立 active recommendation，不投递 `identity_provision`，也不扩大角色、权限或 capability。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
+当前实现只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。同一 candidate 的 provisioning 意图在 Meeting 内全局互斥，避免并发创建多个 Session；已有 active identity 后，另一 Agenda 的合法准入直接复用既有 identity/Session/Definition provenance，只新增独立 active recommendation，不投递 `identity_provision`，也不扩大角色、权限或 capability。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
 
 ## Plugin Lifecycle And Entry Points
 
@@ -69,7 +69,7 @@ Identity admission 的 durable ownership 先处于 provisioning 且不授予 Mee
 
 面板先读取本地 Host 的全部可恢复 Meeting 摘要，选定后才读取完整状态。摘要不含 transcript、Session ID、capability、物理存储路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表返回暂不可用原因而不得伪装为完整可用列表。完整状态由类型化后端接口输出；Client 只展示，不计算领域状态、不写缓存事实。
 
-V1 的 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。Meeting 创建只由 Captain-only DSH tool 发起，七个初始 child 的可信 parent 直接取自该次 tool 的 `exec.agent`；Remote 不提供 create，只保留经 local binding 授权的控制操作。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
+当前 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。Meeting 创建只由 Captain-only DSH tool 发起，七个初始 child 的可信 parent 直接取自该次 tool 的 `exec.agent`；Remote 不提供 create，只保留经 local binding 授权的控制操作。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
 
 面板和自然语言入口调用同一暂停、恢复、结束、贡献撤销/重新分配、决策和风险控制规则。活动会议显示暂停，暂停会议显示继续，并展示原因和 actor；强制结束、审核豁免、风险接受和部分完成也必须显示原因。Captain/local 专属决策和风险处置投影只能给相应调用者；普通 Participant 不能由 UI 字段或 Remote 输入绕过该边界。
 

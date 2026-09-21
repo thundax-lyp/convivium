@@ -1,14 +1,14 @@
 import { Remote, RemoteError, TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 import type { Context } from "@deepseek-ai/cordis";
 import {
-    ListMeetingsRequestV1Schema,
-    MeetingCommandResultV1Schema,
-    MeetingListResultV1Schema,
-    MeetingReadResultV1Schema,
-    MeetingCommandV1Schema,
-    ReadMeetingRequestV1Schema,
-    RefreshNoticeV1Schema,
-    type MeetingCommandV1
+    ListMeetingsRequestSchema,
+    MeetingCommandResultSchema,
+    MeetingListResultSchema,
+    MeetingReadResultSchema,
+    MeetingCommandSchema,
+    ReadMeetingRequestSchema,
+    RefreshNoticeSchema,
+    type MeetingCommand
 } from "@/protocol/index.js";
 import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
 import type {
@@ -61,9 +61,9 @@ export class ConviviumRemoteService extends TypertRemoteService {
     async list(signal: AbortSignal): Promise<RemoteMeetingListResult> {
         signal.throwIfAborted();
         try {
-            const request = ListMeetingsRequestV1Schema.parse({ protocolVersion: 1 });
+            const request = ListMeetingsRequestSchema.parse({ protocolVersion: 1 });
             void request;
-            return MeetingListResultV1Schema.parse(await this.runtime.list(signal));
+            return MeetingListResultSchema.parse(await this.runtime.list(signal));
         } catch (cause) {
             mapFailure(signal, cause);
         }
@@ -77,12 +77,12 @@ export class ConviviumRemoteService extends TypertRemoteService {
         signal.throwIfAborted();
         let parsed: { readonly protocolVersion: 1; readonly meetingId: string };
         try {
-            parsed = ReadMeetingRequestV1Schema.parse(request);
+            parsed = ReadMeetingRequestSchema.parse(request);
         } catch (cause) {
             throw invalidRequest(cause);
         }
         try {
-            return MeetingReadResultV1Schema.parse(await this.runtime.read(parsed, signal));
+            return MeetingReadResultSchema.parse(await this.runtime.read(parsed, signal));
         } catch (cause) {
             mapFailure(signal, cause);
         }
@@ -94,14 +94,14 @@ export class ConviviumRemoteService extends TypertRemoteService {
         signal: AbortSignal
     ): Promise<RemoteMeetingCommandResult> {
         signal.throwIfAborted();
-        let parsed: MeetingCommandV1;
+        let parsed: MeetingCommand;
         try {
-            parsed = MeetingCommandV1Schema.parse(command);
+            parsed = MeetingCommandSchema.parse(command);
         } catch (cause) {
             throw invalidRequest(cause);
         }
         try {
-            return MeetingCommandResultV1Schema.parse(await this.runtime.control(parsed, signal));
+            return MeetingCommandResultSchema.parse(await this.runtime.control(parsed, signal));
         } catch (cause) {
             mapFailure(signal, cause);
         }
@@ -117,7 +117,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
         try {
             for await (const notice of this.runtime.subscribeRefresh(signal)) {
                 signal.throwIfAborted();
-                yield RefreshNoticeV1Schema.parse(notice);
+                yield RefreshNoticeSchema.parse(notice);
             }
         } catch (cause) {
             if (signal.aborted) return;

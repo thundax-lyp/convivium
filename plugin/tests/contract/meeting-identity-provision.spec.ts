@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMeetingIdentityEffectHandlerV1 } from "@/runtime/application-service/meeting-identity.js";
-import { provisionMeetingIdentityV1 } from "@/runtime/services/meeting-identity-provision.js";
+import { createMeetingIdentityEffectHandler } from "@/runtime/application-service/meeting-identity.js";
+import { provisionMeetingIdentity } from "@/runtime/services/meeting-identity-provision.js";
 import { resolveMeetingRoles } from "@/role-composition/resolve.js";
 
 const dynamicDefinition = {
@@ -68,7 +68,7 @@ describe("identity provision effect handler", () => {
                 definitionHash: "a".repeat(64)
             }
         }));
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: { execute } as never,
             repository: {
                 read: async () => ({
@@ -113,7 +113,7 @@ describe("identity provision effect handler", () => {
         );
     });
     it("rejects an effect whose recommendation and admission ids differ", async () => {
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: { execute: vi.fn() } as never,
             repository: { read: vi.fn() } as never,
             definitions: [],
@@ -134,7 +134,7 @@ describe("identity provision effect handler", () => {
 
     it("keeps a recovery-unavailable admission effect retryable without committing failure", async () => {
         const execute = vi.fn();
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: { execute } as never,
             repository: {
                 read: async () => ({
@@ -184,7 +184,7 @@ describe("identity provision effect handler", () => {
 
     it("does not start provisioning while the Meeting is paused", async () => {
         const provision = vi.fn();
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: { execute: vi.fn() } as never,
             repository: {
                 read: async () => ({
@@ -229,7 +229,7 @@ describe("identity provision effect handler", () => {
         const execute = vi.fn();
         const cleanupProvisioned = vi.fn();
         let reads = 0;
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: { execute } as never,
             repository: {
                 read: async () => {
@@ -291,7 +291,7 @@ describe("identity provision effect handler", () => {
     it("cleans a provisioned child when admission CAS loses to Meeting termination", async () => {
         const cleanupProvisioned = vi.fn();
         let reads = 0;
-        const handler = createMeetingIdentityEffectHandlerV1({
+        const handler = createMeetingIdentityEffectHandler({
             application: {
                 execute: vi.fn(async () => ({
                     kind: "rejected" as const,
@@ -403,7 +403,7 @@ describe("dynamic identity provisioning", () => {
 
     it("fails before ownership or Session creation when a required Skill is unavailable", async () => {
         const fixture = dependencies(false);
-        const result = await provisionMeetingIdentityV1(
+        const result = await provisionMeetingIdentity(
             {
                 recommendation: await dynamicRecommendation(),
                 meetingId: "meeting-1",
@@ -419,7 +419,7 @@ describe("dynamic identity provisioning", () => {
 
     it("starts the Session with the preflighted Definition composition", async () => {
         const fixture = dependencies(true);
-        const result = await provisionMeetingIdentityV1(
+        const result = await provisionMeetingIdentity(
             {
                 recommendation: await dynamicRecommendation(),
                 meetingId: "meeting-1",
@@ -442,7 +442,7 @@ describe("dynamic identity provisioning", () => {
     it("recovers an existing child without repeating capability preflight", async () => {
         const initial = dependencies(true);
         const recommendation = await dynamicRecommendation();
-        await provisionMeetingIdentityV1(
+        await provisionMeetingIdentity(
             {
                 recommendation,
                 meetingId: "meeting-1",
@@ -455,7 +455,7 @@ describe("dynamic identity provisioning", () => {
         recovered.value.owner.readOwnership = async () => owner;
         recovered.value.owner.inspectOwnedChild = async () => "present" as const;
 
-        const result = await provisionMeetingIdentityV1(
+        const result = await provisionMeetingIdentity(
             {
                 recommendation,
                 meetingId: "meeting-1",
@@ -472,7 +472,7 @@ describe("dynamic identity provisioning", () => {
     it("revokes existing provisioning ownership when a missing child cannot be recreated", async () => {
         const initial = dependencies(true);
         const recommendation = await dynamicRecommendation();
-        await provisionMeetingIdentityV1(
+        await provisionMeetingIdentity(
             {
                 recommendation,
                 meetingId: "meeting-1",
@@ -485,7 +485,7 @@ describe("dynamic identity provisioning", () => {
         recovered.value.owner.readOwnership = async () => owner;
         recovered.value.owner.inspectOwnedChild = async () => "absent" as const;
 
-        const result = await provisionMeetingIdentityV1(
+        const result = await provisionMeetingIdentity(
             {
                 recommendation,
                 meetingId: "meeting-1",

@@ -1,7 +1,7 @@
-import type { EpochMs, IdentityRecommendationV1, MeetingState } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import type { EpochMs, IdentityRecommendation, MeetingState } from "@/domain/meeting-state.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 
-export type IdentityRecommendationDraftV1 = {
+export type IdentityRecommendationDraft = {
     candidateId: string;
     definitionId: string;
     definitionVersion: string;
@@ -13,7 +13,7 @@ export type IdentityRecommendationDraftV1 = {
     expectedContribution: string;
     evidenceGap: string;
 };
-export type IdentityAdmissionResultContextV1 =
+export type IdentityAdmissionResultContext =
     | {
           kind: "admitted";
           admissionId: string;
@@ -28,7 +28,7 @@ export type IdentityAdmissionResultContextV1 =
           definitionHash: string;
       }
     | { kind: "rejected"; failureCode: string };
-export type IdentityTransitionResultV1 =
+export type IdentityTransitionResult =
     | {
           kind: "accepted";
           state: MeetingState;
@@ -50,11 +50,11 @@ type IdentityRejectionCode =
 const reject = (
     state: MeetingState,
     errorCode: IdentityRejectionCode
-): IdentityTransitionResultV1 => ({ kind: "rejected", state, errorCode, facts: [] });
+): IdentityTransitionResult => ({ kind: "rejected", state, errorCode, facts: [] });
 const valid = (value: unknown): value is string =>
     typeof value === "string" && value.trim().length > 0;
 
-function validRecommendationDraft(action: IdentityRecommendationDraftV1): boolean {
+function validRecommendationDraft(action: IdentityRecommendationDraft): boolean {
     return (
         !!action &&
         valid(action.candidateId) &&
@@ -69,9 +69,9 @@ function validRecommendationDraft(action: IdentityRecommendationDraftV1): boolea
     );
 }
 
-export function recommendIdentityV1(
+export function recommendIdentity(
     state: MeetingState,
-    action: IdentityRecommendationDraftV1,
+    action: IdentityRecommendationDraft,
     managerId: string,
     ids: {
         recommendationId: string;
@@ -80,9 +80,9 @@ export function recommendIdentityV1(
         definitionHash?: string;
     },
     now: EpochMs
-): IdentityTransitionResultV1 {
+): IdentityTransitionResult {
     if (
-        validateMeetingStateV1(state).kind !== "valid" ||
+        validateMeetingState(state).kind !== "valid" ||
         !valid(managerId) ||
         !Number.isSafeInteger(now) ||
         !valid(ids.recommendationId)
@@ -114,7 +114,7 @@ export function recommendIdentityV1(
             active.definitionHash !== ids.definitionHash)
     )
         return reject(state, "PRECONDITION_FAILED");
-    const recommendation: IdentityRecommendationV1 =
+    const recommendation: IdentityRecommendation =
         action.decision === "reject"
             ? {
                   ...action,
@@ -182,14 +182,14 @@ export function recommendIdentityV1(
     };
 }
 
-export function recordIdentityAdmissionResultV1(
+export function recordIdentityAdmissionResult(
     state: MeetingState,
     recommendationId: string,
-    result: IdentityAdmissionResultContextV1,
+    result: IdentityAdmissionResultContext,
     now: number
-): IdentityTransitionResultV1 {
+): IdentityTransitionResult {
     if (
-        validateMeetingStateV1(state).kind !== "valid" ||
+        validateMeetingState(state).kind !== "valid" ||
         !valid(recommendationId) ||
         !Number.isSafeInteger(now)
     )

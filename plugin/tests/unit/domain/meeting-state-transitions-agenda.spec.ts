@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingStateV1 } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import {
     state,
     local,
@@ -12,7 +12,7 @@ import {
 
 it("raises a candidate for an existing identity", () => {
     const current = state();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         { kind: "raise_agenda_candidate", title: "new agenda", reason: "needed" },
         captain,
@@ -90,7 +90,7 @@ it("accepts a candidate source message when it belongs to the meeting", () => {
             createdAt: 0
         }
     ];
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "raise_agenda_candidate",
@@ -132,13 +132,13 @@ it.each([
     ]
 ] as const)("rejects candidate raise: %s", (_name, actor, action, code) => {
     const current = state();
-    const result = transitionMeetingStateV1(current, action, actor, 10, "fact-3", "candidate-1");
+    const result = transitionMeetingState(current, action, actor, 10, "fact-3", "candidate-1");
     expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
 });
 
 it("allows an existing non Captain identity to raise a candidate", () => {
     const current = candidateState();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         { kind: "raise_agenda_candidate", title: "x", reason: "x" },
         reviewer,
@@ -156,7 +156,7 @@ it.each(["parked", "rejected"] as const)("disposes a pending candidate as %s", (
             { id: "candidate-1", title: "x", reason: "x", status: "pending" as const }
         ]
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -177,7 +177,7 @@ it.each(["parked", "rejected"] as const)("disposes a pending candidate as %s", (
 
 it("rejects a parked disposal by a non Captain identity", () => {
     const current = candidateState();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -217,7 +217,7 @@ it.each([
         ...state(),
         agendaCandidates: [{ id: "candidate-1", title: "x", reason: "x", status }]
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -252,7 +252,7 @@ it.each([["bad promoted structure", [], "INVALID_ARGUMENT"]] as const)(
                           requiredOutputIds: ["output-1"]
                       }
         };
-        const result = transitionMeetingStateV1(current, action as never, captain, 10, "fact-3");
+        const result = transitionMeetingState(current, action as never, captain, 10, "fact-3");
         expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
         expect(result.state).toBe(current);
     }
@@ -260,7 +260,7 @@ it.each([["bad promoted structure", [], "INVALID_ARGUMENT"]] as const)(
 
 it("promotes a candidate atomically with a pending agenda and reviewer responsibility", () => {
     const current = candidateState();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -316,7 +316,7 @@ it.each([
             { id: "candidate-1", title: "x", reason: "x", status: "pending" as const }
         ]
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -333,7 +333,7 @@ it.each([
 
 it.each([captain, manager, reviewer])("records a question for each allowed identity", (actor) => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "record_question",

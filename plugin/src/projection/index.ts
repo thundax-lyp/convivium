@@ -1,6 +1,6 @@
 export {
-    projectArchiveViewV1,
-    projectMeetingSummaryV1,
-    projectMeetingViewV1,
-    type MeetingProjectionCallerV1
+    projectArchiveView,
+    projectMeetingSummary,
+    projectMeetingView,
+    type MeetingProjectionCaller
 } from "./meeting-view.js";

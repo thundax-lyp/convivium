@@ -22,30 +22,29 @@ const candidate = z.object({
     )
 });
 export type VersionedRef = z.infer<typeof versionedRef>;
-export type RoleErrorV1 = { code: string; message: string; targetId?: string };
+export type RoleError = { code: string; message: string; targetId?: string };
 export type CapabilityKind = z.infer<typeof capability>["kind"];
-export type CapabilitySummaryV1 = z.infer<typeof capability>;
-export type SuitabilityV1 = { scope: string; rationale: string };
-export type CatalogCandidateV1 = z.infer<typeof candidate>;
-export interface MeetingAgentCatalogV1 {
+export type CapabilitySummary = z.infer<typeof capability>;
+export type Suitability = { scope: string; rationale: string };
+export type CatalogCandidate = z.infer<typeof candidate>;
+export interface MeetingAgentCatalog {
     protocolVersion: 1;
     meetingId: string;
     catalogId: string;
     catalogVersion: string;
     generatedAt: number;
-    candidates: CatalogCandidateV1[];
+    candidates: CatalogCandidate[];
 }
-export interface ReadCatalogRequestV1 {
+export interface ReadCatalogRequest {
     protocolVersion: 1;
     meetingId: string;
     captainSessionId: string;
     managerSessionId: string;
 }
-export type ReadCatalogResultV1 =
-    | { kind: "available"; snapshot: MeetingAgentCatalogV1 }
-    | { kind: "rejected"; error: RoleErrorV1 };
-export interface RoleCatalogPortV1 {
-    readSnapshot(request: ReadCatalogRequestV1): Promise<ReadCatalogResultV1>;
+export type ReadCatalogResult =
+    { kind: "available"; snapshot: MeetingAgentCatalog } | { kind: "rejected"; error: RoleError };
+export interface RoleCatalogPort {
+    readSnapshot(request: ReadCatalogRequest): Promise<ReadCatalogResult>;
 }
 const snapshotSchema = z.object({
     protocolVersion: z.literal(1),
@@ -55,12 +54,12 @@ const snapshotSchema = z.object({
     generatedAt: z.number().int().nonnegative(),
     candidates: z.array(candidate)
 });
-export async function readMeetingRoleCatalogV1(
-    port: RoleCatalogPortV1,
+export async function readMeetingRoleCatalog(
+    port: RoleCatalogPort,
     meetingId: string,
     captainSessionId: string,
     managerSessionId: string
-): Promise<ReadCatalogResultV1> {
+): Promise<ReadCatalogResult> {
     if (
         ![meetingId, captainSessionId, managerSessionId].every(
             (value) => id.safeParse(value).success

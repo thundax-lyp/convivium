@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { changeCompletionFactV1 } from "@/domain/transitions/outcome.js";
+import { changeCompletionFact } from "@/domain/transitions/outcome.js";
 import { validState, completionReadyState } from "./outcome-fixtures.js";
 
 describe("CompletionFact change", () => {
@@ -36,7 +36,7 @@ describe("CompletionFact change", () => {
         decisionIds: ["dec"]
     };
     const change = (state: MeetingState, overrides: Record<string, unknown> = {}) =>
-        changeCompletionFactV1(state, {
+        changeCompletionFact(state, {
             factId: "old",
             status: "superseded",
             rationale: "replace",
@@ -48,7 +48,7 @@ describe("CompletionFact change", () => {
     it("revokes a valid old fact without appending and preserves history", () => {
         const state = ready();
         const before = structuredClone(state);
-        const result = changeCompletionFactV1(state, {
+        const result = changeCompletionFact(state, {
             factId: "old",
             status: "revoked",
             rationale: "revoke",
@@ -78,7 +78,7 @@ describe("CompletionFact change", () => {
             state.objective.acceptanceCriteria[0].status = "pending";
         }
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: mode === "missing" ? "missing" : "old",
                 status: "revoked",
                 rationale: "x",
@@ -167,7 +167,7 @@ describe("CompletionFact change", () => {
     it.each(["terminal"] as const)("rejects change terminal lifecycle %s", (status) => {
         const state = validState(status);
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: "missing",
                 status: "revoked",
                 rationale: "x",
@@ -185,7 +185,7 @@ describe("CompletionFact change", () => {
         const state = ready();
         state.lifecycle = { ...state.lifecycle, status: "paused" };
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: "old",
                 status: "revoked",
                 rationale: "x",
@@ -199,7 +199,7 @@ describe("CompletionFact change", () => {
             effectRequests: []
         });
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: "",
                 status: "revoked",
                 rationale: "x",

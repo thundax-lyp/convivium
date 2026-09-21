@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { recommendIdentityV1, recordIdentityAdmissionResultV1 } from "@/domain/index.js";
+import { recommendIdentity, recordIdentityAdmissionResult } from "@/domain/index.js";
 
 describe("identity domain transitions", () => {
     function secondAgendaState() {
@@ -28,7 +28,7 @@ describe("identity domain transitions", () => {
     }
 
     it("records reject without identity or effect", () => {
-        const result = recommendIdentityV1(
+        const result = recommendIdentity(
             makeRunningMeetingStateV1(),
             {
                 candidateId: "candidate-1",
@@ -56,7 +56,7 @@ describe("identity domain transitions", () => {
     });
 
     it("activates only the matching admitted reservation", () => {
-        const admitted = recommendIdentityV1(
+        const admitted = recommendIdentity(
             makeRunningMeetingStateV1(),
             {
                 candidateId: "candidate-1",
@@ -82,7 +82,7 @@ describe("identity domain transitions", () => {
         expect(admitted.kind).toBe("accepted");
         if (admitted.kind !== "accepted") return;
         expect(admitted.state.identityRecommendations[0]?.definitionHash).toBe("a".repeat(64));
-        const result = recordIdentityAdmissionResultV1(
+        const result = recordIdentityAdmissionResult(
             admitted.state,
             "recommendation-1",
             {
@@ -110,7 +110,7 @@ describe("identity domain transitions", () => {
     });
 
     it("rejects an admission result with a different Definition hash", () => {
-        const admitted = recommendIdentityV1(
+        const admitted = recommendIdentity(
             makeRunningMeetingStateV1(),
             {
                 candidateId: "candidate-1",
@@ -135,7 +135,7 @@ describe("identity domain transitions", () => {
         );
         if (admitted.kind !== "accepted") throw new Error("recommendation");
 
-        const result = recordIdentityAdmissionResultV1(
+        const result = recordIdentityAdmissionResult(
             admitted.state,
             "recommendation-1",
             {
@@ -159,7 +159,7 @@ describe("identity domain transitions", () => {
     });
 
     it("reuses an active candidate across agendas without a new identity or effect", () => {
-        const first = recommendIdentityV1(
+        const first = recommendIdentity(
             secondAgendaState(),
             {
                 candidateId: "candidate-1",
@@ -183,7 +183,7 @@ describe("identity domain transitions", () => {
             1
         );
         if (first.kind !== "accepted") throw new Error("recommendation");
-        const active = recordIdentityAdmissionResultV1(
+        const active = recordIdentityAdmissionResult(
             first.state,
             "recommendation-1",
             {
@@ -202,7 +202,7 @@ describe("identity domain transitions", () => {
             2
         );
         if (active.kind !== "accepted") throw new Error("admission");
-        const reused = recommendIdentityV1(
+        const reused = recommendIdentity(
             active.state,
             {
                 candidateId: "candidate-1",
@@ -232,7 +232,7 @@ describe("identity domain transitions", () => {
         expect(reused).not.toHaveProperty("effect");
         expect(reused.state.identities).toHaveLength(active.state.identities.length);
         expect(
-            recommendIdentityV1(
+            recommendIdentity(
                 reused.state,
                 {
                     candidateId: "candidate-1",
@@ -257,7 +257,7 @@ describe("identity domain transitions", () => {
 
     it("rejects provisioning conflicts and provenance mismatches", () => {
         const state = secondAgendaState();
-        const provisioning = recommendIdentityV1(
+        const provisioning = recommendIdentity(
             state,
             {
                 candidateId: "candidate-1",
@@ -282,7 +282,7 @@ describe("identity domain transitions", () => {
         );
         if (provisioning.kind !== "accepted") throw new Error("provisioning");
         expect(
-            recommendIdentityV1(
+            recommendIdentity(
                 provisioning.state,
                 {
                     candidateId: "candidate-1",

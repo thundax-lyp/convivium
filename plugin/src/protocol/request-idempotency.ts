@@ -1,4 +1,4 @@
-export function serializeValidatedRequestV1(value: object): string {
+export function serializeValidatedRequest(value: object): string {
     const canonicalize = (input: unknown): unknown => {
         if (Array.isArray(input)) return input.map(canonicalize);
         if (input && typeof input === "object") {

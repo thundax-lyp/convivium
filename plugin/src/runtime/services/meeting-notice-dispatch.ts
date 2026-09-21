@@ -1,10 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingIdentityV1, MeetingState } from "@/domain/index.js";
-import {
-    followupMeetingIdentitySessionV1,
-    type MeetingIdentitySessionLabelV1
-} from "@/dsh/index.js";
+import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
+import { followupMeetingIdentitySession, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
@@ -36,7 +33,7 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-function roleFor(identity: MeetingIdentityV1): MeetingIdentitySessionLabelV1["role"] {
+function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabel["role"] {
     if (identity.roles.length !== 1) fail("NOTICE_IDENTITY_INVALID");
     switch (identity.roles[0]) {
         case "manager":
@@ -50,7 +47,7 @@ function roleFor(identity: MeetingIdentityV1): MeetingIdentitySessionLabelV1["ro
     }
 }
 
-function assigned(identity: MeetingIdentityV1, agendaId: string): boolean {
+function assigned(identity: MeetingIdentity, agendaId: string): boolean {
     return (
         identity.agendaResponsibilityIds.length === 0 ||
         identity.agendaResponsibilityIds.includes(agendaId)
@@ -58,7 +55,7 @@ function assigned(identity: MeetingIdentityV1, agendaId: string): boolean {
 }
 
 function assertRole(
-    identity: MeetingIdentityV1,
+    identity: MeetingIdentity,
     role: "manager" | "contributor",
     agendaId: string
 ): void {
@@ -68,7 +65,7 @@ function assertRole(
 
 function assertNoticeReferences(
     state: MeetingState,
-    identity: MeetingIdentityV1,
+    identity: MeetingIdentity,
     payload: Record<string, unknown>,
     noticeKind: string,
     agendaId: string
@@ -206,7 +203,7 @@ function assertNoticeReferences(
 
 function findOwnership(
     ownerships: readonly SessionOwnership[],
-    identity: MeetingIdentityV1,
+    identity: MeetingIdentity,
     meetingId: string,
     expectedRole: SessionOwnership["role"]
 ): SessionOwnership {
@@ -223,14 +220,12 @@ function findOwnership(
     return matches[0]!;
 }
 
-export interface MeetingNoticeDispatcherV1Dependencies {
+export interface MeetingNoticeDispatcherDependencies {
     readonly sessions: Pick<SubagentRuntime, "sendMessage">;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
 }
 
-export function createMeetingNoticeDispatcherV1(
-    dependencies: MeetingNoticeDispatcherV1Dependencies
-): {
+export function createMeetingNoticeDispatcher(dependencies: MeetingNoticeDispatcherDependencies): {
     dispatch(input: { outboxItem: OutboxItem; parent: Agent; signal: AbortSignal }): Promise<void>;
 } {
     return {
@@ -275,7 +270,7 @@ export function createMeetingNoticeDispatcherV1(
                     })
                 }
             ];
-            await followupMeetingIdentitySessionV1({
+            await followupMeetingIdentitySession({
                 runtime: dependencies.sessions,
                 parent,
                 ownership,

@@ -1,19 +1,19 @@
 import { defineDomain, domainTable, type Domain } from "@deepseek-ai/dsh-storage-domain";
 import {
-    CheckpointPageV1Schema,
-    CheckpointPointerV1Schema,
-    CheckpointRootV1Schema,
-    CatalogMeetingRecordV1Schema,
-    CommitRecordV1Schema,
-    CreationRecordV1Schema
+    CheckpointPageSchema,
+    CheckpointPointerSchema,
+    CheckpointRootSchema,
+    CatalogMeetingRecordSchema,
+    CommitRecordSchema,
+    CreationRecordSchema
 } from "./schemas.js";
 import type {
-    CatalogMeetingRecordV1,
-    CheckpointPageV1,
-    CheckpointPointerV1,
-    CheckpointRootV1,
-    CommitRecordV1,
-    CreationRecordV1
+    CatalogMeetingRecord,
+    CheckpointPage,
+    CheckpointPointer,
+    CheckpointRoot,
+    CommitRecord,
+    CreationRecord
 } from "./schemas.js";
 import type { CatalogKey, SeqKey } from "./keys.js";
 
@@ -21,7 +21,7 @@ export const catalogDomainSpec = defineDomain({
     name: "convivium_catalog",
     version: 1,
     tables: {
-        meetings: domainTable<CatalogKey, CatalogMeetingRecordV1>(CatalogMeetingRecordV1Schema)
+        meetings: domainTable<CatalogKey, CatalogMeetingRecord>(CatalogMeetingRecordSchema)
     }
 });
 export function createMeetingDomainSpec(name: string) {
@@ -29,13 +29,11 @@ export function createMeetingDomainSpec(name: string) {
         name,
         version: 1,
         tables: {
-            creation: domainTable<"current", CreationRecordV1>(CreationRecordV1Schema),
-            commits: domainTable<SeqKey, CommitRecordV1>(CommitRecordV1Schema),
-            checkpoint_pages: domainTable<string, CheckpointPageV1>(CheckpointPageV1Schema),
-            checkpoint_roots: domainTable<string, CheckpointRootV1>(CheckpointRootV1Schema),
-            checkpoint_pointer: domainTable<"current", CheckpointPointerV1>(
-                CheckpointPointerV1Schema
-            )
+            creation: domainTable<"current", CreationRecord>(CreationRecordSchema),
+            commits: domainTable<SeqKey, CommitRecord>(CommitRecordSchema),
+            checkpoint_pages: domainTable<string, CheckpointPage>(CheckpointPageSchema),
+            checkpoint_roots: domainTable<string, CheckpointRoot>(CheckpointRootSchema),
+            checkpoint_pointer: domainTable<"current", CheckpointPointer>(CheckpointPointerSchema)
         }
     });
 }

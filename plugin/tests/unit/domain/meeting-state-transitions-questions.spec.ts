@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingStateV1 } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import {
     local,
     captain,
@@ -41,14 +41,14 @@ it.each([
     ]
 ] as const)("rejects question operation: %s", (_name, actor, action, code) => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(current, action, actor, 10, "fact-6", "question-2");
+    const result = transitionMeetingState(current, action, actor, 10, "fact-6", "question-2");
     expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
 });
 
 it("rejects evidence that has not been published", () => {
     const current = publishedQuestionState(false);
     current.publications[0].finalVersionIds = [];
-    const result = transitionMeetingStateV1(current, resolveQuestion(), captain, 10, "fact-6");
+    const result = transitionMeetingState(current, resolveQuestion(), captain, 10, "fact-6");
     expect(result).toEqual({
         kind: "rejected",
         state: current,
@@ -60,7 +60,7 @@ it("rejects evidence that has not been published", () => {
 it.each(["answered", "withdrawn"] as const)("rejects a repeated %s resolution", (status) => {
     const current = publishedQuestionState(false);
     current.questions[0].status = status;
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "resolve_question",
@@ -89,7 +89,7 @@ it.each([
 ] as const)("resolves a question as %s", (_name, oldBlocking, newBlocking) => {
     const current = publishedQuestionState(oldBlocking);
     const status = _name.startsWith("deferred") ? "deferred" : (_name as "answered" | "withdrawn");
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "resolve_question",
@@ -126,7 +126,7 @@ it.each([
 
 it.each([captain, manager, reviewer])("records an issue for an existing identity", (actor) => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         recordIssue(),
         actor,
@@ -203,7 +203,7 @@ it.each([
     ["missing evidence", captain, disposeIssue({ evidenceIds: ["missing"] }), "NOT_FOUND"]
 ] as const)("rejects issue operation: %s", (_name, actor, action, code) => {
     const current = action.kind === "dispose_issue" ? issueState() : publishedQuestionState(false);
-    const result = transitionMeetingStateV1(current, action, actor, 10, "fact-8", "issue-2");
+    const result = transitionMeetingState(current, action, actor, 10, "fact-8", "issue-2");
     expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
 });
 
@@ -213,13 +213,7 @@ it.each([
     ["deferred", true, true]
 ] as const)("disposes an issue as %s", (status, oldBlocking, newBlocking) => {
     const current = issueState(oldBlocking);
-    const result = transitionMeetingStateV1(
-        current,
-        disposeIssue({ status }),
-        captain,
-        10,
-        "fact-9"
-    );
+    const result = transitionMeetingState(current, disposeIssue({ status }), captain, 10, "fact-9");
     expect(result.kind).toBe("accepted");
     if (result.kind !== "accepted") return;
     expect(result.state.issues[0]).toMatchObject({
@@ -252,7 +246,7 @@ it.each(["resolved", "out_of_scope"] as const)(
     "rejects disposing an already %s issue",
     (status) => {
         const current = issueState(false, status);
-        const result = transitionMeetingStateV1(current, disposeIssue(), captain, 10, "fact-9");
+        const result = transitionMeetingState(current, disposeIssue(), captain, 10, "fact-9");
         expect(result).toEqual({
             kind: "rejected",
             state: current,
@@ -265,7 +259,7 @@ it.each(["resolved", "out_of_scope"] as const)(
 it("rejects unpublished evidence and preserves the issue state", () => {
     const current = issueState();
     current.publications[0].finalVersionIds = [];
-    const result = transitionMeetingStateV1(current, disposeIssue(), captain, 10, "fact-9");
+    const result = transitionMeetingState(current, disposeIssue(), captain, 10, "fact-9");
     expect(result).toEqual({
         kind: "rejected",
         state: current,
@@ -351,7 +345,7 @@ it("clears the final blocking issue and enters converging in the same transition
             createdAt: 0
         }
     ];
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         disposeIssue({ status: "resolved" }),
         captain,

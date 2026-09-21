@@ -1,37 +1,37 @@
 import {
-    closeContributionV1,
-    claimReviewBatchV1,
-    completeMeetingArchiveV1,
-    disposeHandRaiseV1,
-    endMeetingV1,
-    openRoundV1,
-    publishRoundV1,
-    raiseHandV1,
-    releaseReviewBatchClaimV1,
-    recommendIdentityV1,
-    recordIdentityAdmissionResultV1,
-    recordReviewDeliveryV1,
-    startMeetingArchiveV1,
-    submitEvidenceV1,
-    submitReviewBatchV1,
-    transitionMeetingStateV1,
+    closeContribution,
+    claimReviewBatch,
+    completeMeetingArchive,
+    disposeHandRaise,
+    endMeeting,
+    openRound,
+    publishRound,
+    raiseHand,
+    releaseReviewBatchClaim,
+    recommendIdentity,
+    recordIdentityAdmissionResult,
+    recordReviewDelivery,
+    startMeetingArchive,
+    submitEvidence,
+    submitReviewBatch,
+    transitionMeetingState,
     type MeetingState,
-    type MeetingTransitionResultV1,
-    type IdentityAdmissionResultContextV1
+    type MeetingTransitionResult,
+    type IdentityAdmissionResultContext
 } from "@/domain/index.js";
 import {
-    MeetingCommandV1Schema,
-    type MeetingActionV1,
-    type MeetingCommandResultV1,
-    type MeetingCommandV1
+    MeetingCommandSchema,
+    type MeetingAction,
+    type MeetingCommandResult,
+    type MeetingCommand
 } from "@/protocol/index.js";
-import { readMeetingRoleCatalogV1, type RoleCatalogPortV1 } from "@/dsh/index.js";
+import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type {
     CommandAuthorization,
-    CommittedFactRecordV1,
+    CommittedFactRecord,
     JsonObject,
     OutboxInput,
     RepositoryCommand,
@@ -44,62 +44,62 @@ export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
 export const DEADLINE_HANDLER_PRINCIPAL_ID = "deadline-handler";
 
-export interface CallerBindingV1 {
+export interface CallerBinding {
     channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
     principalId: string;
     sessionBindingId?: string;
 }
 
-export interface MeetingCommandExecutionContextV1 {
-    caller: CallerBindingV1;
+export interface MeetingCommandExecutionContext {
+    caller: CallerBinding;
     /** Trusted Captain parent injected by the create tool; never decoded from command input. */
     captainParent?: Agent;
     archiveEffect?: { effectId: string; archiveId: string };
-    identityAdmissionResult?: IdentityAdmissionResultContextV1;
+    identityAdmissionResult?: IdentityAdmissionResultContext;
 }
 
-export type CreateMeetingCommandV1 = Omit<MeetingCommandV1, "action"> & {
-    action: Extract<MeetingActionV1, { kind: "create_meeting" }>;
+export type CreateMeetingCommand = Omit<MeetingCommand, "action"> & {
+    action: Extract<MeetingAction, { kind: "create_meeting" }>;
 };
 
-export interface MeetingCreationCoordinatorV1 {
+export interface MeetingCreationCoordinator {
     create(
-        command: CreateMeetingCommandV1,
-        context: MeetingCommandExecutionContextV1,
+        command: CreateMeetingCommand,
+        context: MeetingCommandExecutionContext,
         meetingId: string,
         now: number,
         signal: AbortSignal
-    ): Promise<MeetingCommandResultV1>;
+    ): Promise<MeetingCommandResult>;
 }
 
-export interface ResolvedCallerScopeV1 {
-    caller: CallerBindingV1;
+export interface ResolvedCallerScope {
+    caller: CallerBinding;
     meetingId: string;
     identityId?: string;
     role: "local" | "manager" | "evidence_reviewer" | "participant" | "runtime";
     ownership?: SessionOwnership;
 }
 
-export type ResolveCallerScopeV1 = (input: {
+export type ResolveCallerScope = (input: {
     meetingId: string;
-    caller: CallerBindingV1;
-}) => Promise<ResolvedCallerScopeV1 | undefined>;
+    caller: CallerBinding;
+}) => Promise<ResolvedCallerScope | undefined>;
 
-export interface MeetingCommandApplicationV1 {
+export interface MeetingCommandApplication {
     execute(
-        command: MeetingCommandV1,
-        context: MeetingCommandExecutionContextV1,
+        command: MeetingCommand,
+        context: MeetingCommandExecutionContext,
         signal: AbortSignal
-    ): Promise<MeetingCommandResultV1>;
+    ): Promise<MeetingCommandResult>;
 }
 
-export interface MeetingCommandApplicationDependenciesV1 {
-    creation: MeetingCreationCoordinatorV1;
+export interface MeetingCommandApplicationDependencies {
+    creation: MeetingCreationCoordinator;
     registry: DomainRepositoryRegistry<MeetingState>;
     ids: { nextId(kind: string): string };
     clock: { now(): number };
-    resolveCallerScope: ResolveCallerScopeV1;
-    catalog?: RoleCatalogPortV1;
+    resolveCallerScope: ResolveCallerScope;
+    catalog?: RoleCatalogPort;
 }
 
 class TransitionRejected extends Error {
@@ -118,7 +118,7 @@ const rejected = (
     message: string,
     targetKind?: string,
     targetId?: string
-): MeetingCommandResultV1 => ({
+): MeetingCommandResult => ({
     kind: "rejected",
     error: {
         code: code as never,
@@ -128,7 +128,7 @@ const rejected = (
     }
 });
 
-function sameCaller(left: CallerBindingV1, right: CallerBindingV1): boolean {
+function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
     return (
         left.channel === right.channel &&
         left.principalId === right.principalId &&
@@ -136,7 +136,7 @@ function sameCaller(left: CallerBindingV1, right: CallerBindingV1): boolean {
     );
 }
 
-function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerScopeV1): boolean {
+function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean {
     if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
         return scope.role === "local";
     if (
@@ -165,10 +165,10 @@ function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerSc
 }
 
 function validScope(
-    command: MeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
-    scope: ResolvedCallerScopeV1 | undefined
-): scope is ResolvedCallerScopeV1 {
+    command: MeetingCommand,
+    context: MeetingCommandExecutionContext,
+    scope: ResolvedCallerScope | undefined
+): scope is ResolvedCallerScope {
     if (
         !scope ||
         scope.meetingId !== command.meetingId ||
@@ -204,7 +204,7 @@ function validScope(
     );
 }
 
-function authorization(scope: ResolvedCallerScopeV1): CommandAuthorization {
+function authorization(scope: ResolvedCallerScope): CommandAuthorization {
     return {
         callerBinding: scope.caller.channel + ":" + scope.caller.principalId,
         capabilityId:
@@ -214,7 +214,7 @@ function authorization(scope: ResolvedCallerScopeV1): CommandAuthorization {
 
 function outbox(
     requests: readonly object[],
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     now: number
 ): OutboxInput[] {
     return requests.map((request) => {
@@ -229,7 +229,7 @@ function outbox(
     });
 }
 
-function mapRepositoryError(error: unknown): MeetingCommandResultV1 {
+function mapRepositoryError(error: unknown): MeetingCommandResult {
     if (error instanceof TransitionRejected)
         return rejected(error.code, error.message, error.targetKind, error.targetId);
     if (!(error instanceof RepositoryError))
@@ -262,7 +262,7 @@ function mapRepositoryError(error: unknown): MeetingCommandResultV1 {
 }
 
 type CommandTransition =
-    | MeetingTransitionResultV1
+    | MeetingTransitionResult
     | {
           kind: "accepted";
           state: MeetingState;
@@ -279,21 +279,21 @@ type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingStat
 type TransitionInput = {
     snapshot: { state: MeetingState; version: number };
     repositoryContext: { allSessionOwnershipClosedAfterResult?: boolean };
-    deps: MeetingCommandApplicationDependenciesV1;
-    command: MeetingCommandV1;
-    context: MeetingCommandExecutionContextV1;
-    scope: ResolvedCallerScopeV1;
+    deps: MeetingCommandApplicationDependencies;
+    command: MeetingCommand;
+    context: MeetingCommandExecutionContext;
+    scope: ResolvedCallerScope;
     now: number;
     factId: string;
     catalogDefinitionHash?: string;
-    committedFacts: readonly CommittedFactRecordV1<MeetingState>[];
+    committedFacts: readonly CommittedFactRecord<MeetingState>[];
 };
 
 function actionAuthorizationFailure(
-    command: MeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
-    scope: ResolvedCallerScopeV1
-): MeetingCommandResultV1 | undefined {
+    command: MeetingCommand,
+    context: MeetingCommandExecutionContext,
+    scope: ResolvedCallerScope
+): MeetingCommandResult | undefined {
     if (!authorizedRole(command.action.kind, scope))
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
     if (
@@ -323,11 +323,11 @@ function actionAuthorizationFailure(
 }
 
 async function prepareIdentityCatalog(
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     repository: MeetingRepository,
-    command: MeetingCommandV1,
-    scope: ResolvedCallerScopeV1
-): Promise<{ definitionHash?: string; result?: MeetingCommandResultV1 }> {
+    command: MeetingCommand,
+    scope: ResolvedCallerScope
+): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> {
     if (command.action.kind !== "recommend_identity") return {};
     const replay = await repository.replayReceipt({
         requestId: command.requestId,
@@ -335,12 +335,12 @@ async function prepareIdentityCatalog(
         authorization: authorization(scope),
         requestHash: JSON.stringify(command.action)
     });
-    if (replay) return { result: replay.result as MeetingCommandResultV1 };
+    if (replay) return { result: replay.result as MeetingCommandResult };
     if (!deps.catalog || !scope.ownership)
         return {
             result: rejected("PRECONDITION_FAILED", "Meeting role catalog is unavailable")
         };
-    const catalog = await readMeetingRoleCatalogV1(
+    const catalog = await readMeetingRoleCatalog(
         deps.catalog,
         command.meetingId,
         scope.ownership.parentSessionId,
@@ -383,7 +383,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
     let transition: CommandTransition;
     switch (action.kind) {
         case "submit_manager_plan": {
-            const result = transitionMeetingStateV1(
+            const result = transitionMeetingState(
                 snapshot.state,
                 {
                     kind: "plan_next_step",
@@ -410,7 +410,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "open_round":
-            transition = openRoundV1(snapshot.state, {
+            transition = openRound(snapshot.state, {
                 roundId: generated("round"),
                 agendaId: action.agendaId,
                 planId: action.planId,
@@ -420,7 +420,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "raise_hand":
-            transition = raiseHandV1(snapshot.state, {
+            transition = raiseHand(snapshot.state, {
                 roundId: action.roundId,
                 contributorId: actorId,
                 purpose: action.purpose,
@@ -428,7 +428,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "dispose_hand_raise":
-            transition = disposeHandRaiseV1(snapshot.state, {
+            transition = disposeHandRaise(snapshot.state, {
                 roundId: action.roundId,
                 contributorId: action.contributorId,
                 managerId: actorId,
@@ -441,7 +441,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "submit_evidence":
-            transition = submitEvidenceV1(snapshot.state, {
+            transition = submitEvidence(snapshot.state, {
                 contributionId: action.contributionId,
                 authorId: actorId,
                 evidence: action.evidence,
@@ -451,7 +451,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "close_contribution":
-            transition = closeContributionV1(snapshot.state, {
+            transition = closeContribution(snapshot.state, {
                 contributionId: action.contributionId,
                 actorId,
                 actorKind:
@@ -462,7 +462,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "submit_review_batch":
-            transition = submitReviewBatchV1(snapshot.state, {
+            transition = submitReviewBatch(snapshot.state, {
                 reviewerId: actorId,
                 roundId: action.roundId,
                 claimId: action.claimId,
@@ -474,7 +474,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "claim_review_batch":
-            transition = claimReviewBatchV1(snapshot.state, {
+            transition = claimReviewBatch(snapshot.state, {
                 claimId: generated("review_claim"),
                 sourceEffectId: action.sourceEffectId,
                 reviewerId: snapshot.state.evidenceReviewerId,
@@ -485,7 +485,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "release_review_batch_claim":
-            transition = releaseReviewBatchClaimV1(snapshot.state, {
+            transition = releaseReviewBatchClaim(snapshot.state, {
                 claimId: action.claimId,
                 roundId: action.roundId,
                 reason: action.reason,
@@ -493,7 +493,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "record_review_delivery":
-            transition = recordReviewDeliveryV1(snapshot.state, {
+            transition = recordReviewDelivery(snapshot.state, {
                 reviewId: action.reviewId,
                 dispatcherId: actorId,
                 deliveryId: generated("review_delivery"),
@@ -515,7 +515,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                     );
                     return contribution?.packageId !== undefined;
                 }).length ?? 0;
-            transition = publishRoundV1(snapshot.state, {
+            transition = publishRound(snapshot.state, {
                 roundId: action.roundId,
                 managerId: actorId,
                 publicationId: generated("publication"),
@@ -526,7 +526,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
         }
         case "pause_meeting":
         case "resume_meeting": {
-            const result = transitionMeetingStateV1(
+            const result = transitionMeetingState(
                 snapshot.state,
                 action,
                 { kind: "local_controller", id: actorId },
@@ -543,7 +543,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "end_meeting":
-            transition = endMeetingV1(snapshot.state, {
+            transition = endMeeting(snapshot.state, {
                 ...action,
                 terminationId: generated("termination"),
                 actorId,
@@ -551,7 +551,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "start_archive":
-            transition = startMeetingArchiveV1(snapshot.state, {
+            transition = startMeetingArchive(snapshot.state, {
                 archiveId: context.archiveEffect!.archiveId,
                 actorId,
                 now,
@@ -582,7 +582,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             transition =
                 action.status === "closed" &&
                 repositoryContext.allSessionOwnershipClosedAfterResult === true
-                    ? completeMeetingArchiveV1(snapshot.state, {
+                    ? completeMeetingArchive(snapshot.state, {
                           actorId,
                           now,
                           allSessionOwnershipClosed: true
@@ -600,7 +600,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "recommend_identity": {
-            const result = recommendIdentityV1(
+            const result = recommendIdentity(
                 snapshot.state,
                 action,
                 actorId,
@@ -632,7 +632,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                     "PRECONDITION_FAILED",
                     "Identity admission result is required"
                 );
-            const result = recordIdentityAdmissionResultV1(
+            const result = recordIdentityAdmissionResult(
                 snapshot.state,
                 action.recommendationId,
                 context.identityAdmissionResult,
@@ -659,16 +659,16 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
 
 function finalizeMeetingTransition(input: {
     transition: CommandTransition;
-    deps: MeetingCommandApplicationDependenciesV1;
-    command: MeetingCommandV1;
+    deps: MeetingCommandApplicationDependencies;
+    command: MeetingCommand;
     now: number;
     factId: string;
     receiptId: string;
     actorId: string;
     snapshotVersion: number;
 }): {
-    repositoryTransition: TransitionResult<MeetingCommandResultV1, MeetingState>;
-    facts: readonly CommittedFactRecordV1<MeetingState>[];
+    repositoryTransition: TransitionResult<MeetingCommandResult, MeetingState>;
+    facts: readonly CommittedFactRecord<MeetingState>[];
 } {
     const { transition, deps, command, now, factId, receiptId, actorId, snapshotVersion } = input;
     if (transition.kind === "rejected")
@@ -691,7 +691,7 @@ function finalizeMeetingTransition(input: {
             availableAt: now
         });
     }
-    const result: MeetingCommandResultV1 = {
+    const result: MeetingCommandResult = {
         kind: "accepted",
         meetingId: command.meetingId,
         committedVersion: snapshotVersion + 1,
@@ -725,7 +725,7 @@ function finalizeMeetingTransition(input: {
               }
             : {})
     };
-    const facts: readonly CommittedFactRecordV1<MeetingState>[] = [
+    const facts: readonly CommittedFactRecord<MeetingState>[] = [
         {
             factId,
             kind: action.kind,
@@ -749,18 +749,18 @@ function finalizeMeetingTransition(input: {
 }
 
 function createRepositoryCommand(input: {
-    deps: MeetingCommandApplicationDependenciesV1;
-    command: MeetingCommandV1;
-    context: MeetingCommandExecutionContextV1;
-    scope: ResolvedCallerScopeV1;
+    deps: MeetingCommandApplicationDependencies;
+    command: MeetingCommand;
+    context: MeetingCommandExecutionContext;
+    scope: ResolvedCallerScope;
     now: number;
     catalogDefinitionHash?: string;
-    committedFacts: readonly CommittedFactRecordV1<MeetingState>[];
-}): RepositoryCommand<MeetingCommandResultV1, MeetingState> {
+    committedFacts: readonly CommittedFactRecord<MeetingState>[];
+}): RepositoryCommand<MeetingCommandResult, MeetingState> {
     const { deps, command, context, scope, now, catalogDefinitionHash, committedFacts } = input;
     const factId = deps.ids.nextId("fact");
     const receiptId = deps.ids.nextId("receipt");
-    const repositoryCommand: RepositoryCommand<MeetingCommandResultV1, MeetingState> = {
+    const repositoryCommand: RepositoryCommand<MeetingCommandResult, MeetingState> = {
         requestId: command.requestId,
         commandKind: command.action.kind,
         authorization: authorization(scope),
@@ -808,12 +808,12 @@ function createRepositoryCommand(input: {
 }
 
 async function executeCreateMeeting(
-    deps: MeetingCommandApplicationDependenciesV1,
-    command: CreateMeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
+    deps: MeetingCommandApplicationDependencies,
+    command: CreateMeetingCommand,
+    context: MeetingCommandExecutionContext,
     now: number,
     signal: AbortSignal
-): Promise<MeetingCommandResultV1> {
+): Promise<MeetingCommandResult> {
     if (
         context.caller.channel !== "dsh_tool" ||
         context.captainParent === undefined ||
@@ -835,12 +835,12 @@ async function executeCreateMeeting(
 }
 
 async function executeExistingMeeting(
-    deps: MeetingCommandApplicationDependenciesV1,
-    command: MeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
-    scope: ResolvedCallerScopeV1,
+    deps: MeetingCommandApplicationDependencies,
+    command: MeetingCommand,
+    context: MeetingCommandExecutionContext,
+    scope: ResolvedCallerScope,
     now: number
-): Promise<MeetingCommandResultV1> {
+): Promise<MeetingCommandResult> {
     const authorizationFailure = actionAuthorizationFailure(command, context, scope);
     if (authorizationFailure) return authorizationFailure;
     try {
@@ -868,18 +868,18 @@ async function executeExistingMeeting(
 }
 
 async function executeMeetingCommand(
-    deps: MeetingCommandApplicationDependenciesV1,
-    rawCommand: MeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
+    deps: MeetingCommandApplicationDependencies,
+    rawCommand: MeetingCommand,
+    context: MeetingCommandExecutionContext,
     signal: AbortSignal
-): Promise<MeetingCommandResultV1> {
-    const parsed = MeetingCommandV1Schema.safeParse(rawCommand);
+): Promise<MeetingCommandResult> {
+    const parsed = MeetingCommandSchema.safeParse(rawCommand);
     if (!parsed.success) return rejected("INVALID_ARGUMENT", "Invalid Meeting command");
     const command = parsed.data;
     signal.throwIfAborted();
     const now = deps.clock.now();
     if (command.action.kind === "create_meeting")
-        return executeCreateMeeting(deps, command as CreateMeetingCommandV1, context, now, signal);
+        return executeCreateMeeting(deps, command as CreateMeetingCommand, context, now, signal);
     const scope = await deps.resolveCallerScope({
         meetingId: command.meetingId,
         caller: context.caller
@@ -889,9 +889,9 @@ async function executeMeetingCommand(
     return executeExistingMeeting(deps, command, context, scope, now);
 }
 
-export function createMeetingCommandApplicationV1(
-    deps: MeetingCommandApplicationDependenciesV1
-): MeetingCommandApplicationV1 {
+export function createMeetingCommandApplication(
+    deps: MeetingCommandApplicationDependencies
+): MeetingCommandApplication {
     return {
         execute: (command, context, signal) => executeMeetingCommand(deps, command, context, signal)
     };

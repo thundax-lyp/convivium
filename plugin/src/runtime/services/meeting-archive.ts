@@ -1,12 +1,12 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingIdentityV1, MeetingState } from "@/domain/index.js";
-import { decodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
+import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
+import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
-    type MeetingCommandApplicationV1
+    type MeetingCommandApplication
 } from "@/runtime/application-service/meeting-command.js";
 
 class MeetingArchiveDispatchError extends Error {
@@ -32,21 +32,21 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-type ArchiveSessionsV1 = Pick<SubagentRuntime, "listChildren" | "drainContinuableDescendants">;
+type ArchiveSessions = Pick<SubagentRuntime, "listChildren" | "drainContinuableDescendants">;
 
-interface DispatchArchiveCleanupInputV1 {
+interface DispatchArchiveCleanupInput {
     readonly outboxItem: OutboxItem;
     readonly parent: Agent;
     readonly signal: AbortSignal;
 }
 
-interface MeetingArchiveDispatcherDependenciesV1 {
+interface MeetingArchiveDispatcherDependencies {
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
-    readonly sessions: ArchiveSessionsV1;
-    readonly application: MeetingCommandApplicationV1;
+    readonly sessions: ArchiveSessions;
+    readonly application: MeetingCommandApplication;
 }
 
-function roleFor(identity: MeetingIdentityV1): SessionOwnership["role"] {
+function roleFor(identity: MeetingIdentity): SessionOwnership["role"] {
     if (identity.roles.length !== 1) unavailable();
     switch (identity.roles[0]) {
         case "manager":
@@ -100,7 +100,7 @@ function targetOwnerships(
             (ownership.lifecycleStatus === "closed" && ownership.capabilityStatus !== "revoked")
         )
             unavailable();
-        const label = decodeMeetingIdentitySessionLabelV1(ownership.sessionLabel);
+        const label = decodeMeetingIdentitySessionLabel(ownership.sessionLabel);
         if (
             !label ||
             label.meetingId !== state.id ||
@@ -116,7 +116,7 @@ function targetOwnerships(
 }
 
 async function proveDurableChildren(
-    sessions: ArchiveSessionsV1,
+    sessions: ArchiveSessions,
     parent: Agent,
     signal: AbortSignal,
     ownerships: readonly SessionOwnership[]
@@ -148,11 +148,11 @@ const context = {
     }
 };
 
-export function createMeetingArchiveDispatcherV1(
-    dependencies: MeetingArchiveDispatcherDependenciesV1
-): { dispatch(input: DispatchArchiveCleanupInputV1): Promise<void> } {
+export function createMeetingArchiveDispatcher(
+    dependencies: MeetingArchiveDispatcherDependencies
+): { dispatch(input: DispatchArchiveCleanupInput): Promise<void> } {
     async function recordResult(
-        input: DispatchArchiveCleanupInputV1,
+        input: DispatchArchiveCleanupInput,
         archiveId: string,
         ownership: SessionOwnership,
         status: "closed" | "failed"

@@ -1,6 +1,6 @@
 import { expect } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { recordPositionV1 } from "@/domain/transitions/outcome.js";
+import { recordPosition } from "@/domain/transitions/outcome.js";
 
 export function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
     const state = {
@@ -313,7 +313,7 @@ export function proposalState(): MeetingState {
 }
 
 export function expectRejected(
-    result: ReturnType<typeof recordPositionV1>,
+    result: ReturnType<typeof recordPosition>,
     state: MeetingState,
     code: string
 ) {

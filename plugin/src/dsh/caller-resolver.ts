@@ -1,11 +1,11 @@
-import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
+import type { AgentDefinitionBinding } from "@/role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
-import type { ProtocolErrorV1 } from "@/protocol/index.js";
+import type { ProtocolError } from "@/protocol/index.js";
 import { decodeMeetingSessionLabel } from "./labels.js";
-import { isActiveMeetingIdentityOwnershipV1 } from "./session-ownership.js";
+import { isActiveMeetingIdentityOwnership } from "./session-ownership.js";
 
-export interface ResolvedMeetingCaller {
+export interface LabeledMeetingCaller {
     readonly kind: "manager" | "evidence_reviewer" | "participant";
     readonly sessionId: string;
     readonly teamId: string;
@@ -25,7 +25,7 @@ export interface MeetingOwnershipRecord {
     readonly meetingId?: string;
     readonly identityId?: string;
     readonly lastClosureFailureCode?: string;
-    readonly agentDefinition?: AgentDefinitionBindingV1;
+    readonly agentDefinition?: AgentDefinitionBinding;
     readonly sessionId: string;
     readonly parentSessionId: string;
     readonly sessionLabel: string;
@@ -40,7 +40,7 @@ export interface MeetingOwnershipRecord {
     readonly updatedAt: number;
 }
 
-export interface MeetingOwnershipLookup {
+export interface LabeledMeetingOwnershipLookup {
     findBySessionId(
         sessionId: string,
         signal: AbortSignal
@@ -54,7 +54,7 @@ export interface MeetingOwnershipLookup {
     >;
 }
 
-export interface MeetingOwnershipLookupV1 {
+export interface MeetingOwnershipLookup {
     findBySessionId(
         sessionId: string,
         signal: AbortSignal
@@ -67,7 +67,7 @@ export interface MeetingOwnershipLookupV1 {
     >;
 }
 
-export interface ResolvedMeetingCallerV1 {
+export interface ResolvedMeetingCaller {
     readonly caller: {
         readonly channel: "dsh_tool";
         readonly principalId: string;
@@ -79,16 +79,16 @@ export interface ResolvedMeetingCallerV1 {
     readonly ownership: MeetingOwnershipRecord;
 }
 
-export async function resolveMeetingCallerV1(
+export async function resolveMeetingCaller(
     agent: Agent,
-    lookup: MeetingOwnershipLookupV1,
+    lookup: MeetingOwnershipLookup,
     signal: AbortSignal
-): Promise<ResolvedMeetingCallerV1 | undefined> {
+): Promise<ResolvedMeetingCaller | undefined> {
     const sessionId = sessionIdOf(agent);
     const found = await lookup.findBySessionId(sessionId, signal);
     if (
         !found ||
-        !isActiveMeetingIdentityOwnershipV1({
+        !isActiveMeetingIdentityOwnership({
             ownership: found.ownership,
             meetingId: found.meetingId,
             sessionId
@@ -110,7 +110,7 @@ export async function resolveMeetingCallerV1(
     };
 }
 
-function unauthorized(message: string): ProtocolErrorV1 {
+function unauthorized(message: string): ProtocolError {
     return {
         protocolVersion: 1,
         ok: false,
@@ -124,11 +124,11 @@ function sessionIdOf(agent: Agent): string {
     return String(agent.id);
 }
 
-export async function resolveMeetingCaller(
+export async function resolveLabeledMeetingCaller(
     agent: Agent,
-    lookup: MeetingOwnershipLookup,
+    lookup: LabeledMeetingOwnershipLookup,
     signal: AbortSignal
-): Promise<ResolvedMeetingCaller | ProtocolErrorV1> {
+): Promise<LabeledMeetingCaller | ProtocolError> {
     const sessionId = sessionIdOf(agent);
     const found = await lookup.findBySessionId(sessionId, signal);
     if (found === undefined || found.ownership.sessionId !== sessionId) {

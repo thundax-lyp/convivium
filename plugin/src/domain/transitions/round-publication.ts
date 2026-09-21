@@ -1,7 +1,7 @@
-import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
-import { isRoundClosableV1 } from "./round.js";
-import { isObjectiveSatisfiedV1 } from "./outcome.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import type { FormalMessage, MeetingState, OpaqueId, Publication } from "@/domain/index.js";
+import { isRoundClosable } from "./round.js";
+import { isObjectiveSatisfied } from "./outcome.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 type Input = {
     roundId: OpaqueId;
     managerId: OpaqueId;
@@ -36,7 +36,7 @@ function body(version: {
         ...version.limitations.map((item) => `- ${item.value}${suffix(item.reason)}`)
     ].join("\n");
 }
-export function publishRoundV1(state: MeetingState, input: Input): MeetingTransitionResultV1 {
+export function publishRound(state: MeetingState, input: Input): MeetingTransitionResult {
     if (
         !input.roundId.trim() ||
         !input.managerId.trim() ||
@@ -57,7 +57,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
             !manager.agendaResponsibilityIds.includes(round.agendaId))
     )
         return reject(state, "UNAUTHORIZED", "manager is not assigned to agenda");
-    if (!isRoundClosableV1(state, round.id))
+    if (!isRoundClosable(state, round.id))
         return reject(state, "ROUND_NOT_CLOSABLE", "round is not closable");
     if (input.now >= state.createdAt + state.limits.maxDurationMs)
         return reject(state, "PRECONDITION_FAILED", "meeting duration has elapsed");
@@ -93,7 +93,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
             ...state.publications.map((publication) => publication.seq),
             ...state.messages.map((message) => message.seq)
         ) + 1;
-    const messages: FormalMessageV1[] = packages.map((pkg, index) => ({
+    const messages: FormalMessage[] = packages.map((pkg, index) => ({
         id: input.messageIds[index],
         seq: publicationSeq + 1 + index,
         actorId: pkg.authorId,
@@ -116,7 +116,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         (id) =>
             state.contributions.find((candidate) => candidate.id === id)?.exitReason ?? "published"
     );
-    const publication: PublicationV1 = {
+    const publication: Publication = {
         id: input.publicationId,
         roundId: round.id,
         seq: publicationSeq,
@@ -158,7 +158,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         nextFormalMessageCount === state.limits.maxFormalMessages
             ? {
                   ...nextState,
-                  lifecycle: isObjectiveSatisfiedV1(nextState)
+                  lifecycle: isObjectiveSatisfied(nextState)
                       ? {
                             status: "converging",
                             changedAt: input.now,

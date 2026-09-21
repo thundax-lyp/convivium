@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import {
-    MeetingActionV1Schema,
-    ListMeetingsRequestV1Schema,
-    ReadMeetingRequestV1Schema
+    MeetingActionSchema,
+    ListMeetingsRequestSchema,
+    ReadMeetingRequestSchema
 } from "@/protocol/meeting-command.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
-import {
-    MeetingActionV1Schema as PublicMeetingActionV1Schema,
-    MeetingCommandResultV1Schema as PublicMeetingCommandResultV1Schema,
-    serializeValidatedRequestV1
+    MeetingActionSchema as PublicMeetingActionV1Schema,
+    MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
+    serializeValidatedRequest
 } from "@/protocol/index.js";
 
 const identity = {
@@ -156,21 +153,21 @@ describe("target Meeting business-loop protocol", () => {
         ];
         expect(actions).toHaveLength(16);
         for (const value of actions) {
-            const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
+            const parsed = MeetingActionSchema.parse({ ...value, forgedRuntimeField: "strip" });
             expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);
             expect(parsed).not.toHaveProperty("forgedRuntimeField");
         }
     });
 
     it("validates reads, result/error unions, and review/archive refinements", () => {
-        expect(ListMeetingsRequestV1Schema.parse({ protocolVersion: 1, forged: true })).toEqual({
+        expect(ListMeetingsRequestSchema.parse({ protocolVersion: 1, forged: true })).toEqual({
             protocolVersion: 1
         });
         expect(
-            ReadMeetingRequestV1Schema.parse({ protocolVersion: 1, meetingId: "meeting-1" })
+            ReadMeetingRequestSchema.parse({ protocolVersion: 1, meetingId: "meeting-1" })
         ).toEqual({ protocolVersion: 1, meetingId: "meeting-1" });
         expect(
-            MeetingActionV1Schema.safeParse({
+            MeetingActionSchema.safeParse({
                 kind: "record_archive_session_result",
                 sessionOwnershipId: "ownership-1",
                 status: "closed",
@@ -178,7 +175,7 @@ describe("target Meeting business-loop protocol", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingActionV1Schema.safeParse({
+            MeetingActionSchema.safeParse({
                 kind: "submit_review_batch",
                 roundId: "round-1",
                 claimId: "review-claim-1",
@@ -217,10 +214,10 @@ describe("target Meeting business-loop protocol", () => {
     it("sorts object keys without reordering arrays and rejects legacy state", () => {
         const first = { z: [{ b: 2, a: 1 }], a: { d: 4, c: 3 } };
         const second = { a: { c: 3, d: 4 }, z: [{ a: 1, b: 2 }] };
-        expect(serializeValidatedRequestV1(first)).toBe(serializeValidatedRequestV1(second));
+        expect(serializeValidatedRequest(first)).toBe(serializeValidatedRequest(second));
         const state = makeRunningMeetingStateV1();
-        expect(decodeMeetingStateV1(encodeMeetingStateV1(state))).toEqual(state);
-        expect(() => encodeMeetingStateV1({ ...state, formatApprovals: [] })).toThrow(
+        expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);
+        expect(() => encodeMeetingState({ ...state, formatApprovals: [] })).toThrow(
             "INCOMPATIBLE_VERSION"
         );
     });

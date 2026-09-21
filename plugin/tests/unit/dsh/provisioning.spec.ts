@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    createMeetingIdentityProvisioningEnvelopeV1,
+    createMeetingIdentityProvisioningEnvelope,
     createSessionProvisioningEnvelope,
-    serializeMeetingIdentityProvisioningEnvelopeV1,
+    serializeMeetingIdentityProvisioningEnvelope,
     serializeSessionProvisioningEnvelope
 } from "@/dsh/provisioning.js";
 
@@ -69,12 +69,12 @@ describe("target meeting identity provisioning envelope", () => {
     it.each(["manager", "evidence_reviewer", "participant"] as const)(
         "round-trips the %s identity without legacy namespace fields",
         (role) => {
-            const envelope = createMeetingIdentityProvisioningEnvelopeV1({
+            const envelope = createMeetingIdentityProvisioningEnvelope({
                 role,
                 meetingId: "meeting-1",
                 identityId: `${role}-1`
             });
-            const serialized = serializeMeetingIdentityProvisioningEnvelopeV1(envelope);
+            const serialized = serializeMeetingIdentityProvisioningEnvelope(envelope);
             expect(JSON.parse(serialized)).toEqual(envelope);
             expect(envelope).toMatchObject({
                 role,
@@ -89,14 +89,14 @@ describe("target meeting identity provisioning envelope", () => {
 
     it("rejects ambiguous Meeting and identity segments", () => {
         expect(() =>
-            createMeetingIdentityProvisioningEnvelopeV1({
+            createMeetingIdentityProvisioningEnvelope({
                 role: "participant",
                 meetingId: "meeting:1",
                 identityId: "identity-1"
             })
         ).toThrow(TypeError);
         expect(() =>
-            createMeetingIdentityProvisioningEnvelopeV1({
+            createMeetingIdentityProvisioningEnvelope({
                 role: "participant",
                 meetingId: "meeting-1",
                 identityId: "identity/1"

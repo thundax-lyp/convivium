@@ -1,14 +1,14 @@
-import type { IdentityAdmissionResultContextV1, MeetingState } from "@/domain/index.js";
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import type { MeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
+import type { IdentityAdmissionResultContext, MeetingState } from "@/domain/index.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
+import type { MeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem } from "@/repository/types.js";
-import type { IdentityProvisionResultV1 } from "@/runtime/services/meeting-identity-provision.js";
+import type { IdentityProvisionResult } from "@/runtime/services/meeting-identity-provision.js";
 
-export interface MeetingIdentityEffectHandlerDependenciesV1 {
-    readonly application: MeetingCommandApplicationV1;
+export interface MeetingIdentityEffectHandlerDependencies {
+    readonly application: MeetingCommandApplication;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "read">;
-    readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly provision: (input: {
         recommendation: {
             id: string;
@@ -20,12 +20,12 @@ export interface MeetingIdentityEffectHandlerDependenciesV1 {
         };
         meetingId: string;
         signal: AbortSignal;
-    }) => Promise<IdentityProvisionResultV1>;
+    }) => Promise<IdentityProvisionResult>;
     readonly cleanupProvisioned: (recommendationId: string) => Promise<void>;
 }
 
-export function createMeetingIdentityEffectHandlerV1(
-    dependencies: MeetingIdentityEffectHandlerDependenciesV1
+export function createMeetingIdentityEffectHandler(
+    dependencies: MeetingIdentityEffectHandlerDependencies
 ): { dispatch(outboxItem: OutboxItem, signal: AbortSignal): Promise<void> } {
     return {
         async dispatch(outboxItem, signal) {
@@ -63,7 +63,7 @@ export function createMeetingIdentityEffectHandlerV1(
                     retryable: true,
                     terminalOnAttemptLimit: false
                 });
-            const context: IdentityAdmissionResultContextV1 =
+            const context: IdentityAdmissionResultContext =
                 result.kind === "admitted"
                     ? result.result
                     : { kind: "rejected", failureCode: result.failureCode };

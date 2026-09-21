@@ -9,7 +9,7 @@
 - Convivium 是使用 TypeScript 独立实现的纯 DSH 插件，只有 `plugin/` 一个可构建、测试和交付的工程；不建立独立 Meeting Server、应用壳、backend 发布单元或根 workspace/monorepo。新增顶层工程前必须在本文明确职责、依赖方向和验证入口。
 - 仓库根 `package.json` 只提供代理到 `plugin/package.json` 的同名开发和验证命令；不声明 workspace、依赖、构建产物或交付单元，不能据此把仓库根视为第二个工程。
 - 外部项目仅作只读调研，不作为源码基线、运行依赖或兼容目标；不得复制其源码、文档、品牌、协议命名和持久化格式进入产品。
-- V1 仅服务单个本地 DSH Host 的一位用户。Meeting Web 接口只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
+- 当前产品仅服务单个本地 DSH Host 的一位用户。Meeting Web 接口只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
 - 插件依赖 DSH 公开能力，不绕过宿主权限或生命周期接口。装配和能力边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 ## Runtime Boundaries
@@ -28,13 +28,13 @@
 - 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用独立 continuable AgentSession，不跨会议、身份或授权范围共享上下文。
 - Manager 只读取 Catalog 安全投影，并通过结构化会议操作对当前 candidate 明确作出 `admit` 或 `reject` 决定；自然语言或目录可用性不构成决定。`admit` 形成不可调度的 provisioning 意图；只有 Runtime 完成独立 Session provisioning 与 durable ownership 后，candidate 才可调度。Manager 不能接纳自己、取得 capability secret、任意创建角色或扩大权限。
 - Convivium 拥有 Definition、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。Definition 只引用 DSH 公开角色能力，不能用 persona 或 Runtime installer 假装安装能力；创建前必须验证宿主组合，缺能力时 fail closed。
-- DSH 拥有实际运行配置与 Session 执行 descriptor；Convivium 的 `PreparedDescriptorV1` 只记录经公开 DSH 能力预检后的会议、父 Session、Definition 与到期约束，并保存 identity/provenance 与 Session ownership，不复制执行配置；角色资源和预检见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
+- DSH 拥有实际运行配置与 Session 执行 descriptor；Convivium 的 `PreparedDescriptor` 只记录经公开 DSH 能力预检后的会议、父 Session、Definition 与到期约束，并保存 identity/provenance 与 Session ownership，不复制执行配置；角色资源和预检见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 - Convivium 只提供会议身份的授权上限，不扩大用户或 DSH 已授予的权限。代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
 - Session 创建、继续投递、interrupt、恢复与 resident Activation 释放只通过受控 DSH adapter。归档后的持久不可继续语义由 capability revoke 保证，不要求删除 DSH 持久 Session 数据；调用边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 ## State And Storage Ownership
 
-- Meeting 在任何会议副作用前获得在当前 Convivium Host/profile Storage Domain 中全局唯一且稳定的 `meetingId`；以该 `meetingId` 统一持有 Meeting domain、catalog、Session ownership、归档与开发者 Markdown 的生命周期。V1 不建立 Team 或 Team authority，目标协议、repository、Session label 与 recovery 不接受或派生 `teamId`；未来引入多 Team 必须先形成独立的身份、授权、隔离和迁移契约。
+- Meeting 在任何会议副作用前获得在当前 Convivium Host/profile Storage Domain 中全局唯一且稳定的 `meetingId`；以该 `meetingId` 统一持有 Meeting domain、catalog、Session ownership、归档与开发者 Markdown 的生命周期。当前产品不建立 Team 或 Team authority，目标协议、repository、Session label 与 recovery 不接受或派生 `teamId`；未来引入多 Team 必须先形成独立的身份、授权、隔离和迁移契约。
 - Storage Domain 是唯一会议事实源，禁止双写与 fallback。Convivium 只消费 Storage Domain：轻量 catalog 负责发现，每个 Meeting 使用独立 domain；不定位、扫描或依赖 backend 物理布局。
 - Host/profile 拥有官方 SQLite provider、数据库位置与 Domain 路由。Convivium 不携带物理存储实现、不覆盖 Host 默认介质，也不提供调用方可指定的存储路径。
 - 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源、存储与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。

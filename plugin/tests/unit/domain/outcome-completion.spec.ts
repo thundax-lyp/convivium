@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { recordCompletionFactV1, changeCompletionFactV1 } from "@/domain/transitions/outcome.js";
+import { recordCompletionFact, changeCompletionFact } from "@/domain/transitions/outcome.js";
 import { validState, completionReadyState, completionInput } from "./outcome-fixtures.js";
 
 describe("CompletionFact", () => {
@@ -42,7 +42,7 @@ describe("CompletionFact", () => {
     it.each(reviewBreaks)("rejects when %s", (_name, mutate) => {
         const state = completionReadyState();
         mutate(state);
-        const result = recordCompletionFactV1(state, completionInput());
+        const result = recordCompletionFact(state, completionInput());
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
         expect(result.state).toBe(state);
         expect(result.effectRequests).toEqual([]);
@@ -76,7 +76,7 @@ describe("CompletionFact", () => {
     ] as const)("rejects %s decision basis", (_name, mutate) => {
         const state = completionReadyState();
         mutate(state);
-        const result = recordCompletionFactV1(state, completionInput());
+        const result = recordCompletionFact(state, completionInput());
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
         expect(result.state).toBe(state);
         expect(result.effectRequests).toEqual([]);
@@ -86,7 +86,7 @@ describe("CompletionFact", () => {
     it("checks authorization before review preconditions", () => {
         const state = completionReadyState();
         state.publications[0].finalReviewIds = [];
-        const result = recordCompletionFactV1(
+        const result = recordCompletionFact(
             state,
             completionInput({ kind: "identity", id: "manager" })
         );
@@ -99,7 +99,7 @@ describe("CompletionFact", () => {
             { kind: "identity", id: "manager" } as const,
             { kind: "local_controller", id: "local" } as const
         ]) {
-            const result = recordCompletionFactV1(
+            const result = recordCompletionFact(
                 completionReadyState(),
                 completionInput(actor as never)
             );
@@ -134,7 +134,7 @@ describe("CompletionFact", () => {
         });
         state.publications[0].finalVersionIds = ["v", "v2"];
         state.publications[0].finalReviewIds = ["review"];
-        const reviewResult = changeCompletionFactV1(state, {
+        const reviewResult = changeCompletionFact(state, {
             factId: "old",
             status: "superseded",
             rationale: "replace",
@@ -177,7 +177,7 @@ describe("CompletionFact", () => {
             ordinal: 2,
             supersedesRevisionId: "rev"
         });
-        const basisResult = changeCompletionFactV1(basisState, {
+        const basisResult = changeCompletionFact(basisState, {
             factId: "old",
             status: "superseded",
             rationale: "replace",
@@ -223,15 +223,13 @@ describe("CompletionFact", () => {
                 }
             ];
         }
-        expect(recordCompletionFactV1(state, { ...completionInput(), ...overrides })).toMatchObject(
-            {
-                kind: "rejected",
-                error: { code },
-                state,
-                relatedIds: [],
-                effectRequests: []
-            }
-        );
+        expect(recordCompletionFact(state, { ...completionInput(), ...overrides })).toMatchObject({
+            kind: "rejected",
+            error: { code },
+            state,
+            relatedIds: [],
+            effectRequests: []
+        });
     });
     it.each([
         ["unknown status", { status: "unknown" }, "INVALID_ARGUMENT"],
@@ -255,7 +253,7 @@ describe("CompletionFact", () => {
             } as never
         ];
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: "fact",
                 rationale: "x",
                 actor: { kind: "identity", id: "captain" },
@@ -273,7 +271,7 @@ describe("CompletionFact", () => {
     it("keeps completion facts running with a pending hard constraint", () => {
         const state = completionReadyState();
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];
-        const result = recordCompletionFactV1(state, completionInput());
+        const result = recordCompletionFact(state, completionInput());
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
         if (result.kind !== "accepted") return;
         expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
@@ -282,7 +280,7 @@ describe("CompletionFact", () => {
     it.each(["paused"] as const)("record rejects lifecycle %s", (status) => {
         const state = completionReadyState();
         state.lifecycle = { ...state.lifecycle, status };
-        expect(recordCompletionFactV1(state, completionInput())).toMatchObject({
+        expect(recordCompletionFact(state, completionInput())).toMatchObject({
             error: { code: "INVALID_STATE" },
             state,
             relatedIds: [],
@@ -291,7 +289,7 @@ describe("CompletionFact", () => {
     });
     it.each(["terminal"] as const)("record rejects terminal lifecycle %s", (status) => {
         const state = validState(status);
-        expect(recordCompletionFactV1(state, completionInput())).toMatchObject({
+        expect(recordCompletionFact(state, completionInput())).toMatchObject({
             error: { code: "MEETING_TERMINAL" },
             state,
             relatedIds: [],

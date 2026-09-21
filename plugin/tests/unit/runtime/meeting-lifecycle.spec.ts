@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-    createTargetMeetingEffectDispatcherV1,
-    recoverTargetMeetingDeliveriesV1
+    createTargetMeetingEffectDispatcher,
+    recoverTargetMeetingDeliveries
 } from "@/runtime/meeting-lifecycle.js";
 
 const item = (kind: string) =>
@@ -25,7 +25,7 @@ describe("target Meeting effect routing", () => {
         const review = { dispatch: vi.fn(async () => undefined) };
         const reviewDelivery = { dispatch: vi.fn(async () => undefined) };
         const parent = { id: "captain-1" };
-        const dispatch = createTargetMeetingEffectDispatcherV1({
+        const dispatch = createTargetMeetingEffectDispatcher({
             parent: parent as never,
             identity,
             notice,
@@ -55,7 +55,7 @@ describe("target Meeting delivery recovery", () => {
             snapshot: { state: { lifecycle: { status: "running" } } },
             sessionOwnership: [{ parentSessionId: "captain-1" }]
         }));
-        await recoverTargetMeetingDeliveriesV1({
+        await recoverTargetMeetingDeliveries({
             registry: {
                 listMeetings: () => [{ meetingId: "meeting-1" }],
                 openMeeting: async () => ({ recover })

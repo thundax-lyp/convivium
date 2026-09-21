@@ -1,4 +1,4 @@
-import type { PersistenceProjectionV1 } from "./domain/schemas.js";
+import type { PersistenceProjection } from "./domain/schemas.js";
 
 export interface MeetingDiagnostic {
     meetingId: string;
@@ -31,7 +31,7 @@ type DiagnosticBase = Pick<
     MeetingDiagnostic,
     "meetingId" | "meetingVersion" | "eventSeq" | "timestamp" | "commandKind"
 >;
-type DurableOutboxItem = PersistenceProjectionV1["outbox"][string];
+type DurableOutboxItem = PersistenceProjection["outbox"][string];
 
 function targetLifecycle(value: unknown): string | undefined {
     const isRecord = (item: unknown): item is Record<string, unknown> =>
@@ -79,8 +79,8 @@ function emitOutboxDiagnostics(
 export function observeCommit(
     sink: DiagnosticSink | undefined,
     meetingId: string,
-    before: PersistenceProjectionV1 | undefined,
-    after: PersistenceProjectionV1,
+    before: PersistenceProjection | undefined,
+    after: PersistenceProjection,
     now: number,
     commandKind?: string
 ): void {

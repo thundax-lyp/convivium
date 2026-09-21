@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
-import { endMeetingV1, startMeetingArchiveV1 } from "@/domain/index.js";
+import { projectMeetingView } from "@/projection/meeting-view.js";
+import { endMeeting, startMeetingArchive } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {
     it("projects opportunity requests without a plan binding", () => {
         const state = makeRunningMeetingStateV1();
@@ -15,7 +15,7 @@ describe("identity filtered view and archive provenance", () => {
             }
         ];
 
-        const view = projectMeetingViewV1(
+        const view = projectMeetingView(
             {
                 meetingId: state.id,
                 version: state.version,
@@ -48,7 +48,7 @@ describe("identity filtered view and archive provenance", () => {
             }
         ];
 
-        const view = projectMeetingViewV1(
+        const view = projectMeetingView(
             {
                 meetingId: state.id,
                 version: state.version,
@@ -81,13 +81,13 @@ describe("identity filtered view and archive provenance", () => {
             candidates: []
         };
         expect(
-            projectMeetingViewV1(
+            projectMeetingView(
                 snapshot,
                 { kind: "identity", identityId: "contributor-v1", roles: ["contributor"] },
                 catalog
             )
         ).not.toHaveProperty("managerCatalog");
-        const manager = projectMeetingViewV1(
+        const manager = projectMeetingView(
             snapshot,
             { kind: "identity", identityId: "manager-v1", roles: ["manager"] },
             catalog
@@ -139,11 +139,11 @@ describe("identity filtered view and archive provenance", () => {
         };
 
         for (const caller of [{ kind: "local" as const }, { kind: "captain" as const }]) {
-            const view = projectMeetingViewV1(snapshot, caller, catalog);
+            const view = projectMeetingView(snapshot, caller, catalog);
             expect(view.identityRecommendations).toHaveLength(1);
             expect(view).not.toHaveProperty("managerCatalog");
         }
-        const manager = projectMeetingViewV1(
+        const manager = projectMeetingView(
             snapshot,
             { kind: "identity", identityId: "manager-v1", roles: ["manager"] },
             catalog
@@ -200,14 +200,14 @@ describe("identity filtered view and archive provenance", () => {
 
         for (const caller of [{ kind: "local" as const }, { kind: "captain" as const }])
             expect(
-                projectMeetingViewV1(snapshot, caller).outcomes.pendingDecisionCandidates?.map(
+                projectMeetingView(snapshot, caller).outcomes.pendingDecisionCandidates?.map(
                     ({ id }) => id
                 )
             ).toEqual(["candidate-pending"]);
 
         state.lifecycle = { status: "terminal", changedAt: 4 };
         expect(
-            projectMeetingViewV1(snapshot, { kind: "local" }).outcomes.pendingDecisionCandidates
+            projectMeetingView(snapshot, { kind: "local" }).outcomes.pendingDecisionCandidates
         ).toEqual([]);
     });
 
@@ -247,22 +247,22 @@ describe("identity filtered view and archive provenance", () => {
             createdAt: 0,
             updatedAt: 1
         };
-        const author = projectMeetingViewV1(snapshot, {
+        const author = projectMeetingView(snapshot, {
             kind: "identity",
             identityId: "contributor-v1",
             roles: ["contributor"]
         });
-        const other = projectMeetingViewV1(snapshot, {
+        const other = projectMeetingView(snapshot, {
             kind: "identity",
             identityId: "other-contributor",
             roles: ["contributor"]
         });
-        const manager = projectMeetingViewV1(snapshot, {
+        const manager = projectMeetingView(snapshot, {
             kind: "identity",
             identityId: "manager-v1",
             roles: ["manager"]
         });
-        const reviewer = projectMeetingViewV1(snapshot, {
+        const reviewer = projectMeetingView(snapshot, {
             kind: "identity",
             identityId: "reviewer-v1",
             roles: ["evidence_reviewer"]
@@ -274,7 +274,7 @@ describe("identity filtered view and archive provenance", () => {
     });
 
     it("projects the value archive locally without identity ownership data", () => {
-        const terminal = endMeetingV1(makeRunningMeetingStateV1(), {
+        const terminal = endMeeting(makeRunningMeetingStateV1(), {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "done",
@@ -287,7 +287,7 @@ describe("identity filtered view and archive provenance", () => {
         });
         expect(terminal.kind).toBe("accepted");
         if (terminal.kind !== "accepted") return;
-        const archiving = startMeetingArchiveV1(terminal.state, {
+        const archiving = startMeetingArchive(terminal.state, {
             archiveId: "archive-1",
             actorId: "runtime-recovery",
             now: 3,
@@ -295,7 +295,7 @@ describe("identity filtered view and archive provenance", () => {
         });
         expect(archiving.kind).toBe("accepted");
         if (archiving.kind !== "accepted") return;
-        const view = projectMeetingViewV1(
+        const view = projectMeetingView(
             {
                 meetingId: archiving.state.id,
                 version: archiving.state.version,

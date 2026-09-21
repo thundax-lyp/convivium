@@ -18,7 +18,7 @@ import {
     type CatalogDomain,
     type MeetingDomain
 } from "./specs.js";
-import type { CatalogMeetingRecordV1, CreationRecordV1 } from "./schemas.js";
+import type { CatalogMeetingRecord, CreationRecord } from "./schemas.js";
 
 export interface DomainFacilityPort {
     open<S extends DomainSpec>(spec: S): Promise<Domain<S>>;
@@ -44,7 +44,7 @@ function corrupt(meetingId: string, message: string): RepositoryError {
 
 function validateCatalogIdentity(
     key: string,
-    record: CatalogMeetingRecordV1,
+    record: CatalogMeetingRecord,
     meetingId: string
 ): void {
     if (
@@ -55,10 +55,7 @@ function validateCatalogIdentity(
         throw corrupt(meetingId, "Catalog identity is invalid");
 }
 
-function validateCreationIdentity(
-    creation: CreationRecordV1,
-    catalog: CatalogMeetingRecordV1
-): void {
+function validateCreationIdentity(creation: CreationRecord, catalog: CatalogMeetingRecord): void {
     if (
         creation.meetingId !== catalog.meetingId ||
         creation.requestId !== catalog.createRequestId ||
@@ -99,9 +96,9 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         );
     }
 
-    listMeetings(): CatalogMeetingRecordV1[] {
+    listMeetings(): CatalogMeetingRecord[] {
         this.ensureOpen();
-        const records: CatalogMeetingRecordV1[] = [];
+        const records: CatalogMeetingRecord[] = [];
         for (const [key, record] of this.catalog.table("meetings").entries()) {
             validateCatalogIdentity(key, record, record.meetingId);
             records.push(structuredClone(record));
@@ -184,7 +181,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     private async reconcile(
         domain: MeetingDomain,
         key: string,
-        catalog: CatalogMeetingRecordV1
+        catalog: CatalogMeetingRecord
     ): Promise<void> {
         const creation = domain.table("creation").get("current");
         if (creation) validateCreationIdentity(creation, catalog);

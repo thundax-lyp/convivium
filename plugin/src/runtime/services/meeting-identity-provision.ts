@@ -1,17 +1,17 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
 import {
-    resolveDynamicMeetingDefinitionV1,
+    resolveDynamicMeetingDefinition,
     resolveMeetingRoles,
     RoleCompositionError
 } from "@/role-composition/resolve.js";
-import { preflightDynamicMeetingIdentityV1 } from "@/role-composition/dsh-capabilities.js";
-import { startMeetingIdentitySessionV1 } from "@/dsh/index.js";
+import { preflightDynamicMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
+import { startMeetingIdentitySession } from "@/dsh/index.js";
 import type { SessionOwnership } from "@/repository/types.js";
 
-export type IdentityProvisionResultV1 =
+export type IdentityProvisionResult =
     | {
           kind: "admitted";
           result: {
@@ -30,8 +30,8 @@ export type IdentityProvisionResultV1 =
       }
     | { kind: "rejected"; failureCode: string };
 
-export interface MeetingIdentityProvisionDependenciesV1 {
-    readonly definitions: readonly MeetingAgentDefinitionV1[];
+export interface MeetingIdentityProvisionDependencies {
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly parent: Agent;
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
@@ -48,7 +48,7 @@ export interface MeetingIdentityProvisionDependenciesV1 {
     readonly now: () => number;
 }
 
-export async function provisionMeetingIdentityV1(
+export async function provisionMeetingIdentity(
     input: {
         recommendation: {
             id: string;
@@ -61,8 +61,8 @@ export async function provisionMeetingIdentityV1(
         meetingId: string;
         signal: AbortSignal;
     },
-    dependencies: MeetingIdentityProvisionDependenciesV1
-): Promise<IdentityProvisionResultV1> {
+    dependencies: MeetingIdentityProvisionDependencies
+): Promise<IdentityProvisionResult> {
     const recommendation = input.recommendation;
     if (
         !recommendation.definitionHash ||
@@ -71,14 +71,14 @@ export async function provisionMeetingIdentityV1(
     )
         return { kind: "rejected", failureCode: "INVALID_STATE" };
     const identityId = recommendation.identityId;
-    const resolved = resolveDynamicMeetingDefinitionV1(
+    const resolved = resolveDynamicMeetingDefinition(
         dependencies.definitions,
         { id: recommendation.definitionId, version: recommendation.definitionVersion },
         recommendation.definitionHash
     );
     if (resolved.kind !== "resolved") return { kind: "rejected", failureCode: resolved.code };
     const prepareComposition = async () => {
-        const preflight = await preflightDynamicMeetingIdentityV1(
+        const preflight = await preflightDynamicMeetingIdentity(
             dependencies.parent,
             recommendation,
             resolved.definition,
@@ -165,7 +165,7 @@ export async function provisionMeetingIdentityV1(
     }
     try {
         if (child === "absent") {
-            const started = await startMeetingIdentitySessionV1({
+            const started = await startMeetingIdentitySession({
                 composition,
                 runtime: dependencies.runtime,
                 provider: dependencies.provider,

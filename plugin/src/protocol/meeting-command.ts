@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-    RecommendIdentityActionV1Schema,
-    RecordIdentityAdmissionResultActionV1Schema
+    RecommendIdentityActionSchema,
+    RecordIdentityAdmissionResultActionSchema
 } from "./meeting-identity.js";
 
 const id = z.string().trim().min(1);
@@ -39,7 +39,7 @@ const limits = z.object({
     reviewDeadlineMs: z.number().int().nonnegative()
 });
 const continuation = z.object({ sourceArchiveId: id, selectedMaterialIds: z.array(id) });
-export const CreateMeetingActionV1Schema = z.object({
+export const CreateMeetingActionSchema = z.object({
     kind: z.literal("create_meeting"),
     objective,
     identities: z.array(initialIdentity),
@@ -108,13 +108,13 @@ const reviewDimensions = z.object({
     completeness: reviewDimension,
     support: reviewDimension
 });
-export const OpenRoundActionV1Schema = z.object({
+export const OpenRoundActionSchema = z.object({
     kind: z.literal("open_round"),
     agendaId: id,
     planId: id,
     deadlineAt: epoch.optional()
 });
-export const SubmitManagerPlanActionV1Schema = z
+export const SubmitManagerPlanActionSchema = z
     .object({
         kind: z.literal("submit_manager_plan"),
         agendaId: id,
@@ -133,24 +133,24 @@ export const SubmitManagerPlanActionV1Schema = z
         if ((value.planKind === "open_round") !== (value.roundGoal !== undefined))
             ctx.addIssue({ code: "custom", path: ["roundGoal"] });
     });
-export const RaiseHandActionV1Schema = z.object({
+export const RaiseHandActionSchema = z.object({
     kind: z.literal("raise_hand"),
     roundId: id,
     purpose: text
 });
-export const DisposeHandRaiseActionV1Schema = z.object({
+export const DisposeHandRaiseActionSchema = z.object({
     kind: z.literal("dispose_hand_raise"),
     roundId: id,
     contributorId: id,
     disposition: z.enum(["accepted", "rejected", "deferred"]),
     reason: text
 });
-export const SubmitEvidenceActionV1Schema = z.object({
+export const SubmitEvidenceActionSchema = z.object({
     kind: z.literal("submit_evidence"),
     contributionId: id,
     evidence
 });
-export const ClaimReviewBatchActionV1Schema = z.object({
+export const ClaimReviewBatchActionSchema = z.object({
     kind: z.literal("claim_review_batch"),
     sourceEffectId: id,
     roundId: id,
@@ -159,13 +159,13 @@ export const ClaimReviewBatchActionV1Schema = z.object({
         .min(1)
         .refine((ids) => new Set(ids).size === ids.length)
 });
-export const ReleaseReviewBatchClaimActionV1Schema = z.object({
+export const ReleaseReviewBatchClaimActionSchema = z.object({
     kind: z.literal("release_review_batch_claim"),
     roundId: id,
     claimId: id,
     reason: z.enum(["turn_timed_out", "turn_interrupted", "dispatch_failed"])
 });
-export const SubmitReviewBatchActionV1Schema = z
+export const SubmitReviewBatchActionSchema = z
     .object({
         kind: z.literal("submit_review_batch"),
         roundId: id,
@@ -178,37 +178,37 @@ export const SubmitReviewBatchActionV1Schema = z
         const ids = value.reviews.map((review) => review.versionId);
         if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["reviews"] });
     });
-export const PublishRoundActionV1Schema = z.object({
+export const PublishRoundActionSchema = z.object({
     kind: z.literal("publish_round"),
     roundId: id
 });
-export const PauseMeetingActionV1Schema = z.object({
+export const PauseMeetingActionSchema = z.object({
     kind: z.literal("pause_meeting"),
     reason: text
 });
-export const ResumeMeetingActionV1Schema = z.object({
+export const ResumeMeetingActionSchema = z.object({
     kind: z.literal("resume_meeting"),
     reason: text
 });
 
 const actions = [
-    CreateMeetingActionV1Schema,
-    RecommendIdentityActionV1Schema,
-    RecordIdentityAdmissionResultActionV1Schema,
-    SubmitManagerPlanActionV1Schema,
-    OpenRoundActionV1Schema,
-    RaiseHandActionV1Schema,
-    DisposeHandRaiseActionV1Schema,
-    SubmitEvidenceActionV1Schema,
+    CreateMeetingActionSchema,
+    RecommendIdentityActionSchema,
+    RecordIdentityAdmissionResultActionSchema,
+    SubmitManagerPlanActionSchema,
+    OpenRoundActionSchema,
+    RaiseHandActionSchema,
+    DisposeHandRaiseActionSchema,
+    SubmitEvidenceActionSchema,
     z.object({
         kind: z.literal("close_contribution"),
         contributionId: id,
         exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
         reason: text
     }),
-    ClaimReviewBatchActionV1Schema,
-    ReleaseReviewBatchClaimActionV1Schema,
-    SubmitReviewBatchActionV1Schema,
+    ClaimReviewBatchActionSchema,
+    ReleaseReviewBatchClaimActionSchema,
+    SubmitReviewBatchActionSchema,
     z
         .object({
             kind: z.literal("record_review_delivery"),
@@ -222,9 +222,9 @@ const actions = [
             if (value.status === "failed" && value.failureReason === undefined)
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         }),
-    PublishRoundActionV1Schema,
-    PauseMeetingActionV1Schema,
-    ResumeMeetingActionV1Schema,
+    PublishRoundActionSchema,
+    PauseMeetingActionSchema,
+    ResumeMeetingActionSchema,
     z.object({
         kind: z.literal("end_meeting"),
         outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
@@ -249,10 +249,10 @@ const actions = [
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         })
 ] as const;
-export const MeetingActionV1Schema = z.discriminatedUnion("kind", actions);
+export const MeetingActionSchema = z.discriminatedUnion("kind", actions);
 const nonEmpty = z.string().trim().min(1);
-const action = MeetingActionV1Schema;
-export const MeetingCommandV1Schema = z
+const action = MeetingActionSchema;
+export const MeetingCommandSchema = z
     .object({
         protocolVersion: z.literal(1),
         meetingId: nonEmpty,
@@ -281,16 +281,16 @@ export const MeetingCommandV1Schema = z
         )
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
     });
-export type MeetingCommandV1 = z.infer<typeof MeetingCommandV1Schema>;
-export type MeetingActionV1 = z.infer<typeof MeetingActionV1Schema>;
+export type MeetingCommand = z.infer<typeof MeetingCommandSchema>;
+export type MeetingAction = z.infer<typeof MeetingActionSchema>;
 
-export const ListMeetingsRequestV1Schema = z.object({ protocolVersion: z.literal(1) });
-export type ListMeetingsRequestV1 = z.infer<typeof ListMeetingsRequestV1Schema>;
-export const ReadMeetingRequestV1Schema = z.object({
+export const ListMeetingsRequestSchema = z.object({ protocolVersion: z.literal(1) });
+export type ListMeetingsRequest = z.infer<typeof ListMeetingsRequestSchema>;
+export const ReadMeetingRequestSchema = z.object({
     protocolVersion: z.literal(1),
     meetingId: id
 });
-export type ReadMeetingRequestV1 = z.infer<typeof ReadMeetingRequestV1Schema>;
+export type ReadMeetingRequest = z.infer<typeof ReadMeetingRequestSchema>;
 
 const effect = z.object({
     id,
@@ -329,7 +329,7 @@ const error = z.object({
     targetKind: text.optional(),
     targetId: id.optional()
 });
-export const MeetingCommandResultV1Schema = z.discriminatedUnion("kind", [
+export const MeetingCommandResultSchema = z.discriminatedUnion("kind", [
     z.object({
         kind: z.literal("accepted"),
         meetingId: id,
@@ -350,4 +350,4 @@ export const MeetingCommandResultV1Schema = z.discriminatedUnion("kind", [
     }),
     z.object({ kind: z.literal("rejected"), error })
 ]);
-export type MeetingCommandResultV1 = z.infer<typeof MeetingCommandResultV1Schema>;
+export type MeetingCommandResult = z.infer<typeof MeetingCommandResultSchema>;

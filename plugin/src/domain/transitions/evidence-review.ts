@@ -1,28 +1,23 @@
-import type {
-    EvidenceReviewV1,
-    MeetingState,
-    OpaqueId,
-    ReviewDimensionV1
-} from "@/domain/index.js";
-export interface SubmitReviewBatchItemV1 {
+import type { EvidenceReview, MeetingState, OpaqueId, ReviewDimension } from "@/domain/index.js";
+export interface SubmitReviewBatchItem {
     reviewId: OpaqueId;
     versionId: OpaqueId;
     dimensions: Readonly<{
-        source: ReviewDimensionV1;
-        credibility: ReviewDimensionV1;
-        completeness: ReviewDimensionV1;
-        support: ReviewDimensionV1;
+        source: ReviewDimension;
+        credibility: ReviewDimension;
+        completeness: ReviewDimension;
+        support: ReviewDimension;
     }>;
     scope: string;
 }
-export interface SubmitReviewBatchInputV1 {
+export interface SubmitReviewBatchInput {
     reviewerId: OpaqueId;
     roundId: OpaqueId;
     claimId: OpaqueId;
-    reviews: readonly SubmitReviewBatchItemV1[];
+    reviews: readonly SubmitReviewBatchItem[];
     now: number;
 }
-export interface ClaimReviewBatchInputV1 {
+export interface ClaimReviewBatchInput {
     claimId: OpaqueId;
     sourceEffectId: OpaqueId;
     reviewerId: OpaqueId;
@@ -31,13 +26,13 @@ export interface ClaimReviewBatchInputV1 {
     now: number;
     expiresAt: number;
 }
-export interface ReleaseReviewBatchClaimInputV1 {
+export interface ReleaseReviewBatchClaimInput {
     claimId: OpaqueId;
     roundId: OpaqueId;
     reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
     now: number;
 }
-type ReviewDimensionsInputV1 = SubmitReviewBatchItemV1["dimensions"];
+type ReviewDimensionsInput = SubmitReviewBatchItem["dimensions"];
 type DeliveryInput = {
     reviewId: OpaqueId;
     dispatcherId: OpaqueId;
@@ -46,14 +41,14 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
 function validDimensions(
     state: MeetingState,
     roundId: OpaqueId,
-    dimensions: ReviewDimensionsInputV1
+    dimensions: ReviewDimensionsInput
 ) {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     return (
@@ -73,10 +68,10 @@ function validDimensions(
     );
 }
 
-export function claimReviewBatchV1(
+export function claimReviewBatch(
     state: MeetingState,
-    input: ClaimReviewBatchInputV1
-): MeetingTransitionResultV1 {
+    input: ClaimReviewBatchInput
+): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.sourceEffectId.trim() ||
@@ -145,10 +140,10 @@ export function claimReviewBatchV1(
     };
 }
 
-export function submitReviewBatchV1(
+export function submitReviewBatch(
     state: MeetingState,
-    input: SubmitReviewBatchInputV1
-): MeetingTransitionResultV1 {
+    input: SubmitReviewBatchInput
+): MeetingTransitionResult {
     if (
         !input.reviewerId.trim() ||
         !input.roundId.trim() ||
@@ -180,7 +175,7 @@ export function submitReviewBatchV1(
         return reject(state, "REVIEWER_CONFLICT", "review batch claim is invalid");
     const reviewIds = new Set<string>();
     const versionIds = new Set<string>();
-    const pending: EvidenceReviewV1[] = [];
+    const pending: EvidenceReview[] = [];
     for (const item of input.reviews) {
         if (
             !item.reviewId.trim() ||
@@ -247,10 +242,10 @@ export function submitReviewBatchV1(
     };
 }
 
-export function releaseReviewBatchClaimV1(
+export function releaseReviewBatchClaim(
     state: MeetingState,
-    input: ReleaseReviewBatchClaimInputV1
-): MeetingTransitionResultV1 {
+    input: ReleaseReviewBatchClaimInput
+): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.roundId.trim() ||
@@ -279,10 +274,10 @@ export function releaseReviewBatchClaimV1(
  * The former single-item entry point is intentionally removed. Delivery
  * recording remains separate because it is an external lifecycle result.
  */
-export function recordReviewDeliveryV1(
+export function recordReviewDelivery(
     state: MeetingState,
     input: DeliveryInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.reviewId.trim() === "" ||
         input.dispatcherId.trim() === "" ||

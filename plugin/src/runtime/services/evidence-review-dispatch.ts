@@ -1,18 +1,18 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
-    EvidenceReviewV1,
-    EvidenceVersionV1,
-    MeetingIdentityV1,
+    EvidenceReview,
+    EvidenceVersion,
+    MeetingIdentity,
     MeetingState,
-    PublicationV1
+    Publication
 } from "@/domain/index.js";
-import { followupMeetingIdentitySessionV1 } from "@/dsh/index.js";
+import { followupMeetingIdentitySession } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
-    type MeetingCommandApplicationV1
+    type MeetingCommandApplication
 } from "@/runtime/application-service/meeting-command.js";
 
 class EvidenceReviewDispatchError extends Error {
@@ -57,7 +57,7 @@ function findIdentity(
     state: MeetingState,
     identityId: string,
     role: "evidence_reviewer" | "contributor"
-): MeetingIdentityV1 {
+): MeetingIdentity {
     const identity = state.identities.find((candidate) => candidate.id === identityId);
     if (!identity || identity.roles.length !== 1 || identity.roles[0] !== role)
         fail("REVIEW_VISIBILITY_INVALID");
@@ -66,7 +66,7 @@ function findIdentity(
 
 function findOwnership(
     ownerships: readonly SessionOwnership[],
-    identity: MeetingIdentityV1,
+    identity: MeetingIdentity,
     meetingId: string,
     role: "evidence_reviewer" | "participant",
     parent: Agent
@@ -87,8 +87,8 @@ function findOwnership(
 
 function publicationEvidence(
     state: MeetingState,
-    publication: PublicationV1
-): readonly { version: EvidenceVersionV1; review: EvidenceReviewV1 }[] {
+    publication: Publication
+): readonly { version: EvidenceVersion; review: EvidenceReview }[] {
     if (publication.finalVersionIds.length !== publication.finalReviewIds.length)
         fail("REVIEW_BASELINE_INVALID");
     return publication.finalVersionIds.map((versionId, index) => {
@@ -133,16 +133,16 @@ function pendingReviews(state: MeetingState) {
     });
 }
 
-interface DispatchEvidenceReviewBatchInputV1 {
+interface DispatchEvidenceReviewBatchInput {
     readonly outboxItem: OutboxItem;
     readonly parent: Agent;
     readonly signal: AbortSignal;
 }
 
-interface EvidenceReviewDispatcherDependenciesV1 {
+interface EvidenceReviewDispatcherDependencies {
     readonly sessions: Pick<SubagentRuntime, "sendMessage">;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
-    readonly application: MeetingCommandApplicationV1;
+    readonly application: MeetingCommandApplication;
     readonly clock: { now(): number };
 }
 
@@ -179,9 +179,9 @@ const workerReviewOutputSchema = {
     }
 } as const;
 
-export function createEvidenceReviewDispatcherV1(
-    dependencies: EvidenceReviewDispatcherDependenciesV1
-): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
+export function createEvidenceReviewDispatcher(
+    dependencies: EvidenceReviewDispatcherDependencies
+): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function releaseClaim(
         meetingId: string,
         roundId: string,
@@ -322,7 +322,7 @@ export function createEvidenceReviewDispatcherV1(
             const claimId = claim.relatedIds?.[0];
             if (!claimId) retry("REVIEW_CLAIM_UNAVAILABLE");
             try {
-                await followupMeetingIdentitySessionV1({
+                await followupMeetingIdentitySession({
                     runtime: dependencies.sessions,
                     parent,
                     ownership,
@@ -431,11 +431,11 @@ export function createEvidenceReviewDispatcherV1(
     };
 }
 
-interface ReviewDeliveryDispatcherDependenciesV1 extends Omit<
-    EvidenceReviewDispatcherDependenciesV1,
+interface ReviewDeliveryDispatcherDependencies extends Omit<
+    EvidenceReviewDispatcherDependencies,
     "clock"
 > {
-    readonly application: MeetingCommandApplicationV1;
+    readonly application: MeetingCommandApplication;
 }
 
 function alreadySent(state: MeetingState, reviewId: string): boolean {
@@ -444,11 +444,11 @@ function alreadySent(state: MeetingState, reviewId: string): boolean {
     );
 }
 
-export function createReviewDeliveryDispatcherV1(
-    dependencies: ReviewDeliveryDispatcherDependenciesV1
-): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
+export function createReviewDeliveryDispatcher(
+    dependencies: ReviewDeliveryDispatcherDependencies
+): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function record(
-        input: DispatchEvidenceReviewBatchInputV1,
+        input: DispatchEvidenceReviewBatchInput,
         status: "sent" | "failed",
         reviewId: string,
         failureReason?: string
@@ -520,7 +520,7 @@ export function createReviewDeliveryDispatcherV1(
                     "participant",
                     parent
                 );
-                await followupMeetingIdentitySessionV1({
+                await followupMeetingIdentitySession({
                     runtime: dependencies.sessions,
                     parent,
                     ownership,

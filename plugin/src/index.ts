@@ -3,15 +3,15 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider, resolveMeetingCallerV1 } from "./dsh/index.js";
+import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import {
-    activateTargetMeetingApplicationV1,
-    getLocalMeetingWebRuntimeV1,
-    getMeetingCommandApplicationV1,
-    ensureTargetMeetingDeliveryV1
+    activateTargetMeetingApplication,
+    getLocalMeetingWebRuntime,
+    getMeetingCommandApplication,
+    ensureTargetMeetingDelivery
 } from "./runtime/index.js";
-import { registerMeetingToolsV1 } from "./tools/index.js";
+import { registerMeetingTools } from "./tools/index.js";
 
 export { Config };
 export { ConviviumRemoteService };
@@ -47,25 +47,25 @@ const meetingConsumerPlugin = {
         });
         async function activate(): Promise<void> {
             assertContinuableProvider(ctx, config.provider);
-            const disposeTarget = await activateTargetMeetingApplicationV1(ctx, config);
+            const disposeTarget = await activateTargetMeetingApplication(ctx, config);
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
-            const runtime = getLocalMeetingWebRuntimeV1(ctx);
-            const application = getMeetingCommandApplicationV1(ctx);
+            const runtime = getLocalMeetingWebRuntime(ctx);
+            const application = getMeetingCommandApplication(ctx);
             (ctx as Context & { provide?: (name: string, value: unknown) => void }).provide?.(
                 "conviviumMeetingRuntime",
                 runtime
             );
-            registerMeetingToolsV1({
+            registerMeetingTools({
                 registry: ctx.tools,
                 application,
                 callers: {
                     async resolve(agent, signal) {
-                        const resolved = await resolveMeetingCallerV1(agent, runtime, signal);
+                        const resolved = await resolveMeetingCaller(agent, runtime, signal);
                         return resolved;
                     }
                 },
                 onMeetingCreated(meetingId, parent) {
-                    ensureTargetMeetingDeliveryV1(ctx, meetingId, parent);
+                    ensureTargetMeetingDelivery(ctx, meetingId, parent);
                 }
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { transitionMeetingStateV1 } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import { state, captain, terminalState } from "./meeting-state-transitions-fixtures.js";
 
 describe("dispose_issue completion boundary", () => {
     it.each(["paused", "preparing", "converging", "ending"] as const)("rejects in %s", (status) => {
         const current = state(status);
-        const result = transitionMeetingStateV1(
+        const result = transitionMeetingState(
             current,
             {
                 kind: "dispose_issue",
@@ -28,7 +28,7 @@ describe("dispose_issue completion boundary", () => {
     });
     it.each(["terminal", "archiving", "archived"] as const)("rejects terminal %s", (status) => {
         const current = terminalState(status);
-        const result = transitionMeetingStateV1(
+        const result = transitionMeetingState(
             current,
             {
                 kind: "dispose_issue",

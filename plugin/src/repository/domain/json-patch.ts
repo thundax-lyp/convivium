@@ -1,7 +1,7 @@
 import type { JsonValue } from "./canonical-json.js";
 
 export type JsonPath = readonly (string | number)[];
-export type JsonPatchOperationV1 =
+export type JsonPatchOperation =
     | { readonly op: "remove"; readonly path: JsonPath }
     | { readonly op: "set"; readonly path: JsonPath; readonly value: JsonValue }
     | {
@@ -47,8 +47,8 @@ function clone(value: JsonValue): JsonValue {
     return value;
 }
 
-export function diff(previous: JsonValue, next: JsonValue): JsonPatchOperationV1[] {
-    const operations: JsonPatchOperationV1[] = [];
+export function diff(previous: JsonValue, next: JsonValue): JsonPatchOperation[] {
+    const operations: JsonPatchOperation[] = [];
     const walk = (a: JsonValue, b: JsonValue, path: JsonPath): void => {
         if (Array.isArray(a) && Array.isArray(b)) {
             let prefix = 0;
@@ -145,10 +145,7 @@ function locate(root: JsonValue, path: JsonPath): { parent: JsonValue; key: stri
     return { parent, key };
 }
 
-export function applyPatch(
-    input: JsonValue,
-    operations: readonly JsonPatchOperationV1[]
-): JsonValue {
+export function applyPatch(input: JsonValue, operations: readonly JsonPatchOperation[]): JsonValue {
     let root = clone(input);
     for (const operation of operations) {
         if (!operation.path.length && operation.op === "set") {

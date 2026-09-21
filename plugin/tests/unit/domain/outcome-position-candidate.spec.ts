@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
 import {
-    recordPositionV1,
-    recordDecisionCandidateV1,
-    pendingDecisionCandidatesV1
+    recordPosition,
+    recordDecisionCandidate,
+    pendingDecisionCandidates
 } from "@/domain/transitions/outcome.js";
 import { validState, expectRejected } from "./outcome-fixtures.js";
 
@@ -54,7 +54,7 @@ const candidateInput = (
 it("accepts current Position with exact bookkeeping and immutable input", () => {
     const state = ready();
     const before = structuredClone(state);
-    const result = recordPositionV1(state, positionInput());
+    const result = recordPosition(state, positionInput());
     expect(result).toMatchObject({
         kind: "accepted",
         relatedIds: ["pos", "rev", "v"],
@@ -68,10 +68,10 @@ it("accepts current Position with exact bookkeeping and immutable input", () => 
 });
 it("accepts current Candidate without status or Decision and preserves related order", () => {
     const state = ready();
-    const position = recordPositionV1(state, positionInput());
+    const position = recordPosition(state, positionInput());
     expect(position.kind).toBe("accepted");
     if (position.kind !== "accepted") return;
-    const result = recordDecisionCandidateV1(position.state, candidateInput());
+    const result = recordDecisionCandidate(position.state, candidateInput());
     expect(result).toMatchObject({
         kind: "accepted",
         relatedIds: ["cand", "rev", "pos", "v"],
@@ -95,7 +95,7 @@ it.each([
             id: "v2",
             ordinal: 2
         });
-    const result = recordPositionV1(
+    const result = recordPosition(
         state,
         positionInput({ kind: "identity", id: "contributor" }, { evidenceIds })
     );
@@ -104,10 +104,10 @@ it.each([
 it.each(["paused"] as const)("Position/Candidate reject %s", (status) => {
     const state = ready();
     state.lifecycle = { ...state.lifecycle, status };
-    expect(recordPositionV1(state, positionInput())).toMatchObject({
+    expect(recordPosition(state, positionInput())).toMatchObject({
         error: { code: "INVALID_STATE" }
     });
-    expect(recordDecisionCandidateV1(state, candidateInput())).toMatchObject({
+    expect(recordDecisionCandidate(state, candidateInput())).toMatchObject({
         error: { code: "INVALID_STATE" }
     });
 });
@@ -126,10 +126,10 @@ it.each(["terminal"] as const)("Position/Candidate reject terminal %s", (status)
             createdAt: 0
         }
     ];
-    expect(recordPositionV1(state, positionInput())).toMatchObject({
+    expect(recordPosition(state, positionInput())).toMatchObject({
         error: { code: "MEETING_TERMINAL" }
     });
-    expect(recordDecisionCandidateV1(state, candidateInput())).toMatchObject({
+    expect(recordDecisionCandidate(state, candidateInput())).toMatchObject({
         error: { code: "MEETING_TERMINAL" }
     });
 });
@@ -151,27 +151,27 @@ it("derives pending candidates only for current unused revisions without mutatin
     ];
     state.decisions = [{ ...state.decisionCandidates[0], candidateId: "used", status: "accepted" }];
     const before = structuredClone(state);
-    expect(pendingDecisionCandidatesV1(state)).toEqual([]);
+    expect(pendingDecisionCandidates(state)).toEqual([]);
     expect(state).toEqual(before);
     expect(state.positions).toBe(positions);
 });
 it("keeps precedence authorization and shape ahead of lifecycle for both writes", () => {
     const state = ready();
     state.lifecycle = { ...state.lifecycle, status: "paused" };
+    expect(recordPosition(state, positionInput({ kind: "identity", id: "manager" }))).toMatchObject(
+        { error: { code: "UNAUTHORIZED" } }
+    );
     expect(
-        recordPositionV1(state, positionInput({ kind: "identity", id: "manager" }))
-    ).toMatchObject({ error: { code: "UNAUTHORIZED" } });
-    expect(
-        recordPositionV1(
+        recordPosition(
             state,
             positionInput({ kind: "identity", id: "contributor" }, { positionId: "" })
         )
     ).toMatchObject({ error: { code: "INVALID_ARGUMENT" } });
     expect(
-        recordDecisionCandidateV1(state, candidateInput({ kind: "identity", id: "manager" }))
+        recordDecisionCandidate(state, candidateInput({ kind: "identity", id: "manager" }))
     ).toMatchObject({ error: { code: "UNAUTHORIZED" } });
     expect(
-        recordDecisionCandidateV1(
+        recordDecisionCandidate(
             state,
             candidateInput({ kind: "identity", id: "contributor" }, { candidateId: "" })
         )
@@ -179,10 +179,10 @@ it("keeps precedence authorization and shape ahead of lifecycle for both writes"
 });
 it("accepts captain Position and Candidate writes", () => {
     const state = ready();
-    const position = recordPositionV1(state, positionInput({ kind: "identity", id: "captain" }));
+    const position = recordPosition(state, positionInput({ kind: "identity", id: "captain" }));
     expect(position).toMatchObject({ kind: "accepted" });
     if (position.kind !== "accepted") return;
-    const candidate = recordDecisionCandidateV1(
+    const candidate = recordDecisionCandidate(
         position.state,
         candidateInput({ kind: "identity", id: "captain" })
     );
@@ -198,7 +198,7 @@ it.each([
     ["local_controller", { kind: "local_controller", id: "local" }]
 ] as const)("rejects %s for Position and Candidate independently", (_name, actor) => {
     const state = ready();
-    const p = recordPositionV1(state, positionInput(actor as never));
+    const p = recordPosition(state, positionInput(actor as never));
     expect(p).toMatchObject({
         kind: "rejected",
         error: { code: "UNAUTHORIZED" },
@@ -218,7 +218,7 @@ it.each([
             createdAt: 0
         }
     ];
-    const c = recordDecisionCandidateV1(withPosition, candidateInput(actor as never));
+    const c = recordDecisionCandidate(withPosition, candidateInput(actor as never));
     expect(c).toMatchObject({
         kind: "rejected",
         error: { code: "UNAUTHORIZED" },
@@ -250,7 +250,7 @@ it.each([
             id: "v2",
             ordinal: 2
         });
-    const result = recordDecisionCandidateV1(state, candidateInput(undefined, { evidenceIds }));
+    const result = recordDecisionCandidate(state, candidateInput(undefined, { evidenceIds }));
     expect(result).toMatchObject({
         kind: "rejected",
         error: { code },
@@ -276,7 +276,7 @@ it.each([
                 createdAt: 0
             }
         ];
-    const result = recordDecisionCandidateV1(state, candidateInput(undefined, { positionIds }));
+    const result = recordDecisionCandidate(state, candidateInput(undefined, { positionIds }));
     expect(result).toMatchObject({
         kind: "rejected",
         error: { code },
@@ -298,7 +298,7 @@ it("rejects duplicate Position and Candidate IDs", () => {
             createdAt: 0
         }
     ];
-    expect(recordPositionV1(state, positionInput())).toMatchObject({
+    expect(recordPosition(state, positionInput())).toMatchObject({
         kind: "rejected",
         error: { code: "INVALID_ARGUMENT" }
     });
@@ -314,7 +314,7 @@ it("rejects duplicate Position and Candidate IDs", () => {
             createdAt: 0
         }
     ];
-    expect(recordDecisionCandidateV1(state, candidateInput())).toMatchObject({
+    expect(recordDecisionCandidate(state, candidateInput())).toMatchObject({
         kind: "rejected",
         error: { code: "INVALID_ARGUMENT" }
     });
@@ -339,10 +339,10 @@ it("rejects cross-revision Position and Candidate references", () => {
         }
     ];
     expect(
-        recordPositionV1(state, positionInput(undefined, { proposalRevisionId: "rev" }))
+        recordPosition(state, positionInput(undefined, { proposalRevisionId: "rev" }))
     ).toMatchObject({ error: { code: "PRECONDITION_FAILED" } });
     expect(
-        recordDecisionCandidateV1(
+        recordDecisionCandidate(
             state,
             candidateInput(undefined, {
                 proposalRevisionId: "rev-2",
@@ -396,7 +396,7 @@ it("keeps pending order for running and paused and filters used/old while retain
             { ...state.decisionCandidates[1], candidateId: "used", status: "accepted" }
         ];
         const before = structuredClone(state);
-        const pending = pendingDecisionCandidatesV1(state);
+        const pending = pendingDecisionCandidates(state);
         expect(pending.map((c) => c.id)).toEqual(["free"]);
         expect(state).toEqual(before);
     }
@@ -418,6 +418,6 @@ it.each(["preparing", "converging", "ending", "terminal", "archiving", "archived
                 createdAt: 0
             }
         ];
-        expect(pendingDecisionCandidatesV1(state)).toEqual([]);
+        expect(pendingDecisionCandidates(state)).toEqual([]);
     }
 );

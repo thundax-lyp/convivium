@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MeetingCommandV1Schema } from "@/protocol/meeting-command.js";
+import { MeetingCommandSchema } from "@/protocol/meeting-command.js";
 import {
-    IdentityViewV1Schema,
-    IdentityRecommendationViewV1Schema,
-    RecommendIdentityActionV1Schema,
-    RoleErrorCodeV1Schema
+    IdentityViewSchema,
+    IdentityRecommendationViewSchema,
+    RecommendIdentityActionSchema,
+    RoleErrorCodeSchema
 } from "@/protocol/index.js";
 
 const action = {
@@ -24,7 +24,7 @@ const action = {
 describe("meeting identity protocol", () => {
     it("decodes both target actions and ignores unknown fields", () => {
         expect(
-            MeetingCommandV1Schema.parse({
+            MeetingCommandSchema.parse({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
                 expectedMeetingVersion: 1,
@@ -33,7 +33,7 @@ describe("meeting identity protocol", () => {
             }).action
         ).toMatchObject(action);
         expect(
-            MeetingCommandV1Schema.parse({
+            MeetingCommandSchema.parse({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
                 expectedMeetingVersion: 1,
@@ -44,17 +44,17 @@ describe("meeting identity protocol", () => {
     });
 
     it("rejects missing fields, nulls and invalid enums", () => {
+        expect(RecommendIdentityActionSchema.safeParse({ ...action, agendaId: null }).success).toBe(
+            false
+        );
         expect(
-            RecommendIdentityActionV1Schema.safeParse({ ...action, agendaId: null }).success
+            RecommendIdentityActionSchema.safeParse({ ...action, decision: "maybe" }).success
         ).toBe(false);
-        expect(
-            RecommendIdentityActionV1Schema.safeParse({ ...action, decision: "maybe" }).success
-        ).toBe(false);
-        expect(RoleErrorCodeV1Schema.safeParse("not-a-role-error").success).toBe(false);
+        expect(RoleErrorCodeSchema.safeParse("not-a-role-error").success).toBe(false);
     });
 
     it("does not expose forged runtime ownership in the public recommendation view", () => {
-        const result = IdentityRecommendationViewV1Schema.parse({
+        const result = IdentityRecommendationViewSchema.parse({
             id: "rec-1",
             candidateId: "candidate-1",
             definitionId: "domain_architect",
@@ -75,7 +75,7 @@ describe("meeting identity protocol", () => {
 
     it("exports the caller-filtered identity DTO schema from the protocol entrypoint", () => {
         expect(
-            IdentityViewV1Schema.parse({
+            IdentityViewSchema.parse({
                 id: "identity-1",
                 displayName: "Architect",
                 roles: ["contributor"]

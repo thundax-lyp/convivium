@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingStateV1 } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import {
     state,
     local,
@@ -43,7 +43,7 @@ it("records a manager plan and supersedes the prior active plan atomically", () 
             status: "active"
         }
     ];
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         planNextStep({
             planKind: "open_round",
@@ -97,7 +97,7 @@ it.each([
     ["missing agenda", manager, planNextStep({ agendaId: "missing" }), "NOT_FOUND"]
 ] as const)("rejects invalid plan actor or target: %s", (_name, actor, action, code) => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(current, action, actor, 10, "fact-10", "plan-new");
+    const result = transitionMeetingState(current, action, actor, 10, "fact-10", "plan-new");
     expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
 });
 
@@ -138,7 +138,7 @@ it("rejects planning while any round is open", () => {
             status: "completed"
         }
     ];
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         planNextStep(),
         manager,
@@ -156,7 +156,7 @@ it("rejects planning while any round is open", () => {
 
 it("appends a plan when the agenda has no active plan", () => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         planNextStep(),
         manager,
@@ -194,7 +194,7 @@ it("rejects planning after the meeting is terminal", () => {
             required: false
         }
     ];
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         planNextStep(),
         manager,

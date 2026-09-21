@@ -1,10 +1,10 @@
-import type { ArchiveView, MeetingViewV1 } from "@/protocol/index.js";
+import type { ArchiveView, MeetingView } from "@/protocol/index.js";
 
 /** The client renders the server-owned projection without deriving domain facts. */
-export type MeetingPanelView = MeetingViewV1;
+export type MeetingPanelView = MeetingView;
 
 export type MeetingPanelArchiveView = ArchiveView;
 
-export function mapMeetingPanelView(view: MeetingViewV1): MeetingPanelView {
+export function mapMeetingPanelView(view: MeetingView): MeetingPanelView {
     return view;
 }

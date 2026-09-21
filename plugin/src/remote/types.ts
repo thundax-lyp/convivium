@@ -1,9 +1,9 @@
 import type {
-    MeetingCommandV1,
-    MeetingCommandResultV1,
-    MeetingListResultV1,
-    MeetingReadResultV1,
-    RefreshNoticeV1
+    MeetingCommand,
+    MeetingCommandResult,
+    MeetingListResult,
+    MeetingReadResult,
+    RefreshNotice
 } from "@/protocol/index.js";
 
 export type RemoteJsonValue =
@@ -14,15 +14,15 @@ export type RemoteJsonValue =
     | readonly RemoteJsonValue[]
     | { readonly [key: string]: RemoteJsonValue };
 
-export type RemoteMeetingListResult = MeetingListResultV1 & Record<string, RemoteJsonValue>;
-export type RemoteMeetingReadResult = MeetingReadResultV1 & Record<string, RemoteJsonValue>;
-export type RemoteMeetingCommand = MeetingCommandV1 & Record<string, RemoteJsonValue>;
-export type RemoteMeetingCommandResult = MeetingCommandResultV1 & Record<string, RemoteJsonValue>;
+export type RemoteMeetingListResult = MeetingListResult & Record<string, RemoteJsonValue>;
+export type RemoteMeetingReadResult = MeetingReadResult & Record<string, RemoteJsonValue>;
+export type RemoteMeetingCommand = MeetingCommand & Record<string, RemoteJsonValue>;
+export type RemoteMeetingCommandResult = MeetingCommandResult & Record<string, RemoteJsonValue>;
 export type RemoteReadMeetingRequest = {
     readonly protocolVersion: 1;
     readonly meetingId: string;
 } & Record<string, RemoteJsonValue>;
-export type RemoteRefreshNotice = RefreshNoticeV1 & Record<string, RemoteJsonValue>;
+export type RemoteRefreshNotice = RefreshNotice & Record<string, RemoteJsonValue>;
 
 declare module "@deepseek-ai/dsh-typert-protocol" {
     interface RemoteErrorDetailsMap {

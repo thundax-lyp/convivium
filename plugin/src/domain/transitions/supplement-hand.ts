@@ -1,5 +1,5 @@
-import type { MeetingState, OpaqueId, SupplementHandV1 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -25,10 +25,10 @@ function managerFor(state: MeetingState, agendaId: OpaqueId) {
     );
 }
 
-export function raiseSupplementHandV1(
+export function raiseSupplementHand(
     state: MeetingState,
     input: RaiseInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.contributionId.trim() === "" ||
         input.authorId.trim() === "" ||
@@ -97,7 +97,7 @@ export function raiseSupplementHandV1(
         return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
     const manager = managerFor(state, round.agendaId);
     if (!manager) return reject(state, "PRECONDITION_FAILED", "no eligible manager");
-    const hand: SupplementHandV1 = {
+    const hand: SupplementHand = {
         purpose: input.purpose,
         raisedAt: input.now,
         status: "pending"
@@ -129,10 +129,10 @@ export function raiseSupplementHandV1(
     };
 }
 
-export function disposeSupplementHandV1(
+export function disposeSupplementHand(
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         input.contributionId.trim() === "" ||
         input.managerId.trim() === "" ||

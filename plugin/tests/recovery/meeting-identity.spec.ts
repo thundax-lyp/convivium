@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
-import { recoverMeetingCommandsV1 } from "@/runtime/services/meeting-command-recovery.js";
+import { endMeeting } from "@/domain/transitions/meeting-end.js";
+import { recoverMeetingCommands } from "@/runtime/services/meeting-command-recovery.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 describe("identity admission recovery", () => {
     it("wakes the existing outbox worker after recovery finds pending effects", async () => {
@@ -17,7 +17,7 @@ describe("identity admission recovery", () => {
             reclaimedOutbox: 1,
             pendingOutbox: 1
         };
-        const result = await recoverMeetingCommandsV1({
+        const result = await recoverMeetingCommands({
             repository: { recover: async () => recovered } as never,
             wakeOutbox: () => {
                 woken += 1;
@@ -52,7 +52,7 @@ describe("identity admission recovery", () => {
                 }
             ]
         };
-        const terminal = endMeetingV1(state, {
+        const terminal = endMeeting(state, {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "结束会议",

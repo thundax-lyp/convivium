@@ -1,28 +1,28 @@
 import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
 import type { SessionId } from "@deepseek-ai/dsh-session";
-import { createMeetingV1, type MeetingState } from "@/domain/index.js";
+import { createMeeting, type MeetingState } from "@/domain/index.js";
 import {
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     interruptAndDrainOwnedSessions,
-    startMeetingIdentitySessionV1
+    startMeetingIdentitySession
 } from "@/dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { CreateMeetingInput, JsonObject } from "@/repository/types.js";
-import type { MeetingCommandResultV1 } from "@/protocol/index.js";
+import type { MeetingCommandResult } from "@/protocol/index.js";
 import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import type {
-    CreateMeetingCommandV1,
-    MeetingCreationCoordinatorV1
+    CreateMeetingCommand,
+    MeetingCreationCoordinator
 } from "@/runtime/application-service/meeting-command.js";
 
-export interface TargetMeetingCreationDependenciesV1 {
+export interface TargetMeetingCreationDependencies {
     readonly registry: DomainRepositoryRegistry<MeetingState>;
-    readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly continuable: Pick<
         SubagentRuntime,
@@ -33,14 +33,14 @@ export interface TargetMeetingCreationDependenciesV1 {
 }
 
 function targetCreateState(
-    command: CreateMeetingCommandV1,
+    command: CreateMeetingCommand,
     meetingId: string,
     now: number,
     identities: readonly {
         id: string;
         ownershipId: string;
         definitionHash: string;
-        source: CreateMeetingCommandV1["action"]["identities"][number];
+        source: CreateMeetingCommand["action"]["identities"][number];
     }[]
 ): MeetingState {
     const byKey = new Map(
@@ -133,8 +133,8 @@ function targetCreateState(
 }
 
 function assertInitialTargetIdentities(
-    command: CreateMeetingCommandV1,
-    definitions: readonly MeetingAgentDefinitionV1[]
+    command: CreateMeetingCommand,
+    definitions: readonly MeetingAgentDefinition[]
 ): void {
     const { action } = command;
     if (action.identities.length !== 7) throw new RoleCompositionError();
@@ -191,13 +191,13 @@ function assertInitialTargetIdentities(
             throw new RoleCompositionError();
 }
 
-export function createMeetingCreationCoordinatorV1(
-    dependencies: TargetMeetingCreationDependenciesV1
-): MeetingCreationCoordinatorV1 {
-    const inFlight = new Map<string, Promise<MeetingCommandResultV1>>();
+export function createMeetingCreationCoordinator(
+    dependencies: TargetMeetingCreationDependencies
+): MeetingCreationCoordinator {
+    const inFlight = new Map<string, Promise<MeetingCommandResult>>();
     const stableId = (kind: string, meetingId: string, key: string) =>
         `${kind}-${sha256Hex(encodeCanonicalJson([meetingId, kind, key])).slice(0, 32)}`;
-    const coordinator: MeetingCreationCoordinatorV1 = {
+    const coordinator: MeetingCreationCoordinator = {
         async create(command, context, meetingId, now, signal) {
             const parent = context.captainParent;
             if (!parent || context.caller.principalId !== String(parent.id))
@@ -223,7 +223,7 @@ export function createMeetingCreationCoordinatorV1(
                         requestHash
                     });
                     if (replay !== undefined)
-                        return replay.result as unknown as MeetingCommandResultV1;
+                        return replay.result as unknown as MeetingCommandResult;
                 } catch (error) {
                     if (!(error instanceof RepositoryError) || error.code !== "MEETING_NOT_FOUND")
                         throw error;
@@ -263,7 +263,7 @@ export function createMeetingCreationCoordinatorV1(
                     };
                 });
                 const state = targetCreateState(command, meetingId, now, identities);
-                const transition = createMeetingV1(state);
+                const transition = createMeeting(state);
                 if (transition.kind !== "accepted") throw new RoleCompositionError();
                 const receiptId = stableId("receipt", meetingId, command.requestId);
                 const effects = transition.effectRequests.map((effect, index) => {
@@ -304,7 +304,7 @@ export function createMeetingCreationCoordinatorV1(
                 });
                 const recovered = await repository.recover();
                 if (recovered.bootstrap.status === "ready")
-                    return recovered.bootstrap.createResult as unknown as MeetingCommandResultV1;
+                    return recovered.bootstrap.createResult as unknown as MeetingCommandResult;
                 const owned = [] as Awaited<ReturnType<typeof repository.recordSessionOwnership>>[];
                 try {
                     for (const identity of identities) {
@@ -312,7 +312,7 @@ export function createMeetingCreationCoordinatorV1(
                             identity.source.roles[0] === "contributor"
                                 ? "participant"
                                 : (identity.source.roles[0] as "manager" | "evidence_reviewer");
-                        const sessionLabel = encodeMeetingIdentitySessionLabelV1({
+                        const sessionLabel = encodeMeetingIdentitySessionLabel({
                             role,
                             meetingId,
                             identityId: identity.id
@@ -358,7 +358,7 @@ export function createMeetingCreationCoordinatorV1(
                                     now
                                 ))
                         );
-                        const started = await startMeetingIdentitySessionV1({
+                        const started = await startMeetingIdentitySession({
                             composition: identity.composition,
                             runtime: dependencies.continuable,
                             provider: dependencies.provider,
@@ -380,7 +380,7 @@ export function createMeetingCreationCoordinatorV1(
                         );
                     }
                     const committed = await repository.completeCreate(createInput);
-                    return committed.result as unknown as MeetingCommandResultV1;
+                    return committed.result as unknown as MeetingCommandResult;
                 } catch (error) {
                     await repository.updateBootstrap({
                         status: "creation_failed",

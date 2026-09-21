@@ -7,15 +7,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
-const codec = { encode: encodeMeetingStateV1, decode: decodeMeetingStateV1 };
+const codec = { encode: encodeMeetingState, decode: decodeMeetingState };
 const directories: string[] = [];
 
 async function open(path: string, target: boolean) {

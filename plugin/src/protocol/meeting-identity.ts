@@ -3,10 +3,10 @@ import { z } from "zod";
 const id = z.string().trim().min(1);
 const text = z.string().trim().min(1);
 const role = z.enum(["captain", "manager", "contributor", "evidence_reviewer"]);
-export const MeetingRoleV1Schema = role;
-export type MeetingRoleV1 = z.infer<typeof role>;
+export const MeetingRoleSchema = role;
+export type MeetingRole = z.infer<typeof role>;
 
-export const RoleErrorCodeV1Schema = z.enum([
+export const RoleErrorCodeSchema = z.enum([
     "INVALID_ARGUMENT",
     "DEFINITION_NOT_FOUND",
     "DEFINITION_VERSION_MISMATCH",
@@ -22,7 +22,7 @@ export const RoleErrorCodeV1Schema = z.enum([
     "RECOVERY_UNAVAILABLE",
     "INCOMPATIBLE_VERSION"
 ]);
-export type RoleErrorCodeV1 = z.infer<typeof RoleErrorCodeV1Schema>;
+export type RoleErrorCode = z.infer<typeof RoleErrorCodeSchema>;
 
 const identityFields = {
     candidateId: id,
@@ -35,17 +35,17 @@ const identityFields = {
     expectedContribution: text,
     evidenceGap: text
 };
-export const RecommendIdentityActionV1Schema = z.object({
+export const RecommendIdentityActionSchema = z.object({
     kind: z.literal("recommend_identity"),
     ...identityFields,
     decision: z.enum(["admit", "reject"])
 });
-export const RecordIdentityAdmissionResultActionV1Schema = z.object({
+export const RecordIdentityAdmissionResultActionSchema = z.object({
     kind: z.literal("record_identity_admission_result"),
     recommendationId: id
 });
 
-export const ManagerCatalogViewV1Schema = z.object({
+export const ManagerCatalogViewSchema = z.object({
     catalogId: id,
     catalogVersion: text,
     candidates: z.array(
@@ -64,7 +64,7 @@ export const ManagerCatalogViewV1Schema = z.object({
         })
     )
 });
-export const IdentityRecommendationViewV1Schema = z.object({
+export const IdentityRecommendationViewSchema = z.object({
     id,
     candidateId: id,
     definitionId: id,
@@ -77,9 +77,9 @@ export const IdentityRecommendationViewV1Schema = z.object({
     evidenceGap: text,
     createdAt: z.number().int().nonnegative(),
     resolvedAt: z.number().int().nonnegative().optional(),
-    failureCode: RoleErrorCodeV1Schema.optional()
+    failureCode: RoleErrorCodeSchema.optional()
 });
-export const IdentityViewV1Schema = z.object({
+export const IdentityViewSchema = z.object({
     id,
     displayName: text,
     roles: z.array(role),

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import {
-    disposeEvidenceOpportunityV1,
-    requestEvidenceOpportunityV1
+    disposeEvidenceOpportunity,
+    requestEvidenceOpportunity
 } from "@/domain/transitions/opportunity.js";
 
 describe("evidence opportunity transitions", () => {
     it("queues one opportunity and emits a manager notice", () => {
         const state = makeRunningMeetingStateV1();
-        const result = requestEvidenceOpportunityV1(state, {
+        const result = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",
@@ -42,7 +42,7 @@ describe("evidence opportunity transitions", () => {
 
     it("disposes a pending opportunity without creating a round or contribution", () => {
         const state = makeRunningMeetingStateV1();
-        const queued = requestEvidenceOpportunityV1(state, {
+        const queued = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",
@@ -51,7 +51,7 @@ describe("evidence opportunity transitions", () => {
         });
         expect(queued.kind).toBe("accepted");
         if (queued.kind !== "accepted") return;
-        const result = disposeEvidenceOpportunityV1(queued.state, {
+        const result = disposeEvidenceOpportunity(queued.state, {
             requestId: "request-v1",
             managerId: "manager-v1",
             disposition: "rejected",
@@ -107,7 +107,7 @@ describe("evidence opportunity transitions", () => {
         ]
     ])("rejects %s atomically", (_label, expectedCode, makeState) => {
         const state = makeState(makeRunningMeetingStateV1());
-        const result = requestEvidenceOpportunityV1(state, {
+        const result = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",
@@ -133,7 +133,7 @@ describe("evidence opportunity transitions", () => {
                 }
             ]
         };
-        const result = disposeEvidenceOpportunityV1(pendingState, {
+        const result = disposeEvidenceOpportunity(pendingState, {
             requestId: "request-v1",
             managerId: "contributor-v1",
             disposition: "deferred",

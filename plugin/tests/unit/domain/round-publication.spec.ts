@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
+import { openRound as openRoundTransition } from "@/domain/transitions/round.js";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
-const openRoundV1 = (
+const openRoundWithPlan = (
     state: Parameters<typeof openRoundTransition>[0],
     input: OpenRoundFixtureInput
 ) =>
@@ -27,18 +27,18 @@ const openRoundV1 = (
         },
         { ...input, planId: "plan-v1" }
     );
-import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
+import { publishRound } from "@/domain/transitions/round-publication.js";
 
 describe("round publication", () => {
     it("publishes an empty closable round once", () => {
-        const opened = openRoundV1(makeRunningMeetingStateV1(), {
+        const opened = openRoundWithPlan(makeRunningMeetingStateV1(), {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
             now: 1
         });
         if (opened.kind !== "accepted") throw new Error("round");
-        const result = publishRoundV1(opened.state, {
+        const result = publishRound(opened.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
             publicationId: "publication-v1",
@@ -52,7 +52,7 @@ describe("round publication", () => {
             status: "published",
             publicationId: "publication-v1"
         });
-        const duplicate = publishRoundV1(result.state, {
+        const duplicate = publishRound(result.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
             publicationId: "publication-v2",
@@ -65,7 +65,7 @@ describe("round publication", () => {
 
     it("pauses when publication exactly exhausts the budget before completion", () => {
         const state = makeRunningMeetingStateV1();
-        const opened = openRoundV1(
+        const opened = openRoundWithPlan(
             { ...state, limits: { ...state.limits, maxFormalMessages: 1 } },
             {
                 roundId: "round-v1",
@@ -76,7 +76,7 @@ describe("round publication", () => {
         );
         expect(opened.kind).toBe("accepted");
         if (opened.kind !== "accepted") return;
-        const result = publishRoundV1(
+        const result = publishRound(
             {
                 ...opened.state,
                 messages: [
@@ -111,7 +111,7 @@ describe("round publication", () => {
 
     it("converges when publication exactly exhausts the budget after completion", () => {
         const state = makeRunningMeetingStateV1();
-        const opened = openRoundV1(
+        const opened = openRoundWithPlan(
             {
                 ...state,
                 objective: {
@@ -131,7 +131,7 @@ describe("round publication", () => {
         );
         expect(opened.kind).toBe("accepted");
         if (opened.kind !== "accepted") return;
-        const result = publishRoundV1(
+        const result = publishRound(
             {
                 ...opened.state,
                 messages: [

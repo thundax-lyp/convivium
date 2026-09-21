@@ -1,70 +1,66 @@
 export * from "./result.js";
-export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity.js";
-export { openRoundV1, isRoundClosableV1 } from "./round.js";
-export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise.js";
+export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.js";
+export { openRound, isRoundClosable } from "./round.js";
+export { raiseHand, disposeHandRaise } from "./hand-raise.js";
 export {
-    sendPrivateMailV1,
-    startPrivateMailV1,
-    completePrivateMailV1,
-    cancelPrivateMailV1,
-    expirePrivateMailV1,
-    type SendPrivateMailInputV1,
-    type StartPrivateMailInputV1,
-    type CompletePrivateMailInputV1,
-    type CancelPrivateMailInputV1,
-    type ExpirePrivateMailInputV1
+    sendPrivateMail,
+    startPrivateMail,
+    completePrivateMail,
+    cancelPrivateMail,
+    expirePrivateMail,
+    type SendPrivateMailInput,
+    type StartPrivateMailInput,
+    type CompletePrivateMailInput,
+    type CancelPrivateMailInput,
+    type ExpirePrivateMailInput
 } from "./private-mail.js";
-export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
+export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.js";
+export { submitEvidence, type EvidenceInput, type SubmitEvidenceInput } from "./format-evidence.js";
 export {
-    submitEvidenceV1,
-    type EvidenceInputV1,
-    type SubmitEvidenceInputV1
-} from "./format-evidence.js";
-export {
-    claimReviewBatchV1,
-    releaseReviewBatchClaimV1,
-    submitReviewBatchV1,
-    recordReviewDeliveryV1,
-    type ClaimReviewBatchInputV1,
-    type ReleaseReviewBatchClaimInputV1,
-    type SubmitReviewBatchInputV1,
-    type SubmitReviewBatchItemV1
+    claimReviewBatch,
+    releaseReviewBatchClaim,
+    submitReviewBatch,
+    recordReviewDelivery,
+    type ClaimReviewBatchInput,
+    type ReleaseReviewBatchClaimInput,
+    type SubmitReviewBatchInput,
+    type SubmitReviewBatchItem
 } from "./evidence-review.js";
-export { closeContributionV1 } from "./contribution-exit.js";
-export { publishRoundV1 } from "./round-publication.js";
-export { createMeetingV1 } from "./meeting-create.js";
-export { endMeetingV1 } from "./meeting-end.js";
-export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archive.js";
+export { closeContribution } from "./contribution-exit.js";
+export { publishRound } from "./round-publication.js";
+export { createMeeting } from "./meeting-create.js";
+export { endMeeting } from "./meeting-end.js";
+export { startMeetingArchive, completeMeetingArchive } from "./meeting-archive.js";
 export {
-    recommendIdentityV1,
-    recordIdentityAdmissionResultV1,
-    type IdentityAdmissionResultContextV1,
-    type IdentityRecommendationDraftV1,
-    type IdentityTransitionResultV1
+    recommendIdentity,
+    recordIdentityAdmissionResult,
+    type IdentityAdmissionResultContext,
+    type IdentityRecommendationDraft,
+    type IdentityTransitionResult
 } from "./meeting-identity.js";
 
 export {
-    recordProposalRevisionV1,
-    recordPositionV1,
-    recordDecisionCandidateV1,
-    pendingDecisionCandidatesV1,
-    decideV1,
-    changeDecisionV1,
-    disposeRiskV1,
-    submitCompletionDeclarationV1,
-    recordCompletionFactV1,
-    changeCompletionFactV1,
-    isObjectiveSatisfiedV1
+    recordProposalRevision,
+    recordPosition,
+    recordDecisionCandidate,
+    pendingDecisionCandidates,
+    decide,
+    changeDecision,
+    disposeRisk,
+    submitCompletionDeclaration,
+    recordCompletionFact,
+    changeCompletionFact,
+    isObjectiveSatisfied
 } from "./outcome.js";
 export type {
-    OutcomeActorV1,
-    RecordProposalRevisionInputV1,
-    RecordPositionInputV1,
-    RecordDecisionCandidateInputV1,
-    DecideInputV1,
-    ChangeDecisionInputV1,
-    DisposeRiskInputV1,
-    SubmitCompletionDeclarationInputV1,
-    RecordCompletionFactInputV1,
-    ChangeCompletionFactInputV1
+    OutcomeActor,
+    RecordProposalRevisionInput,
+    RecordPositionInput,
+    RecordDecisionCandidateInput,
+    DecideInput,
+    ChangeDecisionInput,
+    DisposeRiskInput,
+    SubmitCompletionDeclarationInput,
+    RecordCompletionFactInput,
+    ChangeCompletionFactInput
 } from "./outcome.js";

@@ -2,35 +2,35 @@ import type { ClientRemote, RemoteStream } from "@deepseek-ai/dsh-api-gateway/cl
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 import type {} from "@convivium/dsh-plugin/remote";
 import {
-    MeetingCommandResultV1Schema,
-    MeetingListResultV1Schema,
-    MeetingReadResultV1Schema,
-    ReadMeetingRequestV1Schema,
-    type MeetingCommandResultV1,
-    type MeetingCommandV1,
-    type MeetingListResultV1,
-    type MeetingReadResultV1,
-    type ReadMeetingRequestV1,
-    type RefreshNoticeV1,
-    type ProtocolErrorV1
+    MeetingCommandResultSchema,
+    MeetingListResultSchema,
+    MeetingReadResultSchema,
+    ReadMeetingRequestSchema,
+    type MeetingCommandResult,
+    type MeetingCommand,
+    type MeetingListResult,
+    type MeetingReadResult,
+    type ReadMeetingRequest,
+    type RefreshNotice,
+    type ProtocolError
 } from "@/protocol/index.js";
 
 export class ProtocolFailure extends Error {
-    constructor(readonly protocolError: ProtocolErrorV1) {
+    constructor(readonly protocolError: ProtocolError) {
         super(protocolError.message);
         this.name = "ProtocolFailure";
     }
 }
 
 export interface MeetingClient {
-    list(signal?: AbortSignal): Promise<MeetingListResultV1>;
-    read(request: ReadMeetingRequestV1, signal?: AbortSignal): Promise<MeetingReadResultV1>;
-    control(command: MeetingCommandV1, signal?: AbortSignal): Promise<MeetingCommandResultV1>;
-    subscribeRefresh(onUnavailable: () => void): RemoteStream<RefreshNoticeV1>;
+    list(signal?: AbortSignal): Promise<MeetingListResult>;
+    read(request: ReadMeetingRequest, signal?: AbortSignal): Promise<MeetingReadResult>;
+    control(command: MeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
+    subscribeRefresh(onUnavailable: () => void): RemoteStream<RefreshNotice>;
 }
 
 function protocolFailure(value: unknown): ProtocolFailure {
-    const error = value as ProtocolErrorV1;
+    const error = value as ProtocolError;
     if (error.code === "convivium/invalid-request")
         return new ProtocolFailure({
             protocolVersion: 1,
@@ -85,16 +85,16 @@ export function createMeetingClient(remote: ClientRemote): MeetingClient {
     const service = remote.conviviumMeetings;
     return {
         list: (signal) =>
-            unwrap(service.list(signal), (value) => MeetingListResultV1Schema.parse(value)),
+            unwrap(service.list(signal), (value) => MeetingListResultSchema.parse(value)),
         read: (request, signal) => {
-            const validated = ReadMeetingRequestV1Schema.parse(request);
+            const validated = ReadMeetingRequestSchema.parse(request);
             return unwrap(service.read(validated, signal), (value) =>
-                MeetingReadResultV1Schema.parse(value)
+                MeetingReadResultSchema.parse(value)
             );
         },
         control: (command, signal) =>
             unwrap(service.control(command, signal), (value) =>
-                MeetingCommandResultV1Schema.parse(value)
+                MeetingCommandResultSchema.parse(value)
             ),
         subscribeRefresh: (onUnavailable) =>
             remote.$stream({

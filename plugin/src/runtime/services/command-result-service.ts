@@ -1,28 +1,28 @@
-import type { ProtocolErrorV1, ProtocolSuccessV1 } from "@/protocol/index.js";
+import type { ProtocolError, ProtocolSuccess } from "@/protocol/index.js";
 
 export function commandSuccess<T>(
     meetingId: string,
     meetingVersion: number,
     result: T
-): ProtocolSuccessV1<T> {
+): ProtocolSuccess<T> {
     return { protocolVersion: 1, ok: true, meetingId, meetingVersion, result };
 }
 
 export function commandFailure(
-    code: ProtocolErrorV1["code"],
+    code: ProtocolError["code"],
     message: string,
     retryable = false
-): ProtocolErrorV1 {
+): ProtocolError {
     return { protocolVersion: 1, ok: false, code, message, retryable };
 }
 
 export function mapCommandError(
     error: unknown,
-    fallback: ProtocolErrorV1["code"],
+    fallback: ProtocolError["code"],
     message: string,
-    context?: Partial<ProtocolErrorV1>,
-    codeMap: Readonly<Record<string, ProtocolErrorV1["code"]>> = {}
-): ProtocolErrorV1 {
+    context?: Partial<ProtocolError>,
+    codeMap: Readonly<Record<string, ProtocolError["code"]>> = {}
+): ProtocolError {
     const code =
         error && typeof error === "object" && "code" in error
             ? (error as { code?: unknown }).code

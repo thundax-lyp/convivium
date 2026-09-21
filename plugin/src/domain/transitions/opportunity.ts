@@ -1,5 +1,5 @@
-import type { EvidenceOpportunityRequestV1, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result.js";
+import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.js";
+import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
 
 type RequestInput = {
     requestId: OpaqueId;
@@ -27,13 +27,13 @@ const terminalContributionStatuses = new Set([
 function accepted(
     state: MeetingState,
     relatedIds: readonly OpaqueId[],
-    effectRequests: MeetingTransitionResultV1 extends infer _T
+    effectRequests: MeetingTransitionResult extends infer _T
         ? readonly Extract<
-              MeetingTransitionResultV1,
+              MeetingTransitionResult,
               { kind: "accepted" }
           >["effectRequests"][number][]
         : never
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     return { kind: "accepted", state, relatedIds, effectRequests };
 }
 
@@ -50,10 +50,10 @@ function findManager(state: MeetingState, agendaId: OpaqueId) {
     );
 }
 
-export function requestEvidenceOpportunityV1(
+export function requestEvidenceOpportunity(
     state: MeetingState,
     input: RequestInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (
         !hasCommonValidInput(input.requestId, input.purpose, input.now) ||
         input.agendaId.trim().length === 0 ||
@@ -108,7 +108,7 @@ export function requestEvidenceOpportunityV1(
         return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
     if (state.opportunityRequests.some((request) => request.id === input.requestId))
         return rejected(state, "INVALID_ARGUMENT", "request id already exists", input.requestId);
-    const request: EvidenceOpportunityRequestV1 = {
+    const request: EvidenceOpportunityRequest = {
         id: input.requestId,
         agendaId: input.agendaId,
         contributorId: input.contributorId,
@@ -135,10 +135,10 @@ export function requestEvidenceOpportunityV1(
     );
 }
 
-export function disposeEvidenceOpportunityV1(
+export function disposeEvidenceOpportunity(
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     if (!hasCommonValidInput(input.requestId, input.reason, input.now))
         return rejected(state, "INVALID_ARGUMENT", "invalid opportunity disposition");
     const request = state.opportunityRequests.find((item) => item.id === input.requestId);

@@ -1,6 +1,6 @@
 import type { MeetingState, OpaqueId } from "@/domain/index.js";
 
-export type MeetingDomainErrorCodeV1 =
+export type MeetingDomainErrorCode =
     | "INVALID_ARGUMENT"
     | "UNAUTHORIZED"
     | "MEETING_TERMINAL"
@@ -11,33 +11,33 @@ export type MeetingDomainErrorCodeV1 =
     | "ROUND_NOT_CLOSABLE"
     | "LIMIT_EXCEEDED";
 
-export interface AgentNoticeEffectBaseV1 {
+export interface AgentNoticeEffectBase {
     kind: "agent_notice";
     recipientId: OpaqueId;
     agendaId: OpaqueId;
 }
 
-export type AgentNoticeEffectRequestV1 =
-    | (AgentNoticeEffectBaseV1 & { noticeKind: "meeting_started" })
-    | (AgentNoticeEffectBaseV1 & { noticeKind: "opportunity_request"; requestId: OpaqueId })
-    | (AgentNoticeEffectBaseV1 & {
+export type AgentNoticeEffectRequest =
+    | (AgentNoticeEffectBase & { noticeKind: "meeting_started" })
+    | (AgentNoticeEffectBase & { noticeKind: "opportunity_request"; requestId: OpaqueId })
+    | (AgentNoticeEffectBase & {
           noticeKind: "opportunity_disposition";
           requestId: OpaqueId;
           disposition: "rejected" | "deferred";
           reason: string;
       })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & {
           noticeKind: "hand_request";
           requestKind: "initial";
           roundId: OpaqueId;
           contributorId: OpaqueId;
       })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & {
           noticeKind: "hand_request";
           requestKind: "supplement";
           contributionId: OpaqueId;
       })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & {
           noticeKind: "hand_disposition";
           requestKind: "initial";
           roundId: OpaqueId;
@@ -46,7 +46,7 @@ export type AgentNoticeEffectRequestV1 =
           reason: string;
           contributionId: OpaqueId;
       })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & {
           noticeKind: "hand_disposition";
           requestKind: "initial";
           roundId: OpaqueId;
@@ -54,21 +54,21 @@ export type AgentNoticeEffectRequestV1 =
           disposition: "rejected" | "deferred";
           reason: string;
       })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & {
           noticeKind: "hand_disposition";
           requestKind: "supplement";
           contributionId: OpaqueId;
           disposition: "accepted" | "rejected" | "deferred";
           reason: string;
       })
-    | (AgentNoticeEffectBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId })
-    | (AgentNoticeEffectBaseV1 & {
+    | (AgentNoticeEffectBase & { noticeKind: "review_request"; versionId: OpaqueId })
+    | (AgentNoticeEffectBase & {
           noticeKind: "transcript_update";
           publicMessageId: OpaqueId;
       });
 
-export type MeetingDomainEffectRequestV1 =
-    | AgentNoticeEffectRequestV1
+export type MeetingDomainEffectRequest =
+    | AgentNoticeEffectRequest
     | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
     | { kind: "materialize_archive"; terminationId: OpaqueId }
     | {
@@ -78,12 +78,12 @@ export type MeetingDomainEffectRequestV1 =
           contextPublicationUpperBound: readonly OpaqueId[];
       };
 
-export type MeetingTransitionResultV1 =
+export type MeetingTransitionResult =
     | {
           kind: "accepted";
           state: MeetingState;
           relatedIds: readonly OpaqueId[];
-          effectRequests: readonly MeetingDomainEffectRequestV1[];
+          effectRequests: readonly MeetingDomainEffectRequest[];
       }
     | {
           kind: "rejected";
@@ -91,19 +91,19 @@ export type MeetingTransitionResultV1 =
           relatedIds: readonly [];
           effectRequests: readonly [];
           error: {
-              code: MeetingDomainErrorCodeV1;
+              code: MeetingDomainErrorCode;
               message: string;
               targetKind?: string;
               targetId?: OpaqueId;
           };
       };
 
-export function rejectedTransitionV1(
+export function rejectedTransition(
     state: MeetingState,
-    code: MeetingDomainErrorCodeV1,
+    code: MeetingDomainErrorCode,
     message: string,
     targetId?: OpaqueId
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     return {
         kind: "rejected",
         state,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import type { MeetingCommandV1, MeetingSummaryV1, MeetingViewV1 } from "@/protocol/index.js";
+import type { MeetingCommand, MeetingSummary, MeetingView } from "@/protocol/index.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 
@@ -8,9 +8,9 @@ function failureMessage(error: unknown): string {
 }
 
 export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
-    const [meetings, setMeetings] = useState<readonly MeetingSummaryV1[]>([]);
+    const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const [selectedId, setSelectedId] = useState<string>();
-    const [detail, setDetail] = useState<MeetingViewV1>();
+    const [detail, setDetail] = useState<MeetingView>();
     const [listCached, setListCached] = useState(false);
     const [detailCached, setDetailCached] = useState(false);
     const [listError, setListError] = useState<string>();
@@ -93,7 +93,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         const current = detail;
         const meetingId = selectedRef.current;
         if (current === undefined || meetingId === undefined || writePending) return;
-        const command: MeetingCommandV1 = {
+        const command: MeetingCommand = {
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: current.version,

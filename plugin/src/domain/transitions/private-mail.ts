@@ -1,13 +1,13 @@
 import {
-    validateMeetingStateV1,
+    validateMeetingState,
     type EpochMs,
     type MeetingState,
     type OpaqueId,
-    type PrivateMailV1
+    type PrivateMail
 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 
-export interface SendPrivateMailInputV1 {
+export interface SendPrivateMailInput {
     mailId: OpaqueId;
     senderId: OpaqueId;
     recipientId: OpaqueId;
@@ -16,23 +16,23 @@ export interface SendPrivateMailInputV1 {
     relatedIds: readonly OpaqueId[];
     now: EpochMs;
 }
-export interface StartPrivateMailInputV1 {
+export interface StartPrivateMailInput {
     mailId: OpaqueId;
     actorKind: "effect_dispatcher";
     now: EpochMs;
 }
-export interface CompletePrivateMailInputV1 {
+export interface CompletePrivateMailInput {
     mailId: OpaqueId;
     recipientId: OpaqueId;
     now: EpochMs;
 }
-export interface CancelPrivateMailInputV1 {
+export interface CancelPrivateMailInput {
     mailId: OpaqueId;
     senderId: OpaqueId;
     reason: string;
     now: EpochMs;
 }
-export interface ExpirePrivateMailInputV1 {
+export interface ExpirePrivateMailInput {
     mailId: OpaqueId;
     actorKind: "deadline_handler";
     reason: string;
@@ -47,7 +47,7 @@ const terminal = new Set([
 ]);
 const valid = (n: number) => Number.isSafeInteger(n) && n >= 0;
 const stateCheck = (s: MeetingState) => {
-    const r = validateMeetingStateV1(s);
+    const r = validateMeetingState(s);
     return r.kind === "invalid"
         ? reject(s, "INVALID_ARGUMENT", "invalid meeting state")
         : undefined;
@@ -59,10 +59,7 @@ function busy(s: MeetingState, id: string, except?: string) {
         ) || s.contributions.some((c) => c.contributorId === id && !terminal.has(c.status))
     );
 }
-export function sendPrivateMailV1(
-    s: MeetingState,
-    i: SendPrivateMailInputV1
-): MeetingTransitionResultV1 {
+export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     const text = (value: unknown): value is string =>
@@ -103,7 +100,7 @@ export function sendPrivateMailV1(
     const deadline = i.now + s.limits.taskDeadlineMs;
     if (!Number.isSafeInteger(deadline))
         return reject(s, "PRECONDITION_FAILED", "deadline overflow");
-    const m: PrivateMailV1 = {
+    const m: PrivateMail = {
         id: i.mailId,
         senderId: i.senderId,
         recipientId: i.recipientId,
@@ -121,7 +118,7 @@ export function sendPrivateMailV1(
         updatedAt: i.now,
         privateMails: [...s.privateMails, m]
     };
-    if (validateMeetingStateV1(n).kind === "invalid")
+    if (validateMeetingState(n).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return {
         kind: "accepted",
@@ -137,10 +134,10 @@ export function sendPrivateMailV1(
         ]
     };
 }
-export function startPrivateMailV1(
+export function startPrivateMail(
     s: MeetingState,
-    i: StartPrivateMailInputV1
-): MeetingTransitionResultV1 {
+    i: StartPrivateMailInput
+): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !valid(i.now))
@@ -174,7 +171,7 @@ export function startPrivateMailV1(
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingStateV1(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id, ...c], effectRequests: [] };
 }
@@ -184,7 +181,7 @@ function finish(
     status: "completed" | "cancelled" | "timed_out",
     reason: string,
     actor?: string
-): MeetingTransitionResultV1 {
+): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (
@@ -236,24 +233,24 @@ function finish(
             completedAt: i.now,
             ...(status === "completed" ? {} : { failureReason: reason })
         }).filter(([, v]) => v !== undefined)
-    ) as unknown as PrivateMailV1;
+    ) as unknown as PrivateMail;
     const next = {
         ...s,
         version: s.version + 1,
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingStateV1(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }
-export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInputV1) {
+export function completePrivateMail(s: MeetingState, i: CompletePrivateMailInput) {
     return finish(s, i, "completed", "completed", i?.recipientId);
 }
-export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInputV1) {
+export function cancelPrivateMail(s: MeetingState, i: CancelPrivateMailInput) {
     return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
 }
-export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInputV1) {
+export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (

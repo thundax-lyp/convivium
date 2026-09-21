@@ -1,6 +1,6 @@
-import type { CreateMeetingInputV1 } from "@/protocol/index.js";
+import type { CreateMeetingInput } from "@/protocol/index.js";
 
-export function createOfflineMeetingInput(): CreateMeetingInputV1 {
+export function createOfflineMeetingInput(): CreateMeetingInput {
     return {
         protocolVersion: 1,
         requestId: "offline-create-1",

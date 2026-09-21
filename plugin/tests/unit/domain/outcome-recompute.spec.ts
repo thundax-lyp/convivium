@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-    changeDecisionV1,
-    disposeRiskV1,
-    isObjectiveSatisfiedV1,
-    recalculateMeetingCompletionV1
+    changeDecision,
+    disposeRisk,
+    isObjectiveSatisfied,
+    recalculateMeetingCompletion
 } from "@/domain/transitions/outcome.js";
 import { completionReadyState } from "./outcome-fixtures.js";
 
@@ -32,7 +32,7 @@ describe("Recompute/Convergence", () => {
     it("revoke decision invalidates active fact basis and returns target pending", () => {
         const state = completedFactState();
         const before = structuredClone(state);
-        const result = changeDecisionV1(state, {
+        const result = changeDecision(state, {
             decisionId: "dec",
             status: "revoked",
             rationale: "revoke",
@@ -60,7 +60,7 @@ describe("Recompute/Convergence", () => {
             id: "replacement",
             rationale: "replacement"
         });
-        const result = changeDecisionV1(state, {
+        const result = changeDecision(state, {
             decisionId: "dec",
             status: "superseded",
             replacementCandidateId: "replacement",
@@ -148,7 +148,7 @@ describe("Recompute/Convergence", () => {
                 requestedAt: 0
             }
         ];
-        const result = disposeRiskV1(state, {
+        const result = disposeRisk(state, {
             dispositionId: "risk",
             issueId: "issue",
             action: "accept",
@@ -199,7 +199,7 @@ describe("Recompute/Convergence", () => {
             }
         ];
         state.issues = [blockingIssue()];
-        const result = disposeRiskV1(state, {
+        const result = disposeRisk(state, {
             dispositionId: "risk",
             issueId: "issue",
             action: "reject",
@@ -236,16 +236,16 @@ describe("Recompute/Convergence", () => {
         ];
         state.issues = [{ ...blockingIssue(), blocking: false, classification: "follow_up" }];
         const before = structuredClone(state);
-        expect(isObjectiveSatisfiedV1(state)).toBe(true);
+        expect(isObjectiveSatisfied(state)).toBe(true);
         expect(state).toEqual(before);
         state.issues[0].blocking = true;
-        expect(isObjectiveSatisfiedV1(state)).toBe(false);
+        expect(isObjectiveSatisfied(state)).toBe(false);
     });
     it("recalculation preserves bookkeeping and non-running lifecycle", () => {
         const state = completedFactState();
         state.lifecycle = { ...state.lifecycle, status: "paused" };
         const before = structuredClone(state);
-        const result = recalculateMeetingCompletionV1(state, "captain", 9);
+        const result = recalculateMeetingCompletion(state, "captain", 9);
         expect(result.version).toBe(before.version);
         expect(result.updatedAt).toBe(before.updatedAt);
         expect(result.objective.hardConstraints).toEqual(before.objective.hardConstraints);

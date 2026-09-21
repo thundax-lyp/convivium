@@ -3,10 +3,10 @@ import { SessionId } from "@deepseek-ai/dsh-session";
 import { describe, expect, it } from "vitest";
 
 import {
+    resolveLabeledMeetingCaller,
     resolveMeetingCaller,
-    resolveMeetingCallerV1,
+    type LabeledMeetingOwnershipLookup,
     type MeetingOwnershipLookup,
-    type MeetingOwnershipLookupV1,
     type MeetingOwnershipRecord
 } from "@/dsh/caller-resolver.js";
 
@@ -32,8 +32,8 @@ function ownership(overrides: Partial<MeetingOwnershipRecord> = {}): MeetingOwne
 }
 
 function lookup(
-    value: Awaited<ReturnType<MeetingOwnershipLookup["findBySessionId"]>>
-): MeetingOwnershipLookup {
+    value: Awaited<ReturnType<LabeledMeetingOwnershipLookup["findBySessionId"]>>
+): LabeledMeetingOwnershipLookup {
     return {
         findBySessionId: async (sessionId) =>
             value?.ownership.sessionId === sessionId ? value : undefined
@@ -42,7 +42,7 @@ function lookup(
 
 describe("meeting caller resolver", () => {
     it("resolves an active participant only from Agent identity and verified ownership", async () => {
-        const result = await resolveMeetingCaller(
+        const result = await resolveLabeledMeetingCaller(
             agent("participant-session"),
             lookup({ teamId: "team-1", meetingId: "meeting-1", ownership: ownership() }),
             new AbortController().signal
@@ -58,7 +58,7 @@ describe("meeting caller resolver", () => {
     });
 
     it("resolves an active Manager without a participant identity", async () => {
-        const result = await resolveMeetingCaller(
+        const result = await resolveLabeledMeetingCaller(
             agent("manager-session"),
             lookup({
                 teamId: "team-1",
@@ -111,7 +111,7 @@ describe("meeting caller resolver", () => {
             }
         ]
     ])("rejects a %s", async (_name, found) => {
-        const result = await resolveMeetingCaller(
+        const result = await resolveLabeledMeetingCaller(
             agent("participant-session"),
             lookup(found),
             new AbortController().signal
@@ -121,8 +121,8 @@ describe("meeting caller resolver", () => {
 });
 
 function targetLookup(
-    value: Awaited<ReturnType<MeetingOwnershipLookupV1["findBySessionId"]>>
-): MeetingOwnershipLookupV1 {
+    value: Awaited<ReturnType<MeetingOwnershipLookup["findBySessionId"]>>
+): MeetingOwnershipLookup {
     return {
         findBySessionId: async (sessionId) =>
             value?.ownership.sessionId === sessionId ? value : undefined
@@ -138,7 +138,7 @@ describe("target Meeting caller resolver", () => {
     });
 
     it("binds the tool caller only from an active target ownership", async () => {
-        const result = await resolveMeetingCallerV1(
+        const result = await resolveMeetingCaller(
             agent("participant-session"),
             targetLookup({ meetingId: "meeting-1", ownership: target }),
             new AbortController().signal
@@ -170,7 +170,7 @@ describe("target Meeting caller resolver", () => {
         ["child mismatch", { sessionId: "other-session" }]
     ])("fails closed for %s ownership", async (_name, overrides) => {
         const changed = { ...target, ...overrides };
-        const result = await resolveMeetingCallerV1(
+        const result = await resolveMeetingCaller(
             agent("participant-session"),
             {
                 findBySessionId: async () => ({ meetingId: "meeting-1", ownership: changed })

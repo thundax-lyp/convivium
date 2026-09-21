@@ -6,7 +6,7 @@ import {
     inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
     proveArchiveOwnedChildren,
-    startMeetingIdentitySessionV1,
+    startMeetingIdentitySession,
     startManagerSession,
     startParticipantSession
 } from "@/dsh/session-adapter.js";
@@ -16,7 +16,7 @@ describe("target Meeting identity Session provisioning", () => {
         "starts the %s child with only target identity fields",
         async (role) => {
             let received: unknown;
-            const result = await startMeetingIdentitySessionV1({
+            const result = await startMeetingIdentitySession({
                 runtime: {
                     startContinuable: async (spec) => {
                         received = spec;
@@ -53,7 +53,7 @@ describe("target Meeting identity Session provisioning", () => {
 
     it("rejects a child identity that differs from the reservation", async () => {
         await expect(
-            startMeetingIdentitySessionV1({
+            startMeetingIdentitySession({
                 runtime: {
                     startContinuable: async () => ({
                         childId: "other" as never,

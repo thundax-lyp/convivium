@@ -5,7 +5,7 @@ const PARTICIPANT_KIND = "meeting-participant";
 const identitySegment = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const MEETING_IDENTITY_KIND = "meeting-identity";
 
-export interface MeetingIdentitySessionLabelV1 {
+export interface MeetingIdentitySessionLabel {
     readonly role: "manager" | "evidence_reviewer" | "participant";
     readonly meetingId: string;
     readonly identityId: string;
@@ -32,21 +32,21 @@ function assertIdentitySegment(value: string, field: string): void {
     }
 }
 
-function assertTargetMeetingIdentity(value: MeetingIdentitySessionLabelV1): void {
+function assertTargetMeetingIdentity(value: MeetingIdentitySessionLabel): void {
     if (!["manager", "evidence_reviewer", "participant"].includes(value.role))
         throw new TypeError("role must be a Meeting identity role.");
     assertIdentitySegment(value.meetingId, "meetingId");
     assertIdentitySegment(value.identityId, "identityId");
 }
 
-export function encodeMeetingIdentitySessionLabelV1(value: MeetingIdentitySessionLabelV1): string {
+export function encodeMeetingIdentitySessionLabel(value: MeetingIdentitySessionLabel): string {
     assertTargetMeetingIdentity(value);
     return `${LABEL_PREFIX}:${MEETING_IDENTITY_KIND}:${value.role}:${value.meetingId}:${value.identityId}`;
 }
 
-export function decodeMeetingIdentitySessionLabelV1(
+export function decodeMeetingIdentitySessionLabel(
     label: string
-): MeetingIdentitySessionLabelV1 | undefined {
+): MeetingIdentitySessionLabel | undefined {
     const parts = label.split(":");
     if (
         parts.length !== 5 ||
@@ -55,8 +55,8 @@ export function decodeMeetingIdentitySessionLabelV1(
         !["manager", "evidence_reviewer", "participant"].includes(parts[2] ?? "")
     )
         return undefined;
-    const value: MeetingIdentitySessionLabelV1 = {
-        role: parts[2] as MeetingIdentitySessionLabelV1["role"],
+    const value: MeetingIdentitySessionLabel = {
+        role: parts[2] as MeetingIdentitySessionLabel["role"],
         meetingId: parts[3] ?? "",
         identityId: parts[4] ?? ""
     };

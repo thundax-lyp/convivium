@@ -2,15 +2,15 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
-import { decodeMeetingIdentitySessionLabelV1, decodeMeetingSessionLabel } from "./labels.js";
+import { decodeMeetingIdentitySessionLabel, decodeMeetingSessionLabel } from "./labels.js";
 
-export function isActiveMeetingIdentityOwnershipV1(input: {
+export function isActiveMeetingIdentityOwnership(input: {
     readonly ownership: MeetingOwnershipRecord;
     readonly meetingId: string;
     readonly sessionId: string;
 }): boolean {
     const { ownership } = input;
-    const label = decodeMeetingIdentitySessionLabelV1(ownership.sessionLabel);
+    const label = decodeMeetingIdentitySessionLabel(ownership.sessionLabel);
     return (
         label !== undefined &&
         ownership.id !== undefined &&

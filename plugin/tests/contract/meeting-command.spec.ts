@@ -1,17 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/index.js";
-import {
-    MeetingCommandResultV1Schema,
-    MeetingCommandV1Schema
-} from "@/protocol/meeting-command.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
-import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RepositoryCommand } from "@/repository/types.js";
@@ -19,20 +13,20 @@ import type { RepositoryCommand } from "@/repository/types.js";
 describe("target Meeting command core", () => {
     it("round-trips a complete target state without loss", () => {
         const state = makeRunningMeetingStateV1();
-        expect(decodeMeetingStateV1(encodeMeetingStateV1(state))).toEqual(state);
+        expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);
     });
 
     it("rejects a state with a missing required field", () => {
         const state = makeRunningMeetingStateV1();
         const missing = { ...state } as Record<string, unknown>;
         delete missing.identities;
-        expect(() => decodeMeetingStateV1(encodeMeetingStateV1(missing))).toThrow(
+        expect(() => decodeMeetingState(encodeMeetingState(missing))).toThrow(
             "INCOMPATIBLE_VERSION"
         );
     });
 
     it("rejects unknown command kinds and invalid envelopes", () => {
-        expect(MeetingCommandV1Schema.safeParse({ kind: "unknown" }).success).toBe(false);
+        expect(MeetingCommandSchema.safeParse({ kind: "unknown" }).success).toBe(false);
     });
 
     it("requires the create envelope to use meetingId new and version zero", () => {
@@ -58,7 +52,7 @@ describe("target Meeting command core", () => {
             }
         };
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId: "existing",
                 expectedMeetingVersion: 99,
@@ -67,7 +61,7 @@ describe("target Meeting command core", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId: "new",
                 expectedMeetingVersion: 0,
@@ -120,9 +114,9 @@ describe("target Meeting command core", () => {
                 ]
             }
         };
-        expect(MeetingCommandV1Schema.safeParse(review).success).toBe(true);
+        expect(MeetingCommandSchema.safeParse(review).success).toBe(true);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...review,
                 action: { kind: "open_round", agendaId: "agenda-v1", planId: "plan-v1" }
             }).success
@@ -137,13 +131,13 @@ describe("target Meeting command core", () => {
             requestId: "delivery-1"
         };
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: { kind: "record_review_delivery", reviewId: "review-1", status: "sent" }
             }).success
         ).toBe(true);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: {
                     kind: "record_review_delivery",
@@ -153,7 +147,7 @@ describe("target Meeting command core", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: {
                     kind: "record_review_delivery",
@@ -178,7 +172,7 @@ describe("target Meeting command application creation", () => {
         }));
         const openMeeting = vi.fn();
         const now = vi.fn(() => 11);
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create },
             registry: { openMeeting } as unknown as DomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
@@ -240,7 +234,7 @@ describe("target Meeting command application creation", () => {
     });
 
     it("maps a conflicting create replay to the protocol rejection", async () => {
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: {
                 create: vi.fn(async () => {
                     throw new RepositoryError(
@@ -256,7 +250,7 @@ describe("target Meeting command application creation", () => {
             clock: { now: () => 11 },
             resolveCallerScope: vi.fn()
         });
-        const command = MeetingCommandV1Schema.parse({
+        const command = MeetingCommandSchema.parse({
             protocolVersion: 1,
             meetingId: "new",
             expectedMeetingVersion: 0,
@@ -326,7 +320,7 @@ describe("target Meeting command application transitions", () => {
             principalId: "manager-session",
             sessionBindingId: "ownership-v1"
         };
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
@@ -388,7 +382,7 @@ describe("target Meeting command application transitions", () => {
         });
         let id = 0;
         const repository = { execute } as unknown as MeetingRepositoryPort<MeetingState>;
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
@@ -427,12 +421,12 @@ describe("target Meeting command application transitions", () => {
             effects: [{ kind: "archive", status: "queued" }]
         });
         expect(result.kind === "accepted" && result.effects).toHaveLength(1);
-        expect(MeetingCommandResultV1Schema.safeParse(result).success).toBe(true);
+        expect(MeetingCommandResultSchema.safeParse(result).success).toBe(true);
     });
 
     it("lets the repository replay an archive result before checking mutable ownership", async () => {
         const state = { ...makeRunningMeetingStateV1(), lifecycle: "archiving" as const };
-        const replayed: MeetingCommandResultV1 = {
+        const replayed: MeetingCommandResult = {
             kind: "accepted",
             meetingId: state.id,
             committedVersion: 2,
@@ -454,7 +448,7 @@ describe("target Meeting command application transitions", () => {
             channel: "runtime_recovery" as const,
             principalId: "runtime-recovery"
         };
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => ({ execute, recover }))

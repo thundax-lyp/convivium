@@ -1,33 +1,33 @@
 export {
-    decodeMeetingIdentitySessionLabelV1,
+    decodeMeetingIdentitySessionLabel,
     decodeMeetingSessionLabel,
-    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingIdentitySessionLabel,
     encodeMeetingSessionLabel,
-    type MeetingIdentitySessionLabelV1,
+    type MeetingIdentitySessionLabel,
     type ManagerSessionLabel,
     type MeetingSessionLabel,
     type ParticipantSessionLabel
 } from "./labels.js";
 export {
+    resolveLabeledMeetingCaller,
     resolveMeetingCaller,
-    resolveMeetingCallerV1,
-    type MeetingOwnershipLookupV1,
+    type LabeledMeetingOwnershipLookup,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
-    type ResolvedMeetingCaller,
-    type ResolvedMeetingCallerV1
+    type LabeledMeetingCaller,
+    type ResolvedMeetingCaller
 } from "./caller-resolver.js";
 export {
-    createMeetingIdentityProvisioningEnvelopeV1,
+    createMeetingIdentityProvisioningEnvelope,
     createSessionProvisioningEnvelope,
-    serializeMeetingIdentityProvisioningEnvelopeV1,
+    serializeMeetingIdentityProvisioningEnvelope,
     serializeSessionProvisioningEnvelope,
-    type MeetingIdentityProvisioningEnvelopeV1,
+    type MeetingIdentityProvisioningEnvelope,
     type SessionProvisioningEnvelope
 } from "./provisioning.js";
 export {
     requireContinuableProvider,
-    startMeetingIdentitySessionV1,
+    startMeetingIdentitySession,
     startManagerSession,
     startParticipantSession,
     followupParticipantSession,
@@ -35,9 +35,9 @@ export {
     followupMeetingMailSession,
     followupManagerSession,
     followupContributionSession,
-    followupMeetingIdentitySessionV1,
+    followupMeetingIdentitySession,
     type FollowupContributionSessionInput,
-    type FollowupMeetingIdentitySessionInputV1,
+    type FollowupMeetingIdentitySessionInput,
     interruptAndDrainOwnedSessions,
     inspectOwnedSessions,
     proveArchiveOwnedChildren,
@@ -57,14 +57,14 @@ export {
     type OwnedSessionObservation,
     type SpeakerFollowupAttempt,
     type StartManagerSessionInput,
-    type StartMeetingIdentitySessionInputV1,
+    type StartMeetingIdentitySessionInput,
     type StartParticipantSessionInput
 } from "./session-adapter.js";
 export * from "./meeting-role-catalog.js";
 export {
-    admitMeetingIdentityV1,
-    type AdmitIdentityResultV1,
-    type IdentityAdmissionPortV1,
-    type PreparedDescriptorV1,
-    type SessionOwnershipV1
+    admitMeetingIdentity,
+    type AdmitIdentityResult,
+    type IdentityAdmissionPort,
+    type PreparedDescriptor,
+    type SessionOwnership
 } from "./meeting-identity-admission.js";

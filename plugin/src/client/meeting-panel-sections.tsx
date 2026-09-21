@@ -1,5 +1,5 @@
 import { createElement, type ReactElement } from "react";
-import type { MeetingViewV1 } from "@/protocol/index.js";
+import type { MeetingView } from "@/protocol/index.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 function row(label: string, value: string): ReactElement {
@@ -30,7 +30,7 @@ function list(values: readonly string[]): ReactElement {
           );
 }
 
-export function renderObservabilitySections(viewInput: MeetingViewV1): ReactElement {
+export function renderObservabilitySections(viewInput: MeetingView): ReactElement {
     const view = mapMeetingPanelView(viewInput);
     const activeAgenda = view.agenda.find((item) => item.status === "active");
     return createElement(

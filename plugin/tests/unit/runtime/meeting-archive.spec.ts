@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-    completeMeetingArchiveV1,
-    endMeetingV1,
-    startMeetingArchiveV1,
+    completeMeetingArchive,
+    endMeeting,
+    startMeetingArchive,
     type MeetingState
 } from "@/domain/index.js";
-import { encodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
-import { createMeetingArchiveDispatcherV1 } from "@/runtime/services/meeting-archive.js";
+import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
+import { createMeetingArchiveDispatcher } from "@/runtime/services/meeting-archive.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 
 function terminalState(): MeetingState {
@@ -15,7 +15,7 @@ function terminalState(): MeetingState {
         ...identity,
         sessionOwnershipId: `ownership:${identity.id}`
     }));
-    const result = endMeetingV1(running, {
+    const result = endMeeting(running, {
         terminationId: "termination-1",
         outcome: "partial",
         reason: "done",
@@ -31,7 +31,7 @@ function terminalState(): MeetingState {
 }
 
 function archivingState(): MeetingState {
-    const result = startMeetingArchiveV1(terminalState(), {
+    const result = startMeetingArchive(terminalState(), {
         archiveId: "archive-1",
         actorId: "runtime-recovery",
         now: 3,
@@ -50,7 +50,7 @@ function ownerships(state: MeetingState) {
             identityId: identity.id,
             sessionId: `session:${identity.id}`,
             parentSessionId: "captain-1",
-            sessionLabel: encodeMeetingIdentitySessionLabelV1({
+            sessionLabel: encodeMeetingIdentitySessionLabel({
                 role,
                 meetingId: state.id,
                 identityId: identity.id
@@ -99,7 +99,7 @@ describe("meeting archive dispatcher v1", () => {
             });
             if (command.action.kind === "start_archive") {
                 expect(command.requestId).toBe("archive-start:effect-archive-1");
-                const started = startMeetingArchiveV1(state, {
+                const started = startMeetingArchive(state, {
                     archiveId: "archive-1",
                     actorId: "runtime-recovery",
                     now: 3,
@@ -124,7 +124,7 @@ describe("meeting archive dispatcher v1", () => {
             );
             state = { ...state, version: state.version + 1 };
             if (current.every((candidate) => candidate.lifecycleStatus === "closed")) {
-                const completed = completeMeetingArchiveV1(state, {
+                const completed = completeMeetingArchive(state, {
                     actorId: "runtime-recovery",
                     now: 4,
                     allSessionOwnershipClosed: true
@@ -134,7 +134,7 @@ describe("meeting archive dispatcher v1", () => {
             }
             return { kind: "accepted" as const };
         });
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -178,7 +178,7 @@ describe("meeting archive dispatcher v1", () => {
         const current = ownerships(state);
         const interrupt = vi.fn();
         const execute = vi.fn();
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: { meetingId: state.id, version: state.version, state },
@@ -253,7 +253,7 @@ describe("meeting archive dispatcher v1", () => {
                 };
             return { kind: "accepted" as const };
         });
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: { meetingId: state.id, version: state.version, state },

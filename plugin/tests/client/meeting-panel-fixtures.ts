@@ -1,5 +1,5 @@
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import { projectMeetingSummaryV1, projectMeetingViewV1 } from "@/projection/index.js";
+import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
 
 export function meetingProjectionFixture() {
     const state = makeRunningMeetingStateV1();
@@ -11,7 +11,7 @@ export function meetingProjectionFixture() {
         updatedAt: 1
     };
     return {
-        summary: projectMeetingSummaryV1(snapshot),
-        view: projectMeetingViewV1(snapshot, { kind: "local" })
+        summary: projectMeetingSummary(snapshot),
+        view: projectMeetingView(snapshot, { kind: "local" })
     };
 }

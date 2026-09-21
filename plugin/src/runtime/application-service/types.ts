@@ -1,42 +1,42 @@
 import type {
-    CaptainAttendanceDispositionInputV1,
-    CaptainAttendanceDispositionResultV1,
-    CreateMeetingInputV1,
-    CreateMeetingResultV1,
-    EndMeetingInputV1,
-    EndMeetingResultV1,
-    MeetingTaskRequestV1,
-    MeetingTaskStatusInputV1,
-    MeetingTaskStartInputV1,
-    MeetingTaskFinishInputV1,
-    MeetingTaskResultV1,
-    MeetingTaskStatusResultV1,
-    MeetingTaskStartResultV1,
-    MeetingTaskFinishResultV1,
-    HandRaiseSubmissionV1,
-    HandRaiseResultV1,
-    ManagerPlanResultV1,
-    ManagerPlanSubmissionV1,
-    MeetingControlResultV1,
-    TurnSubmissionResultV1,
-    ProtocolErrorV1,
-    ProtocolSuccessV1,
-    PauseMeetingInputV1,
-    ResumeMeetingInputV1,
-    ReassignTurnInputV1,
-    ReassignTurnResultV1,
-    CaptainRiskDispositionInputV1,
-    CaptainRiskDispositionResultV1,
-    FinishMeetingMailInputV1,
-    MeetingMailResultV1,
-    SendMeetingMessageInputV1,
-    TurnSubmissionV1,
-    CaptainDecisionAcceptanceInputV1,
-    CaptainDecisionAcceptanceResultV1,
-    CaptainDecisionDispositionInputV1,
-    CaptainDecisionDispositionResultV1,
-    CaptainAgendaCandidateDispositionInputV1,
-    CaptainAgendaCandidateDispositionResultV1
+    CaptainAttendanceDispositionInput,
+    CaptainAttendanceDispositionResult,
+    CreateMeetingInput,
+    CreateMeetingResult,
+    EndMeetingInput,
+    EndMeetingResult,
+    MeetingTaskRequest,
+    MeetingTaskStatusInput,
+    MeetingTaskStartInput,
+    MeetingTaskFinishInput,
+    MeetingTaskResult,
+    MeetingTaskStatusResult,
+    MeetingTaskStartResult,
+    MeetingTaskFinishResult,
+    HandRaiseSubmission,
+    HandRaiseResult,
+    ManagerPlanResult,
+    ManagerPlanSubmission,
+    MeetingControlResult,
+    TurnSubmissionResult,
+    ProtocolError,
+    ProtocolSuccess,
+    PauseMeetingInput,
+    ResumeMeetingInput,
+    ReassignTurnInput,
+    ReassignTurnResult,
+    CaptainRiskDispositionInput,
+    CaptainRiskDispositionResult,
+    FinishMeetingMailInput,
+    MeetingMailResult,
+    SendMeetingMessageInput,
+    TurnSubmission,
+    CaptainDecisionAcceptanceInput,
+    CaptainDecisionAcceptanceResult,
+    CaptainDecisionDispositionInput,
+    CaptainDecisionDispositionResult,
+    CaptainAgendaCandidateDispositionInput,
+    CaptainAgendaCandidateDispositionResult
 } from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
@@ -50,98 +50,98 @@ export interface MeetingToolCaller {
 
 export interface MeetingToolRuntime {
     disposeAttendanceRecommendation(
-        input: CaptainAttendanceDispositionInputV1,
+        input: CaptainAttendanceDispositionInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainAttendanceDispositionResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CaptainAttendanceDispositionResult> | ProtocolError>;
     acceptDecision(
-        input: CaptainDecisionAcceptanceInputV1,
+        input: CaptainDecisionAcceptanceInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CaptainDecisionAcceptanceResult> | ProtocolError>;
     disposeDecision(
-        input: CaptainDecisionDispositionInputV1,
+        input: CaptainDecisionDispositionInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CaptainDecisionDispositionResult> | ProtocolError>;
     disposeAgendaCandidate(
-        input: CaptainAgendaCandidateDispositionInputV1,
+        input: CaptainAgendaCandidateDispositionInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainAgendaCandidateDispositionResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CaptainAgendaCandidateDispositionResult> | ProtocolError>;
     sendMeetingMessage(
-        input: SendMeetingMessageInputV1,
+        input: SendMeetingMessageInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingMailResult> | ProtocolError>;
     finishMeetingMail(
-        input: FinishMeetingMailInputV1,
+        input: FinishMeetingMailInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingMailResult> | ProtocolError>;
     createMeeting(
-        input: CreateMeetingInputV1,
+        input: CreateMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CreateMeetingResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CreateMeetingResult> | ProtocolError>;
     createMeetingTask(
-        input: MeetingTaskRequestV1,
+        input: MeetingTaskRequest,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingTaskResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingTaskResult> | ProtocolError>;
     meetingTaskStatus(
-        input: MeetingTaskStatusInputV1,
+        input: MeetingTaskStatusInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingTaskStatusResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingTaskStatusResult> | ProtocolError>;
     startMeetingTask(
-        input: MeetingTaskStartInputV1,
+        input: MeetingTaskStartInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingTaskStartResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingTaskStartResult> | ProtocolError>;
     finishMeetingTask(
-        input: MeetingTaskFinishInputV1,
+        input: MeetingTaskFinishInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingTaskFinishResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingTaskFinishResult> | ProtocolError>;
     raiseHand(
-        input: HandRaiseSubmissionV1,
+        input: HandRaiseSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<HandRaiseResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<HandRaiseResult> | ProtocolError>;
     submitTurn(
-        input: TurnSubmissionV1,
+        input: TurnSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<TurnSubmissionResult> | ProtocolError>;
     submitManagerPlan(
-        input: ManagerPlanSubmissionV1,
+        input: ManagerPlanSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ManagerPlanResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<ManagerPlanResult> | ProtocolError>;
     pause(
-        input: PauseMeetingInputV1,
+        input: PauseMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingControlResult> | ProtocolError>;
     resume(
-        input: ResumeMeetingInputV1,
+        input: ResumeMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<MeetingControlResult> | ProtocolError>;
     reassignTurn(
-        input: ReassignTurnInputV1,
+        input: ReassignTurnInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<ReassignTurnResult> | ProtocolError>;
     disposeRisk(
-        input: CaptainRiskDispositionInputV1,
+        input: CaptainRiskDispositionInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<CaptainRiskDispositionResult> | ProtocolError>;
     endMeeting(
-        input: EndMeetingInputV1,
+        input: EndMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccess<EndMeetingResult> | ProtocolError>;
 }

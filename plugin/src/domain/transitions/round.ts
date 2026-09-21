@@ -1,5 +1,5 @@
-import type { MeetingState, OpaqueId, RoundV1 } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result.js";
+import type { MeetingState, OpaqueId, Round } from "@/domain/index.js";
+import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
 
 type OpenRoundInput = {
     roundId: OpaqueId;
@@ -26,7 +26,7 @@ function reservedFormalMessages(state: MeetingState): number {
         .reduce((total, round) => total + round.contributionIds.length, 0);
 }
 
-export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResultV1 {
+export function openRound(state: MeetingState, input: OpenRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim().length === 0 ||
         input.agendaId.trim().length === 0 ||
@@ -73,7 +73,7 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     const opportunityRequests = state.opportunityRequests.filter(
         (request) => request.agendaId === input.agendaId
     );
-    const round: RoundV1 = {
+    const round: Round = {
         id: input.roundId,
         agendaId: input.agendaId,
         planId: input.planId,
@@ -116,10 +116,7 @@ type AbortRoundInput = {
     now: number;
 };
 
-export function abortRoundV1(
-    state: MeetingState,
-    input: AbortRoundInput
-): MeetingTransitionResultV1 {
+export function abortRound(state: MeetingState, input: AbortRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.actor.id.trim() === "" ||
@@ -178,7 +175,7 @@ export function abortRoundV1(
     };
 }
 
-export function isRoundClosableV1(state: MeetingState, roundId: OpaqueId): boolean {
+export function isRoundClosable(state: MeetingState, roundId: OpaqueId): boolean {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     if (!round || round.status !== "open") return false;
     if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) return false;

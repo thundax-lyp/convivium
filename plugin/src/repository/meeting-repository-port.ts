@@ -1,6 +1,6 @@
 import type {
     ClaimOutboxInput,
-    CommittedFactRecordV1,
+    CommittedFactRecord,
     CommittedResult,
     CompleteOutboxInput,
     CreateMeetingInput,
@@ -40,7 +40,7 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
         now?: number
     ): Promise<SessionOwnership>;
     read(): Promise<MeetingSnapshot<TState>>;
-    readCommittedFacts(): Promise<readonly CommittedFactRecordV1<TState>[]>;
+    readCommittedFacts(): Promise<readonly CommittedFactRecord<TState>[]>;
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
     hasUnfinishedPrivateMeetingMail(): Promise<boolean>;

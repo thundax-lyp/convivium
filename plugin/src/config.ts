@@ -3,12 +3,12 @@ import type { MeetingAgentModelOverrides } from "./role-composition/model-option
 import Schema from "@deepseek-ai/schemastery";
 
 import { parseAgentDefinitions } from "./role-composition/model.js";
-import type { MeetingAgentDefinitionV1 } from "./role-composition/model.js";
+import type { MeetingAgentDefinition } from "./role-composition/model.js";
 
 export interface Config {
     provider: string;
     agentModelOverrides?: MeetingAgentModelOverrides;
-    agentDefinitions?: readonly MeetingAgentDefinitionV1[];
+    agentDefinitions?: readonly MeetingAgentDefinition[];
     developerMarkdownWorkspaceId?: string;
     maxParticipants: number;
     speakerTimeoutMs: number;
@@ -17,7 +17,7 @@ export interface Config {
 
 const runtimeConfig: Schema<Config> = Schema.object({
     agentModelOverrides: Schema.any<MeetingAgentModelOverrides>(),
-    agentDefinitions: Schema.any<readonly MeetingAgentDefinitionV1[]>(),
+    agentDefinitions: Schema.any<readonly MeetingAgentDefinition[]>(),
     provider: Schema.string().pattern(/\S/).required(),
     developerMarkdownWorkspaceId: Schema.string().pattern(/\S/),
     maxParticipants: Schema.natural().min(3).max(32).default(3),
