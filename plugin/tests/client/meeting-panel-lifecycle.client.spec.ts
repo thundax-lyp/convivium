@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting-client.js";
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
-import { meetingProjectionFixture } from "./meeting-panel-v1-fixtures.js";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 
 afterEach(cleanup);
 

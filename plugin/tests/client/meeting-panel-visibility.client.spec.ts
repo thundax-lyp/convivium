@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { meetingProjectionFixture } from "./meeting-panel-v1-fixtures.js";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 
 describe("Meeting projection visibility", () => {
     it("keeps client rendering bounded to the projection fields", () => {

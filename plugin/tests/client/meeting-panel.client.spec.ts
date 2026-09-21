@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { meetingProjectionFixture } from "./meeting-panel-v1-fixtures.js";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 import { renderObservabilitySections } from "@/client/meeting-panel-sections.js";
 
 describe("Meeting projection client view", () => {
