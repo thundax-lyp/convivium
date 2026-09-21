@@ -3,6 +3,65 @@ import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
 import { endMeetingV1, startMeetingArchiveV1 } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {
+    it("projects opportunity requests without a plan binding", () => {
+        const state = makeRunningMeetingStateV1();
+        state.opportunityRequests = [
+            {
+                id: "opportunity-1",
+                agendaId: "agenda-v1",
+                contributorId: "contributor-v1",
+                purpose: "request evidence work",
+                requestedAt: 1
+            }
+        ];
+
+        const view = projectMeetingViewV1(
+            {
+                meetingId: state.id,
+                version: state.version,
+                state,
+                createdAt: 0,
+                updatedAt: 1
+            },
+            { kind: "local" }
+        );
+
+        expect(view.opportunityRequests).toEqual(state.opportunityRequests);
+    });
+
+    it("preserves the Manager plan binding in each projected Round", () => {
+        const state = makeRunningMeetingStateV1();
+        state.rounds = [
+            {
+                id: "round-1",
+                agendaId: "agenda-v1",
+                planId: "plan-1",
+                roundGoal: {
+                    question: "What remains unresolved?",
+                    evidenceGap: "Missing source evidence",
+                    expectedOutput: "Reviewed conclusion"
+                },
+                publicBaselinePublicationIds: [],
+                openedAt: 1,
+                status: "open",
+                contributionIds: []
+            }
+        ];
+
+        const view = projectMeetingViewV1(
+            {
+                meetingId: state.id,
+                version: state.version,
+                state,
+                createdAt: 0,
+                updatedAt: 1
+            },
+            { kind: "local" }
+        );
+
+        expect(view.rounds[0].planId).toBe("plan-1");
+    });
+
     it("hides Manager catalog from Participant and does not expose Session fields", () => {
         const state = makeRunningMeetingStateV1();
         const snapshot = {

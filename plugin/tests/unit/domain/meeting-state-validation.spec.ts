@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
+const roundGoal = { question: "q", evidenceGap: "gap", expectedOutput: "output" };
+
+function managerPlan(id = "plan-v1", agendaId = "agenda-v1") {
+    return {
+        id,
+        agendaId,
+        managerId: "manager-v1",
+        kind: "open_round" as const,
+        roundGoal,
+        rationale: "plan",
+        createdAt: 0,
+        status: "completed" as const
+    };
+}
+
 describe("canonical MeetingState validation", () => {
     it("accepts the target fixture", () => {
         const state = makeRunningMeetingStateV1();
@@ -27,7 +42,7 @@ describe("canonical MeetingState validation", () => {
             id: "round-1",
             agendaId: "agenda-v1",
             planId: "plan-v1",
-            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            roundGoal,
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "aborted" as const,
@@ -35,12 +50,65 @@ describe("canonical MeetingState validation", () => {
             abortReason: "x",
             abortedAt: 1
         };
-        expect(validateMeetingStateV1({ ...state, rounds: [round] })).toMatchObject({
+        expect(
+            validateMeetingStateV1({ ...state, rounds: [round], managerPlans: [managerPlan()] })
+        ).toMatchObject({
             kind: "valid"
         });
         expect(
-            validateMeetingStateV1({ ...state, rounds: [{ ...round, abortedAt: undefined }] })
+            validateMeetingStateV1({
+                ...state,
+                rounds: [{ ...round, abortedAt: undefined }],
+                managerPlans: [managerPlan()]
+            })
         ).toMatchObject({ kind: "invalid" });
+    });
+
+    it("rejects a Round without its consumed Manager plan binding", () => {
+        const state = makeRunningMeetingStateV1();
+        const round = {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            roundGoal,
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "open" as const,
+            contributionIds: []
+        };
+
+        expect(
+            validateMeetingStateV1({ ...state, rounds: [round], managerPlans: [managerPlan()] })
+        ).toMatchObject({ kind: "invalid", path: "$.rounds[0].planId" });
+    });
+
+    it("rejects a Round bound to a Manager plan for another Agenda", () => {
+        const state = makeRunningMeetingStateV1();
+        const otherAgenda = {
+            id: "agenda-v2",
+            title: "议题 B",
+            question: "另一个问题",
+            status: "pending" as const,
+            requiredOutputIds: ["output-v1"]
+        };
+        const round = {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            planId: "plan-v2",
+            roundGoal,
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "open" as const,
+            contributionIds: []
+        };
+
+        expect(
+            validateMeetingStateV1({
+                ...state,
+                agenda: [...state.agenda, otherAgenda],
+                rounds: [round],
+                managerPlans: [managerPlan("plan-v2", "agenda-v2")]
+            })
+        ).toMatchObject({ kind: "invalid", path: "$.rounds[0].planId" });
     });
 
     it("rejects a publication whose round is not published and bound back", () => {
@@ -49,7 +117,7 @@ describe("canonical MeetingState validation", () => {
             id: "round-1",
             agendaId: "agenda-v1",
             planId: "plan-v1",
-            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            roundGoal,
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open" as const,
@@ -66,7 +134,12 @@ describe("canonical MeetingState validation", () => {
         };
 
         expect(
-            validateMeetingStateV1({ ...state, rounds: [round], publications: [publication] })
+            validateMeetingStateV1({
+                ...state,
+                rounds: [round],
+                publications: [publication],
+                managerPlans: [managerPlan()]
+            })
         ).toMatchObject({
             kind: "invalid",
             path: "$.publications[0].roundId"
@@ -88,7 +161,7 @@ describe("canonical MeetingState validation", () => {
             id: "round-1",
             agendaId: "agenda-v1",
             planId: "plan-v1",
-            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            roundGoal,
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "published" as const,
@@ -100,6 +173,7 @@ describe("canonical MeetingState validation", () => {
             validateMeetingStateV1({
                 ...state,
                 rounds: [round],
+                managerPlans: [managerPlan()],
                 publications: [
                     selectedPublication,
                     { ...selectedPublication, id: "publication-2", seq: 2 }

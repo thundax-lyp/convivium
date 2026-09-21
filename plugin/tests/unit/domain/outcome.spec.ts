@@ -183,7 +183,18 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
         issues: [],
         riskDispositions: [],
         tasks: [],
-        managerPlans: [],
+        managerPlans: [
+            {
+                id: "plan-r",
+                agendaId: "a",
+                managerId: "manager",
+                kind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                rationale: "plan",
+                createdAt: 0,
+                status: "completed"
+            }
+        ],
         privateMails: [],
         completionFacts: [],
         limits: {
@@ -3108,6 +3119,16 @@ describe("Recompute/Convergence", () => {
             openedAt: 0,
             status: "open",
             contributionIds: []
+        });
+        state.managerPlans.push({
+            id: "pending-plan",
+            agendaId: "a",
+            managerId: "manager",
+            kind: "open_round",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            rationale: "plan",
+            createdAt: 0,
+            status: "completed"
         });
         state.pendingHandRaises = [
             {

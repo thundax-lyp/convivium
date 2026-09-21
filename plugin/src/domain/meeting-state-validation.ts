@@ -259,6 +259,7 @@ const roundSchema = z
     .object({
         id: opaqueIdSchema,
         agendaId: opaqueIdSchema,
+        planId: opaqueIdSchema,
         roundGoal: z.object({
             question: textSchema,
             evidenceGap: textSchema,
@@ -920,6 +921,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     }
     const rounds = parsedState.rounds;
     const roundById = indexById(rounds);
+    const managerPlanById = indexById(parsedState.managerPlans);
     const roundIds = new Set<string>();
     for (let i = 0; i < rounds.length; i++) {
         const item = rounds[i];
@@ -927,6 +929,18 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = item;
         roundIds.add(r.id);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        const plan = managerPlanById.get(r.planId);
+        if (
+            !plan ||
+            plan.agendaId !== r.agendaId ||
+            plan.kind !== "open_round" ||
+            plan.status !== "completed" ||
+            plan.roundGoal === undefined ||
+            plan.roundGoal.question !== r.roundGoal.question ||
+            plan.roundGoal.evidenceGap !== r.roundGoal.evidenceGap ||
+            plan.roundGoal.expectedOutput !== r.roundGoal.expectedOutput
+        )
+            return fail(`${path}.planId`);
         if (r.status === "open") {
             const agenda = agendaById.get(r.agendaId as string);
             if (!agenda || agenda.status !== "active") return fail(`${path}.agendaId`);

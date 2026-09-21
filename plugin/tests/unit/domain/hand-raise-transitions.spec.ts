@@ -36,12 +36,25 @@ function openState() {
         {
             id: "round-0",
             agendaId: "agenda-v1",
+            planId: "plan-0",
             roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "published",
             contributionIds: [],
             publicationId: "publication-0"
+        }
+    ];
+    state.managerPlans = [
+        {
+            id: "plan-0",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            kind: "open_round",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            rationale: "plan",
+            createdAt: 0,
+            status: "completed"
         }
     ];
     state.publications = [

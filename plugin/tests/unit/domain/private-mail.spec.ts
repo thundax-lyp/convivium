@@ -23,14 +23,25 @@ function state(): MeetingState {
             acceptableRiskLevel: "low"
         },
         lifecycle: { status: "running", changedAt: 0, changedBy: "captain" },
-        identities: ["sender", "recipient"].map((id) => ({
-            id,
-            displayName: id,
-            roles: id === "sender" ? ["evidence_reviewer"] : ["contributor"],
-            agendaResponsibilityIds: ["agenda-1"],
-            riskAuthority: false,
-            required: false
-        })),
+        identities: [
+            ...["sender", "recipient"].map((id) => ({
+                id,
+                displayName: id,
+                roles:
+                    id === "sender" ? (["evidence_reviewer"] as const) : (["contributor"] as const),
+                agendaResponsibilityIds: ["agenda-1"],
+                riskAuthority: false,
+                required: false
+            })),
+            {
+                id: "manager",
+                displayName: "manager",
+                roles: ["manager"],
+                agendaResponsibilityIds: ["agenda-1"],
+                riskAuthority: false,
+                required: false
+            }
+        ],
         identityRecommendations: [],
         agenda: [
             {
@@ -87,7 +98,18 @@ function state(): MeetingState {
         completionDeclarations: [],
         completionFacts: [],
         privateMails: [],
-        managerPlans: [],
+        managerPlans: [
+            {
+                id: "plan-1",
+                agendaId: "agenda-1",
+                managerId: "manager",
+                kind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                rationale: "plan",
+                createdAt: 0,
+                status: "completed"
+            }
+        ],
         limits: {
             maxFormalMessages: 10,
             maxDurationMs: 10,
@@ -165,6 +187,13 @@ describe("private mail transitions", () => {
         if (sent.kind !== "accepted") return;
         const withLaterPublication = {
             ...sent.state,
+            managerPlans: [
+                ...sent.state.managerPlans,
+                {
+                    ...sent.state.managerPlans[0],
+                    id: "plan-2"
+                }
+            ],
             rounds: [
                 ...sent.state.rounds,
                 {

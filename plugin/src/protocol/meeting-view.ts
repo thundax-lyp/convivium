@@ -54,7 +54,6 @@ export const AgendaCandidateViewV1Schema = z.object({
 export const EvidenceOpportunityRequestViewV1Schema = z.object({
     id,
     agendaId: id,
-    planId: id,
     contributorId: id,
     purpose: text,
     requestedAt: epoch
@@ -87,6 +86,7 @@ export const ContributionViewV1Schema = z.object({
 export const RoundViewV1Schema = z.object({
     id,
     agendaId: id,
+    planId: id,
     roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }),
     status: z.enum(["open", "published", "aborted"]),
     baselinePublicationIds: z.array(id),

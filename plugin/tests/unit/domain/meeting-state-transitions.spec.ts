@@ -240,6 +240,18 @@ function publishedQuestionState(blocking: boolean): MeetingState {
             publicationId: "publication-1"
         }
     ];
+    current.managerPlans = [
+        {
+            id: "plan-1",
+            agendaId: "agenda-1",
+            managerId: "manager-1",
+            kind: "open_round",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            rationale: "plan",
+            createdAt: 0,
+            status: "completed"
+        }
+    ];
     current.contributions = [
         {
             id: "contribution-1",
@@ -680,6 +692,20 @@ describe("meeting lifecycle transitions", () => {
         const fixture = state(status);
         const current = {
             ...fixture,
+            identities:
+                code === "PRECONDITION_FAILED"
+                    ? [
+                          ...fixture.identities,
+                          {
+                              id: "manager-1",
+                              displayName: "Manager",
+                              roles: ["manager" as const],
+                              agendaResponsibilityIds: ["agenda-1"],
+                              riskAuthority: false,
+                              required: false
+                          }
+                      ]
+                    : fixture.identities,
             agenda: [
                 fixture.agenda[0],
                 {
@@ -706,6 +732,25 @@ describe("meeting lifecycle transitions", () => {
                               openedAt: 1,
                               status: "open" as const,
                               contributionIds: []
+                          }
+                      ]
+                    : [],
+            managerPlans:
+                code === "PRECONDITION_FAILED"
+                    ? [
+                          {
+                              id: "plan-1",
+                              agendaId: "agenda-1",
+                              managerId: "manager-1",
+                              kind: "open_round" as const,
+                              roundGoal: {
+                                  question: "q",
+                                  evidenceGap: "gap",
+                                  expectedOutput: "output"
+                              },
+                              rationale: "plan",
+                              createdAt: 0,
+                              status: "completed" as const
                           }
                       ]
                     : []
@@ -792,6 +837,29 @@ describe("meeting lifecycle transitions", () => {
                 status: "published",
                 contributionIds: [],
                 publicationId: "publication-1"
+            }
+        ];
+        current.identities = [
+            ...current.identities,
+            {
+                id: "manager-1",
+                displayName: "Manager",
+                roles: ["manager"],
+                agendaResponsibilityIds: ["agenda-1"],
+                riskAuthority: false,
+                required: false
+            }
+        ];
+        current.managerPlans = [
+            {
+                id: "plan-1",
+                agendaId: "agenda-1",
+                managerId: "manager-1",
+                kind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                rationale: "plan",
+                createdAt: 0,
+                status: "completed"
             }
         ];
         current.publications = [
@@ -1513,6 +1581,7 @@ describe("meeting lifecycle transitions", () => {
             }
         ];
         current.managerPlans = [
+            current.managerPlans[0],
             {
                 id: "plan-old",
                 agendaId: "agenda-1",
@@ -1548,8 +1617,9 @@ describe("meeting lifecycle transitions", () => {
         expect(result.state.version).toBe(4);
         expect(result.state.updatedAt).toBe(10);
         expect(result.state.managerPlans).toEqual([
-            { ...current.managerPlans[0], status: "superseded" },
-            current.managerPlans[1],
+            current.managerPlans[0],
+            { ...current.managerPlans[1], status: "superseded" },
+            current.managerPlans[2],
             {
                 id: "plan-new",
                 agendaId: "agenda-1",
@@ -1614,6 +1684,18 @@ describe("meeting lifecycle transitions", () => {
                 contributionIds: []
             }
         ];
+        current.managerPlans = [
+            {
+                id: "plan-open",
+                agendaId: "agenda-1",
+                managerId: "manager-1",
+                kind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                rationale: "plan",
+                createdAt: 0,
+                status: "completed"
+            }
+        ];
         const result = transitionMeetingStateV1(
             current,
             planNextStep(),
@@ -1643,6 +1725,7 @@ describe("meeting lifecycle transitions", () => {
         expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
         expect(result.state.managerPlans).toEqual([
+            current.managerPlans[0],
             {
                 id: "plan-new",
                 agendaId: "agenda-1",
