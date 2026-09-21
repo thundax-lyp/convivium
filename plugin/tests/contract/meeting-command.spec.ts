@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/index.js";
 import {
     MeetingCommandResultV1Schema,

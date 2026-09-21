@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
 import { endMeetingV1, startMeetingArchiveV1 } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {

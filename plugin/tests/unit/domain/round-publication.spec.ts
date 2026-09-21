@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
 
 const openRoundV1 = (state: Parameters<typeof openRoundTransition>[0], input: any) =>

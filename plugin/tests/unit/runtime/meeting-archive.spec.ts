@@ -7,7 +7,7 @@ import {
 } from "@/domain/index.js";
 import { encodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
 import { createMeetingArchiveDispatcherV1 } from "@/runtime/services/meeting-archive.js";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 
 function terminalState(): MeetingState {
     const running = makeRunningMeetingStateV1();

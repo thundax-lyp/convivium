@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { recommendIdentityV1, recordIdentityAdmissionResultV1 } from "@/domain/index.js";
 
 describe("identity domain transitions", () => {

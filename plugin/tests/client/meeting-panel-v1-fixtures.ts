@@ -1,4 +1,4 @@
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingSummaryV1, projectMeetingViewV1 } from "@/projection/index.js";
 
 export function meetingProjectionFixture() {

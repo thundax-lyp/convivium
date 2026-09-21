@@ -5,7 +5,7 @@ import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { MAX_COMMIT_VALUE_BYTES } from "@/repository/domain/projection.js";
 
