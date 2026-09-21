@@ -21,12 +21,12 @@ export interface StartPrivateMailInputV1 {
     actorKind: "effect_dispatcher";
     now: EpochMs;
 }
-export interface CompletePrivateMailInputV1 {
+export interface CompletePrivateMailInput {
     mailId: OpaqueId;
     recipientId: OpaqueId;
     now: EpochMs;
 }
-export interface CancelPrivateMailInputV1 {
+export interface CancelPrivateMailInput {
     mailId: OpaqueId;
     senderId: OpaqueId;
     reason: string;
@@ -247,10 +247,10 @@ function finish(
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }
-export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInputV1) {
+export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInput) {
     return finish(s, i, "completed", "completed", i?.recipientId);
 }
-export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInputV1) {
+export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInput) {
     return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
 }
 export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInputV1) {

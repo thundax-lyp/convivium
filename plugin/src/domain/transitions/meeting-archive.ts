@@ -1,6 +1,6 @@
 import type {
-    ArchivePackageV1,
-    ArchiveQuestionIssueDispositionFactV1,
+    ArchivePackage,
+    ArchiveQuestionIssueDispositionFact,
     MeetingState,
     OpaqueId
 } from "@/domain/meeting-state.js";
@@ -11,10 +11,10 @@ export interface StartMeetingArchiveInputV1 {
     archiveId: OpaqueId;
     actorId: OpaqueId;
     now: number;
-    questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFactV1[];
+    questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFact[];
 }
 
-export interface CompleteMeetingArchiveInputV1 {
+export interface CompleteMeetingArchiveInput {
     actorId: OpaqueId;
     now: number;
     allSessionOwnershipClosed: boolean;
@@ -37,7 +37,7 @@ const identityProvenance = (state: MeetingState) =>
 function materializeArchive(
     state: MeetingState,
     input: StartMeetingArchiveInputV1
-): ArchivePackageV1 {
+): ArchivePackage {
     const termination = state.termination!;
     const unclosedContributions = termination.unclosedContributionIds.map((contributionId) => {
         const contribution = state.contributions.find((item) => item.id === contributionId)!;
@@ -142,7 +142,7 @@ export function startMeetingArchiveV1(
 
 export function completeMeetingArchiveV1(
     state: MeetingState,
-    input: CompleteMeetingArchiveInputV1
+    input: CompleteMeetingArchiveInput
 ): MeetingTransitionResultV1 {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");

@@ -22,7 +22,7 @@ export interface SubmitReviewBatchInputV1 {
     reviews: readonly SubmitReviewBatchItemV1[];
     now: number;
 }
-export interface ClaimReviewBatchInputV1 {
+export interface ClaimReviewBatchInput {
     claimId: OpaqueId;
     sourceEffectId: OpaqueId;
     reviewerId: OpaqueId;
@@ -75,7 +75,7 @@ function validDimensions(
 
 export function claimReviewBatchV1(
     state: MeetingState,
-    input: ClaimReviewBatchInputV1
+    input: ClaimReviewBatchInput
 ): MeetingTransitionResultV1 {
     if (
         !input.claimId.trim() ||

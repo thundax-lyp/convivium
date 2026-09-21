@@ -10,8 +10,8 @@ export {
     expirePrivateMailV1,
     type SendPrivateMailInputV1,
     type StartPrivateMailInputV1,
-    type CompletePrivateMailInputV1,
-    type CancelPrivateMailInputV1,
+    type CompletePrivateMailInput,
+    type CancelPrivateMailInput,
     type ExpirePrivateMailInputV1
 } from "./private-mail.js";
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
@@ -25,7 +25,7 @@ export {
     releaseReviewBatchClaimV1,
     submitReviewBatchV1,
     recordReviewDeliveryV1,
-    type ClaimReviewBatchInputV1,
+    type ClaimReviewBatchInput,
     type ReleaseReviewBatchClaimInputV1,
     type SubmitReviewBatchInputV1,
     type SubmitReviewBatchItemV1
@@ -62,9 +62,9 @@ export type {
     RecordPositionInputV1,
     RecordDecisionCandidateInputV1,
     DecideInputV1,
-    ChangeDecisionInputV1,
+    ChangeDecisionInput,
     DisposeRiskInputV1,
     SubmitCompletionDeclarationInputV1,
     RecordCompletionFactInputV1,
-    ChangeCompletionFactInputV1
+    ChangeCompletionFactInput
 } from "./outcome.js";

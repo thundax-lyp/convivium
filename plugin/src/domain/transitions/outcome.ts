@@ -51,7 +51,7 @@ export interface DecideInputV1 {
     actor: OutcomeActorV1;
     now: EpochMs;
 }
-export type ChangeDecisionInputV1 = {
+export type ChangeDecisionInput = {
     decisionId: OpaqueId;
     rationale: string;
     evidenceIds: readonly OpaqueId[];
@@ -92,7 +92,7 @@ export interface RecordCompletionFactInputV1 {
     actor: OutcomeActorV1;
     now: EpochMs;
 }
-export type ChangeCompletionFactInputV1 = {
+export type ChangeCompletionFactInput = {
     factId: OpaqueId;
     rationale: string;
     actor: OutcomeActorV1;
@@ -492,7 +492,7 @@ export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTra
 }
 export function changeDecisionV1(
     state: MeetingState,
-    input: ChangeDecisionInputV1
+    input: ChangeDecisionInput
 ): MeetingTransitionResultV1 {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -840,7 +840,7 @@ export function recordCompletionFactV1(
 }
 export function changeCompletionFactV1(
     state: MeetingState,
-    input: ChangeCompletionFactInputV1
+    input: ChangeCompletionFactInput
 ): MeetingTransitionResultV1 {
     const e = base(state, input.actor, input.now);
     if (e) return e;

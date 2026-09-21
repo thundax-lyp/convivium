@@ -1,6 +1,6 @@
 import {
     pendingDecisionCandidatesV1,
-    type ArchivePackageV1,
+    type ArchivePackage,
     type MeetingRole,
     type MeetingState,
     type OpaqueId
@@ -111,7 +111,7 @@ export function projectMeetingSummaryV1(snapshot: MeetingSnapshot<MeetingState>)
 }
 
 export function projectArchiveViewV1(
-    archive: ArchivePackageV1,
+    archive: ArchivePackage,
     caller: MeetingProjectionCallerV1
 ): ArchiveView {
     const used = new Set(archive.decisions.map(({ candidateId }) => candidateId));
