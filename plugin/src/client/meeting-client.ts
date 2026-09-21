@@ -5,13 +5,13 @@ import {
     MeetingCommandResultSchema,
     MeetingListResultSchema,
     MeetingReadResultSchema,
-    ReadMeetingRequestV1Schema,
+    ReadMeetingRequestSchema,
     type MeetingCommandResult,
     type MeetingCommand,
     type MeetingListResult,
     type MeetingReadResult,
-    type ReadMeetingRequestV1,
-    type RefreshNoticeV1,
+    type ReadMeetingRequest,
+    type RefreshNotice,
     type ProtocolError
 } from "@/protocol/index.js";
 
@@ -24,9 +24,9 @@ export class ProtocolFailure extends Error {
 
 export interface MeetingClient {
     list(signal?: AbortSignal): Promise<MeetingListResult>;
-    read(request: ReadMeetingRequestV1, signal?: AbortSignal): Promise<MeetingReadResult>;
+    read(request: ReadMeetingRequest, signal?: AbortSignal): Promise<MeetingReadResult>;
     control(command: MeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
-    subscribeRefresh(onUnavailable: () => void): RemoteStream<RefreshNoticeV1>;
+    subscribeRefresh(onUnavailable: () => void): RemoteStream<RefreshNotice>;
 }
 
 function protocolFailure(value: unknown): ProtocolFailure {
@@ -87,7 +87,7 @@ export function createMeetingClient(remote: ClientRemote): MeetingClient {
         list: (signal) =>
             unwrap(service.list(signal), (value) => MeetingListResultSchema.parse(value)),
         read: (request, signal) => {
-            const validated = ReadMeetingRequestV1Schema.parse(request);
+            const validated = ReadMeetingRequestSchema.parse(request);
             return unwrap(service.read(validated, signal), (value) =>
                 MeetingReadResultSchema.parse(value)
             );

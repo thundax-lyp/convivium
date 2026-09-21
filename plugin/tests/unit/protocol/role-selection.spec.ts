@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CreateMeetingInputSchema } from "@/protocol/commands.js";
-import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
+import { serializeValidatedRequest } from "@/protocol/request-idempotency.js";
 import { createOfflineMeetingInput } from "../../fixtures/create-meeting-input.js";
 
 describe("initial role definition selection", () => {
@@ -23,15 +23,15 @@ describe("initial role definition selection", () => {
         };
         const parsed = CreateMeetingInputSchema(structuredClone(selected));
         expect(parsed).toEqual(selected);
-        const hashInput = serializeValidatedRequestV1(parsed);
+        const hashInput = serializeValidatedRequest(parsed);
         expect(hashInput).toContain('"agentDefinitionId":"participant"');
         expect(hashInput).not.toEqual(
-            serializeValidatedRequestV1(
+            serializeValidatedRequest(
                 CreateMeetingInputSchema({ ...selected, managerAgentDefinitionId: "other" })
             )
         );
         expect(hashInput).not.toEqual(
-            serializeValidatedRequestV1(
+            serializeValidatedRequest(
                 CreateMeetingInputSchema({
                     ...selected,
                     participants: selected.participants.map((p) => ({

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-    RecommendIdentityActionV1Schema,
-    RecordIdentityAdmissionResultActionV1Schema
+    RecommendIdentityActionSchema,
+    RecordIdentityAdmissionResultActionSchema
 } from "./meeting-identity.js";
 
 const id = z.string().trim().min(1);
@@ -114,7 +114,7 @@ export const OpenRoundActionSchema = z.object({
     planId: id,
     deadlineAt: epoch.optional()
 });
-export const SubmitManagerPlanActionV1Schema = z
+export const SubmitManagerPlanActionSchema = z
     .object({
         kind: z.literal("submit_manager_plan"),
         agendaId: id,
@@ -133,7 +133,7 @@ export const SubmitManagerPlanActionV1Schema = z
         if ((value.planKind === "open_round") !== (value.roundGoal !== undefined))
             ctx.addIssue({ code: "custom", path: ["roundGoal"] });
     });
-export const RaiseHandActionV1Schema = z.object({
+export const RaiseHandActionSchema = z.object({
     kind: z.literal("raise_hand"),
     roundId: id,
     purpose: text
@@ -145,7 +145,7 @@ export const DisposeHandRaiseActionSchema = z.object({
     disposition: z.enum(["accepted", "rejected", "deferred"]),
     reason: text
 });
-export const SubmitEvidenceActionV1Schema = z.object({
+export const SubmitEvidenceActionSchema = z.object({
     kind: z.literal("submit_evidence"),
     contributionId: id,
     evidence
@@ -159,13 +159,13 @@ export const ClaimReviewBatchActionSchema = z.object({
         .min(1)
         .refine((ids) => new Set(ids).size === ids.length)
 });
-export const ReleaseReviewBatchClaimActionV1Schema = z.object({
+export const ReleaseReviewBatchClaimActionSchema = z.object({
     kind: z.literal("release_review_batch_claim"),
     roundId: id,
     claimId: id,
     reason: z.enum(["turn_timed_out", "turn_interrupted", "dispatch_failed"])
 });
-export const SubmitReviewBatchActionV1Schema = z
+export const SubmitReviewBatchActionSchema = z
     .object({
         kind: z.literal("submit_review_batch"),
         roundId: id,
@@ -186,20 +186,20 @@ export const PauseMeetingActionSchema = z.object({
     kind: z.literal("pause_meeting"),
     reason: text
 });
-export const ResumeMeetingActionV1Schema = z.object({
+export const ResumeMeetingActionSchema = z.object({
     kind: z.literal("resume_meeting"),
     reason: text
 });
 
 const actions = [
     CreateMeetingActionSchema,
-    RecommendIdentityActionV1Schema,
-    RecordIdentityAdmissionResultActionV1Schema,
-    SubmitManagerPlanActionV1Schema,
+    RecommendIdentityActionSchema,
+    RecordIdentityAdmissionResultActionSchema,
+    SubmitManagerPlanActionSchema,
     OpenRoundActionSchema,
-    RaiseHandActionV1Schema,
+    RaiseHandActionSchema,
     DisposeHandRaiseActionSchema,
-    SubmitEvidenceActionV1Schema,
+    SubmitEvidenceActionSchema,
     z.object({
         kind: z.literal("close_contribution"),
         contributionId: id,
@@ -207,8 +207,8 @@ const actions = [
         reason: text
     }),
     ClaimReviewBatchActionSchema,
-    ReleaseReviewBatchClaimActionV1Schema,
-    SubmitReviewBatchActionV1Schema,
+    ReleaseReviewBatchClaimActionSchema,
+    SubmitReviewBatchActionSchema,
     z
         .object({
             kind: z.literal("record_review_delivery"),
@@ -224,7 +224,7 @@ const actions = [
         }),
     PublishRoundActionSchema,
     PauseMeetingActionSchema,
-    ResumeMeetingActionV1Schema,
+    ResumeMeetingActionSchema,
     z.object({
         kind: z.literal("end_meeting"),
         outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
@@ -286,11 +286,11 @@ export type MeetingAction = z.infer<typeof MeetingActionSchema>;
 
 export const ListMeetingsRequestSchema = z.object({ protocolVersion: z.literal(1) });
 export type ListMeetingsRequest = z.infer<typeof ListMeetingsRequestSchema>;
-export const ReadMeetingRequestV1Schema = z.object({
+export const ReadMeetingRequestSchema = z.object({
     protocolVersion: z.literal(1),
     meetingId: id
 });
-export type ReadMeetingRequestV1 = z.infer<typeof ReadMeetingRequestV1Schema>;
+export type ReadMeetingRequest = z.infer<typeof ReadMeetingRequestSchema>;
 
 const effect = z.object({
     id,

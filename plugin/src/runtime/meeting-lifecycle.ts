@@ -3,7 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
 import type { Config } from "@/config.js";
 import type { MeetingState } from "@/domain/index.js";
-import type { MeetingCommand, ReadMeetingRequestV1 } from "@/protocol/index.js";
+import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.js";
 import { MeetingCommandResultSchema } from "@/protocol/index.js";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
 import {
@@ -438,7 +438,7 @@ export async function activateTargetMeetingApplicationV1(
             }
             return { meetings };
         },
-        async read(request: ReadMeetingRequestV1, signal: AbortSignal) {
+        async read(request: ReadMeetingRequest, signal: AbortSignal) {
             signal.throwIfAborted();
             const repository = await registry.openMeeting({ meetingId: request.meetingId });
             const snapshot = (await repository.recover()).snapshot;

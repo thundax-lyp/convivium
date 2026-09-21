@@ -6,61 +6,15 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `protocol` | 40 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 107 |
+| 合计（按模块去重） | 67 |
 
-声明出现次数：107
+声明出现次数：67
 
-全局唯一名称数：107
-
-## protocol
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `QuestionResolutionClaimV1` | `QuestionResolutionClaim` |
-| `QuestionViewV1` | `QuestionView` |
-| `QuestionViewV1Schema` | `QuestionViewSchema` |
-| `RaiseHandActionV1Schema` | `RaiseHandActionSchema` |
-| `ReadMeetingRequestV1` | `ReadMeetingRequest` |
-| `ReadMeetingRequestV1Schema` | `ReadMeetingRequestSchema` |
-| `ReassignTurnInputV1` | `ReassignTurnInput` |
-| `ReassignTurnResultV1` | `ReassignTurnResult` |
-| `RecommendIdentityActionV1Schema` | `RecommendIdentityActionSchema` |
-| `RecordIdentityAdmissionResultActionV1Schema` | `RecordIdentityAdmissionResultActionSchema` |
-| `RefreshNoticeV1` | `RefreshNotice` |
-| `RefreshNoticeV1Schema` | `RefreshNoticeSchema` |
-| `ReleaseReviewBatchClaimActionV1Schema` | `ReleaseReviewBatchClaimActionSchema` |
-| `ResumeMeetingActionV1Schema` | `ResumeMeetingActionSchema` |
-| `ResumeMeetingInputV1` | `ResumeMeetingInput` |
-| `ReviewClaimV1` | `ReviewClaim` |
-| `ReviewDeliveryViewV1` | `ReviewDeliveryView` |
-| `ReviewDeliveryViewV1Schema` | `ReviewDeliveryViewSchema` |
-| `RiskAcceptanceClaimV1` | `RiskAcceptanceClaim` |
-| `RiskDispositionViewV1` | `RiskDispositionView` |
-| `RiskDispositionViewV1Schema` | `RiskDispositionViewSchema` |
-| `RiskLevelV1` | `RiskLevel` |
-| `RoleErrorCodeV1` | `RoleErrorCode` |
-| `RoleErrorCodeV1Schema` | `RoleErrorCodeSchema` |
-| `RoundViewV1` | `RoundView` |
-| `RoundViewV1Schema` | `RoundViewSchema` |
-| `SendMeetingMessageInputV1` | `SendMeetingMessageInput` |
-| `SpeakerMeetingContextV1` | `SpeakerMeetingContext` |
-| `SubmitEvidenceActionV1Schema` | `SubmitEvidenceActionSchema` |
-| `SubmitManagerPlanActionV1Schema` | `SubmitManagerPlanActionSchema` |
-| `SubmitReviewBatchActionV1Schema` | `SubmitReviewBatchActionSchema` |
-| `TaskViewV1` | `TaskView` |
-| `TaskViewV1Schema` | `TaskViewSchema` |
-| `TerminationViewV1` | `TerminationView` |
-| `TerminationViewV1Schema` | `TerminationViewSchema` |
-| `TurnSubmissionResultV1` | `TurnSubmissionResult` |
-| `TurnSubmissionV1` | `TurnSubmission` |
-| `UnclosedContributionViewV1` | `UnclosedContributionView` |
-| `UnclosedContributionViewV1Schema` | `UnclosedContributionViewSchema` |
-| `serializeValidatedRequestV1` | `serializeValidatedRequest` |
+全局唯一名称数：67
 
 ## repository
 

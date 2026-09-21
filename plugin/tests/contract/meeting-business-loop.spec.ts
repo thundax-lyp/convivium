@@ -3,7 +3,7 @@ import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import {
     MeetingActionSchema,
     ListMeetingsRequestSchema,
-    ReadMeetingRequestV1Schema
+    ReadMeetingRequestSchema
 } from "@/protocol/meeting-command.js";
 import {
     decodeMeetingStateV1,
@@ -12,7 +12,7 @@ import {
 import {
     MeetingActionSchema as PublicMeetingActionV1Schema,
     MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
-    serializeValidatedRequestV1
+    serializeValidatedRequest
 } from "@/protocol/index.js";
 
 const identity = {
@@ -167,7 +167,7 @@ describe("target Meeting business-loop protocol", () => {
             protocolVersion: 1
         });
         expect(
-            ReadMeetingRequestV1Schema.parse({ protocolVersion: 1, meetingId: "meeting-1" })
+            ReadMeetingRequestSchema.parse({ protocolVersion: 1, meetingId: "meeting-1" })
         ).toEqual({ protocolVersion: 1, meetingId: "meeting-1" });
         expect(
             MeetingActionSchema.safeParse({
@@ -217,7 +217,7 @@ describe("target Meeting business-loop protocol", () => {
     it("sorts object keys without reordering arrays and rejects legacy state", () => {
         const first = { z: [{ b: 2, a: 1 }], a: { d: 4, c: 3 } };
         const second = { a: { c: 3, d: 4 }, z: [{ a: 1, b: 2 }] };
-        expect(serializeValidatedRequestV1(first)).toBe(serializeValidatedRequestV1(second));
+        expect(serializeValidatedRequest(first)).toBe(serializeValidatedRequest(second));
         const state = makeRunningMeetingStateV1();
         expect(decodeMeetingStateV1(encodeMeetingStateV1(state))).toEqual(state);
         expect(() => encodeMeetingStateV1({ ...state, formatApprovals: [] })).toThrow(

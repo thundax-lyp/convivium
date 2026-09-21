@@ -3,7 +3,7 @@ import type {
     MeetingCommandResult,
     MeetingListResult,
     MeetingReadResult,
-    RefreshNoticeV1
+    RefreshNotice
 } from "@/protocol/index.js";
 
 export type RemoteJsonValue =
@@ -22,7 +22,7 @@ export type RemoteReadMeetingRequest = {
     readonly protocolVersion: 1;
     readonly meetingId: string;
 } & Record<string, RemoteJsonValue>;
-export type RemoteRefreshNotice = RefreshNoticeV1 & Record<string, RemoteJsonValue>;
+export type RemoteRefreshNotice = RefreshNotice & Record<string, RemoteJsonValue>;
 
 declare module "@deepseek-ai/dsh-typert-protocol" {
     interface RemoteErrorDetailsMap {

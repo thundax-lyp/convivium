@@ -3,8 +3,8 @@ import { MeetingCommandSchema } from "@/protocol/meeting-command.js";
 import {
     IdentityViewSchema,
     IdentityRecommendationViewSchema,
-    RecommendIdentityActionV1Schema,
-    RoleErrorCodeV1Schema
+    RecommendIdentityActionSchema,
+    RoleErrorCodeSchema
 } from "@/protocol/index.js";
 
 const action = {
@@ -44,13 +44,13 @@ describe("meeting identity protocol", () => {
     });
 
     it("rejects missing fields, nulls and invalid enums", () => {
+        expect(RecommendIdentityActionSchema.safeParse({ ...action, agendaId: null }).success).toBe(
+            false
+        );
         expect(
-            RecommendIdentityActionV1Schema.safeParse({ ...action, agendaId: null }).success
+            RecommendIdentityActionSchema.safeParse({ ...action, decision: "maybe" }).success
         ).toBe(false);
-        expect(
-            RecommendIdentityActionV1Schema.safeParse({ ...action, decision: "maybe" }).success
-        ).toBe(false);
-        expect(RoleErrorCodeV1Schema.safeParse("not-a-role-error").success).toBe(false);
+        expect(RoleErrorCodeSchema.safeParse("not-a-role-error").success).toBe(false);
     });
 
     it("does not expose forged runtime ownership in the public recommendation view", () => {

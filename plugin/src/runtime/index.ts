@@ -3,7 +3,7 @@ import type {
     MeetingCommand,
     MeetingListResult,
     MeetingReadResult,
-    RefreshNoticeV1
+    RefreshNotice
 } from "@/protocol/index.js";
 
 export interface LocalMeetingWebRuntime {
@@ -13,7 +13,7 @@ export interface LocalMeetingWebRuntime {
         signal: AbortSignal
     ): Promise<MeetingReadResult>;
     control(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
-    subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNoticeV1>;
+    subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNotice>;
 }
 
 export type { MeetingToolCaller, MeetingToolRuntime } from "./application-service/index.js";

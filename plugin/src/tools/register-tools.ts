@@ -7,12 +7,12 @@ import {
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
     OpenRoundActionSchema,
-    SubmitManagerPlanActionV1Schema,
+    SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
-    RaiseHandActionV1Schema,
-    RecommendIdentityActionV1Schema,
-    SubmitEvidenceActionV1Schema,
-    SubmitReviewBatchActionV1Schema,
+    RaiseHandActionSchema,
+    RecommendIdentityActionSchema,
+    SubmitEvidenceActionSchema,
+    SubmitReviewBatchActionSchema,
     type MeetingCommandResult,
     type MeetingCommand
 } from "@/protocol/index.js";
@@ -136,7 +136,7 @@ export function registerMeetingToolsV1(
         {
             name: "convivium_submit_manager_plan",
             kind: "submit_manager_plan",
-            schema: SubmitManagerPlanActionV1Schema
+            schema: SubmitManagerPlanActionSchema
         },
         {
             name: "convivium_dispose_hand_raise",
@@ -148,21 +148,21 @@ export function registerMeetingToolsV1(
             kind: "publish_round",
             schema: PublishRoundActionSchema
         },
-        { name: "convivium_raise_hand", kind: "raise_hand", schema: RaiseHandActionV1Schema },
+        { name: "convivium_raise_hand", kind: "raise_hand", schema: RaiseHandActionSchema },
         {
             name: "convivium_submit_evidence",
             kind: "submit_evidence",
-            schema: SubmitEvidenceActionV1Schema
+            schema: SubmitEvidenceActionSchema
         },
         {
             name: "convivium_submit_review_batch",
             kind: "submit_review_batch",
-            schema: SubmitReviewBatchActionV1Schema
+            schema: SubmitReviewBatchActionSchema
         },
         {
             name: "convivium_recommend_identity",
             kind: "recommend_identity",
-            schema: RecommendIdentityActionV1Schema
+            schema: RecommendIdentityActionSchema
         }
     ];
     return definitions.map((definition) => registerTool(dependencies, definition));

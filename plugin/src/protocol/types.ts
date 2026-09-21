@@ -60,7 +60,7 @@ export interface MailHandlingAttempt {
     status: MailHandlingStatus;
 }
 
-export interface SendMeetingMessageInputV1 {
+export interface SendMeetingMessageInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -184,7 +184,7 @@ export interface PauseMeetingInput {
     reason: string;
 }
 
-export interface ResumeMeetingInputV1 {
+export interface ResumeMeetingInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -196,7 +196,7 @@ export interface MeetingControlResult {
     changed: boolean;
 }
 
-export type RiskLevelV1 = "low" | "medium" | "high";
+export type RiskLevel = "low" | "medium" | "high";
 
 export interface CaptainDecisionDispositionInput {
     protocolVersion: 1;
@@ -270,7 +270,7 @@ export interface CaptainRiskDispositionResult {
     meetingStatus: LegacyMeetingStatus;
 }
 
-export interface ReassignTurnInputV1 {
+export interface ReassignTurnInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -370,7 +370,7 @@ export interface MeetingTaskFinishResult {
     handRaiseId?: string;
 }
 
-export interface SpeakerMeetingContextV1 {
+export interface SpeakerMeetingContext {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     meetingVersion: number;
@@ -475,7 +475,7 @@ export interface PublicRisk {
     violatedConstraintIds: readonly string[];
     blockingObjectionIds: readonly string[];
     blocking: boolean;
-    riskLevel?: RiskLevelV1;
+    riskLevel?: RiskLevel;
     impact: string;
     urgency: string;
     reversibility: string;
@@ -732,7 +732,7 @@ export interface ManagerPlanSubmission {
     }[];
 }
 
-export interface TurnSubmissionV1 {
+export interface TurnSubmission {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     turnId: string;
@@ -794,7 +794,7 @@ export interface IssueClaim {
     impact: "none" | "low" | "medium" | "high" | "critical";
     urgency: "now" | "before_release" | "later";
     safeDefaultAvailable: boolean;
-    riskLevel: RiskLevelV1;
+    riskLevel: RiskLevel;
 }
 
 export interface DecisionProposalClaim {
@@ -835,9 +835,9 @@ export interface CompletionClaims {
     outputClaims?: readonly EvidenceClaim[];
     criterionClaims?: readonly EvidenceClaim[];
     agendaResolution?: AgendaResolutionClaim;
-    review?: ReviewClaimV1;
-    questionResolutions?: readonly QuestionResolutionClaimV1[];
-    riskAcceptance?: RiskAcceptanceClaimV1;
+    review?: ReviewClaim;
+    questionResolutions?: readonly QuestionResolutionClaim[];
+    riskAcceptance?: RiskAcceptanceClaim;
 }
 
 export interface EvidenceClaim {
@@ -852,19 +852,19 @@ export interface AgendaResolutionClaim {
     evidenceMessageIds: readonly string[];
 }
 
-export interface ReviewClaimV1 {
+export interface ReviewClaim {
     outputId: string;
     result: "approved" | "changes_required";
     reason: string;
     evidenceMessageIds: readonly string[];
 }
 
-export interface QuestionResolutionClaimV1 {
+export interface QuestionResolutionClaim {
     questionId: string;
     answerMessageId: string;
 }
 
-export interface RiskAcceptanceClaimV1 {
+export interface RiskAcceptanceClaim {
     issueId: string;
     decision: "accept" | "reject";
     reason: string;
@@ -906,7 +906,7 @@ export interface ManagerPlanResult {
         "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
 }
 
-export interface TurnSubmissionResultV1 {
+export interface TurnSubmissionResult {
     messageId: string;
     messageSeq: number;
     turnStatus: "running" | "completed" | "truncated";
@@ -919,7 +919,7 @@ export interface HandRaiseResult {
     status: "pending" | "accepted" | "deferred" | "consumed" | "rejected";
 }
 
-export interface ReassignTurnResultV1 {
+export interface ReassignTurnResult {
     revokedAttemptId: string;
     replacementAttemptId?: string;
     action: "reassign" | "skip";

@@ -6,8 +6,8 @@ import {
     MeetingListResultSchema,
     MeetingReadResultSchema,
     MeetingCommandSchema,
-    ReadMeetingRequestV1Schema,
-    RefreshNoticeV1Schema,
+    ReadMeetingRequestSchema,
+    RefreshNoticeSchema,
     type MeetingCommand
 } from "@/protocol/index.js";
 import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
@@ -77,7 +77,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
         signal.throwIfAborted();
         let parsed: { readonly protocolVersion: 1; readonly meetingId: string };
         try {
-            parsed = ReadMeetingRequestV1Schema.parse(request);
+            parsed = ReadMeetingRequestSchema.parse(request);
         } catch (cause) {
             throw invalidRequest(cause);
         }
@@ -117,7 +117,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
         try {
             for await (const notice of this.runtime.subscribeRefresh(signal)) {
                 signal.throwIfAborted();
-                yield RefreshNoticeV1Schema.parse(notice);
+                yield RefreshNoticeSchema.parse(notice);
             }
         } catch (cause) {
             if (signal.aborted) return;

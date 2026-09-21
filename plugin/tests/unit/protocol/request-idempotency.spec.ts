@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
+import { serializeValidatedRequest } from "@/protocol/request-idempotency.js";
 
 describe("request identity canonical serialization", () => {
     it("sorts object keys while preserving array order and omitting undefined properties", () => {
         expect(
-            serializeValidatedRequestV1({
+            serializeValidatedRequest({
                 attemptId: "attempt-1",
                 reasonCode: "timeout",
                 observedMeetingVersion: 4,
@@ -17,7 +17,7 @@ describe("request identity canonical serialization", () => {
     });
 
     it("does not trim strings or reorder arrays", () => {
-        expect(serializeValidatedRequestV1({ value: "  retained  ", ids: ["b", "a"] })).toBe(
+        expect(serializeValidatedRequest({ value: "  retained  ", ids: ["b", "a"] })).toBe(
             '{"ids":["b","a"],"value":"  retained  "}'
         );
     });

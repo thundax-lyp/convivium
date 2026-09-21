@@ -710,7 +710,7 @@ interface MeetingSummary {
   updatedAt: EpochMs;
   unavailableReason?: string;
 }
-interface ReadMeetingRequestV1 {
+interface ReadMeetingRequest {
   protocolVersion: 1;
   meetingId: OpaqueId;
 }
@@ -774,7 +774,7 @@ interface MeetingView {
   privateMail: PrivateMailView[];
   controls: AllowedControl[];
 }
-interface RefreshNoticeV1 {
+interface RefreshNotice {
   kind: "refresh";
   meetingId: OpaqueId;
   committedVersion: number;

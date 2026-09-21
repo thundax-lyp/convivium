@@ -4,7 +4,7 @@ import type {
     MeetingCommandResult,
     MeetingListResult,
     MeetingReadResult,
-    RefreshNoticeV1
+    RefreshNotice
 } from "@/protocol/index.js";
 import type { loadRemoteClientModule } from "../fixtures/remote-client.js";
 import type { RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
@@ -32,7 +32,7 @@ const controlCall: Promise<RemoteResult<MeetingCommandResult>> = remote.conviviu
 void listCall;
 void readCall;
 void controlCall;
-declare const stream: RemoteStream<RefreshNoticeV1>;
+declare const stream: RemoteStream<RefreshNotice>;
 const adapterStream: ReturnType<MeetingClient["subscribeRefresh"]> = stream;
 void adapterStream;
 void ({} as typeof loadRemoteClientModule);

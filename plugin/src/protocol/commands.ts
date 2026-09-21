@@ -12,7 +12,7 @@ import type {
     CaptainDecisionDispositionInput,
     FinishMeetingMailInput,
     ManagerPlanSubmission,
-    SendMeetingMessageInputV1
+    SendMeetingMessageInput
 } from "./types.js";
 
 const string = () => Schema.string().required();
@@ -596,7 +596,7 @@ export const MeetingScopedMailSchema = Schema.object({
     replyToMailId: Schema.string()
 });
 
-export const SendMeetingMessageInputSchema: Schema<unknown, SendMeetingMessageInputV1> =
+export const SendMeetingMessageInputSchema: Schema<unknown, SendMeetingMessageInput> =
     Schema.object({
         protocolVersion: ProtocolVersionSchema,
         meetingId: string(),
@@ -617,7 +617,7 @@ export const SendMeetingMessageInputSchema: Schema<unknown, SendMeetingMessageIn
             snapshotSummary: Schema.string()
         }).required(),
         replyToMailId: Schema.string()
-    }) as Schema<unknown, SendMeetingMessageInputV1>;
+    }) as Schema<unknown, SendMeetingMessageInput>;
 
 export const FinishMeetingMailInputSchema: Schema<unknown, FinishMeetingMailInput> = Schema.object({
     protocolVersion: ProtocolVersionSchema,

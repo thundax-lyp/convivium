@@ -18,19 +18,19 @@ import type {
     ManagerPlanResult,
     ManagerPlanSubmission,
     MeetingControlResult,
-    TurnSubmissionResultV1,
+    TurnSubmissionResult,
     ProtocolError,
     ProtocolSuccess,
     PauseMeetingInput,
-    ResumeMeetingInputV1,
-    ReassignTurnInputV1,
-    ReassignTurnResultV1,
+    ResumeMeetingInput,
+    ReassignTurnInput,
+    ReassignTurnResult,
     CaptainRiskDispositionInput,
     CaptainRiskDispositionResult,
     FinishMeetingMailInput,
     MeetingMailResult,
-    SendMeetingMessageInputV1,
-    TurnSubmissionV1,
+    SendMeetingMessageInput,
+    TurnSubmission,
     CaptainDecisionAcceptanceInput,
     CaptainDecisionAcceptanceResult,
     CaptainDecisionDispositionInput,
@@ -70,7 +70,7 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccess<CaptainAgendaCandidateDispositionResult> | ProtocolError>;
     sendMeetingMessage(
-        input: SendMeetingMessageInputV1,
+        input: SendMeetingMessageInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccess<MeetingMailResult> | ProtocolError>;
@@ -110,10 +110,10 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccess<HandRaiseResult> | ProtocolError>;
     submitTurn(
-        input: TurnSubmissionV1,
+        input: TurnSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccess<TurnSubmissionResultV1> | ProtocolError>;
+    ): Promise<ProtocolSuccess<TurnSubmissionResult> | ProtocolError>;
     submitManagerPlan(
         input: ManagerPlanSubmission,
         caller: MeetingToolCaller,
@@ -125,15 +125,15 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccess<MeetingControlResult> | ProtocolError>;
     resume(
-        input: ResumeMeetingInputV1,
+        input: ResumeMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccess<MeetingControlResult> | ProtocolError>;
     reassignTurn(
-        input: ReassignTurnInputV1,
+        input: ReassignTurnInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccess<ReassignTurnResultV1> | ProtocolError>;
+    ): Promise<ProtocolSuccess<ReassignTurnResult> | ProtocolError>;
     disposeRisk(
         input: CaptainRiskDispositionInput,
         caller: MeetingToolCaller,
