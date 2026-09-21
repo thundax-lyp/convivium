@@ -64,7 +64,7 @@
 - 跨模块导入必须使用 `@/<module>/index.js`；`src/` 根目录装配可保留等价的 `./<module>/index.js`。普通导入、类型导入、重新导出和动态导入遵循同一边界。不得用别名或相对路径直接访问另一个模块的内部文件。
 - 模块内部可以直接引用自身文件，无须经由自身入口；`domain/transitions/` 和 `runtime/application-service/` 属于各自顶层模块内部，不因有 `index.ts` 就成为独立封装单元。`repository`、`role-composition` 尚无入口，不为本规则新增转发文件。
 - 测试可以直接引用被测模块内部文件；直接执行的 Node 脚本继续遵守既有运行和路径约束。
-- 入口缺少外部所需符号时，先核对当前调用依据和模块职责，只显式补充必要导出，不批量公开 internal。当前 Domain 公开 Runtime 使用的 Manager planning fallback，Protocol 公开请求序列化函数，Runtime 公开根插件装配所需的 Agent catalog service key；函数实现和 port ownership 保留在原文件。
+- 入口缺少外部所需符号时，先核对当前调用依据和模块职责，只显式补充必要导出，不批量公开 internal。当前 Protocol 公开请求序列化函数；函数实现和 port ownership 保留在原文件。
 - ESLint 使用固定模块列表按导入方作用域应用内置规则；新增或改变模块入口时同步更新本节与配置。
 
 ## Undecided Architecture
