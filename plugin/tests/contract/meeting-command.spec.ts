@@ -164,7 +164,9 @@ describe("target Meeting command core", () => {
             }).success
         ).toBe(false);
     });
+});
 
+describe("target Meeting command application creation", () => {
     it("derives the create identity and delegates exactly once without opening a repository", async () => {
         const create = vi.fn(async (_command, _context, meetingId: string) => ({
             kind: "accepted" as const,
@@ -296,7 +298,9 @@ describe("target Meeting command core", () => {
             error: { code: "IDEMPOTENCY_CONFLICT" }
         });
     });
+});
 
+describe("target Meeting command application transitions", () => {
     it("preserves a rejected domain transition instead of reporting storage failure", async () => {
         const state = makeRunningMeetingStateV1();
         const repository = {
