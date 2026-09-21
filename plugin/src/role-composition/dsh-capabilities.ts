@@ -2,12 +2,12 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 // Load the Cordis augmentations for ctx.agentPresets and ctx.skills without runtime imports.
 import type {} from "@deepseek-ai/dsh-agent-presets";
 import type {} from "@deepseek-ai/dsh-skill";
-import type { MeetingAgentDefinitionV1 } from "./model.js";
+import type { MeetingAgentDefinition } from "./model.js";
 import { RoleCompositionError } from "./resolve.js";
-import type { AgentDefinitionBindingV1 } from "./model.js";
+import type { AgentDefinitionBinding } from "./model.js";
 import type { IdentityRecommendation } from "@/domain/index.js";
 
-export type PreflightIdentityResultV1 =
+export type PreflightIdentityResult =
     | {
           kind: "ready";
           descriptor: {
@@ -25,13 +25,13 @@ export type PreflightIdentityResultV1 =
           missing: readonly [];
       };
 
-export async function preflightDynamicMeetingIdentityV1(
+export async function preflightDynamicMeetingIdentity(
     parent: Agent,
     intent: Pick<IdentityRecommendation, "id" | "definitionHash">,
-    definition: MeetingAgentDefinitionV1,
-    binding: AgentDefinitionBindingV1,
+    definition: MeetingAgentDefinition,
+    binding: AgentDefinitionBinding,
     signal: AbortSignal
-): Promise<PreflightIdentityResultV1> {
+): Promise<PreflightIdentityResult> {
     try {
         await validateSharedRoleCapabilities(parent, [definition], signal);
     } catch {
@@ -69,7 +69,7 @@ export async function preflightDynamicMeetingIdentityV1(
 /** Read capabilities in the exact Captain scope without installing or changing anything. */
 export async function validateSharedRoleCapabilities(
     parent: Agent,
-    definitions: readonly MeetingAgentDefinitionV1[],
+    definitions: readonly MeetingAgentDefinition[],
     signal: AbortSignal
 ): Promise<void> {
     if (!definitions.length) return;

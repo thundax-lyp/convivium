@@ -1,6 +1,6 @@
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 
-export const roleCompositionDefinitions: readonly MeetingAgentDefinitionV1[] = [
+export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
     {
         agentDefinitionId: "fr14-manager",
         definitionVersion: "1.0.0",

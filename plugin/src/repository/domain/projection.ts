@@ -8,10 +8,10 @@ import {
 } from "./canonical-json.js";
 import { seqKey, type SeqKey } from "./keys.js";
 import {
-    CommitRecordV1Schema,
-    PersistenceProjectionV1Schema,
-    type CommitRecordV1,
-    type PersistenceProjectionV1
+    CommitRecordSchema,
+    PersistenceProjectionSchema,
+    type CommitRecord,
+    type PersistenceProjection
 } from "./schemas.js";
 import type { MeetingDomain } from "./specs.js";
 
@@ -31,7 +31,7 @@ export class UnsupportedMeetingStateFormatError extends Error {
 }
 
 function emptyMaps(): Pick<
-    PersistenceProjectionV1,
+    PersistenceProjection,
     "receipts" | "facts" | "events" | "outbox" | "sessionOwnership" | "privateMail"
 > {
     return {
@@ -48,11 +48,11 @@ export function createProjection(input: {
     readonly snapshot: MeetingSnapshot | null;
     readonly bootstrap: MeetingBootstrap;
     readonly sessionOwnership: Readonly<Record<string, SessionOwnership>>;
-}): PersistenceProjectionV1 {
+}): PersistenceProjection {
     const maps = emptyMaps();
     for (const [key, value] of Object.entries(input.sessionOwnership))
         maps.sessionOwnership[key] = value;
-    return PersistenceProjectionV1Schema.parse({
+    return PersistenceProjectionSchema.parse({
         formatVersion: 1,
         snapshot: input.snapshot,
         bootstrap: structuredClone(input.bootstrap),
@@ -61,15 +61,15 @@ export function createProjection(input: {
     });
 }
 
-export function encodeProjection(projection: PersistenceProjectionV1): Uint8Array {
-    const bytes = encodeCanonicalJson(PersistenceProjectionV1Schema.parse(projection));
+export function encodeProjection(projection: PersistenceProjection): Uint8Array {
+    const bytes = encodeCanonicalJson(PersistenceProjectionSchema.parse(projection));
     if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES)
         throw new RangeError("checkpoint projection is too large");
     return bytes;
 }
 
-export function decodeProjection(bytes: Uint8Array): PersistenceProjectionV1 {
-    const projection = PersistenceProjectionV1Schema.parse(decodeCanonicalJson(bytes));
+export function decodeProjection(bytes: Uint8Array): PersistenceProjection {
+    const projection = PersistenceProjectionSchema.parse(decodeCanonicalJson(bytes));
     const state = projection.snapshot?.state;
     if (state === undefined || !Object.prototype.hasOwnProperty.call(state, "formatVersion")) {
         return projection;
@@ -80,8 +80,8 @@ export function decodeProjection(bytes: Uint8Array): PersistenceProjectionV1 {
     return projection;
 }
 
-function verifyCommitRecord(record: CommitRecordV1): void {
-    CommitRecordV1Schema.parse(record);
+function verifyCommitRecord(record: CommitRecord): void {
+    CommitRecordSchema.parse(record);
     if (
         !Number.isSafeInteger(record.seq) ||
         record.seq < 1 ||
@@ -96,7 +96,7 @@ function verifyCommitRecord(record: CommitRecordV1): void {
         throw new RangeError("commit is too large");
 }
 
-export function createCommitRecord(input: Omit<CommitRecordV1, "digest">): CommitRecordV1 {
+export function createCommitRecord(input: Omit<CommitRecord, "digest">): CommitRecord {
     const withoutDigest = { ...input };
     const record = { ...withoutDigest, digest: sha256Hex(encodeCanonicalJson(withoutDigest)) };
     verifyCommitRecord(record);
@@ -104,12 +104,12 @@ export function createCommitRecord(input: Omit<CommitRecordV1, "digest">): Commi
 }
 
 export function foldCommitTail(input: {
-    readonly baseProjection: PersistenceProjectionV1 | null;
+    readonly baseProjection: PersistenceProjection | null;
     readonly baseSeq: number;
-    readonly commits: readonly (readonly [SeqKey, CommitRecordV1])[];
-}): PersistenceProjectionV1 {
+    readonly commits: readonly (readonly [SeqKey, CommitRecord])[];
+}): PersistenceProjection {
     let projection = input.baseProjection;
-    let previous: CommitRecordV1 | undefined;
+    let previous: CommitRecord | undefined;
     for (const [key, commit] of [...input.commits].sort(([a], [b]) =>
         a < b ? -1 : a > b ? 1 : 0
     )) {
@@ -134,9 +134,9 @@ export function foldCommitTail(input: {
     return projection;
 }
 
-export function loadProjection(input: { readonly domain: MeetingDomain }): PersistenceProjectionV1 {
+export function loadProjection(input: { readonly domain: MeetingDomain }): PersistenceProjection {
     const pointer = input.domain.table("checkpoint_pointer").get("current");
-    let baseProjection: PersistenceProjectionV1 | null = null;
+    let baseProjection: PersistenceProjection | null = null;
     let baseSeq = 0;
     if (pointer) {
         const root = input.domain.table("checkpoint_roots").get(pointer.generation);
@@ -181,6 +181,6 @@ export function loadProjection(input: { readonly domain: MeetingDomain }): Persi
     });
 }
 
-export function projectionDigest(projection: PersistenceProjectionV1): string {
+export function projectionDigest(projection: PersistenceProjection): string {
     return sha256Hex(encodeProjection(projection));
 }

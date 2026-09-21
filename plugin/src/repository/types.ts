@@ -1,4 +1,4 @@
-import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
+import type { AgentDefinitionBinding } from "@/role-composition/model.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -10,7 +10,7 @@ export interface MeetingStateCodec<TState> {
     decode(bytes: Uint8Array): TState;
 }
 
-export interface CommittedFactRecordV1<TState = JsonObject> {
+export interface CommittedFactRecord<TState = JsonObject> {
     factId: string;
     kind: string;
     actorId: string;
@@ -66,7 +66,7 @@ export interface RepositoryCommand<T, TState = JsonObject> {
     requestHash: string;
     expectedMeetingVersion?: number;
     allowNoop?: boolean;
-    facts?: readonly CommittedFactRecordV1<TState>[];
+    facts?: readonly CommittedFactRecord<TState>[];
     archiveSessionResult?: {
         sessionOwnershipId: string;
         status: "closed" | "failed";
@@ -217,7 +217,7 @@ export interface SessionOwnership {
     meetingId?: string;
     identityId?: string;
     lastClosureFailureCode?: string;
-    agentDefinition?: AgentDefinitionBindingV1;
+    agentDefinition?: AgentDefinitionBinding;
     sessionId: string;
     parentSessionId: string;
     sessionLabel: string;
@@ -236,7 +236,7 @@ export interface SessionOwnershipInput {
     id?: string;
     meetingId?: string;
     identityId?: string;
-    agentDefinition?: AgentDefinitionBindingV1;
+    agentDefinition?: AgentDefinitionBinding;
     sessionId: string;
     parentSessionId: string;
     sessionLabel: string;

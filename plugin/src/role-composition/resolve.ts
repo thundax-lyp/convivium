@@ -4,17 +4,17 @@ import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 import { parseAgentModelOverrides } from "./model-options.js";
 import type { MeetingAgentModelOverrides } from "./model-options.js";
 import { parseAgentDefinitions } from "./model.js";
-import type { AgentDefinitionBindingV1, MeetingAgentDefinitionV1 } from "./model.js";
+import type { AgentDefinitionBinding, MeetingAgentDefinition } from "./model.js";
 
 export interface ResolvedRoleComposition {
     readonly persona: string;
     readonly toolFilter?: ToolRestriction;
     readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
-    readonly agentDefinition: AgentDefinitionBindingV1;
+    readonly agentDefinition: AgentDefinitionBinding;
 }
 export interface ResolveMeetingRolesInput {
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
-    readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly managerAgentDefinitionId?: string;
     readonly participants: readonly {
         readonly participantKey: string;
@@ -33,18 +33,18 @@ export class RoleCompositionError extends Error {
     }
 }
 
-export type DynamicDefinitionResolutionV1 =
-    | { kind: "resolved"; definition: MeetingAgentDefinitionV1; binding: AgentDefinitionBindingV1 }
+export type DynamicDefinitionResolution =
+    | { kind: "resolved"; definition: MeetingAgentDefinition; binding: AgentDefinitionBinding }
     | {
           kind: "rejected";
           code: "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH" | "ROLE_NOT_ALLOWED";
       };
 
-export function resolveDynamicMeetingDefinitionV1(
-    definitions: readonly MeetingAgentDefinitionV1[],
+export function resolveDynamicMeetingDefinition(
+    definitions: readonly MeetingAgentDefinition[],
     definitionRef: { id: string; version: string },
     expectedHash: string
-): DynamicDefinitionResolutionV1 {
+): DynamicDefinitionResolution {
     const definition = definitions.find((item) => item.agentDefinitionId === definitionRef.id);
     if (!definition) return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
     if (definition.definitionVersion !== definitionRef.version)
@@ -61,7 +61,7 @@ export function resolveDynamicMeetingDefinitionV1(
     return { kind: "resolved", definition, binding };
 }
 
-function definitionHash(d: MeetingAgentDefinitionV1): string {
+function definitionHash(d: MeetingAgentDefinition): string {
     return createHash("sha256")
         .update(
             JSON.stringify({
@@ -95,9 +95,9 @@ function definitionHash(d: MeetingAgentDefinitionV1): string {
 /** Resolve all selections before the single capability preflight; never create Sessions. */
 export async function resolveMeetingRoles(
     input: ResolveMeetingRolesInput,
-    validate: (selected: readonly MeetingAgentDefinitionV1[]) => Promise<void>
+    validate: (selected: readonly MeetingAgentDefinition[]) => Promise<void>
 ): Promise<ResolvedMeetingRoles> {
-    let definitions: readonly MeetingAgentDefinitionV1[];
+    let definitions: readonly MeetingAgentDefinition[];
     let overrides: MeetingAgentModelOverrides;
     try {
         definitions = parseAgentDefinitions(input.definitions);
@@ -105,7 +105,7 @@ export async function resolveMeetingRoles(
     } catch {
         throw new RoleCompositionError();
     }
-    const selected: MeetingAgentDefinitionV1[] = [];
+    const selected: MeetingAgentDefinition[] = [];
     function resolve(
         id: string | undefined,
         manager: boolean

@@ -31,7 +31,7 @@ const definition = z.strictObject({
         .refine((values) => new Set(values).size === values.length)
 });
 
-export interface MeetingAgentDefinitionV1 extends Omit<
+export interface MeetingAgentDefinition extends Omit<
     z.infer<typeof definition>,
     "requiredSkillNames" | "toolFilter" | "expertiseTags" | "evidenceScopes"
 > {
@@ -41,14 +41,14 @@ export interface MeetingAgentDefinitionV1 extends Omit<
     evidenceScopes: readonly ("repository" | "github" | "arxiv" | "web")[];
 }
 
-export interface AgentDefinitionBindingV1 {
+export interface AgentDefinitionBinding {
     agentDefinitionId: string;
     definitionVersion: string;
     definitionHash: string;
 }
 
 /** Validate and snapshot inline configuration without exposing configuration text in errors. */
-export function parseAgentDefinitions(value: unknown): readonly MeetingAgentDefinitionV1[] {
+export function parseAgentDefinitions(value: unknown): readonly MeetingAgentDefinition[] {
     if (value === undefined) return Object.freeze([]);
     try {
         const parsed = z.array(definition).max(64).parse(value);

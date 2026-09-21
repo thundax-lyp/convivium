@@ -6,17 +6,14 @@ import type { MeetingState } from "@/domain/index.js";
 import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.js";
 import { MeetingCommandResultSchema } from "@/protocol/index.js";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import {
     createMeetingCommandApplicationV1,
     DEADLINE_HANDLER_PRINCIPAL_ID,
     RUNTIME_RECOVERY_PRINCIPAL_ID,
-    type MeetingCommandApplicationV1
+    type MeetingCommandApplication
 } from "./application-service/meeting-command.js";
 import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
@@ -198,7 +195,7 @@ function createIdentityProvisionOwnerV1(dependencies: {
     };
 }
 
-const applications = new WeakMap<object, MeetingCommandApplicationV1>();
+const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const deliveryEnsurers = new WeakMap<
     object,
@@ -238,7 +235,7 @@ function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">):
         throw new Error("Convivium requires the exact seven enabled Meeting role definitions.");
 }
 
-export function getMeetingCommandApplicationV1(owner: object): MeetingCommandApplicationV1 {
+export function getMeetingCommandApplicationV1(owner: object): MeetingCommandApplication {
     const application = applications.get(owner);
     if (!application) throw new Error("Target Meeting application is not active.");
     return application;
@@ -261,7 +258,7 @@ export async function activateTargetMeetingApplicationV1(
     const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
     const registry = await DomainRepositoryRegistry.open<MeetingState>({
         storageDomain: ctx.storageDomain,
-        codec: { encode: encodeMeetingStateV1, decode: decodeMeetingStateV1 },
+        codec: { encode: encodeMeetingState, decode: decodeMeetingState },
         authorizationValidator: {
             validateCreate: () => undefined,
             validateCommand: () => undefined

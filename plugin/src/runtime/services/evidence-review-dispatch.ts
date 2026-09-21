@@ -12,7 +12,7 @@ import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
-    type MeetingCommandApplicationV1
+    type MeetingCommandApplication
 } from "@/runtime/application-service/meeting-command.js";
 
 class EvidenceReviewDispatchError extends Error {
@@ -133,16 +133,16 @@ function pendingReviews(state: MeetingState) {
     });
 }
 
-interface DispatchEvidenceReviewBatchInputV1 {
+interface DispatchEvidenceReviewBatchInput {
     readonly outboxItem: OutboxItem;
     readonly parent: Agent;
     readonly signal: AbortSignal;
 }
 
-interface EvidenceReviewDispatcherDependenciesV1 {
+interface EvidenceReviewDispatcherDependencies {
     readonly sessions: Pick<SubagentRuntime, "sendMessage">;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
-    readonly application: MeetingCommandApplicationV1;
+    readonly application: MeetingCommandApplication;
     readonly clock: { now(): number };
 }
 
@@ -180,8 +180,8 @@ const workerReviewOutputSchema = {
 } as const;
 
 export function createEvidenceReviewDispatcherV1(
-    dependencies: EvidenceReviewDispatcherDependenciesV1
-): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
+    dependencies: EvidenceReviewDispatcherDependencies
+): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function releaseClaim(
         meetingId: string,
         roundId: string,
@@ -432,10 +432,10 @@ export function createEvidenceReviewDispatcherV1(
 }
 
 interface ReviewDeliveryDispatcherDependenciesV1 extends Omit<
-    EvidenceReviewDispatcherDependenciesV1,
+    EvidenceReviewDispatcherDependencies,
     "clock"
 > {
-    readonly application: MeetingCommandApplicationV1;
+    readonly application: MeetingCommandApplication;
 }
 
 function alreadySent(state: MeetingState, reviewId: string): boolean {
@@ -446,9 +446,9 @@ function alreadySent(state: MeetingState, reviewId: string): boolean {
 
 export function createReviewDeliveryDispatcherV1(
     dependencies: ReviewDeliveryDispatcherDependenciesV1
-): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
+): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function record(
-        input: DispatchEvidenceReviewBatchInputV1,
+        input: DispatchEvidenceReviewBatchInput,
         status: "sent" | "failed",
         reviewId: string,
         failureReason?: string

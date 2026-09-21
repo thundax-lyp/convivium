@@ -1,6 +1,6 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { z } from "zod";
-import type { MeetingAgentDefinitionV1 } from "./model.js";
+import type { MeetingAgentDefinition } from "./model.js";
 
 export type MeetingAgentModelOverrides = Readonly<
     Record<string, Readonly<Pick<AgentOptions, "provider" | "model" | "reasoningEffort">>>
@@ -22,7 +22,7 @@ const options = z
 /** Snapshot Host-owned overrides without exposing private configuration in errors. */
 export function parseAgentModelOverrides(
     value: unknown,
-    definitions: readonly MeetingAgentDefinitionV1[]
+    definitions: readonly MeetingAgentDefinition[]
 ): MeetingAgentModelOverrides {
     try {
         const input = value === undefined ? {} : value;

@@ -43,13 +43,13 @@ function isTargetMeetingState(value: unknown): value is MeetingState {
     return fields.every((field) => Object.prototype.hasOwnProperty.call(value, field));
 }
 
-export function encodeMeetingStateV1(state: unknown): Uint8Array {
+export function encodeMeetingState(state: unknown): Uint8Array {
     if (!isTargetMeetingState(state) || validateMeetingState(state).kind !== "valid")
         throw new Error("INCOMPATIBLE_VERSION");
     return new TextEncoder().encode(JSON.stringify(state));
 }
 
-export function decodeMeetingStateV1(bytes: Uint8Array): MeetingState {
+export function decodeMeetingState(bytes: Uint8Array): MeetingState {
     try {
         const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
         if (!isTargetMeetingState(value) || validateMeetingState(value).kind !== "valid")

@@ -5,10 +5,7 @@ import {
     ListMeetingsRequestSchema,
     ReadMeetingRequestSchema
 } from "@/protocol/meeting-command.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import {
     MeetingActionSchema as PublicMeetingActionV1Schema,
     MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
@@ -219,8 +216,8 @@ describe("target Meeting business-loop protocol", () => {
         const second = { a: { c: 3, d: 4 }, z: [{ a: 1, b: 2 }] };
         expect(serializeValidatedRequest(first)).toBe(serializeValidatedRequest(second));
         const state = makeRunningMeetingStateV1();
-        expect(decodeMeetingStateV1(encodeMeetingStateV1(state))).toEqual(state);
-        expect(() => encodeMeetingStateV1({ ...state, formatApprovals: [] })).toThrow(
+        expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);
+        expect(() => encodeMeetingState({ ...state, formatApprovals: [] })).toThrow(
             "INCOMPATIBLE_VERSION"
         );
     });

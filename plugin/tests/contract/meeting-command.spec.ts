@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/index.js";
 import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
 import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
@@ -16,14 +13,14 @@ import type { RepositoryCommand } from "@/repository/types.js";
 describe("target Meeting command core", () => {
     it("round-trips a complete target state without loss", () => {
         const state = makeRunningMeetingStateV1();
-        expect(decodeMeetingStateV1(encodeMeetingStateV1(state))).toEqual(state);
+        expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);
     });
 
     it("rejects a state with a missing required field", () => {
         const state = makeRunningMeetingStateV1();
         const missing = { ...state } as Record<string, unknown>;
         delete missing.identities;
-        expect(() => decodeMeetingStateV1(encodeMeetingStateV1(missing))).toThrow(
+        expect(() => decodeMeetingState(encodeMeetingState(missing))).toThrow(
             "INCOMPATIBLE_VERSION"
         );
     });

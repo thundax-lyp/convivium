@@ -1,11 +1,11 @@
 import { type MeetingDomain } from "./specs.js";
 import {
-    type CheckpointPageV1,
-    type CheckpointPointerV1,
-    type PersistenceProjectionV1,
-    CheckpointPageV1Schema,
-    CheckpointPointerV1Schema,
-    CheckpointRootV1Schema
+    type CheckpointPage,
+    type CheckpointPointer,
+    type PersistenceProjection,
+    CheckpointPageSchema,
+    CheckpointPointerSchema,
+    CheckpointRootSchema
 } from "./schemas.js";
 import {
     CHECKPOINT_PAGE_RAW_BYTES,
@@ -23,7 +23,7 @@ function sameBytes(a: unknown, b: unknown): boolean {
     const right = encodeCanonicalJson(b);
     return left.length === right.length && left.every((value, index) => value === right[index]);
 }
-function checkedPage(page: CheckpointPageV1): void {
+function checkedPage(page: CheckpointPage): void {
     const raw = Uint8Array.from(Buffer.from(page.payloadBase64, "base64"));
     if (
         Buffer.from(raw).toString("base64") !== page.payloadBase64 ||
@@ -34,10 +34,10 @@ function checkedPage(page: CheckpointPageV1): void {
 }
 export async function writeCheckpoint(input: {
     readonly domain: MeetingDomain;
-    readonly projection: PersistenceProjectionV1;
+    readonly projection: PersistenceProjection;
     readonly baseSeq: number;
     readonly createdAt: number;
-}): Promise<CheckpointPointerV1> {
+}): Promise<CheckpointPointer> {
     const bytes = encodeProjection(input.projection);
     if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES)
         throw new RangeError("checkpoint too large");
@@ -50,7 +50,7 @@ export async function writeCheckpoint(input: {
             index * CHECKPOINT_PAGE_RAW_BYTES,
             (index + 1) * CHECKPOINT_PAGE_RAW_BYTES
         );
-        const page = CheckpointPageV1Schema.parse({
+        const page = CheckpointPageSchema.parse({
             formatVersion: 1,
             generation: gen,
             baseSeq: input.baseSeq,
@@ -66,7 +66,7 @@ export async function writeCheckpoint(input: {
             if (!sameBytes(existing, page)) throw new Error("checkpoint page corruption");
         } else await pages.put(key, page);
     }
-    const root = CheckpointRootV1Schema.parse({
+    const root = CheckpointRootSchema.parse({
         formatVersion: 1,
         generation: gen,
         baseSeq: input.baseSeq,
@@ -82,7 +82,7 @@ export async function writeCheckpoint(input: {
     } else await roots.put(gen, root);
     const rereadRoot = roots.get(gen);
     if (!rereadRoot || !sameBytes(rereadRoot, root)) throw new Error("checkpoint root corruption");
-    const pointer = CheckpointPointerV1Schema.parse({
+    const pointer = CheckpointPointerSchema.parse({
         formatVersion: 1,
         generation: gen,
         baseSeq: input.baseSeq,
@@ -96,10 +96,7 @@ export async function writeCheckpoint(input: {
     await cleanupPublished(input.domain, pointer);
     return pointer;
 }
-async function cleanupPublished(
-    domain: MeetingDomain,
-    pointer: CheckpointPointerV1
-): Promise<void> {
+async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointer): Promise<void> {
     const commits = domain.table("commits");
     for (const [key, commit] of [...commits.entries()])
         if (commit.seq <= pointer.baseSeq) {

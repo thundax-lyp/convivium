@@ -31,7 +31,7 @@ export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export {
     createMeetingCommandApplicationV1,
-    type MeetingCommandApplicationV1
+    type MeetingCommandApplication
 } from "./application-service/meeting-command.js";
 export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
 export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";

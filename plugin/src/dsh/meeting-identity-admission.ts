@@ -1,5 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import type { IdentityRecommendation } from "@/domain/index.js";
 export interface PreparedDescriptor {
     descriptorId: string;
@@ -34,7 +34,7 @@ export interface IdentityAdmissionPort {
     startOwnedChild(
         owner: SessionOwnership,
         parent: Agent,
-        definition: MeetingAgentDefinitionV1,
+        definition: MeetingAgentDefinition,
         signal: AbortSignal
     ): Promise<{ kind: "ready"; sessionId: string } | { kind: "rejected"; error: RoleError }>;
     markActive(owner: SessionOwnership): Promise<SessionOwnership | RoleError>;
@@ -47,7 +47,7 @@ export async function admitMeetingIdentity(
     intent: IdentityRecommendation,
     descriptor: PreparedDescriptor,
     parent: Agent,
-    definition: MeetingAgentDefinitionV1,
+    definition: MeetingAgentDefinition,
     ownerPort: IdentityAdmissionPort
 ): Promise<AdmitIdentityResult> {
     if (intent.decision !== "admit" || intent.status !== "provisioning")

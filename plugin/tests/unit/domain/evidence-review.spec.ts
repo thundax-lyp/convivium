@@ -13,10 +13,7 @@ import { isRoundClosable } from "@/domain/transitions/round.js";
 import { publishRound } from "@/domain/transitions/round-publication.js";
 import { closeContribution } from "@/domain/transitions/contribution-exit.js";
 import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import {
-    decodeMeetingStateV1,
-    encodeMeetingStateV1
-} from "@/repository/domain/meeting-state-codec.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();
@@ -264,7 +261,7 @@ describe("evidence review and delivery", () => {
         });
         if (claim.kind !== "accepted") throw new Error("claim");
 
-        const recovered = decodeMeetingStateV1(encodeMeetingStateV1(claim.state));
+        const recovered = decodeMeetingState(encodeMeetingState(claim.state));
 
         expect(recovered.reviewClaims).toEqual(claim.state.reviewClaims);
         expect(validateMeetingState(recovered)).toMatchObject({ kind: "valid" });

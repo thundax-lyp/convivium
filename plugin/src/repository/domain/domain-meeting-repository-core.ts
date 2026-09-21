@@ -3,14 +3,14 @@ import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository
 import type { CatalogDomain, MeetingDomain } from "./specs.js";
 import {
     AgentDefinitionBindingSchema,
-    CatalogMeetingRecordV1Schema,
-    CreationRecordV1Schema,
+    CatalogMeetingRecordSchema,
+    CreationRecordSchema,
     JsonObjectSchema,
-    type PersistenceProjectionV1,
-    PersistedEventV1Schema,
-    PersistedOutboxV1Schema,
-    PersistedReceiptV1Schema,
-    PersistenceProjectionV1Schema
+    type PersistenceProjection,
+    PersistedEventSchema,
+    PersistedOutboxSchema,
+    PersistedReceiptSchema,
+    PersistenceProjectionSchema
 } from "./schemas.js";
 import type {
     CommittedResult,
@@ -150,7 +150,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     protected closed = false;
     protected domainClosed = false;
     protected mutationChain: Promise<void> = Promise.resolve();
-    protected projection: PersistenceProjectionV1 | undefined;
+    protected projection: PersistenceProjection | undefined;
     protected headSeq = 0;
     protected headDigest: string | null = null;
     protected maintenanceRequested = false;
@@ -305,7 +305,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     protected async commit<T>(_input: {
         operation: string;
         now: number;
-        mutate(current: PersistenceProjectionV1): { next: PersistenceProjectionV1; result: T };
+        mutate(current: PersistenceProjection): { next: PersistenceProjection; result: T };
     }): Promise<T> {
         if (!this.projection)
             throw new RepositoryError(
@@ -317,7 +317,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         const current = decodeProjection(encodeProjection(this.projection));
         const previousJson = decodeCanonicalJson(encodeCanonicalJson(current));
         const changed = _input.mutate(current);
-        const nextProjection = PersistenceProjectionV1Schema.parse(changed.next);
+        const nextProjection = PersistenceProjectionSchema.parse(changed.next);
         const nextJson = decodeCanonicalJson(encodeCanonicalJson(nextProjection));
         const patch = diff(previousJson, nextJson).map((operation) => {
             if (operation.op === "splice")
@@ -500,7 +500,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     createdAt: now
                 };
             });
-            const creation = CreationRecordV1Schema.parse({
+            const creation = CreationRecordSchema.parse({
                 formatVersion: 1,
                 meetingId: this.meetingId,
                 status: "creating",
@@ -515,7 +515,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 updatedAt: now,
                 failureCode: null
             });
-            const catalog = CatalogMeetingRecordV1Schema.parse({
+            const catalog = CatalogMeetingRecordSchema.parse({
                 formatVersion: 1,
                 meetingId: this.meetingId,
                 domainName: this.meetingDomain.name,
@@ -610,7 +610,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 },
                 sessionOwnership: creation.sessionOwnership
             });
-            next.events[seqKey(1)] = PersistedEventV1Schema.parse({
+            next.events[seqKey(1)] = PersistedEventSchema.parse({
                 formatVersion: 1,
                 eventSeq: 1,
                 meetingVersion: initialVersion,
@@ -620,7 +620,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 attemptId: null,
                 createdAt: now
             });
-            next.receipts[createReceiptKey] = PersistedReceiptV1Schema.parse({
+            next.receipts[createReceiptKey] = PersistedReceiptSchema.parse({
                 formatVersion: 1,
                 requestId: input.requestId,
                 commandKind: "create_meeting",
@@ -632,7 +632,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 createdAt: now
             });
             for (const item of creation.initialOutbox)
-                next.outbox[item.id] = PersistedOutboxV1Schema.parse({
+                next.outbox[item.id] = PersistedOutboxSchema.parse({
                     ...item,
                     status: "pending",
                     attempts: 0,
@@ -728,7 +728,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                             "Create receipt is missing"
                         );
                     const [key, receipt] = matches[0]!;
-                    const next = PersistenceProjectionV1Schema.parse({
+                    const next = PersistenceProjectionSchema.parse({
                         ...current,
                         bootstrap: {
                             ...current.bootstrap,
@@ -922,7 +922,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 operation: "session.ownership",
                 now,
                 mutate: (current) => {
-                    const next = PersistenceProjectionV1Schema.parse({
+                    const next = PersistenceProjectionSchema.parse({
                         ...current,
                         sessionOwnership: {
                             ...current.sessionOwnership,
@@ -998,7 +998,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 "Meeting does not exist"
             );
         // A read must not serialize unrelated receipts, events, outbox or private mail.
-        const result = PersistenceProjectionV1Schema.shape.snapshot
+        const result = PersistenceProjectionSchema.shape.snapshot
             .unwrap()
             .parse(decodeCanonicalJson(encodeCanonicalJson(snapshot)));
         if (

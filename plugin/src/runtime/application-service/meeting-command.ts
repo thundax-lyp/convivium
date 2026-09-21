@@ -31,7 +31,7 @@ import { meetingIdFor } from "@/repository/domain/keys.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type {
     CommandAuthorization,
-    CommittedFactRecordV1,
+    CommittedFactRecord,
     JsonObject,
     OutboxInput,
     RepositoryCommand,
@@ -44,28 +44,28 @@ export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
 export const DEADLINE_HANDLER_PRINCIPAL_ID = "deadline-handler";
 
-export interface CallerBindingV1 {
+export interface CallerBinding {
     channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
     principalId: string;
     sessionBindingId?: string;
 }
 
-export interface MeetingCommandExecutionContextV1 {
-    caller: CallerBindingV1;
+export interface MeetingCommandExecutionContext {
+    caller: CallerBinding;
     /** Trusted Captain parent injected by the create tool; never decoded from command input. */
     captainParent?: Agent;
     archiveEffect?: { effectId: string; archiveId: string };
     identityAdmissionResult?: IdentityAdmissionResultContext;
 }
 
-export type CreateMeetingCommandV1 = Omit<MeetingCommand, "action"> & {
+export type CreateMeetingCommand = Omit<MeetingCommand, "action"> & {
     action: Extract<MeetingAction, { kind: "create_meeting" }>;
 };
 
 export interface MeetingCreationCoordinatorV1 {
     create(
-        command: CreateMeetingCommandV1,
-        context: MeetingCommandExecutionContextV1,
+        command: CreateMeetingCommand,
+        context: MeetingCommandExecutionContext,
         meetingId: string,
         now: number,
         signal: AbortSignal
@@ -73,7 +73,7 @@ export interface MeetingCreationCoordinatorV1 {
 }
 
 export interface ResolvedCallerScopeV1 {
-    caller: CallerBindingV1;
+    caller: CallerBinding;
     meetingId: string;
     identityId?: string;
     role: "local" | "manager" | "evidence_reviewer" | "participant" | "runtime";
@@ -82,18 +82,18 @@ export interface ResolvedCallerScopeV1 {
 
 export type ResolveCallerScopeV1 = (input: {
     meetingId: string;
-    caller: CallerBindingV1;
+    caller: CallerBinding;
 }) => Promise<ResolvedCallerScopeV1 | undefined>;
 
-export interface MeetingCommandApplicationV1 {
+export interface MeetingCommandApplication {
     execute(
         command: MeetingCommand,
-        context: MeetingCommandExecutionContextV1,
+        context: MeetingCommandExecutionContext,
         signal: AbortSignal
     ): Promise<MeetingCommandResult>;
 }
 
-export interface MeetingCommandApplicationDependenciesV1 {
+export interface MeetingCommandApplicationDependencies {
     creation: MeetingCreationCoordinatorV1;
     registry: DomainRepositoryRegistry<MeetingState>;
     ids: { nextId(kind: string): string };
@@ -128,7 +128,7 @@ const rejected = (
     }
 });
 
-function sameCaller(left: CallerBindingV1, right: CallerBindingV1): boolean {
+function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
     return (
         left.channel === right.channel &&
         left.principalId === right.principalId &&
@@ -166,7 +166,7 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
 
 function validScope(
     command: MeetingCommand,
-    context: MeetingCommandExecutionContextV1,
+    context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScopeV1 | undefined
 ): scope is ResolvedCallerScopeV1 {
     if (
@@ -214,7 +214,7 @@ function authorization(scope: ResolvedCallerScopeV1): CommandAuthorization {
 
 function outbox(
     requests: readonly object[],
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     now: number
 ): OutboxInput[] {
     return requests.map((request) => {
@@ -279,19 +279,19 @@ type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingStat
 type TransitionInput = {
     snapshot: { state: MeetingState; version: number };
     repositoryContext: { allSessionOwnershipClosedAfterResult?: boolean };
-    deps: MeetingCommandApplicationDependenciesV1;
+    deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
-    context: MeetingCommandExecutionContextV1;
+    context: MeetingCommandExecutionContext;
     scope: ResolvedCallerScopeV1;
     now: number;
     factId: string;
     catalogDefinitionHash?: string;
-    committedFacts: readonly CommittedFactRecordV1<MeetingState>[];
+    committedFacts: readonly CommittedFactRecord<MeetingState>[];
 };
 
 function actionAuthorizationFailure(
     command: MeetingCommand,
-    context: MeetingCommandExecutionContextV1,
+    context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScopeV1
 ): MeetingCommandResult | undefined {
     if (!authorizedRole(command.action.kind, scope))
@@ -323,7 +323,7 @@ function actionAuthorizationFailure(
 }
 
 async function prepareIdentityCatalog(
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     repository: MeetingRepository,
     command: MeetingCommand,
     scope: ResolvedCallerScopeV1
@@ -659,7 +659,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
 
 function finalizeMeetingTransition(input: {
     transition: CommandTransition;
-    deps: MeetingCommandApplicationDependenciesV1;
+    deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
     now: number;
     factId: string;
@@ -668,7 +668,7 @@ function finalizeMeetingTransition(input: {
     snapshotVersion: number;
 }): {
     repositoryTransition: TransitionResult<MeetingCommandResult, MeetingState>;
-    facts: readonly CommittedFactRecordV1<MeetingState>[];
+    facts: readonly CommittedFactRecord<MeetingState>[];
 } {
     const { transition, deps, command, now, factId, receiptId, actorId, snapshotVersion } = input;
     if (transition.kind === "rejected")
@@ -725,7 +725,7 @@ function finalizeMeetingTransition(input: {
               }
             : {})
     };
-    const facts: readonly CommittedFactRecordV1<MeetingState>[] = [
+    const facts: readonly CommittedFactRecord<MeetingState>[] = [
         {
             factId,
             kind: action.kind,
@@ -749,13 +749,13 @@ function finalizeMeetingTransition(input: {
 }
 
 function createRepositoryCommand(input: {
-    deps: MeetingCommandApplicationDependenciesV1;
+    deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
-    context: MeetingCommandExecutionContextV1;
+    context: MeetingCommandExecutionContext;
     scope: ResolvedCallerScopeV1;
     now: number;
     catalogDefinitionHash?: string;
-    committedFacts: readonly CommittedFactRecordV1<MeetingState>[];
+    committedFacts: readonly CommittedFactRecord<MeetingState>[];
 }): RepositoryCommand<MeetingCommandResult, MeetingState> {
     const { deps, command, context, scope, now, catalogDefinitionHash, committedFacts } = input;
     const factId = deps.ids.nextId("fact");
@@ -808,9 +808,9 @@ function createRepositoryCommand(input: {
 }
 
 async function executeCreateMeeting(
-    deps: MeetingCommandApplicationDependenciesV1,
-    command: CreateMeetingCommandV1,
-    context: MeetingCommandExecutionContextV1,
+    deps: MeetingCommandApplicationDependencies,
+    command: CreateMeetingCommand,
+    context: MeetingCommandExecutionContext,
     now: number,
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
@@ -835,9 +835,9 @@ async function executeCreateMeeting(
 }
 
 async function executeExistingMeeting(
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     command: MeetingCommand,
-    context: MeetingCommandExecutionContextV1,
+    context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScopeV1,
     now: number
 ): Promise<MeetingCommandResult> {
@@ -868,9 +868,9 @@ async function executeExistingMeeting(
 }
 
 async function executeMeetingCommand(
-    deps: MeetingCommandApplicationDependenciesV1,
+    deps: MeetingCommandApplicationDependencies,
     rawCommand: MeetingCommand,
-    context: MeetingCommandExecutionContextV1,
+    context: MeetingCommandExecutionContext,
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
     const parsed = MeetingCommandSchema.safeParse(rawCommand);
@@ -879,7 +879,7 @@ async function executeMeetingCommand(
     signal.throwIfAborted();
     const now = deps.clock.now();
     if (command.action.kind === "create_meeting")
-        return executeCreateMeeting(deps, command as CreateMeetingCommandV1, context, now, signal);
+        return executeCreateMeeting(deps, command as CreateMeetingCommand, context, now, signal);
     const scope = await deps.resolveCallerScope({
         meetingId: command.meetingId,
         caller: context.caller
@@ -890,8 +890,8 @@ async function executeMeetingCommand(
 }
 
 export function createMeetingCommandApplicationV1(
-    deps: MeetingCommandApplicationDependenciesV1
-): MeetingCommandApplicationV1 {
+    deps: MeetingCommandApplicationDependencies
+): MeetingCommandApplication {
     return {
         execute: (command, context, signal) => executeMeetingCommand(deps, command, context, signal)
     };

@@ -4,7 +4,7 @@ export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-reposi
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type {
     ClaimOutboxInput,
-    CommittedFactRecordV1,
+    CommittedFactRecord,
     CommittedResult,
     CompleteOutboxInput,
     JsonObject,
@@ -16,12 +16,12 @@ import type {
     RenewOutboxLeaseInput
 } from "@/repository/types.js";
 import {
-    CommittedFactRecordV1Schema,
-    PersistedEventV1Schema,
-    PersistedOutboxV1Schema,
-    PersistedReceiptV1Schema,
-    PersistenceProjectionV1Schema,
-    type PersistenceProjectionV1
+    CommittedFactRecordSchema,
+    PersistedEventSchema,
+    PersistedOutboxSchema,
+    PersistedReceiptSchema,
+    PersistenceProjectionSchema,
+    type PersistenceProjection
 } from "./schemas.js";
 import { decodeProjection, encodeProjection } from "./projection.js";
 import { receiptKey, seqKey } from "./keys.js";
@@ -278,7 +278,7 @@ export class DomainMeetingRepository<TState = JsonObject>
             now,
             mutate: (current) => {
                 const next = decodeProjection(encodeProjection(current));
-                const receipt = PersistedReceiptV1Schema.safeParse({
+                const receipt = PersistedReceiptSchema.safeParse({
                     formatVersion: 1,
                     requestId: command.requestId,
                     commandKind: command.commandKind,
@@ -316,7 +316,7 @@ export class DomainMeetingRepository<TState = JsonObject>
         transitionState: JsonObject,
         nextVersion: number,
         now: number
-    ): PersistenceProjectionV1 {
+    ): PersistenceProjection {
         try {
             return decodeProjection(
                 encodeCanonicalJson({
@@ -340,7 +340,7 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     private appendEvents(
-        next: PersistenceProjectionV1,
+        next: PersistenceProjection,
         events: ReturnType<RepositoryCommand<unknown, TState>["transition"]>["events"],
         nextVersion: number,
         now: number
@@ -349,7 +349,7 @@ export class DomainMeetingRepository<TState = JsonObject>
         for (const event of events) {
             const eventSeq = next.nextEventSeq++;
             eventSeqs.push(eventSeq);
-            const persisted = PersistedEventV1Schema.safeParse({
+            const persisted = PersistedEventSchema.safeParse({
                 formatVersion: 1,
                 eventSeq,
                 meetingVersion: nextVersion,
@@ -372,8 +372,8 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     private appendFacts(
-        next: PersistenceProjectionV1,
-        facts: readonly CommittedFactRecordV1<TState>[],
+        next: PersistenceProjection,
+        facts: readonly CommittedFactRecord<TState>[],
         nextVersion: number
     ): void {
         for (const fact of facts) {
@@ -384,7 +384,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                     this.meetingId,
                     "Command fact identity or version is invalid"
                 );
-            const persisted = CommittedFactRecordV1Schema.safeParse({
+            const persisted = CommittedFactRecordSchema.safeParse({
                 ...fact,
                 relatedIds: [...fact.relatedIds],
                 payload: jsonValue(fact.payload),
@@ -402,7 +402,7 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     private applyArchiveSessionResult<T>(
-        next: PersistenceProjectionV1,
+        next: PersistenceProjection,
         command: RepositoryCommand<T, TState>,
         archiveSessionOwnershipKey: string | undefined,
         now: number
@@ -431,7 +431,7 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     private appendOutbox(
-        next: PersistenceProjectionV1,
+        next: PersistenceProjection,
         outbox: ReturnType<RepositoryCommand<unknown, TState>["transition"]>["outbox"],
         now: number
     ): void {
@@ -453,7 +453,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                 );
             deliveryIds.add(item.deliveryId);
             const id = item.id ?? crypto.randomUUID();
-            const persisted = PersistedOutboxV1Schema.safeParse({
+            const persisted = PersistedOutboxSchema.safeParse({
                 formatVersion: 1,
                 id,
                 deliveryId: item.deliveryId,
@@ -483,7 +483,7 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     private appendReceipt<T>(
-        next: PersistenceProjectionV1,
+        next: PersistenceProjection,
         command: RepositoryCommand<T, TState>,
         key: string,
         nextVersion: number,
@@ -491,7 +491,7 @@ export class DomainMeetingRepository<TState = JsonObject>
         eventSeqs: readonly number[],
         now: number
     ): void {
-        const receipt = PersistedReceiptV1Schema.safeParse({
+        const receipt = PersistedReceiptSchema.safeParse({
             formatVersion: 1,
             requestId: command.requestId,
             commandKind: command.commandKind,
@@ -543,7 +543,7 @@ export class DomainMeetingRepository<TState = JsonObject>
             })
         });
     }
-    async readCommittedFacts(): Promise<readonly CommittedFactRecordV1<TState>[]> {
+    async readCommittedFacts(): Promise<readonly CommittedFactRecord<TState>[]> {
         this.ensureOpen();
         return Object.values(this.projection?.facts ?? {})
             .sort(
@@ -757,7 +757,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                 operation: "outbox.renew",
                 now,
                 mutate: (projection) => ({
-                    next: PersistenceProjectionV1Schema.parse({
+                    next: PersistenceProjectionSchema.parse({
                         ...projection,
                         outbox: {
                             ...projection.outbox,

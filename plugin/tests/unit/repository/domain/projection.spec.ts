@@ -9,7 +9,7 @@ import {
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
 } from "@/repository/domain/projection.js";
-import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
+import { CommitRecordSchema } from "@/repository/domain/schemas.js";
 describe("domain projection", () => {
     const bootstrap = {
         status: "ready" as const,
@@ -44,7 +44,7 @@ describe("domain projection", () => {
             ],
             committedAt: 1
         });
-        expect(CommitRecordV1Schema.parse(c)).toEqual(c);
+        expect(CommitRecordSchema.parse(c)).toEqual(c);
         expect(
             encodeProjection(createProjection({ snapshot: null, bootstrap, sessionOwnership: {} }))
                 .byteLength

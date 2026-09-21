@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
+import { resolveDynamicMeetingDefinition } from "@/role-composition/resolve.js";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 
 const definitions = parseAgentDefinitions([
@@ -20,14 +20,14 @@ const definitions = parseAgentDefinitions([
 describe("meeting identity admission boundary", () => {
     it("resolves only the exact Definition version and hash", () => {
         const hash = "";
-        const mismatch = resolveDynamicMeetingDefinitionV1(
+        const mismatch = resolveDynamicMeetingDefinition(
             definitions,
             { id: "domain_architect", version: "1" },
             hash
         );
         expect(mismatch).toMatchObject({ kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" });
         expect(
-            resolveDynamicMeetingDefinitionV1(definitions, { id: "missing", version: "1" }, hash)
+            resolveDynamicMeetingDefinition(definitions, { id: "missing", version: "1" }, hash)
         ).toMatchObject({ kind: "rejected", code: "DEFINITION_NOT_FOUND" });
     });
 });

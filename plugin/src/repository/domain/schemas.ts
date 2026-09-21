@@ -224,7 +224,7 @@ const privateMail = z
     })
     .strict() satisfies z.ZodType<PrivateMeetingMail>;
 
-export const CommittedFactRecordV1Schema = z
+export const CommittedFactRecordSchema = z
     .object({
         factId: z.string().min(1),
         kind: z.string().min(1),
@@ -237,7 +237,7 @@ export const CommittedFactRecordV1Schema = z
     })
     .strict();
 
-export const CatalogMeetingRecordV1Schema = z
+export const CatalogMeetingRecordSchema = z
     .object({
         formatVersion: z.literal(1),
         meetingId: z.string(),
@@ -250,7 +250,7 @@ export const CatalogMeetingRecordV1Schema = z
         failureCode: z.string().nullable()
     })
     .strict();
-export const CreationRecordV1Schema = z
+export const CreationRecordSchema = z
     .object({
         formatVersion: z.literal(1),
         meetingId: z.string(),
@@ -267,7 +267,7 @@ export const CreationRecordV1Schema = z
         failureCode: z.string().nullable()
     })
     .strict();
-export const PersistedReceiptV1Schema = z
+export const PersistedReceiptSchema = z
     .object({
         formatVersion: z.literal(1),
         requestId: z.string(),
@@ -280,7 +280,7 @@ export const PersistedReceiptV1Schema = z
         createdAt: z.number().int()
     })
     .strict();
-export const PersistedEventV1Schema = z
+export const PersistedEventSchema = z
     .object({
         formatVersion: z.literal(1),
         eventSeq: z.number().int(),
@@ -292,7 +292,7 @@ export const PersistedEventV1Schema = z
         createdAt: z.number().int()
     })
     .strict();
-export const PersistedOutboxV1Schema = z
+export const PersistedOutboxSchema = z
     .object({
         formatVersion: z.literal(1),
         id: z.string(),
@@ -312,22 +312,22 @@ export const PersistedOutboxV1Schema = z
         createdAt: z.number().int()
     })
     .strict();
-export const PersistenceProjectionV1Schema = z
+export const PersistenceProjectionSchema = z
     .object({
         formatVersion: z.literal(1),
         snapshot: meetingSnapshot.nullable(),
         bootstrap: meetingBootstrap,
-        receipts: safeRecord(PersistedReceiptV1Schema),
-        facts: safeRecord(CommittedFactRecordV1Schema),
-        events: safeRecord(PersistedEventV1Schema),
-        outbox: safeRecord(PersistedOutboxV1Schema),
+        receipts: safeRecord(PersistedReceiptSchema),
+        facts: safeRecord(CommittedFactRecordSchema),
+        events: safeRecord(PersistedEventSchema),
+        outbox: safeRecord(PersistedOutboxSchema),
         sessionOwnership: sessionOwnershipMap,
         privateMail: safeRecord(privateMail),
         nextEventSeq: z.number().int()
     })
     .strict();
 
-export const JsonPatchOperationV1Schema = z.discriminatedUnion("op", [
+export const JsonPatchOperationSchema = z.discriminatedUnion("op", [
     z
         .object({ op: z.literal("remove"), path: z.array(z.union([z.string(), z.number().int()])) })
         .strict(),
@@ -348,19 +348,19 @@ export const JsonPatchOperationV1Schema = z.discriminatedUnion("op", [
         })
         .strict()
 ]);
-export const CommitRecordV1Schema = z
+export const CommitRecordSchema = z
     .object({
         formatVersion: z.literal(1),
         seq: z.number().int(),
         previousSeq: z.number().int(),
         previousDigest: z.string().nullable(),
         operation: z.string(),
-        patch: z.array(JsonPatchOperationV1Schema),
+        patch: z.array(JsonPatchOperationSchema),
         committedAt: z.number().int(),
         digest: z.string()
     })
     .strict();
-export const CheckpointPageV1Schema = z
+export const CheckpointPageSchema = z
     .object({
         formatVersion: z.literal(1),
         generation: z.string(),
@@ -371,7 +371,7 @@ export const CheckpointPageV1Schema = z
         payloadDigest: z.string()
     })
     .strict();
-export const CheckpointRootV1Schema = z
+export const CheckpointRootSchema = z
     .object({
         formatVersion: z.literal(1),
         generation: z.string(),
@@ -382,7 +382,7 @@ export const CheckpointRootV1Schema = z
         createdAt: z.number().int()
     })
     .strict();
-export const CheckpointPointerV1Schema = z
+export const CheckpointPointerSchema = z
     .object({
         formatVersion: z.literal(1),
         generation: z.string(),
@@ -391,10 +391,10 @@ export const CheckpointPointerV1Schema = z
         publishedAt: z.number().int()
     })
     .strict();
-export type CatalogMeetingRecordV1 = z.infer<typeof CatalogMeetingRecordV1Schema>;
-export type CreationRecordV1 = z.infer<typeof CreationRecordV1Schema>;
-export type PersistenceProjectionV1 = z.infer<typeof PersistenceProjectionV1Schema>;
-export type CommitRecordV1 = z.infer<typeof CommitRecordV1Schema>;
-export type CheckpointPageV1 = z.infer<typeof CheckpointPageV1Schema>;
-export type CheckpointRootV1 = z.infer<typeof CheckpointRootV1Schema>;
-export type CheckpointPointerV1 = z.infer<typeof CheckpointPointerV1Schema>;
+export type CatalogMeetingRecord = z.infer<typeof CatalogMeetingRecordSchema>;
+export type CreationRecord = z.infer<typeof CreationRecordSchema>;
+export type PersistenceProjection = z.infer<typeof PersistenceProjectionSchema>;
+export type CommitRecord = z.infer<typeof CommitRecordSchema>;
+export type CheckpointPage = z.infer<typeof CheckpointPageSchema>;
+export type CheckpointRoot = z.infer<typeof CheckpointRootSchema>;
+export type CheckpointPointer = z.infer<typeof CheckpointPointerSchema>;

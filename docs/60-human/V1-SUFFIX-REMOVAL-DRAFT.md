@@ -6,70 +6,18 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `repository` | 23 |
-| `role-composition` | 6 |
-| `runtime` | 37 |
+| `runtime` | 26 |
 | `tools` | 1 |
-| 合计（按模块去重） | 67 |
+| 合计（按模块去重） | 27 |
 
-声明出现次数：67
+声明出现次数：27
 
-全局唯一名称数：67
-
-## repository
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `CatalogMeetingRecordV1` | `CatalogMeetingRecord` |
-| `CatalogMeetingRecordV1Schema` | `CatalogMeetingRecordSchema` |
-| `CheckpointPageV1` | `CheckpointPage` |
-| `CheckpointPageV1Schema` | `CheckpointPageSchema` |
-| `CheckpointPointerV1` | `CheckpointPointer` |
-| `CheckpointPointerV1Schema` | `CheckpointPointerSchema` |
-| `CheckpointRootV1` | `CheckpointRoot` |
-| `CheckpointRootV1Schema` | `CheckpointRootSchema` |
-| `CommitRecordV1` | `CommitRecord` |
-| `CommitRecordV1Schema` | `CommitRecordSchema` |
-| `CommittedFactRecordV1` | `CommittedFactRecord` |
-| `CommittedFactRecordV1Schema` | `CommittedFactRecordSchema` |
-| `CreationRecordV1` | `CreationRecord` |
-| `CreationRecordV1Schema` | `CreationRecordSchema` |
-| `JsonPatchOperationV1` | `JsonPatchOperation` |
-| `JsonPatchOperationV1Schema` | `JsonPatchOperationSchema` |
-| `PersistedEventV1Schema` | `PersistedEventSchema` |
-| `PersistedOutboxV1Schema` | `PersistedOutboxSchema` |
-| `PersistedReceiptV1Schema` | `PersistedReceiptSchema` |
-| `PersistenceProjectionV1` | `PersistenceProjection` |
-| `PersistenceProjectionV1Schema` | `PersistenceProjectionSchema` |
-| `decodeMeetingStateV1` | `decodeMeetingState` |
-| `encodeMeetingStateV1` | `encodeMeetingState` |
-
-## role-composition
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `AgentDefinitionBindingV1` | `AgentDefinitionBinding` |
-| `DynamicDefinitionResolutionV1` | `DynamicDefinitionResolution` |
-| `MeetingAgentDefinitionV1` | `MeetingAgentDefinition` |
-| `PreflightIdentityResultV1` | `PreflightIdentityResult` |
-| `preflightDynamicMeetingIdentityV1` | `preflightDynamicMeetingIdentity` |
-| `resolveDynamicMeetingDefinitionV1` | `resolveDynamicMeetingDefinition` |
+全局唯一名称数：27
 
 ## runtime
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `ArchiveSessionsV1` | `ArchiveSessions` |
-| `CallerBindingV1` | `CallerBinding` |
-| `CreateMeetingCommandV1` | `CreateMeetingCommand` |
-| `DispatchArchiveCleanupInputV1` | `DispatchArchiveCleanupInput` |
-| `DispatchEvidenceReviewBatchInputV1` | `DispatchEvidenceReviewBatchInput` |
-| `EvidenceReviewDispatcherDependenciesV1` | `EvidenceReviewDispatcherDependencies` |
-| `IdentityProvisionResultV1` | `IdentityProvisionResult` |
-| `MeetingArchiveDispatcherDependenciesV1` | `MeetingArchiveDispatcherDependencies` |
-| `MeetingCommandApplicationDependenciesV1` | `MeetingCommandApplicationDependencies` |
-| `MeetingCommandApplicationV1` | `MeetingCommandApplication` |
-| `MeetingCommandExecutionContextV1` | `MeetingCommandExecutionContext` |
 | `MeetingCommandRecoveryDependenciesV1` | `MeetingCommandRecoveryDependencies` |
 | `MeetingCreationCoordinatorV1` | `MeetingCreationCoordinator` |
 | `MeetingIdentityEffectHandlerDependenciesV1` | `MeetingIdentityEffectHandlerDependencies` |

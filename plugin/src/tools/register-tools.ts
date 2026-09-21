@@ -16,7 +16,7 @@ import {
     type MeetingCommandResult,
     type MeetingCommand
 } from "@/protocol/index.js";
-import type { MeetingCommandApplicationV1 } from "@/runtime/index.js";
+import type { MeetingCommandApplication } from "@/runtime/index.js";
 
 export interface TargetMeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCaller | undefined>;
@@ -24,7 +24,7 @@ export interface TargetMeetingToolCallerResolver {
 
 export interface MeetingCommandToolDependencies {
     readonly registry: Pick<ToolRuntime, "register">;
-    readonly application: MeetingCommandApplicationV1;
+    readonly application: MeetingCommandApplication;
     readonly callers: TargetMeetingToolCallerResolver;
     readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
 }

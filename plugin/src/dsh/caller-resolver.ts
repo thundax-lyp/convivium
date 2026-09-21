@@ -1,4 +1,4 @@
-import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
+import type { AgentDefinitionBinding } from "@/role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
 import type { ProtocolError } from "@/protocol/index.js";
@@ -25,7 +25,7 @@ export interface MeetingOwnershipRecord {
     readonly meetingId?: string;
     readonly identityId?: string;
     readonly lastClosureFailureCode?: string;
-    readonly agentDefinition?: AgentDefinitionBindingV1;
+    readonly agentDefinition?: AgentDefinitionBinding;
     readonly sessionId: string;
     readonly parentSessionId: string;
     readonly sessionLabel: string;
