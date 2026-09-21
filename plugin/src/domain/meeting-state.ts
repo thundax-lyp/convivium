@@ -171,7 +171,7 @@ export interface SupplementHandV1 extends HandRaiseV1 {
     acceptedAt?: EpochMs;
 }
 
-export interface EvidenceOpportunityRequestV1 {
+export interface EvidenceOpportunityRequest {
     id: OpaqueId;
     agendaId: OpaqueId;
     contributorId: OpaqueId;
@@ -186,7 +186,7 @@ export interface PendingHandRaiseV1 {
     raisedAt: EpochMs;
 }
 
-export interface ContributionV1 {
+export interface Contribution {
     id: OpaqueId;
     roundId: OpaqueId;
     contributorId: OpaqueId;
@@ -215,14 +215,14 @@ export interface TextWithReasonV1 {
     reason?: string;
 }
 
-export interface EvidenceClaimV1 {
+export interface EvidenceClaim {
     id: OpaqueId;
     statement: string;
     materialIds: readonly OpaqueId[];
     qualification: string;
 }
 
-export interface EvidenceMaterialV1 {
+export interface EvidenceMaterial {
     id: OpaqueId;
     kind:
         | "document"
@@ -245,7 +245,7 @@ export interface EvidenceMaterialV1 {
     reason?: string;
 }
 
-export interface EvidenceVersionV1 {
+export interface EvidenceVersion {
     id: OpaqueId;
     ordinal: number;
     observation: string;
@@ -254,19 +254,19 @@ export interface EvidenceVersionV1 {
     falsifiers: readonly TextWithReasonV1[];
     uncertainties: readonly TextWithReasonV1[];
     limitations: readonly TextWithReasonV1[];
-    claims: readonly EvidenceClaimV1[];
-    materials: readonly EvidenceMaterialV1[];
+    claims: readonly EvidenceClaim[];
+    materials: readonly EvidenceMaterial[];
     submittedAt: EpochMs;
 }
 
-export interface EvidencePackageV1 {
+export interface EvidencePackage {
     id: OpaqueId;
     roundId: OpaqueId;
     contributionId: OpaqueId;
     authorId: OpaqueId;
     agendaId: OpaqueId;
     currentVersionId: OpaqueId;
-    versions: readonly EvidenceVersionV1[];
+    versions: readonly EvidenceVersion[];
 }
 
 export interface RegistrationV1 {
@@ -283,7 +283,7 @@ export interface ReviewDimensionV1 {
     baselineEvidenceIds: readonly OpaqueId[];
 }
 
-export interface EvidenceReviewV1 {
+export interface EvidenceReview {
     id: OpaqueId;
     versionId: OpaqueId;
     reviewerId: OpaqueId;
@@ -363,7 +363,7 @@ export interface PositionV1 {
     createdAt: EpochMs;
 }
 
-export interface DecisionCandidateV1 {
+export interface DecisionCandidate {
     id: OpaqueId;
     proposalRevisionId: OpaqueId;
     actorId: OpaqueId;
@@ -374,7 +374,7 @@ export interface DecisionCandidateV1 {
     createdAt: EpochMs;
 }
 
-export interface DecisionV1 extends DecisionCandidateV1 {
+export interface Decision extends DecisionCandidate {
     candidateId: OpaqueId;
     status: "accepted" | "superseded" | "revoked";
     replacesDecisionId?: OpaqueId;
@@ -391,7 +391,7 @@ export interface RiskDispositionV1 {
     createdAt: EpochMs;
 }
 
-export interface CompletionDeclarationV1 {
+export interface CompletionDeclaration {
     id: OpaqueId;
     actorId: OpaqueId;
     outputId: OpaqueId;
@@ -402,7 +402,7 @@ export interface CompletionDeclarationV1 {
     createdAt: EpochMs;
 }
 
-export interface CompletionFactV1 {
+export interface CompletionFact {
     id: OpaqueId;
     outputId: OpaqueId;
     criterionId?: OpaqueId;
@@ -512,15 +512,15 @@ export interface ArchiveEvidenceBundle {
     packageId: OpaqueId;
     authorIdentityId: OpaqueId;
     agendaId: OpaqueId;
-    version: EvidenceVersionV1;
-    review: EvidenceReviewV1;
+    version: EvidenceVersion;
+    review: EvidenceReview;
 }
 
 export interface ArchiveUnclosedContribution {
     contributionId: OpaqueId;
     contributorIdentityId: OpaqueId;
     agendaId: OpaqueId;
-    status: ContributionV1["status"];
+    status: Contribution["status"];
     exitReason?: string;
 }
 
@@ -572,9 +572,9 @@ export interface ArchivePackage {
     evidenceBundles: readonly ArchiveEvidenceBundle[];
     proposalRevisions: readonly ProposalRevisionV1[];
     positions: readonly PositionV1[];
-    decisionCandidates: readonly DecisionCandidateV1[];
-    decisions: readonly DecisionV1[];
-    completionFacts: readonly CompletionFactV1[];
+    decisionCandidates: readonly DecisionCandidate[];
+    decisions: readonly Decision[];
+    completionFacts: readonly CompletionFact[];
     questions: readonly QuestionV1[];
     issues: readonly IssueV1[];
     riskDispositions: readonly RiskDispositionV1[];
@@ -588,7 +588,7 @@ export interface ArchivePackage {
     exportMaterials: readonly ArchiveMaterial[];
 }
 
-export interface ContinuationProvenanceV1 {
+export interface ContinuationProvenance {
     sourceArchiveId: OpaqueId;
     selectedMaterialIds: readonly OpaqueId[];
     importedAt: EpochMs;
@@ -608,7 +608,7 @@ export interface MeetingState {
     version: number;
     createdAt: EpochMs;
     updatedAt: EpochMs;
-    continuation?: ContinuationProvenanceV1;
+    continuation?: ContinuationProvenance;
     objective: ObjectiveContractV1;
     lifecycle: MeetingLifecycleV1;
     identities: readonly MeetingIdentityV1[];
@@ -616,29 +616,29 @@ export interface MeetingState {
     agenda: readonly AgendaItem[];
     agendaCandidates: readonly AgendaCandidate[];
     rounds: readonly RoundV1[];
-    opportunityRequests: readonly EvidenceOpportunityRequestV1[];
+    opportunityRequests: readonly EvidenceOpportunityRequest[];
     pendingHandRaises: readonly PendingHandRaiseV1[];
-    contributions: readonly ContributionV1[];
+    contributions: readonly Contribution[];
     evidenceReviewerId: OpaqueId;
-    completionDeclarations: readonly CompletionDeclarationV1[];
-    evidencePackages: readonly EvidencePackageV1[];
+    completionDeclarations: readonly CompletionDeclaration[];
+    evidencePackages: readonly EvidencePackage[];
     registrations: readonly RegistrationV1[];
-    reviews: readonly EvidenceReviewV1[];
+    reviews: readonly EvidenceReview[];
     reviewClaims: readonly ReviewBatchClaimV1[];
     reviewDeliveries: readonly ReviewDeliveryV1[];
     publications: readonly PublicationV1[];
     messages: readonly FormalMessageV1[];
     proposals: readonly ProposalRevisionV1[];
     positions: readonly PositionV1[];
-    decisionCandidates: readonly DecisionCandidateV1[];
-    decisions: readonly DecisionV1[];
+    decisionCandidates: readonly DecisionCandidate[];
+    decisions: readonly Decision[];
     questions: readonly QuestionV1[];
     issues: readonly IssueV1[];
     riskDispositions: readonly RiskDispositionV1[];
     tasks: readonly MeetingTaskV1[];
     managerPlans: readonly ManagerPlanV1[];
     privateMails: readonly PrivateMailV1[];
-    completionFacts: readonly CompletionFactV1[];
+    completionFacts: readonly CompletionFact[];
     limits: MeetingLimitsV1;
     termination?: TerminationV1;
     archive?: ArchivePackage;

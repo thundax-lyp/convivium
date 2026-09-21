@@ -3,7 +3,7 @@ import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import { isObjectiveSatisfiedV1 } from "./outcome.js";
 import { rejectedTransitionV1, type MeetingTransitionResultV1 } from "./result.js";
 
-export interface EndMeetingInputV1 {
+export interface EndMeetingInput {
     terminationId: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     reason: string;
@@ -26,7 +26,7 @@ const nonTerminalContributionStatuses = new Set([
 
 export function endMeetingV1(
     state: MeetingState,
-    input: EndMeetingInputV1
+    input: EndMeetingInput
 ): MeetingTransitionResultV1 {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");

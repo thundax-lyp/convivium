@@ -17,7 +17,7 @@ export {
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
 export {
     submitEvidenceV1,
-    type EvidenceInputV1,
+    type EvidenceInput,
     type SubmitEvidenceInputV1
 } from "./format-evidence.js";
 export {
@@ -61,9 +61,9 @@ export type {
     RecordProposalRevisionInputV1,
     RecordPositionInputV1,
     RecordDecisionCandidateInputV1,
-    DecideInputV1,
+    DecideInput,
     ChangeDecisionInput,
-    DisposeRiskInputV1,
+    DisposeRiskInput,
     SubmitCompletionDeclarationInputV1,
     RecordCompletionFactInputV1,
     ChangeCompletionFactInput

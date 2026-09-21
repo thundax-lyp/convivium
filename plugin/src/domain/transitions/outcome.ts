@@ -4,11 +4,11 @@ import type {
     OpaqueId,
     PositionV1,
     ProposalRevisionV1,
-    DecisionCandidateV1
+    DecisionCandidate
 } from "@/domain/meeting-state.js";
-import type { DecisionV1 } from "@/domain/meeting-state.js";
+import type { Decision } from "@/domain/meeting-state.js";
 import type { IssueV1 } from "@/domain/meeting-state.js";
-import type { CompletionDeclarationV1, CompletionFactV1 } from "@/domain/meeting-state.js";
+import type { CompletionDeclaration, CompletionFact } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import type { MeetingTransitionResultV1 } from "./result.js";
 import { rejectedTransitionV1 } from "./result.js";
@@ -38,14 +38,14 @@ export interface RecordPositionInputV1 {
 export interface RecordDecisionCandidateInputV1 {
     candidateId: OpaqueId;
     proposalRevisionId: OpaqueId;
-    outcome: DecisionCandidateV1["outcome"];
+    outcome: DecisionCandidate["outcome"];
     rationale: string;
     evidenceIds: readonly OpaqueId[];
     positionIds: readonly OpaqueId[];
     actor: OutcomeActorV1;
     now: EpochMs;
 }
-export interface DecideInputV1 {
+export interface DecideInput {
     decisionId: OpaqueId;
     candidateId: OpaqueId;
     actor: OutcomeActorV1;
@@ -61,7 +61,7 @@ export type ChangeDecisionInput = {
     | { status: "superseded"; replacementCandidateId: OpaqueId; replacementDecisionId: OpaqueId }
     | { status: "revoked"; replacementCandidateId?: never; replacementDecisionId?: never }
 );
-export interface DisposeRiskInputV1 {
+export interface DisposeRiskInput {
     dispositionId: OpaqueId;
     issueId: OpaqueId;
     action: "accept" | "reject";
@@ -180,7 +180,7 @@ export function recalculateMeetingCompletionV1(
         if (!d || d.status !== "accepted" || d.outcome !== "adopt") return false;
         return current.has(d.proposalRevisionId);
     };
-    const validFact = (f: CompletionFactV1) =>
+    const validFact = (f: CompletionFact) =>
         f.status === "active" &&
         f.decisionIds.every(validDecision) &&
         factEvidenceOk(state, f.evidenceIds);
@@ -406,7 +406,7 @@ export function recordDecisionCandidateV1(
             "position belongs to another revision",
             revision.id
         );
-    const candidate: DecisionCandidateV1 = {
+    const candidate: DecisionCandidate = {
         id: input.candidateId,
         proposalRevisionId: input.proposalRevisionId,
         actorId: input.actor.id,
@@ -435,7 +435,7 @@ export function recordDecisionCandidateV1(
         effectRequests: []
     };
 }
-export function pendingDecisionCandidatesV1(state: MeetingState): readonly DecisionCandidateV1[] {
+export function pendingDecisionCandidatesV1(state: MeetingState): readonly DecisionCandidate[] {
     if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") return [];
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const used = new Set(state.decisions.map((d) => d.candidateId));
@@ -443,7 +443,7 @@ export function pendingDecisionCandidatesV1(state: MeetingState): readonly Decis
         (c) => current.has(c.proposalRevisionId) && !used.has(c.id)
     );
 }
-export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTransitionResultV1 {
+export function decideV1(state: MeetingState, _input: DecideInput): MeetingTransitionResultV1 {
     const input = _input;
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -468,7 +468,7 @@ export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTra
         state.decisions.some((d) => d.proposalRevisionId === revision.id && d.status === "accepted")
     )
         return bad(state, "PRECONDITION_FAILED", "candidate already decided", candidate.id);
-    const decision: DecisionV1 = {
+    const decision: Decision = {
         ...candidate,
         id: input.decisionId,
         candidateId: candidate.id,
@@ -566,7 +566,7 @@ export function changeDecisionV1(
         )
     )
         return bad(state, "PRECONDITION_FAILED", "replacement candidate is invalid", candidate.id);
-    const replacement: DecisionV1 = {
+    const replacement: Decision = {
         ...candidate,
         id: input.replacementDecisionId,
         candidateId: candidate.id,
@@ -591,7 +591,7 @@ export function changeDecisionV1(
 }
 export function disposeRiskV1(
     state: MeetingState,
-    input: DisposeRiskInputV1
+    input: DisposeRiskInput
 ): MeetingTransitionResultV1 {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -719,7 +719,7 @@ export function submitCompletionDeclarationV1(
         )
             return bad(state, "PRECONDITION_FAILED", "task is not completed", input.taskId);
     }
-    const d: CompletionDeclarationV1 = {
+    const d: CompletionDeclaration = {
         id: input.declarationId,
         actorId: input.actor.id,
         outputId: input.outputId,
@@ -804,7 +804,7 @@ export function recordCompletionFactV1(
         })
     )
         return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
-    const f: CompletionFactV1 = {
+    const f: CompletionFact = {
         id: input.factId,
         outputId: input.outputId,
         ...(input.criterionId !== undefined ? { criterionId: input.criterionId } : {}),
@@ -927,7 +927,7 @@ export function changeCompletionFactV1(
         })
     )
         return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
-    const replacement: CompletionFactV1 = {
+    const replacement: CompletionFact = {
         id: r.factId,
         outputId: r.outputId,
         ...(r.criterionId !== undefined ? { criterionId: r.criterionId } : {}),

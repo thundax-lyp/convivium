@@ -1,4 +1,4 @@
-import type { EvidenceOpportunityRequestV1, MeetingState, OpaqueId } from "@/domain/index.js";
+import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.js";
 import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result.js";
 
 type RequestInput = {
@@ -108,7 +108,7 @@ export function requestEvidenceOpportunityV1(
         return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
     if (state.opportunityRequests.some((request) => request.id === input.requestId))
         return rejected(state, "INVALID_ARGUMENT", "request id already exists", input.requestId);
-    const request: EvidenceOpportunityRequestV1 = {
+    const request: EvidenceOpportunityRequest = {
         id: input.requestId,
         agendaId: input.agendaId,
         contributorId: input.contributorId,

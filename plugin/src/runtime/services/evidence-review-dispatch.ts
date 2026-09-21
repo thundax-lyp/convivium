@@ -1,8 +1,8 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
-    EvidenceReviewV1,
-    EvidenceVersionV1,
+    EvidenceReview,
+    EvidenceVersion,
     MeetingIdentityV1,
     MeetingState,
     PublicationV1
@@ -88,7 +88,7 @@ function findOwnership(
 function publicationEvidence(
     state: MeetingState,
     publication: PublicationV1
-): readonly { version: EvidenceVersionV1; review: EvidenceReviewV1 }[] {
+): readonly { version: EvidenceVersion; review: EvidenceReview }[] {
     if (publication.finalVersionIds.length !== publication.finalReviewIds.length)
         fail("REVIEW_BASELINE_INVALID");
     return publication.finalVersionIds.map((versionId, index) => {

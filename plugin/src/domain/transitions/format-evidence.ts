@@ -1,12 +1,7 @@
-import type {
-    EvidenceVersionV1,
-    MeetingState,
-    OpaqueId,
-    TextWithReasonV1
-} from "@/domain/index.js";
+import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReasonV1 } from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 
-export interface EvidenceInputV1 {
+export interface EvidenceInput {
     observation: string;
     interpretation: string;
     method: string;
@@ -21,7 +16,7 @@ export interface EvidenceInputV1 {
     }[];
     materials: readonly {
         id: OpaqueId;
-        kind: EvidenceVersionV1["materials"][number]["kind"];
+        kind: EvidenceVersion["materials"][number]["kind"];
         originator: string;
         originalSource: string;
         sourcePublishedAt: string;
@@ -38,7 +33,7 @@ export interface EvidenceInputV1 {
 export interface SubmitEvidenceInputV1 {
     contributionId: OpaqueId;
     authorId: OpaqueId;
-    evidence: EvidenceInputV1;
+    evidence: EvidenceInput;
     packageId: OpaqueId;
     versionId: OpaqueId;
     now: number;
@@ -46,7 +41,7 @@ export interface SubmitEvidenceInputV1 {
 function validText(value: string) {
     return value.trim().length > 0;
 }
-function validInput(evidence: EvidenceInputV1) {
+function validInput(evidence: EvidenceInput) {
     if (![evidence.observation, evidence.interpretation, evidence.method].every(validText))
         return false;
     if (
@@ -198,7 +193,7 @@ export function submitEvidenceV1(
         if (deadlines.some((deadline) => input.now >= deadline))
             return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
     }
-    const version: EvidenceVersionV1 = {
+    const version: EvidenceVersion = {
         ...input.evidence,
         id: input.versionId,
         ordinal: (currentVersion?.ordinal ?? 0) + 1,

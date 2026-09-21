@@ -1,9 +1,4 @@
-import type {
-    EvidenceReviewV1,
-    MeetingState,
-    OpaqueId,
-    ReviewDimensionV1
-} from "@/domain/index.js";
+import type { EvidenceReview, MeetingState, OpaqueId, ReviewDimensionV1 } from "@/domain/index.js";
 export interface SubmitReviewBatchItemV1 {
     reviewId: OpaqueId;
     versionId: OpaqueId;
@@ -180,7 +175,7 @@ export function submitReviewBatchV1(
         return reject(state, "REVIEWER_CONFLICT", "review batch claim is invalid");
     const reviewIds = new Set<string>();
     const versionIds = new Set<string>();
-    const pending: EvidenceReviewV1[] = [];
+    const pending: EvidenceReview[] = [];
     for (const item of input.reviews) {
         if (
             !item.reviewId.trim() ||

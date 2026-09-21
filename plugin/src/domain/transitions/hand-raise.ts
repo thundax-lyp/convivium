@@ -1,4 +1,4 @@
-import type { ContributionV1, MeetingState, OpaqueId } from "@/domain/index.js";
+import type { Contribution, MeetingState, OpaqueId } from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result.js";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
@@ -166,7 +166,7 @@ export function disposeHandRaiseV1(
             )
         )
             return reject(state, "PRECONDITION_FAILED", "contributor is processing private mail");
-        const contribution: ContributionV1 = {
+        const contribution: Contribution = {
             id: input.contributionId,
             roundId: round.id,
             contributorId: input.contributorId,

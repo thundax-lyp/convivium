@@ -6,7 +6,7 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `domain` | 115 |
+| `domain` | 99 |
 | `dsh` | 28 |
 | `projection` | 4 |
 | `protocol` | 209 |
@@ -14,32 +14,16 @@
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 423 |
+| 合计（按模块去重） | 407 |
 
-声明出现次数：427
+声明出现次数：411
 
-全局唯一名称数：421
+全局唯一名称数：407
 
 ## domain
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `CompletionDeclarationV1` | `CompletionDeclaration` |
-| `CompletionFactV1` | `CompletionFact` |
-| `ContinuationProvenanceV1` | `ContinuationProvenance` |
-| `ContributionV1` | `Contribution` |
-| `DecideInputV1` | `DecideInput` |
-| `DecisionCandidateV1` | `DecisionCandidate` |
-| `DecisionV1` | `Decision` |
-| `DisposeRiskInputV1` | `DisposeRiskInput` |
-| `EndMeetingInputV1` | `EndMeetingInput` |
-| `EvidenceClaimV1` | `EvidenceClaim` |
-| `EvidenceInputV1` | `EvidenceInput` |
-| `EvidenceMaterialV1` | `EvidenceMaterial` |
-| `EvidenceOpportunityRequestV1` | `EvidenceOpportunityRequest` |
-| `EvidencePackageV1` | `EvidencePackage` |
-| `EvidenceReviewV1` | `EvidenceReview` |
-| `EvidenceVersionV1` | `EvidenceVersion` |
 | `ExpirePrivateMailInputV1` | `ExpirePrivateMailInput` |
 | `FormalMessageV1` | `FormalMessage` |
 | `HandRaiseV1` | `HandRaise` |
