@@ -2,8 +2,8 @@ import type {
     EpochMs,
     MeetingState,
     OpaqueId,
-    PositionV1,
-    ProposalRevisionV1,
+    Position,
+    ProposalRevision,
     DecisionCandidate
 } from "@/domain/meeting-state.js";
 import type { Decision } from "@/domain/meeting-state.js";
@@ -13,9 +13,9 @@ import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import type { MeetingTransitionResult } from "./result.js";
 import { rejectedTransitionV1 } from "./result.js";
 
-export type OutcomeActorV1 =
+export type OutcomeActor =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
-export interface RecordProposalRevisionInputV1 {
+export interface RecordProposalRevisionInput {
     revisionId: OpaqueId;
     proposalId: OpaqueId;
     agendaId: OpaqueId;
@@ -23,39 +23,39 @@ export interface RecordProposalRevisionInputV1 {
     body: string;
     evidenceIds: readonly OpaqueId[];
     supersedesRevisionId?: OpaqueId;
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
-export interface RecordPositionInputV1 {
+export interface RecordPositionInput {
     positionId: OpaqueId;
     proposalRevisionId: OpaqueId;
-    stance: PositionV1["stance"];
+    stance: Position["stance"];
     rationale: string;
     evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
-export interface RecordDecisionCandidateInputV1 {
+export interface RecordDecisionCandidateInput {
     candidateId: OpaqueId;
     proposalRevisionId: OpaqueId;
     outcome: DecisionCandidate["outcome"];
     rationale: string;
     evidenceIds: readonly OpaqueId[];
     positionIds: readonly OpaqueId[];
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
 export interface DecideInput {
     decisionId: OpaqueId;
     candidateId: OpaqueId;
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
 export type ChangeDecisionInput = {
     decisionId: OpaqueId;
     rationale: string;
     evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 } & (
     | { status: "superseded"; replacementCandidateId: OpaqueId; replacementDecisionId: OpaqueId }
@@ -68,20 +68,20 @@ export interface DisposeRiskInput {
     scope: string;
     rationale: string;
     evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
-export interface SubmitCompletionDeclarationInputV1 {
+export interface SubmitCompletionDeclarationInput {
     declarationId: OpaqueId;
     outputId: OpaqueId;
     criterionId?: OpaqueId;
     statement: string;
     evidenceIds: readonly OpaqueId[];
     taskId?: OpaqueId;
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
-export interface RecordCompletionFactInputV1 {
+export interface RecordCompletionFactInput {
     factId: OpaqueId;
     outputId: OpaqueId;
     criterionId?: OpaqueId;
@@ -89,16 +89,16 @@ export interface RecordCompletionFactInputV1 {
     rationale: string;
     evidenceIds: readonly OpaqueId[];
     decisionIds: readonly OpaqueId[];
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 }
 export type ChangeCompletionFactInput = {
     factId: OpaqueId;
     rationale: string;
-    actor: OutcomeActorV1;
+    actor: OutcomeActor;
     now: EpochMs;
 } & (
-    | { status: "superseded"; replacement: Omit<RecordCompletionFactInputV1, "actor" | "now"> }
+    | { status: "superseded"; replacement: Omit<RecordCompletionFactInput, "actor" | "now"> }
     | { status: "revoked"; replacement?: never }
 );
 
@@ -115,7 +115,7 @@ const validArray = (xs: readonly unknown[]) =>
     xs.length > 0 && xs.every(validId) && new Set(xs).size === xs.length;
 const base = (
     s: MeetingState,
-    actor: OutcomeActorV1,
+    actor: OutcomeActor,
     now: number
 ): MeetingTransitionResult | undefined => {
     if (validateMeetingStateV1(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
@@ -130,7 +130,7 @@ const lifecycle = (s: MeetingState) =>
         : s.lifecycle.status !== "running"
           ? "INVALID_STATE"
           : undefined;
-const identity = (s: MeetingState, actor: OutcomeActorV1) =>
+const identity = (s: MeetingState, actor: OutcomeActor) =>
     actor.kind === "identity" ? s.identities.find((i) => i.id === actor.id) : undefined;
 const published = (s: MeetingState) => new Set(s.publications.flatMap((p) => p.finalVersionIds));
 const evidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
@@ -161,10 +161,10 @@ const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     evidenceOk(s, ids) && requiredReviewOk(s, ids);
 const currentRevision = (s: MeetingState, proposalId: string) =>
     s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
-const actorRole = (s: MeetingState, actor: OutcomeActorV1, role: "contributor" | "captain") =>
+const actorRole = (s: MeetingState, actor: OutcomeActor, role: "contributor" | "captain") =>
     actor.kind === "identity" &&
     s.identities.some((i) => i.id === actor.id && i.roles.includes(role));
-const captainActor = (s: MeetingState, actor: OutcomeActorV1) =>
+const captainActor = (s: MeetingState, actor: OutcomeActor) =>
     actor.kind === "local_controller" || actorRole(s, actor, "captain");
 const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
     (s[key] as readonly { id: string }[]).some((x) => x.id === id);
@@ -237,7 +237,7 @@ export function recalculateMeetingCompletionV1(
 
 export function recordProposalRevisionV1(
     state: MeetingState,
-    input: RecordProposalRevisionInputV1
+    input: RecordProposalRevisionInput
 ): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -276,7 +276,7 @@ export function recordProposalRevisionV1(
     const prev = currentRevision(state, input.proposalId);
     if (prev ? input.supersedesRevisionId !== prev.id : input.supersedesRevisionId !== undefined)
         return bad(state, "PRECONDITION_FAILED");
-    const revision: ProposalRevisionV1 = {
+    const revision: ProposalRevision = {
         id: input.revisionId,
         proposalId: input.proposalId,
         ordinal: prev ? prev.ordinal + 1 : 1,
@@ -316,7 +316,7 @@ export function recordProposalRevisionV1(
 
 export function recordPositionV1(
     state: MeetingState,
-    input: RecordPositionInputV1
+    input: RecordPositionInput
 ): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -343,7 +343,7 @@ export function recordPositionV1(
     if (currentRevision(state, revision.proposalId)?.id !== revision.id)
         return bad(state, "PRECONDITION_FAILED", "proposal revision is not current", revision.id);
     if (uniqueEntity(state, input.positionId, "positions")) return bad(state, "INVALID_ARGUMENT");
-    const position: PositionV1 = {
+    const position: Position = {
         id: input.positionId,
         proposalRevisionId: input.proposalRevisionId,
         actorId: input.actor.id,
@@ -368,7 +368,7 @@ export function recordPositionV1(
 }
 export function recordDecisionCandidateV1(
     state: MeetingState,
-    input: RecordDecisionCandidateInputV1
+    input: RecordDecisionCandidateInput
 ): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -676,7 +676,7 @@ export function disposeRiskV1(
 }
 export function submitCompletionDeclarationV1(
     state: MeetingState,
-    input: SubmitCompletionDeclarationInputV1
+    input: SubmitCompletionDeclarationInput
 ): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -751,7 +751,7 @@ export function submitCompletionDeclarationV1(
 }
 export function recordCompletionFactV1(
     state: MeetingState,
-    input: RecordCompletionFactInputV1
+    input: RecordCompletionFactInput
 ): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;

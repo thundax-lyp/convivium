@@ -7,7 +7,7 @@ import type {
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
 
-export interface StartMeetingArchiveInputV1 {
+export interface StartMeetingArchiveInput {
     archiveId: OpaqueId;
     actorId: OpaqueId;
     now: number;
@@ -34,10 +34,7 @@ const identityProvenance = (state: MeetingState) =>
               })
     }));
 
-function materializeArchive(
-    state: MeetingState,
-    input: StartMeetingArchiveInputV1
-): ArchivePackage {
+function materializeArchive(state: MeetingState, input: StartMeetingArchiveInput): ArchivePackage {
     const termination = state.termination!;
     const unclosedContributions = termination.unclosedContributionIds.map((contributionId) => {
         const contribution = state.contributions.find((item) => item.id === contributionId)!;
@@ -112,7 +109,7 @@ function materializeArchive(
 
 export function startMeetingArchiveV1(
     state: MeetingState,
-    input: StartMeetingArchiveInputV1
+    input: StartMeetingArchiveInput
 ): MeetingTransitionResult {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");

@@ -1,20 +1,20 @@
-import type { EvidenceReview, MeetingState, OpaqueId, ReviewDimensionV1 } from "@/domain/index.js";
-export interface SubmitReviewBatchItemV1 {
+import type { EvidenceReview, MeetingState, OpaqueId, ReviewDimension } from "@/domain/index.js";
+export interface SubmitReviewBatchItem {
     reviewId: OpaqueId;
     versionId: OpaqueId;
     dimensions: Readonly<{
-        source: ReviewDimensionV1;
-        credibility: ReviewDimensionV1;
-        completeness: ReviewDimensionV1;
-        support: ReviewDimensionV1;
+        source: ReviewDimension;
+        credibility: ReviewDimension;
+        completeness: ReviewDimension;
+        support: ReviewDimension;
     }>;
     scope: string;
 }
-export interface SubmitReviewBatchInputV1 {
+export interface SubmitReviewBatchInput {
     reviewerId: OpaqueId;
     roundId: OpaqueId;
     claimId: OpaqueId;
-    reviews: readonly SubmitReviewBatchItemV1[];
+    reviews: readonly SubmitReviewBatchItem[];
     now: number;
 }
 export interface ClaimReviewBatchInput {
@@ -26,13 +26,13 @@ export interface ClaimReviewBatchInput {
     now: number;
     expiresAt: number;
 }
-export interface ReleaseReviewBatchClaimInputV1 {
+export interface ReleaseReviewBatchClaimInput {
     claimId: OpaqueId;
     roundId: OpaqueId;
     reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
     now: number;
 }
-type ReviewDimensionsInputV1 = SubmitReviewBatchItemV1["dimensions"];
+type ReviewDimensionsInput = SubmitReviewBatchItem["dimensions"];
 type DeliveryInput = {
     reviewId: OpaqueId;
     dispatcherId: OpaqueId;
@@ -48,7 +48,7 @@ function valid(now: number) {
 function validDimensions(
     state: MeetingState,
     roundId: OpaqueId,
-    dimensions: ReviewDimensionsInputV1
+    dimensions: ReviewDimensionsInput
 ) {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     return (
@@ -142,7 +142,7 @@ export function claimReviewBatchV1(
 
 export function submitReviewBatchV1(
     state: MeetingState,
-    input: SubmitReviewBatchInputV1
+    input: SubmitReviewBatchInput
 ): MeetingTransitionResult {
     if (
         !input.reviewerId.trim() ||
@@ -244,7 +244,7 @@ export function submitReviewBatchV1(
 
 export function releaseReviewBatchClaimV1(
     state: MeetingState,
-    input: ReleaseReviewBatchClaimInputV1
+    input: ReleaseReviewBatchClaimInput
 ): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||

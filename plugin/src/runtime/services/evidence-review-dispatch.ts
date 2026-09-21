@@ -5,7 +5,7 @@ import type {
     EvidenceVersion,
     MeetingIdentity,
     MeetingState,
-    PublicationV1
+    Publication
 } from "@/domain/index.js";
 import { followupMeetingIdentitySessionV1 } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -87,7 +87,7 @@ function findOwnership(
 
 function publicationEvidence(
     state: MeetingState,
-    publication: PublicationV1
+    publication: Publication
 ): readonly { version: EvidenceVersion; review: EvidenceReview }[] {
     if (publication.finalVersionIds.length !== publication.finalReviewIds.length)
         fail("REVIEW_BASELINE_INVALID");

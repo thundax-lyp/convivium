@@ -3,11 +3,11 @@ import {
     type EpochMs,
     type MeetingState,
     type OpaqueId,
-    type PrivateMailV1
+    type PrivateMail
 } from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
-export interface SendPrivateMailInputV1 {
+export interface SendPrivateMailInput {
     mailId: OpaqueId;
     senderId: OpaqueId;
     recipientId: OpaqueId;
@@ -16,7 +16,7 @@ export interface SendPrivateMailInputV1 {
     relatedIds: readonly OpaqueId[];
     now: EpochMs;
 }
-export interface StartPrivateMailInputV1 {
+export interface StartPrivateMailInput {
     mailId: OpaqueId;
     actorKind: "effect_dispatcher";
     now: EpochMs;
@@ -61,7 +61,7 @@ function busy(s: MeetingState, id: string, except?: string) {
 }
 export function sendPrivateMailV1(
     s: MeetingState,
-    i: SendPrivateMailInputV1
+    i: SendPrivateMailInput
 ): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
@@ -103,7 +103,7 @@ export function sendPrivateMailV1(
     const deadline = i.now + s.limits.taskDeadlineMs;
     if (!Number.isSafeInteger(deadline))
         return reject(s, "PRECONDITION_FAILED", "deadline overflow");
-    const m: PrivateMailV1 = {
+    const m: PrivateMail = {
         id: i.mailId,
         senderId: i.senderId,
         recipientId: i.recipientId,
@@ -139,7 +139,7 @@ export function sendPrivateMailV1(
 }
 export function startPrivateMailV1(
     s: MeetingState,
-    i: StartPrivateMailInputV1
+    i: StartPrivateMailInput
 ): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
@@ -236,7 +236,7 @@ function finish(
             completedAt: i.now,
             ...(status === "completed" ? {} : { failureReason: reason })
         }).filter(([, v]) => v !== undefined)
-    ) as unknown as PrivateMailV1;
+    ) as unknown as PrivateMail;
     const next = {
         ...s,
         version: s.version + 1,

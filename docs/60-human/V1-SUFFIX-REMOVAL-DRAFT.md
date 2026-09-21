@@ -6,7 +6,7 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `domain` | 79 |
+| `domain` | 49 |
 | `dsh` | 28 |
 | `projection` | 4 |
 | `protocol` | 209 |
@@ -14,46 +14,16 @@
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 387 |
+| 合计（按模块去重） | 357 |
 
-声明出现次数：391
+声明出现次数：361
 
-全局唯一名称数：387
+全局唯一名称数：357
 
 ## domain
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `ObjectiveTargetV1` | `ObjectiveTarget` |
-| `OutcomeActorV1` | `OutcomeActor` |
-| `PendingHandRaiseV1` | `PendingHandRaise` |
-| `PositionV1` | `Position` |
-| `PrivateMailV1` | `PrivateMail` |
-| `ProposalRevisionV1` | `ProposalRevision` |
-| `PublicationV1` | `Publication` |
-| `QuestionV1` | `Question` |
-| `RecordCompletionFactInputV1` | `RecordCompletionFactInput` |
-| `RecordDecisionCandidateInputV1` | `RecordDecisionCandidateInput` |
-| `RecordPositionInputV1` | `RecordPositionInput` |
-| `RecordProposalRevisionInputV1` | `RecordProposalRevisionInput` |
-| `RegistrationV1` | `Registration` |
-| `ReleaseReviewBatchClaimInputV1` | `ReleaseReviewBatchClaimInput` |
-| `ReviewBatchClaimV1` | `ReviewBatchClaim` |
-| `ReviewDeliveryV1` | `ReviewDelivery` |
-| `ReviewDimensionV1` | `ReviewDimension` |
-| `ReviewDimensionsInputV1` | `ReviewDimensionsInput` |
-| `RiskDispositionV1` | `RiskDisposition` |
-| `RoundGoalV1` | `RoundGoal` |
-| `RoundV1` | `Round` |
-| `SendPrivateMailInputV1` | `SendPrivateMailInput` |
-| `StartMeetingArchiveInputV1` | `StartMeetingArchiveInput` |
-| `StartPrivateMailInputV1` | `StartPrivateMailInput` |
-| `SubmitCompletionDeclarationInputV1` | `SubmitCompletionDeclarationInput` |
-| `SubmitEvidenceInputV1` | `SubmitEvidenceInput` |
-| `SubmitReviewBatchInputV1` | `SubmitReviewBatchInput` |
-| `SubmitReviewBatchItemV1` | `SubmitReviewBatchItem` |
-| `SupplementHandV1` | `SupplementHand` |
-| `TargetAgendaInputV1` | `TargetAgendaInput` |
 | `TargetDomainActorV1` | `TargetDomainActor` |
 | `TargetDomainFactPayloadV1` | `TargetDomainFactPayload` |
 | `TargetDomainFactV1` | `TargetDomainFact` |

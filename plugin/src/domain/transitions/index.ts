@@ -8,8 +8,8 @@ export {
     completePrivateMailV1,
     cancelPrivateMailV1,
     expirePrivateMailV1,
-    type SendPrivateMailInputV1,
-    type StartPrivateMailInputV1,
+    type SendPrivateMailInput,
+    type StartPrivateMailInput,
     type CompletePrivateMailInput,
     type CancelPrivateMailInput,
     type ExpirePrivateMailInput
@@ -18,7 +18,7 @@ export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-han
 export {
     submitEvidenceV1,
     type EvidenceInput,
-    type SubmitEvidenceInputV1
+    type SubmitEvidenceInput
 } from "./format-evidence.js";
 export {
     claimReviewBatchV1,
@@ -26,9 +26,9 @@ export {
     submitReviewBatchV1,
     recordReviewDeliveryV1,
     type ClaimReviewBatchInput,
-    type ReleaseReviewBatchClaimInputV1,
-    type SubmitReviewBatchInputV1,
-    type SubmitReviewBatchItemV1
+    type ReleaseReviewBatchClaimInput,
+    type SubmitReviewBatchInput,
+    type SubmitReviewBatchItem
 } from "./evidence-review.js";
 export { closeContributionV1 } from "./contribution-exit.js";
 export { publishRoundV1 } from "./round-publication.js";
@@ -57,14 +57,14 @@ export {
     isObjectiveSatisfiedV1
 } from "./outcome.js";
 export type {
-    OutcomeActorV1,
-    RecordProposalRevisionInputV1,
-    RecordPositionInputV1,
-    RecordDecisionCandidateInputV1,
+    OutcomeActor,
+    RecordProposalRevisionInput,
+    RecordPositionInput,
+    RecordDecisionCandidateInput,
     DecideInput,
     ChangeDecisionInput,
     DisposeRiskInput,
-    SubmitCompletionDeclarationInputV1,
-    RecordCompletionFactInputV1,
+    SubmitCompletionDeclarationInput,
+    RecordCompletionFactInput,
     ChangeCompletionFactInput
 } from "./outcome.js";

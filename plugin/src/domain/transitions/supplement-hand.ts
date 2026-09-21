@@ -1,4 +1,4 @@
-import type { MeetingState, OpaqueId, SupplementHandV1 } from "@/domain/index.js";
+import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
@@ -97,7 +97,7 @@ export function raiseSupplementHandV1(
         return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
     const manager = managerFor(state, round.agendaId);
     if (!manager) return reject(state, "PRECONDITION_FAILED", "no eligible manager");
-    const hand: SupplementHandV1 = {
+    const hand: SupplementHand = {
         purpose: input.purpose,
         raisedAt: input.now,
         status: "pending"

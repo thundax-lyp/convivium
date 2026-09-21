@@ -8,7 +8,7 @@ export {
 export {
     transitionMeetingStateV1,
     type TargetDomainActorV1,
-    type TargetAgendaInputV1,
+    type TargetAgendaInput,
     type TargetMeetingActionV1,
     type TargetDomainFactPayloadV1,
     type TargetDomainFactV1,

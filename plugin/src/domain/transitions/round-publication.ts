@@ -1,4 +1,4 @@
-import type { FormalMessage, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
+import type { FormalMessage, MeetingState, OpaqueId, Publication } from "@/domain/index.js";
 import { isRoundClosableV1 } from "./round.js";
 import { isObjectiveSatisfiedV1 } from "./outcome.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
@@ -116,7 +116,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         (id) =>
             state.contributions.find((candidate) => candidate.id === id)?.exitReason ?? "published"
     );
-    const publication: PublicationV1 = {
+    const publication: Publication = {
         id: input.publicationId,
         roundId: round.id,
         seq: publicationSeq,

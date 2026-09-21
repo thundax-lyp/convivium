@@ -30,7 +30,7 @@ export interface EvidenceInput {
         reason?: string;
     }[];
 }
-export interface SubmitEvidenceInputV1 {
+export interface SubmitEvidenceInput {
     contributionId: OpaqueId;
     authorId: OpaqueId;
     evidence: EvidenceInput;
@@ -104,7 +104,7 @@ function validInput(evidence: EvidenceInput) {
 
 export function submitEvidenceV1(
     state: MeetingState,
-    input: SubmitEvidenceInputV1
+    input: SubmitEvidenceInput
 ): MeetingTransitionResult {
     if (
         input.contributionId.trim() === "" ||

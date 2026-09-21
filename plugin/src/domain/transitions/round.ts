@@ -1,4 +1,4 @@
-import type { MeetingState, OpaqueId, RoundV1 } from "@/domain/index.js";
+import type { MeetingState, OpaqueId, Round } from "@/domain/index.js";
 import { rejectedTransitionV1 as rejected, type MeetingTransitionResult } from "./result.js";
 
 type OpenRoundInput = {
@@ -73,7 +73,7 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     const opportunityRequests = state.opportunityRequests.filter(
         (request) => request.agendaId === input.agendaId
     );
-    const round: RoundV1 = {
+    const round: Round = {
         id: input.roundId,
         agendaId: input.agendaId,
         planId: input.planId,

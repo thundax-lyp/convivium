@@ -5,7 +5,7 @@ import type {
     MeetingState,
     OpaqueId,
     RiskLevel,
-    RoundGoalV1,
+    RoundGoal,
     TargetDomainFactPayloadV1
 } from "./meeting-state.js";
 export type { TargetDomainFactPayloadV1 } from "./meeting-state.js";
@@ -16,7 +16,7 @@ import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome.js"
 export type TargetDomainActorV1 =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
 
-export type TargetAgendaInputV1 = {
+export type TargetAgendaInput = {
     id: OpaqueId;
     title: string;
     question: string;
@@ -43,7 +43,7 @@ export type TargetMeetingActionV1 =
           candidateId: OpaqueId;
           disposition: "promoted" | "parked" | "rejected";
           reason: string;
-          promotedAgenda?: TargetAgendaInputV1;
+          promotedAgenda?: TargetAgendaInput;
       }
     | {
           kind: "record_question";
@@ -85,7 +85,7 @@ export type TargetMeetingActionV1 =
           kind: "plan_next_step";
           agendaId: OpaqueId;
           planKind: ManagerPlan["kind"];
-          roundGoal?: RoundGoalV1;
+          roundGoal?: RoundGoal;
           rationale: string;
           blockingReason?: string;
       };
