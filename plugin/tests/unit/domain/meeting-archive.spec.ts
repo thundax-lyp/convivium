@@ -3,7 +3,7 @@ import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { endMeeting } from "@/domain/transitions/meeting-end.js";
 import {
     completeMeetingArchive,
-    startMeetingArchiveV1
+    startMeetingArchive
 } from "@/domain/transitions/meeting-archive.js";
 
 describe("meeting archive", () => {
@@ -20,7 +20,7 @@ describe("meeting archive", () => {
             now: 10
         });
         if (ended.kind !== "accepted") return;
-        const archiving = startMeetingArchiveV1(ended.state, {
+        const archiving = startMeetingArchive(ended.state, {
             archiveId: "archive-v1",
             actorId: "runtime",
             now: 11,

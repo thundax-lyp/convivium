@@ -1,4 +1,4 @@
-import { validateMeetingStateV1, type MeetingState } from "@/domain/index.js";
+import { validateMeetingState, type MeetingState } from "@/domain/index.js";
 
 const fields = [
     "id",
@@ -44,7 +44,7 @@ function isTargetMeetingState(value: unknown): value is MeetingState {
 }
 
 export function encodeMeetingStateV1(state: unknown): Uint8Array {
-    if (!isTargetMeetingState(state) || validateMeetingStateV1(state).kind !== "valid")
+    if (!isTargetMeetingState(state) || validateMeetingState(state).kind !== "valid")
         throw new Error("INCOMPATIBLE_VERSION");
     return new TextEncoder().encode(JSON.stringify(state));
 }
@@ -52,7 +52,7 @@ export function encodeMeetingStateV1(state: unknown): Uint8Array {
 export function decodeMeetingStateV1(bytes: Uint8Array): MeetingState {
     try {
         const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-        if (!isTargetMeetingState(value) || validateMeetingStateV1(value).kind !== "valid")
+        if (!isTargetMeetingState(value) || validateMeetingState(value).kind !== "valid")
             throw new Error("INCOMPATIBLE_VERSION");
         return value;
     } catch (error) {

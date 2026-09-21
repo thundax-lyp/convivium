@@ -1,10 +1,10 @@
 export * from "./result.js";
-export { requestEvidenceOpportunityV1, disposeEvidenceOpportunity } from "./opportunity.js";
+export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.js";
 export { openRound, isRoundClosable } from "./round.js";
 export { raiseHand, disposeHandRaise } from "./hand-raise.js";
 export {
-    sendPrivateMailV1,
-    startPrivateMailV1,
+    sendPrivateMail,
+    startPrivateMail,
     completePrivateMail,
     cancelPrivateMail,
     expirePrivateMail,
@@ -15,16 +15,12 @@ export {
     type ExpirePrivateMailInput
 } from "./private-mail.js";
 export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.js";
-export {
-    submitEvidenceV1,
-    type EvidenceInput,
-    type SubmitEvidenceInput
-} from "./format-evidence.js";
+export { submitEvidence, type EvidenceInput, type SubmitEvidenceInput } from "./format-evidence.js";
 export {
     claimReviewBatch,
-    releaseReviewBatchClaimV1,
-    submitReviewBatchV1,
-    recordReviewDeliveryV1,
+    releaseReviewBatchClaim,
+    submitReviewBatch,
+    recordReviewDelivery,
     type ClaimReviewBatchInput,
     type ReleaseReviewBatchClaimInput,
     type SubmitReviewBatchInput,
@@ -34,25 +30,25 @@ export { closeContribution } from "./contribution-exit.js";
 export { publishRound } from "./round-publication.js";
 export { createMeeting } from "./meeting-create.js";
 export { endMeeting } from "./meeting-end.js";
-export { startMeetingArchiveV1, completeMeetingArchive } from "./meeting-archive.js";
+export { startMeetingArchive, completeMeetingArchive } from "./meeting-archive.js";
 export {
-    recommendIdentityV1,
-    recordIdentityAdmissionResultV1,
+    recommendIdentity,
+    recordIdentityAdmissionResult,
     type IdentityAdmissionResultContext,
     type IdentityRecommendationDraft,
     type IdentityTransitionResult
 } from "./meeting-identity.js";
 
 export {
-    recordProposalRevisionV1,
-    recordPositionV1,
-    recordDecisionCandidateV1,
+    recordProposalRevision,
+    recordPosition,
+    recordDecisionCandidate,
     pendingDecisionCandidates,
     decide,
     changeDecision,
     disposeRisk,
-    submitCompletionDeclarationV1,
-    recordCompletionFactV1,
+    submitCompletionDeclaration,
+    recordCompletionFact,
     changeCompletionFact,
     isObjectiveSatisfied
 } from "./outcome.js";

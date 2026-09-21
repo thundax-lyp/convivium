@@ -9,7 +9,7 @@ export interface SessionProvisioningEnvelope {
     readonly instruction: string;
 }
 
-export interface MeetingIdentityProvisioningEnvelopeV1 {
+export interface MeetingIdentityProvisioningEnvelope {
     readonly kind: "convivium.meeting-identity.provisioning";
     readonly version: 1;
     readonly role: "manager" | "evidence_reviewer" | "participant";
@@ -24,10 +24,10 @@ const meetingIdentityInstruction =
     "This message establishes your Meeting identity only and grants no work capability. Wait for a formal Meeting notice before acting.";
 
 export function createMeetingIdentityProvisioningEnvelopeV1(input: {
-    readonly role: MeetingIdentityProvisioningEnvelopeV1["role"];
+    readonly role: MeetingIdentityProvisioningEnvelope["role"];
     readonly meetingId: string;
     readonly identityId: string;
-}): MeetingIdentityProvisioningEnvelopeV1 {
+}): MeetingIdentityProvisioningEnvelope {
     if (
         !["manager", "evidence_reviewer", "participant"].includes(input.role) ||
         !identitySegment.test(input.meetingId) ||
@@ -48,7 +48,7 @@ export function createMeetingIdentityProvisioningEnvelopeV1(input: {
 }
 
 export function serializeMeetingIdentityProvisioningEnvelopeV1(
-    envelope: MeetingIdentityProvisioningEnvelopeV1
+    envelope: MeetingIdentityProvisioningEnvelope
 ): string {
     return JSON.stringify(envelope);
 }

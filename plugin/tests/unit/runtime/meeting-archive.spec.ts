@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     completeMeetingArchive,
     endMeeting,
-    startMeetingArchiveV1,
+    startMeetingArchive,
     type MeetingState
 } from "@/domain/index.js";
 import { encodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
@@ -31,7 +31,7 @@ function terminalState(): MeetingState {
 }
 
 function archivingState(): MeetingState {
-    const result = startMeetingArchiveV1(terminalState(), {
+    const result = startMeetingArchive(terminalState(), {
         archiveId: "archive-1",
         actorId: "runtime-recovery",
         now: 3,
@@ -99,7 +99,7 @@ describe("meeting archive dispatcher v1", () => {
             });
             if (command.action.kind === "start_archive") {
                 expect(command.requestId).toBe("archive-start:effect-archive-1");
-                const started = startMeetingArchiveV1(state, {
+                const started = startMeetingArchive(state, {
                     archiveId: "archive-1",
                     actorId: "runtime-recovery",
                     now: 3,

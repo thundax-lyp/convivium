@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import {
     disposeEvidenceOpportunity,
-    requestEvidenceOpportunityV1
+    requestEvidenceOpportunity
 } from "@/domain/transitions/opportunity.js";
 
 describe("evidence opportunity transitions", () => {
     it("queues one opportunity and emits a manager notice", () => {
         const state = makeRunningMeetingStateV1();
-        const result = requestEvidenceOpportunityV1(state, {
+        const result = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",
@@ -42,7 +42,7 @@ describe("evidence opportunity transitions", () => {
 
     it("disposes a pending opportunity without creating a round or contribution", () => {
         const state = makeRunningMeetingStateV1();
-        const queued = requestEvidenceOpportunityV1(state, {
+        const queued = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",
@@ -107,7 +107,7 @@ describe("evidence opportunity transitions", () => {
         ]
     ])("rejects %s atomically", (_label, expectedCode, makeState) => {
         const state = makeState(makeRunningMeetingStateV1());
-        const result = requestEvidenceOpportunityV1(state, {
+        const result = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",

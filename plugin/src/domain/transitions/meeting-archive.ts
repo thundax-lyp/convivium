@@ -4,8 +4,8 @@ import type {
     MeetingState,
     OpaqueId
 } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
+import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
 
 export interface StartMeetingArchiveInput {
     archiveId: OpaqueId;
@@ -107,12 +107,12 @@ function materializeArchive(state: MeetingState, input: StartMeetingArchiveInput
     };
 }
 
-export function startMeetingArchiveV1(
+export function startMeetingArchive(
     state: MeetingState,
     input: StartMeetingArchiveInput
 ): MeetingTransitionResult {
-    if (validateMeetingStateV1(state).kind === "invalid")
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
+    if (validateMeetingState(state).kind === "invalid")
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (
         state.lifecycle.status !== "terminal" ||
         state.termination === undefined ||
@@ -121,7 +121,7 @@ export function startMeetingArchiveV1(
         !Number.isSafeInteger(input.now) ||
         input.now < 0
     )
-        return rejectedTransitionV1(state, "INVALID_STATE", "meeting is not ready for archiving");
+        return rejectedTransition(state, "INVALID_STATE", "meeting is not ready for archiving");
     const next: MeetingState = {
         ...structuredClone(state),
         version: state.version + 1,
@@ -141,14 +141,14 @@ export function completeMeetingArchive(
     state: MeetingState,
     input: CompleteMeetingArchiveInput
 ): MeetingTransitionResult {
-    if (validateMeetingStateV1(state).kind === "invalid")
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
+    if (validateMeetingState(state).kind === "invalid")
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (state.lifecycle.status !== "archiving" || state.archive?.status !== "complete")
-        return rejectedTransitionV1(state, "INVALID_STATE", "meeting is not archiving");
+        return rejectedTransition(state, "INVALID_STATE", "meeting is not archiving");
     if (!input.allSessionOwnershipClosed)
-        return rejectedTransitionV1(state, "PRECONDITION_FAILED", "session ownership remains open");
+        return rejectedTransition(state, "PRECONDITION_FAILED", "session ownership remains open");
     if (!input.actorId.trim() || !Number.isSafeInteger(input.now) || input.now < 0)
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid archive completion input");
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid archive completion input");
     const next: MeetingState = {
         ...structuredClone(state),
         version: state.version + 1,

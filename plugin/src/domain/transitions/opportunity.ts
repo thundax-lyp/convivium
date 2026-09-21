@@ -1,5 +1,5 @@
 import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
 
 type RequestInput = {
     requestId: OpaqueId;
@@ -50,7 +50,7 @@ function findManager(state: MeetingState, agendaId: OpaqueId) {
     );
 }
 
-export function requestEvidenceOpportunityV1(
+export function requestEvidenceOpportunity(
     state: MeetingState,
     input: RequestInput
 ): MeetingTransitionResult {

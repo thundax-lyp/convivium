@@ -1,5 +1,5 @@
 import type { EpochMs, IdentityRecommendation, MeetingState } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 
 export type IdentityRecommendationDraft = {
     candidateId: string;
@@ -69,7 +69,7 @@ function validRecommendationDraft(action: IdentityRecommendationDraft): boolean 
     );
 }
 
-export function recommendIdentityV1(
+export function recommendIdentity(
     state: MeetingState,
     action: IdentityRecommendationDraft,
     managerId: string,
@@ -82,7 +82,7 @@ export function recommendIdentityV1(
     now: EpochMs
 ): IdentityTransitionResult {
     if (
-        validateMeetingStateV1(state).kind !== "valid" ||
+        validateMeetingState(state).kind !== "valid" ||
         !valid(managerId) ||
         !Number.isSafeInteger(now) ||
         !valid(ids.recommendationId)
@@ -182,14 +182,14 @@ export function recommendIdentityV1(
     };
 }
 
-export function recordIdentityAdmissionResultV1(
+export function recordIdentityAdmissionResult(
     state: MeetingState,
     recommendationId: string,
     result: IdentityAdmissionResultContext,
     now: number
 ): IdentityTransitionResult {
     if (
-        validateMeetingStateV1(state).kind !== "valid" ||
+        validateMeetingState(state).kind !== "valid" ||
         !valid(recommendationId) ||
         !Number.isSafeInteger(now)
     )

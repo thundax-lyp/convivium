@@ -42,24 +42,24 @@ Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMEN
 
 ## Catalog Snapshot And Recommendation Input
 
-    interface MeetingAgentCatalogV1 {
+    interface MeetingAgentCatalog {
       protocolVersion: 1; meetingId: string; catalogId: CatalogId; catalogVersion: string;
-      generatedAt: EpochMs; candidates: CatalogCandidateV1[];
+      generatedAt: EpochMs; candidates: CatalogCandidate[];
     }
-    interface ReadCatalogRequestV1 {
+    interface ReadCatalogRequest {
       protocolVersion: 1; meetingId: string;
       captainSessionId: string; managerSessionId: string;
     }
     type ReadCatalogResultV1 =
-      | { kind: "available"; snapshot: MeetingAgentCatalogV1 }
+      | { kind: "available"; snapshot: MeetingAgentCatalog }
       | { kind: "rejected"; error: RoleErrorV1 };
-    interface CatalogCandidateV1 {
+    interface CatalogCandidate {
       candidateId: string; definition: VersionedRef; definitionHash: string; displayName: string;
       availability: "available" | "unavailable"; meetingRoles: MeetingRole[];
       responsibilitySummary: string;
-      capabilitySummary: CapabilitySummaryV1[]; suitability: SuitabilityV1[];
+      capabilitySummary: CapabilitySummary[]; suitability: SuitabilityV1[];
     }
-    interface CapabilitySummaryV1 { kind: CapabilityKind; label: string }
+    interface CapabilitySummary { kind: CapabilityKind; label: string }
     interface SuitabilityV1 { scope: string; rationale: string }
     interface IdentityRecommendationInputV1 {
       candidateId: string; definition: VersionedRef; catalog: VersionedRef; agendaId: string;
@@ -67,7 +67,7 @@ Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMEN
       expectedContribution: string; evidenceGap: string;
     }
 
-Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围生成当前 Meeting 安全 snapshot；`ReadCatalogRequestV1` 仅由 Runtime 用已验证 Captain parent 与当前 Manager Session 形成，Manager 不提交 Session ID。Producer 必须从 snapshot 排除该 Manager 自己的 Agent candidate，以及 `meeting_manager`、`verification_reviewer` Definition；Runtime 重读时仍检查 candidate Definition 与该 Meeting Manager 已固化 Definition 不同且不属于这两个创建期专用角色。Snapshot 必须绑定请求 Meeting，candidateId 在 snapshot 内唯一，`catalogVersion` 对一次内容快照稳定。只读 Manager projection 只显示候选 ID、Definition id/version、displayName、availability、角色与安全 summary/suitability，不返回 roleDescription、toolFilter、Preset/Skill 正文、模型/权限配置。Manager 决定必须引用其只读入口取得的 catalogId/version 和该 snapshot 中 `available` candidate 的 candidateId/Definition identity。Runtime 在 command 中重读同一 Host producer；meetingId、ID/version 或 candidate 不匹配时拒绝整个决定，不写 Meeting。Catalog 缺失、过期、格式损坏时普通 Meeting 工作继续，准入决定 fail closed。Catalog 不复制完整 Definition；producer 对已验证 Definition 计算并提供稳定 `definitionHash`，Manager 安全 view 不显示该指纹，Runtime 在首个 `admit` 意图中固化它。provisioning 阶段只解析所记录的精确 Definition id/version/hash，不使用当前默认版本或目录替代。
+Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围生成当前 Meeting 安全 snapshot；`ReadCatalogRequest` 仅由 Runtime 用已验证 Captain parent 与当前 Manager Session 形成，Manager 不提交 Session ID。Producer 必须从 snapshot 排除该 Manager 自己的 Agent candidate，以及 `meeting_manager`、`verification_reviewer` Definition；Runtime 重读时仍检查 candidate Definition 与该 Meeting Manager 已固化 Definition 不同且不属于这两个创建期专用角色。Snapshot 必须绑定请求 Meeting，candidateId 在 snapshot 内唯一，`catalogVersion` 对一次内容快照稳定。只读 Manager projection 只显示候选 ID、Definition id/version、displayName、availability、角色与安全 summary/suitability，不返回 roleDescription、toolFilter、Preset/Skill 正文、模型/权限配置。Manager 决定必须引用其只读入口取得的 catalogId/version 和该 snapshot 中 `available` candidate 的 candidateId/Definition identity。Runtime 在 command 中重读同一 Host producer；meetingId、ID/version 或 candidate 不匹配时拒绝整个决定，不写 Meeting。Catalog 缺失、过期、格式损坏时普通 Meeting 工作继续，准入决定 fail closed。Catalog 不复制完整 Definition；producer 对已验证 Definition 计算并提供稳定 `definitionHash`，Manager 安全 view 不显示该指纹，Runtime 在首个 `admit` 意图中固化它。provisioning 阶段只解析所记录的精确 Definition id/version/hash，不使用当前默认版本或目录替代。
 
 ## Definition Resolution And Preflight
 
@@ -80,9 +80,9 @@ Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围�
       definition: VersionedRef; requestedRoles: MeetingRole[];
     }
 type PreflightIdentityResultV1 =
-      | { kind: "ready"; descriptor: PreparedDescriptorV1; verifiedPresetId: string; verifiedSkillNames: string[]; verifiedCapabilities: VerifiedCapabilityV1[] }
+      | { kind: "ready"; descriptor: PreparedDescriptor; verifiedPresetId: string; verifiedSkillNames: string[]; verifiedCapabilities: VerifiedCapabilityV1[] }
       | { kind: "rejected"; error: RoleErrorV1; missing: MissingCapabilityV1[] };
-    interface PreparedDescriptorV1 {
+    interface PreparedDescriptor {
       descriptorId: DescriptorId; meetingId: string; parentSessionId: string;
       definition: VersionedRef; definitionHash: string;
       descriptorHash: string; expiresAt: EpochMs;
@@ -102,7 +102,7 @@ Runtime 在创建动态身份 Session 或写入 MeetingIdentity 前调用 prefli
         riskAuthority: boolean; required: boolean;
       };
     }
-    type AdmitIdentityResultV1 =
+    type AdmitIdentityResult =
       | { kind: "admitted"; identityId: string; ownership: SessionOwnershipV1 }
       | { kind: "rejected"; error: RoleErrorV1 };
     interface SessionOwnershipV1 {

@@ -7,14 +7,14 @@ import {
     openRound,
     publishRound,
     raiseHand,
-    releaseReviewBatchClaimV1,
-    recommendIdentityV1,
-    recordIdentityAdmissionResultV1,
-    recordReviewDeliveryV1,
-    startMeetingArchiveV1,
-    submitEvidenceV1,
-    submitReviewBatchV1,
-    transitionMeetingStateV1,
+    releaseReviewBatchClaim,
+    recommendIdentity,
+    recordIdentityAdmissionResult,
+    recordReviewDelivery,
+    startMeetingArchive,
+    submitEvidence,
+    submitReviewBatch,
+    transitionMeetingState,
     type MeetingState,
     type MeetingTransitionResult,
     type IdentityAdmissionResultContext
@@ -383,7 +383,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
     let transition: CommandTransition;
     switch (action.kind) {
         case "submit_manager_plan": {
-            const result = transitionMeetingStateV1(
+            const result = transitionMeetingState(
                 snapshot.state,
                 {
                     kind: "plan_next_step",
@@ -441,7 +441,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "submit_evidence":
-            transition = submitEvidenceV1(snapshot.state, {
+            transition = submitEvidence(snapshot.state, {
                 contributionId: action.contributionId,
                 authorId: actorId,
                 evidence: action.evidence,
@@ -462,7 +462,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "submit_review_batch":
-            transition = submitReviewBatchV1(snapshot.state, {
+            transition = submitReviewBatch(snapshot.state, {
                 reviewerId: actorId,
                 roundId: action.roundId,
                 claimId: action.claimId,
@@ -485,7 +485,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "release_review_batch_claim":
-            transition = releaseReviewBatchClaimV1(snapshot.state, {
+            transition = releaseReviewBatchClaim(snapshot.state, {
                 claimId: action.claimId,
                 roundId: action.roundId,
                 reason: action.reason,
@@ -493,7 +493,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "record_review_delivery":
-            transition = recordReviewDeliveryV1(snapshot.state, {
+            transition = recordReviewDelivery(snapshot.state, {
                 reviewId: action.reviewId,
                 dispatcherId: actorId,
                 deliveryId: generated("review_delivery"),
@@ -526,7 +526,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
         }
         case "pause_meeting":
         case "resume_meeting": {
-            const result = transitionMeetingStateV1(
+            const result = transitionMeetingState(
                 snapshot.state,
                 action,
                 { kind: "local_controller", id: actorId },
@@ -551,7 +551,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "start_archive":
-            transition = startMeetingArchiveV1(snapshot.state, {
+            transition = startMeetingArchive(snapshot.state, {
                 archiveId: context.archiveEffect!.archiveId,
                 actorId,
                 now,
@@ -600,7 +600,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "recommend_identity": {
-            const result = recommendIdentityV1(
+            const result = recommendIdentity(
                 snapshot.state,
                 action,
                 actorId,
@@ -632,7 +632,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                     "PRECONDITION_FAILED",
                     "Identity admission result is required"
                 );
-            const result = recordIdentityAdmissionResultV1(
+            const result = recordIdentityAdmissionResult(
                 snapshot.state,
                 action.recommendationId,
                 context.identityAdmissionResult,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { requestEvidenceOpportunityV1 } from "@/domain/transitions/opportunity.js";
+import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.js";
 import {
     abortRound,
     isRoundClosable,
@@ -56,7 +56,7 @@ describe("round transitions", () => {
                 }
             ]
         };
-        const queued = requestEvidenceOpportunityV1(state, {
+        const queued = requestEvidenceOpportunity(state, {
             requestId: "request-v1",
             agendaId: "agenda-v1",
             contributorId: "contributor-v1",

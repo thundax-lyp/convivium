@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordProposalRevisionV1 } from "@/domain/transitions/outcome.js";
+import { recordProposalRevision } from "@/domain/transitions/outcome.js";
 import { validState, proposalState } from "./outcome-fixtures.js";
 
 describe("proposal revision gates", () => {
@@ -20,7 +20,7 @@ describe("proposal revision gates", () => {
         ["local", { kind: "local_controller", id: "local" }]
     ] as const)("rejects %s actor", (_name, actor) => {
         const state = proposalState();
-        const result = recordProposalRevisionV1(state, input({ actor }));
+        const result = recordProposalRevision(state, input({ actor }));
         expect(result).toMatchObject({
             kind: "rejected",
             error: { code: "UNAUTHORIZED" },
@@ -30,7 +30,7 @@ describe("proposal revision gates", () => {
         });
     });
     it("distinguishes missing from unpublished evidence", () => {
-        const missing = recordProposalRevisionV1(
+        const missing = recordProposalRevision(
             proposalState(),
             input({ evidenceIds: ["missing"] })
         );
@@ -44,7 +44,7 @@ describe("proposal revision gates", () => {
             id: "v2",
             ordinal: 2
         });
-        const result = recordProposalRevisionV1(unpublished, input({ evidenceIds: ["v2"] }));
+        const result = recordProposalRevision(unpublished, input({ evidenceIds: ["v2"] }));
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
     });
     it.each([
@@ -53,7 +53,7 @@ describe("proposal revision gates", () => {
         ["empty revision", { revisionId: "" }],
         ["empty proposal", { proposalId: "" }]
     ] as const)("rejects %s shape", (_name, overrides) => {
-        expect(recordProposalRevisionV1(proposalState(), input(overrides))).toMatchObject({
+        expect(recordProposalRevision(proposalState(), input(overrides))).toMatchObject({
             kind: "rejected",
             error: { code: "INVALID_ARGUMENT" }
         });
@@ -73,7 +73,7 @@ describe("proposal revision gates", () => {
                 createdAt: 0
             }
         ];
-        expect(recordProposalRevisionV1(state, input())).toMatchObject({
+        expect(recordProposalRevision(state, input())).toMatchObject({
             kind: "rejected",
             error: { code: "INVALID_ARGUMENT" }
         });
@@ -94,33 +94,33 @@ describe("proposal revision gates", () => {
                     createdAt: 0
                 }
             ];
-        const result = recordProposalRevisionV1(
+        const result = recordProposalRevision(
             state,
             input({ revisionId: "rev-2", supersedesRevisionId: predecessor ?? "rev-1" })
         );
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
     });
     it.each(["paused"] as const)("rejects %s lifecycle", (status) => {
-        expect(recordProposalRevisionV1(validState(status), input())).toMatchObject({
+        expect(recordProposalRevision(validState(status), input())).toMatchObject({
             kind: "rejected",
             error: { code: "INVALID_STATE" }
         });
     });
     it.each(["terminal"] as const)("rejects %s lifecycle as terminal", (status) => {
-        expect(recordProposalRevisionV1(validState(status), input())).toMatchObject({
+        expect(recordProposalRevision(validState(status), input())).toMatchObject({
             kind: "rejected",
             error: { code: "MEETING_TERMINAL" }
         });
     });
     it("keeps authorization and shape ahead of lifecycle", () => {
         expect(
-            recordProposalRevisionV1(
+            recordProposalRevision(
                 validState("paused"),
                 input({ actor: { kind: "identity", id: "manager" } })
             )
         ).toMatchObject({ error: { code: "UNAUTHORIZED" } });
         expect(
-            recordProposalRevisionV1(validState("paused"), input({ revisionId: "" }))
+            recordProposalRevision(validState("paused"), input({ revisionId: "" }))
         ).toMatchObject({ error: { code: "INVALID_ARGUMENT" } });
     });
 });

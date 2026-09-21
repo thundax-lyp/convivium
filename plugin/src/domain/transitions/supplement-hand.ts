@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {

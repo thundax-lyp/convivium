@@ -98,7 +98,7 @@ export type MeetingTransitionResult =
           };
       };
 
-export function rejectedTransitionV1(
+export function rejectedTransition(
     state: MeetingState,
     code: MeetingDomainErrorCode,
     message: string,

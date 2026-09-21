@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
     resolveMeetingCaller,
     resolveMeetingCallerV1,
+    type LabeledMeetingOwnershipLookup,
     type MeetingOwnershipLookup,
-    type MeetingOwnershipLookupV1,
     type MeetingOwnershipRecord
 } from "@/dsh/caller-resolver.js";
 
@@ -32,8 +32,8 @@ function ownership(overrides: Partial<MeetingOwnershipRecord> = {}): MeetingOwne
 }
 
 function lookup(
-    value: Awaited<ReturnType<MeetingOwnershipLookup["findBySessionId"]>>
-): MeetingOwnershipLookup {
+    value: Awaited<ReturnType<LabeledMeetingOwnershipLookup["findBySessionId"]>>
+): LabeledMeetingOwnershipLookup {
     return {
         findBySessionId: async (sessionId) =>
             value?.ownership.sessionId === sessionId ? value : undefined
@@ -121,8 +121,8 @@ describe("meeting caller resolver", () => {
 });
 
 function targetLookup(
-    value: Awaited<ReturnType<MeetingOwnershipLookupV1["findBySessionId"]>>
-): MeetingOwnershipLookupV1 {
+    value: Awaited<ReturnType<MeetingOwnershipLookup["findBySessionId"]>>
+): MeetingOwnershipLookup {
     return {
         findBySessionId: async (sessionId) =>
             value?.ownership.sessionId === sessionId ? value : undefined

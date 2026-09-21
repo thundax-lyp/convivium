@@ -40,7 +40,7 @@ export interface MeetingOwnershipRecord {
     readonly updatedAt: number;
 }
 
-export interface MeetingOwnershipLookup {
+export interface LabeledMeetingOwnershipLookup {
     findBySessionId(
         sessionId: string,
         signal: AbortSignal
@@ -54,7 +54,7 @@ export interface MeetingOwnershipLookup {
     >;
 }
 
-export interface MeetingOwnershipLookupV1 {
+export interface MeetingOwnershipLookup {
     findBySessionId(
         sessionId: string,
         signal: AbortSignal
@@ -81,7 +81,7 @@ export interface ResolvedMeetingCallerV1 {
 
 export async function resolveMeetingCallerV1(
     agent: Agent,
-    lookup: MeetingOwnershipLookupV1,
+    lookup: MeetingOwnershipLookup,
     signal: AbortSignal
 ): Promise<ResolvedMeetingCallerV1 | undefined> {
     const sessionId = sessionIdOf(agent);
@@ -126,7 +126,7 @@ function sessionIdOf(agent: Agent): string {
 
 export async function resolveMeetingCaller(
     agent: Agent,
-    lookup: MeetingOwnershipLookup,
+    lookup: LabeledMeetingOwnershipLookup,
     signal: AbortSignal
 ): Promise<ResolvedMeetingCaller | ProtocolErrorV1> {
     const sessionId = sessionIdOf(agent);

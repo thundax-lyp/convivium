@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-    readMeetingRoleCatalogV1,
-    type MeetingAgentCatalogV1
-} from "@/dsh/meeting-role-catalog.js";
-const snapshot: MeetingAgentCatalogV1 = {
+import { readMeetingRoleCatalogV1, type MeetingAgentCatalog } from "@/dsh/meeting-role-catalog.js";
+const snapshot: MeetingAgentCatalog = {
     protocolVersion: 1,
     meetingId: "meeting-1",
     catalogId: "catalog-1",

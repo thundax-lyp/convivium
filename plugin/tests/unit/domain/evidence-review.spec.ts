@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { abortRound, openRound } from "@/domain/transitions/round.js";
 import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
+import { submitEvidence } from "@/domain/transitions/format-evidence.js";
 import {
     claimReviewBatch,
-    recordReviewDeliveryV1,
-    releaseReviewBatchClaimV1,
-    submitReviewBatchV1
+    recordReviewDelivery,
+    releaseReviewBatchClaim,
+    submitReviewBatch
 } from "@/domain/transitions/evidence-review.js";
 import { isRoundClosable } from "@/domain/transitions/round.js";
 import { publishRound } from "@/domain/transitions/round-publication.js";
 import { closeContribution } from "@/domain/transitions/contribution-exit.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
@@ -67,7 +67,7 @@ function evidenceState() {
     });
     if (accept.kind !== "accepted") throw new Error("accept");
     state = accept.state;
-    const submit = submitEvidenceV1(state, {
+    const submit = submitEvidence(state, {
         contributionId: "contribution-v1",
         authorId: "contributor-v1",
         packageId: "package-v1",
@@ -152,7 +152,7 @@ function twoEvidenceState() {
 
 function submitClaimedReview(
     state: ReturnType<typeof evidenceState>,
-    reviews: Parameters<typeof submitReviewBatchV1>[1]["reviews"],
+    reviews: Parameters<typeof submitReviewBatch>[1]["reviews"],
     reviewerId = "reviewer-v1",
     now = 6
 ) {
@@ -166,7 +166,7 @@ function submitClaimedReview(
         expiresAt: 100
     });
     if (claim.kind !== "accepted") throw new Error("claim");
-    return submitReviewBatchV1(claim.state, {
+    return submitReviewBatch(claim.state, {
         claimId: "review-claim-v1",
         reviewerId,
         roundId: "round-v1",
@@ -202,7 +202,7 @@ describe("evidence review and delivery", () => {
             expiresAt: 100
         });
         if (claim.kind !== "accepted") throw new Error("claim");
-        const result = submitReviewBatchV1(claim.state, {
+        const result = submitReviewBatch(claim.state, {
             claimId: "review-claim-v1",
             reviewerId: "reviewer-v1",
             roundId: "round-v1",
@@ -267,7 +267,7 @@ describe("evidence review and delivery", () => {
         const recovered = decodeMeetingStateV1(encodeMeetingStateV1(claim.state));
 
         expect(recovered.reviewClaims).toEqual(claim.state.reviewClaims);
-        expect(validateMeetingStateV1(recovered)).toMatchObject({ kind: "valid" });
+        expect(validateMeetingState(recovered)).toMatchObject({ kind: "valid" });
     });
 
     it("rejects a late review after the timed-out turn releases its exact claim", () => {
@@ -282,7 +282,7 @@ describe("evidence review and delivery", () => {
             expiresAt: 100
         });
         if (claim.kind !== "accepted") throw new Error("claim");
-        const released = releaseReviewBatchClaimV1(claim.state, {
+        const released = releaseReviewBatchClaim(claim.state, {
             claimId: "review-claim-v1",
             roundId: "round-v1",
             reason: "turn_timed_out",
@@ -292,7 +292,7 @@ describe("evidence review and delivery", () => {
 
         expect(released.state.reviewClaims).toEqual([]);
         expect(
-            submitReviewBatchV1(released.state, {
+            submitReviewBatch(released.state, {
                 claimId: "review-claim-v1",
                 reviewerId: "reviewer-v1",
                 roundId: "round-v1",
@@ -308,7 +308,7 @@ describe("evidence review and delivery", () => {
             })
         ).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
         expect(
-            releaseReviewBatchClaimV1(claim.state, {
+            releaseReviewBatchClaim(claim.state, {
                 claimId: "different-claim",
                 roundId: "round-v1",
                 reason: "turn_timed_out",
@@ -375,7 +375,7 @@ describe("evidence review and delivery", () => {
             }
         ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
-        const failed = recordReviewDeliveryV1(reviewed.state, {
+        const failed = recordReviewDelivery(reviewed.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
             deliveryId: "delivery-failed",
@@ -383,7 +383,7 @@ describe("evidence review and delivery", () => {
             now: 7
         });
         expect(failed.kind).toBe("rejected");
-        const sent = recordReviewDeliveryV1(reviewed.state, {
+        const sent = recordReviewDelivery(reviewed.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
             deliveryId: "delivery-v1",
@@ -416,7 +416,7 @@ describe("evidence review and delivery", () => {
         });
         if (withdrawn.kind !== "accepted") throw new Error("withdraw");
 
-        const delivered = recordReviewDeliveryV1(withdrawn.state, {
+        const delivered = recordReviewDelivery(withdrawn.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
             deliveryId: "delivery-v1",
@@ -440,7 +440,7 @@ describe("evidence review and delivery", () => {
             }
         ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
-        const delivered = recordReviewDeliveryV1(reviewed.state, {
+        const delivered = recordReviewDelivery(reviewed.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
             deliveryId: "delivery-v1",
@@ -469,7 +469,7 @@ describe("evidence review and delivery", () => {
             published.kind === "accepted" && published.state.publications[0]?.exitReasons
         ).toEqual(["published"]);
         expect(
-            published.kind === "accepted" && validateMeetingStateV1(published.state)
+            published.kind === "accepted" && validateMeetingState(published.state)
         ).toMatchObject({ kind: "valid" });
     });
 });

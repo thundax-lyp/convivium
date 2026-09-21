@@ -1,25 +1,21 @@
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
+import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
 
 export function createMeeting(state: MeetingState): MeetingTransitionResult {
-    const validation = validateMeetingStateV1(state);
+    const validation = validateMeetingState(state);
     if (validation.kind === "invalid")
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (
         state.version !== 1 ||
         state.lifecycle.status !== "running" ||
         state.termination !== undefined ||
         state.archive !== undefined
     )
-        return rejectedTransitionV1(
-            state,
-            "INVALID_STATE",
-            "meeting is not a new running aggregate"
-        );
+        return rejectedTransition(state, "INVALID_STATE", "meeting is not a new running aggregate");
     const activeAgenda = state.agenda.filter((agenda) => agenda.status === "active");
     if (activeAgenda.length !== 1)
-        return rejectedTransitionV1(
+        return rejectedTransition(
             state,
             "INVALID_STATE",
             "meeting creation requires one active agenda"

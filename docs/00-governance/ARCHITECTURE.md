@@ -28,7 +28,7 @@
 - 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用独立 continuable AgentSession，不跨会议、身份或授权范围共享上下文。
 - Manager 只读取 Catalog 安全投影，并通过结构化会议操作对当前 candidate 明确作出 `admit` 或 `reject` 决定；自然语言或目录可用性不构成决定。`admit` 形成不可调度的 provisioning 意图；只有 Runtime 完成独立 Session provisioning 与 durable ownership 后，candidate 才可调度。Manager 不能接纳自己、取得 capability secret、任意创建角色或扩大权限。
 - Convivium 拥有 Definition、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。Definition 只引用 DSH 公开角色能力，不能用 persona 或 Runtime installer 假装安装能力；创建前必须验证宿主组合，缺能力时 fail closed。
-- DSH 拥有实际运行配置与 Session 执行 descriptor；Convivium 的 `PreparedDescriptorV1` 只记录经公开 DSH 能力预检后的会议、父 Session、Definition 与到期约束，并保存 identity/provenance 与 Session ownership，不复制执行配置；角色资源和预检见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
+- DSH 拥有实际运行配置与 Session 执行 descriptor；Convivium 的 `PreparedDescriptor` 只记录经公开 DSH 能力预检后的会议、父 Session、Definition 与到期约束，并保存 identity/provenance 与 Session ownership，不复制执行配置；角色资源和预检见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 - Convivium 只提供会议身份的授权上限，不扩大用户或 DSH 已授予的权限。代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
 - Session 创建、继续投递、interrupt、恢复与 resident Activation 释放只通过受控 DSH adapter。归档后的持久不可继续语义由 capability revoke 保证，不要求删除 DSH 持久 Session 数据；调用边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 

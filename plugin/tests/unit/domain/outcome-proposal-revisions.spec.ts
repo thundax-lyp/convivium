@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import {
-    recordProposalRevisionV1,
-    recordPositionV1,
-    recordDecisionCandidateV1,
+    recordProposalRevision,
+    recordPosition,
+    recordDecisionCandidate,
     pendingDecisionCandidates,
     decide,
     changeDecision,
     disposeRisk,
-    submitCompletionDeclarationV1,
-    recordCompletionFactV1,
+    submitCompletionDeclaration,
+    recordCompletionFact,
     changeCompletionFact,
     isObjectiveSatisfied,
-    recalculateMeetingCompletionV1
+    recalculateMeetingCompletion
 } from "@/domain/transitions/outcome.js";
 import { validState } from "./outcome-fixtures.js";
 
@@ -277,7 +277,7 @@ describe("completion declaration gates", () => {
     ] as const)("accepts %s declaration with exact bookkeeping", (_name, actor) => {
         const state = declarationState();
         const before = structuredClone(state);
-        const result = submitCompletionDeclarationV1(state, declarationInput(actor));
+        const result = submitCompletionDeclaration(state, declarationInput(actor));
         expect(result).toMatchObject({
             kind: "accepted",
             relatedIds: ["decl", "o", "v"],
@@ -313,7 +313,7 @@ describe("completion declaration gates", () => {
             }
         ];
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" }, { criterionId: "c" })
             )
@@ -326,7 +326,7 @@ describe("completion declaration gates", () => {
     it.each(["manager"] as const)("rejects %s", (id) => {
         const state = declarationState();
         expect(
-            submitCompletionDeclarationV1(state, declarationInput({ kind: "identity", id }))
+            submitCompletionDeclaration(state, declarationInput({ kind: "identity", id }))
         ).toMatchObject({
             error: { code: "UNAUTHORIZED" },
             state,
@@ -338,13 +338,13 @@ describe("completion declaration gates", () => {
         const state = declarationState();
         state.identities[0].roles = ["captain"];
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "captain" })
             )
         ).toMatchObject({ error: { code: "UNAUTHORIZED" }, state });
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "local_controller", id: "local" })
             )
@@ -361,7 +361,7 @@ describe("completion declaration gates", () => {
         const state = declarationState();
         if (_name === "duplicate id") state.completionDeclarations = [{ id: "decl" } as never];
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" }, overrides)
             )
@@ -375,7 +375,7 @@ describe("completion declaration gates", () => {
             ordinal: 2
         });
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" }, { evidenceIds: ["v2"] })
             )
@@ -417,7 +417,7 @@ describe("completion declaration gates", () => {
                 state.tasks[0] = withoutResult;
             }
             expect(
-                submitCompletionDeclarationV1(
+                submitCompletionDeclaration(
                     state,
                     declarationInput({ kind: "identity", id: "contributor" }, { taskId: "task" })
                 )
@@ -433,7 +433,7 @@ describe("completion declaration gates", () => {
         const state = declarationState();
         state.lifecycle = { ...state.lifecycle, status };
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" })
             )
@@ -447,7 +447,7 @@ describe("completion declaration gates", () => {
     it.each(["terminal"] as const)("rejects terminal lifecycle %s", (status) => {
         const state = validState(status);
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" })
             )
@@ -462,13 +462,13 @@ describe("completion declaration gates", () => {
         const state = declarationState();
         state.lifecycle = { ...state.lifecycle, status: "paused" };
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "manager" })
             )
         ).toMatchObject({ error: { code: "UNAUTHORIZED" }, state });
         expect(
-            submitCompletionDeclarationV1(
+            submitCompletionDeclaration(
                 state,
                 declarationInput({ kind: "identity", id: "contributor" }, { declarationId: "" })
             )
@@ -483,7 +483,7 @@ it.each(["paused"] as const)(
         const actor = { kind: "identity", id: "captain" } as const;
         const calls = [
             () =>
-                recordPositionV1(state, {
+                recordPosition(state, {
                     positionId: "p",
                     proposalRevisionId: "r",
                     stance: "support",
@@ -493,7 +493,7 @@ it.each(["paused"] as const)(
                     now: 1
                 }),
             () =>
-                recordDecisionCandidateV1(state, {
+                recordDecisionCandidate(state, {
                     candidateId: "c",
                     proposalRevisionId: "r",
                     outcome: "adopt",
@@ -525,7 +525,7 @@ it.each(["paused"] as const)(
                     now: 1
                 }),
             () =>
-                submitCompletionDeclarationV1(state, {
+                submitCompletionDeclaration(state, {
                     declarationId: "d",
                     outputId: "o",
                     statement: "x",
@@ -534,7 +534,7 @@ it.each(["paused"] as const)(
                     now: 1
                 }),
             () =>
-                recordCompletionFactV1(state, {
+                recordCompletionFact(state, {
                     factId: "f",
                     outputId: "o",
                     statement: "x",
@@ -706,7 +706,7 @@ it("records a fully reviewed completion fact and converges without termination",
         }
     ];
     const before = structuredClone(state);
-    const result = recordCompletionFactV1(state, {
+    const result = recordCompletionFact(state, {
         factId: "fact",
         outputId: "o",
         criterionId: "criterion",
@@ -791,7 +791,7 @@ it("records a fact but remains running while a blocking issue exists", () => {
             status: "accepted"
         }
     ];
-    const result = recordCompletionFactV1(state, {
+    const result = recordCompletionFact(state, {
         factId: "fact",
         outputId: "o",
         statement: "complete",
@@ -944,7 +944,7 @@ it("makes an active fact basis stale when a new proposal revision is recorded", 
         ...state.objective.requiredOutputs[0],
         status: "satisfied"
     };
-    const result = recordProposalRevisionV1(state, {
+    const result = recordProposalRevision(state, {
         revisionId: "rev-2",
         proposalId: "prop",
         agendaId: "a",
@@ -972,7 +972,7 @@ it("recalculation does not mutate the input snapshot", () => {
         proposals: [],
         publications: []
     } as unknown as MeetingState;
-    const result = recalculateMeetingCompletionV1(state, "i", 2);
+    const result = recalculateMeetingCompletion(state, "i", 2);
     expect(result).not.toBe(state);
     expect(state.lifecycle.status).toBe("paused");
 });

@@ -41,7 +41,7 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
@@ -140,7 +140,7 @@ export function claimReviewBatch(
     };
 }
 
-export function submitReviewBatchV1(
+export function submitReviewBatch(
     state: MeetingState,
     input: SubmitReviewBatchInput
 ): MeetingTransitionResult {
@@ -242,7 +242,7 @@ export function submitReviewBatchV1(
     };
 }
 
-export function releaseReviewBatchClaimV1(
+export function releaseReviewBatchClaim(
     state: MeetingState,
     input: ReleaseReviewBatchClaimInput
 ): MeetingTransitionResult {
@@ -274,7 +274,7 @@ export function releaseReviewBatchClaimV1(
  * The former single-item entry point is intentionally removed. Delivery
  * recording remains separate because it is an external lifecycle result.
  */
-export function recordReviewDeliveryV1(
+export function recordReviewDelivery(
     state: MeetingState,
     input: DeliveryInput
 ): MeetingTransitionResult {

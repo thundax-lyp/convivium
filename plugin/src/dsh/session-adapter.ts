@@ -12,7 +12,7 @@ import type { SessionOwnership } from "@/repository/types.js";
 import {
     encodeMeetingIdentitySessionLabelV1,
     encodeMeetingSessionLabel,
-    type MeetingIdentitySessionLabelV1
+    type MeetingIdentitySessionLabel
 } from "./labels.js";
 import {
     createMeetingIdentityProvisioningEnvelopeV1,
@@ -56,7 +56,7 @@ export interface StartMeetingIdentitySessionInputV1 {
     readonly provider: string;
     readonly parent: Agent;
     readonly childId: SessionId;
-    readonly role: MeetingIdentitySessionLabelV1["role"];
+    readonly role: MeetingIdentitySessionLabel["role"];
     readonly meetingId: string;
     readonly identityId: string;
     readonly signal: AbortSignal;
@@ -438,7 +438,7 @@ export async function followupManagerSession(
     return sendAuthorizedMeetingMessage(input, () => input.authorize(authorization));
 }
 
-export interface FollowupMeetingIdentitySessionInputV1 {
+export interface FollowupMeetingIdentitySessionInput {
     readonly runtime: Pick<SubagentRuntime, "sendMessage">;
     readonly parent: Agent;
     readonly ownership: SessionOwnership;
@@ -450,7 +450,7 @@ export interface FollowupMeetingIdentitySessionInputV1 {
 
 /** Deliver to one persisted target identity; inbox acceptance is not a Meeting fact. */
 export async function followupMeetingIdentitySessionV1(
-    input: FollowupMeetingIdentitySessionInputV1
+    input: FollowupMeetingIdentitySessionInput
 ): Promise<ContinuableStart["messageId"]> {
     const expectedLabel = encodeMeetingIdentitySessionLabelV1({
         role: input.ownership.role,

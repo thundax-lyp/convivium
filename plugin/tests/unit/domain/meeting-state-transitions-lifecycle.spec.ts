@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingStateV1 } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import {
     state,
     local,
@@ -15,7 +15,7 @@ import {
 
 it("records a nonblocking follow-up with all typed references", () => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         recordIssue({
             riskLevel: "medium",
@@ -44,7 +44,7 @@ it("records a nonblocking follow-up with all typed references", () => {
 
 it("accepts a high risk issue without affected targets", () => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         recordIssue({ affectedOutputIds: [], riskLevel: "high", classification: "blocking" }),
         captain,
@@ -57,7 +57,7 @@ it("accepts a high risk issue without affected targets", () => {
 
 it("accepts medium blocking when an agenda reviewer qualifies it", () => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         recordIssue({
             riskLevel: "medium",
@@ -79,7 +79,7 @@ it.each([
     ["constraint", { affectedConstraintIds: ["missing"] }]
 ] as const)("rejects a missing issue %s reference", (_name, overrides) => {
     const current = publishedQuestionState(false);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         recordIssue(overrides),
         captain,
@@ -95,7 +95,7 @@ it.each([
     ["resume paused", "resume_meeting", "paused", "running"]
 ] as const)("accepts %s", (_name, kind, from, to) => {
     const current = state(from);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         { kind, reason: "operator request" },
         local,
@@ -138,7 +138,7 @@ it("rejects resuming a message-budget pause without changing the state", () => {
             reason: "message budget exhausted"
         }
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         { kind: "resume_meeting", reason: "continue" },
         local,
@@ -158,7 +158,7 @@ it.each([
     ["wrong lifecycle", local, "preparing", "INVALID_STATE"]
 ] as const)("rejects %s without changing the state", (_name, actor, status, code) => {
     const current = state(status);
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         { kind: "pause_meeting", reason: "pause" },
         actor,
@@ -170,7 +170,7 @@ it.each([
 
 it("rejects promotion with a used agenda id", () => {
     const current = candidateState();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "dispose_agenda_candidate",
@@ -213,7 +213,7 @@ it("requires a Captain identity for agenda activation", () => {
             }
         ]
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "activate_agenda",
@@ -237,7 +237,7 @@ it.each(["terminal", "archiving", "archived"] as const)(
     "rejects %s without changing the state",
     (status) => {
         const current = terminalState(status);
-        const result = transitionMeetingStateV1(
+        const result = transitionMeetingState(
             current,
             { kind: "pause_meeting", reason: "pause" },
             local,
@@ -257,7 +257,7 @@ it.each(["terminal", "archiving", "archived"] as const)(
 
 it("rejects agenda activation in a terminal meeting", () => {
     const current = terminalState("terminal");
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "activate_agenda",
@@ -291,7 +291,7 @@ it("activates a pending agenda and records both agenda references", () => {
             }
         ]
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "activate_agenda",
@@ -397,7 +397,7 @@ it.each([
                   ]
                 : []
     };
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "activate_agenda",
@@ -418,7 +418,7 @@ it.each([
     ["invalid fact", { kind: "pause_meeting", reason: "pause" }, local, 10, " "]
 ] as const)("rejects %s as invalid argument", (_name, action, actor, now, factId) => {
     const current = state();
-    const result = transitionMeetingStateV1(current, action, actor, now, factId);
+    const result = transitionMeetingState(current, action, actor, now, factId);
     expect(result).toEqual({
         kind: "rejected",
         state: current,
@@ -429,7 +429,7 @@ it.each([
 
 it("rejects future actions until their transition step is implemented", () => {
     const current = state();
-    const result = transitionMeetingStateV1(
+    const result = transitionMeetingState(
         current,
         {
             kind: "raise_agenda_candidate",

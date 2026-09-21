@@ -28,7 +28,7 @@ const openRoundWithPlan = (
         { ...input, planId: "plan-v1" }
     );
 import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 
 function openState() {
     const state = makeRunningMeetingStateV1();
@@ -106,7 +106,7 @@ function stateWithMail(
         ...state,
         privateMails: [mail]
     } as MeetingState;
-    expect(validateMeetingStateV1(candidate)).toMatchObject({ kind: "valid" });
+    expect(validateMeetingState(candidate)).toMatchObject({ kind: "valid" });
     return candidate;
 }
 

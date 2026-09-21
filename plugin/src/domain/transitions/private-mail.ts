@@ -1,11 +1,11 @@
 import {
-    validateMeetingStateV1,
+    validateMeetingState,
     type EpochMs,
     type MeetingState,
     type OpaqueId,
     type PrivateMail
 } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 
 export interface SendPrivateMailInput {
     mailId: OpaqueId;
@@ -47,7 +47,7 @@ const terminal = new Set([
 ]);
 const valid = (n: number) => Number.isSafeInteger(n) && n >= 0;
 const stateCheck = (s: MeetingState) => {
-    const r = validateMeetingStateV1(s);
+    const r = validateMeetingState(s);
     return r.kind === "invalid"
         ? reject(s, "INVALID_ARGUMENT", "invalid meeting state")
         : undefined;
@@ -59,10 +59,7 @@ function busy(s: MeetingState, id: string, except?: string) {
         ) || s.contributions.some((c) => c.contributorId === id && !terminal.has(c.status))
     );
 }
-export function sendPrivateMailV1(
-    s: MeetingState,
-    i: SendPrivateMailInput
-): MeetingTransitionResult {
+export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): MeetingTransitionResult {
     const bad = stateCheck(s);
     if (bad) return bad;
     const text = (value: unknown): value is string =>
@@ -121,7 +118,7 @@ export function sendPrivateMailV1(
         updatedAt: i.now,
         privateMails: [...s.privateMails, m]
     };
-    if (validateMeetingStateV1(n).kind === "invalid")
+    if (validateMeetingState(n).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return {
         kind: "accepted",
@@ -137,7 +134,7 @@ export function sendPrivateMailV1(
         ]
     };
 }
-export function startPrivateMailV1(
+export function startPrivateMail(
     s: MeetingState,
     i: StartPrivateMailInput
 ): MeetingTransitionResult {
@@ -174,7 +171,7 @@ export function startPrivateMailV1(
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingStateV1(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id, ...c], effectRequests: [] };
 }
@@ -243,7 +240,7 @@ function finish(
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingStateV1(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid")
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }

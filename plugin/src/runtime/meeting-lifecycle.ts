@@ -21,7 +21,7 @@ import {
 import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 import { requireContinuableProvider, type RoleCatalogPortV1 } from "@/dsh/index.js";
-import type { MeetingOwnershipLookupV1 } from "@/dsh/index.js";
+import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
 import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch.js";
@@ -199,7 +199,7 @@ function createIdentityProvisionOwnerV1(dependencies: {
 }
 
 const applications = new WeakMap<object, MeetingCommandApplicationV1>();
-const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookupV1>();
+const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const deliveryEnsurers = new WeakMap<
     object,
     (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => void
@@ -246,7 +246,7 @@ export function getMeetingCommandApplicationV1(owner: object): MeetingCommandApp
 
 export function getLocalMeetingWebRuntimeV1(
     owner: object
-): LocalMeetingWebRuntime & MeetingOwnershipLookupV1 {
+): LocalMeetingWebRuntime & MeetingOwnershipLookup {
     const runtime = runtimes.get(owner);
     if (!runtime) throw new Error("Target Meeting runtime is not active.");
     return runtime;
@@ -495,7 +495,7 @@ export async function activateTargetMeetingApplicationV1(
             }
             return undefined;
         }
-    } satisfies LocalMeetingWebRuntime & MeetingOwnershipLookupV1;
+    } satisfies LocalMeetingWebRuntime & MeetingOwnershipLookup;
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     return async () => {

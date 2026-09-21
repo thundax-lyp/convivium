@@ -9,9 +9,9 @@ import type {
 import type { Decision } from "@/domain/meeting-state.js";
 import type { Issue } from "@/domain/meeting-state.js";
 import type { CompletionDeclaration, CompletionFact } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import type { MeetingTransitionResult } from "./result.js";
-import { rejectedTransitionV1 } from "./result.js";
+import { rejectedTransition } from "./result.js";
 
 export type OutcomeActor =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
@@ -104,10 +104,10 @@ export type ChangeCompletionFactInput = {
 
 const bad = (
     s: MeetingState,
-    code: Parameters<typeof rejectedTransitionV1>[1],
+    code: Parameters<typeof rejectedTransition>[1],
     message = "invalid outcome transition",
     id?: string
-) => rejectedTransitionV1(s, code, message, id);
+) => rejectedTransition(s, code, message, id);
 const validId = (x: unknown): x is string => typeof x === "string" && x.trim().length > 0;
 const validTime = (x: unknown): x is number =>
     typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
@@ -118,7 +118,7 @@ const base = (
     actor: OutcomeActor,
     now: number
 ): MeetingTransitionResult | undefined => {
-    if (validateMeetingStateV1(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
+    if (validateMeetingState(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
     if (!validId(actor.id) || !validTime(now)) return bad(s, "INVALID_ARGUMENT");
     return undefined;
 };
@@ -169,7 +169,7 @@ const captainActor = (s: MeetingState, actor: OutcomeActor) =>
 const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
     (s[key] as readonly { id: string }[]).some((x) => x.id === id);
 
-export function recalculateMeetingCompletionV1(
+export function recalculateMeetingCompletion(
     state: MeetingState,
     actorId: OpaqueId,
     now: EpochMs
@@ -235,7 +235,7 @@ export function recalculateMeetingCompletionV1(
     };
 }
 
-export function recordProposalRevisionV1(
+export function recordProposalRevision(
     state: MeetingState,
     input: RecordProposalRevisionInput
 ): MeetingTransitionResult {
@@ -296,8 +296,8 @@ export function recordProposalRevisionV1(
         updatedAt: input.now,
         proposals: [...state.proposals, revision]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid") {
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
     }
     return {
@@ -314,7 +314,7 @@ export function recordProposalRevisionV1(
     };
 }
 
-export function recordPositionV1(
+export function recordPosition(
     state: MeetingState,
     input: RecordPositionInput
 ): MeetingTransitionResult {
@@ -358,7 +358,7 @@ export function recordPositionV1(
         updatedAt: input.now,
         positions: [...state.positions, position]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
         state: next,
@@ -366,7 +366,7 @@ export function recordPositionV1(
         effectRequests: []
     };
 }
-export function recordDecisionCandidateV1(
+export function recordDecisionCandidate(
     state: MeetingState,
     input: RecordDecisionCandidateInput
 ): MeetingTransitionResult {
@@ -422,7 +422,7 @@ export function recordDecisionCandidateV1(
         updatedAt: input.now,
         decisionCandidates: [...state.decisionCandidates, candidate]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
         state: next,
@@ -480,8 +480,8 @@ export function decide(state: MeetingState, _input: DecideInput): MeetingTransit
         updatedAt: input.now,
         decisions: [...state.decisions, decision]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid")
         return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -526,8 +526,8 @@ export function changeDecision(
     );
     if (input.status === "revoked") {
         const next = { ...state, version: state.version + 1, updatedAt: input.now, decisions };
-        const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-        if (validateMeetingStateV1(recalculated).kind !== "valid")
+        const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+        if (validateMeetingState(recalculated).kind !== "valid")
             return bad(state, "PRECONDITION_FAILED");
         return {
             kind: "accepted",
@@ -579,8 +579,8 @@ export function changeDecision(
         updatedAt: input.now,
         decisions: [...decisions, replacement]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid")
         return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -661,8 +661,8 @@ export function disposeRisk(state: MeetingState, input: DisposeRiskInput): Meeti
         issues,
         riskDispositions: [...state.riskDispositions, disposition]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid")
         return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -671,7 +671,7 @@ export function disposeRisk(state: MeetingState, input: DisposeRiskInput): Meeti
         effectRequests: []
     };
 }
-export function submitCompletionDeclarationV1(
+export function submitCompletionDeclaration(
     state: MeetingState,
     input: SubmitCompletionDeclarationInput
 ): MeetingTransitionResult {
@@ -732,7 +732,7 @@ export function submitCompletionDeclarationV1(
         updatedAt: input.now,
         completionDeclarations: [...state.completionDeclarations, d]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
         state: next,
@@ -746,7 +746,7 @@ export function submitCompletionDeclarationV1(
         effectRequests: []
     };
 }
-export function recordCompletionFactV1(
+export function recordCompletionFact(
     state: MeetingState,
     input: RecordCompletionFactInput
 ): MeetingTransitionResult {
@@ -819,8 +819,8 @@ export function recordCompletionFactV1(
         updatedAt: input.now,
         completionFacts: [...state.completionFacts, f]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid")
         return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -865,8 +865,8 @@ export function changeCompletionFact(
             updatedAt: input.now,
             completionFacts: facts
         };
-        const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-        if (validateMeetingStateV1(recalculated).kind !== "valid")
+        const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+        if (validateMeetingState(recalculated).kind !== "valid")
             return bad(state, "PRECONDITION_FAILED");
         return {
             kind: "accepted",
@@ -943,8 +943,8 @@ export function changeCompletionFact(
         updatedAt: input.now,
         completionFacts: [...facts, replacement]
     };
-    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
+    if (validateMeetingState(recalculated).kind !== "valid")
         return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -961,7 +961,7 @@ export function changeCompletionFact(
     };
 }
 export function isObjectiveSatisfied(state: MeetingState): boolean {
-    const recalculated = recalculateMeetingCompletionV1(
+    const recalculated = recalculateMeetingCompletion(
         { ...state, lifecycle: { ...state.lifecycle, status: "paused" } },
         state.lifecycle.changedBy,
         state.lifecycle.changedAt

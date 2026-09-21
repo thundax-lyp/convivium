@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { openRound } from "@/domain/transitions/round.js";
 import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
+import { submitEvidence } from "@/domain/transitions/format-evidence.js";
 import {
     disposeSupplementHand,
     raiseSupplementHand
@@ -80,7 +80,7 @@ const evidence = {
 describe("format and evidence transitions", () => {
     it("directly registers one complete version for the contributor", () => {
         const state = stateWithContribution();
-        const result = submitEvidenceV1(state, {
+        const result = submitEvidence(state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
@@ -110,7 +110,7 @@ describe("format and evidence transitions", () => {
     });
     it("rejects an incorrect author atomically", () => {
         const state = stateWithContribution();
-        const result = submitEvidenceV1(state, {
+        const result = submitEvidence(state, {
             contributionId: "contribution-v1",
             authorId: "manager-v1",
             evidence,
@@ -128,7 +128,7 @@ describe("format and evidence transitions", () => {
             ...state,
             rounds: state.rounds.map((round) => ({ ...round, deadlineAt: 4 }))
         };
-        const result = submitEvidenceV1(deadlineState, {
+        const result = submitEvidence(deadlineState, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
@@ -143,7 +143,7 @@ describe("format and evidence transitions", () => {
         });
     });
     it("appends an accepted supplement to the existing evidence package", () => {
-        const first = submitEvidenceV1(stateWithContribution(), {
+        const first = submitEvidence(stateWithContribution(), {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
@@ -175,7 +175,7 @@ describe("format and evidence transitions", () => {
         });
         if (accepted.kind !== "accepted") throw new Error("supplement hand was not accepted");
 
-        const result = submitEvidenceV1(accepted.state, {
+        const result = submitEvidence(accepted.state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence: { ...evidence, observation: "补充观察" },

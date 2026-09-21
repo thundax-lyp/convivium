@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/transitions/outcome.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import { validState, decisionReadyState } from "./outcome-fixtures.js";
 
 it("decides with captain and local controller while copying candidate fields", () => {
@@ -122,7 +122,7 @@ it("rejects a superseded decision without an atomic replacement", () => {
     const state = decidedState();
     state.decisions[0] = { ...state.decisions[0], status: "superseded" };
 
-    expect(validateMeetingStateV1(state)).toMatchObject({
+    expect(validateMeetingState(state)).toMatchObject({
         kind: "invalid",
         path: "$.decisions[0].status"
     });

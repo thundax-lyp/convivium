@@ -1,5 +1,5 @@
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { sendPrivateMailV1, startPrivateMailV1 } from "@/domain/transitions/private-mail.js";
+import { sendPrivateMail, startPrivateMail } from "@/domain/transitions/private-mail.js";
 import { expect } from "vitest";
 
 export const privateMailInput = {
@@ -144,9 +144,9 @@ export function privateMailStateWithContribution(
 }
 
 export function startedPrivateMailState(): MeetingState {
-    const sent = sendPrivateMailV1(privateMailState(), privateMailInput);
+    const sent = sendPrivateMail(privateMailState(), privateMailInput);
     if (sent.kind !== "accepted") throw new Error("send failed");
-    const started = startPrivateMailV1(sent.state, {
+    const started = startPrivateMail(sent.state, {
         mailId: "mail-1",
         actorKind: "effect_dispatcher",
         now: 20
@@ -156,7 +156,7 @@ export function startedPrivateMailState(): MeetingState {
 }
 
 export function expectPrivateMailRejection(
-    result: ReturnType<typeof sendPrivateMailV1>,
+    result: ReturnType<typeof sendPrivateMail>,
     code: string,
     targetId?: string
 ): void {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 
 const roundGoal = { question: "q", evidenceGap: "gap", expectedOutput: "output" };
 
@@ -20,18 +20,18 @@ function managerPlan(id = "plan-v1", agendaId = "agenda-v1") {
 describe("canonical MeetingState validation", () => {
     it("accepts the target fixture", () => {
         const state = makeRunningMeetingStateV1();
-        expect(validateMeetingStateV1(state)).toEqual({ kind: "valid", state });
+        expect(validateMeetingState(state)).toEqual({ kind: "valid", state });
     });
     it("requires exactly one evidence reviewer", () => {
         const state = makeRunningMeetingStateV1();
-        expect(validateMeetingStateV1({ ...state, evidenceReviewerId: "missing" })).toMatchObject({
+        expect(validateMeetingState({ ...state, evidenceReviewerId: "missing" })).toMatchObject({
             kind: "invalid",
             path: "$.evidenceReviewerId"
         });
     });
     it("rejects the removed compatibility projection field", () => {
         const state = makeRunningMeetingStateV1();
-        expect(validateMeetingStateV1({ ...state, formatApprovals: [] })).toMatchObject({
+        expect(validateMeetingState({ ...state, formatApprovals: [] })).toMatchObject({
             kind: "invalid",
             path: "$.formatApprovals"
         });
@@ -51,12 +51,12 @@ describe("canonical MeetingState validation", () => {
             abortedAt: 1
         };
         expect(
-            validateMeetingStateV1({ ...state, rounds: [round], managerPlans: [managerPlan()] })
+            validateMeetingState({ ...state, rounds: [round], managerPlans: [managerPlan()] })
         ).toMatchObject({
             kind: "valid"
         });
         expect(
-            validateMeetingStateV1({
+            validateMeetingState({
                 ...state,
                 rounds: [{ ...round, abortedAt: undefined }],
                 managerPlans: [managerPlan()]
@@ -77,7 +77,7 @@ describe("canonical MeetingState validation", () => {
         };
 
         expect(
-            validateMeetingStateV1({ ...state, rounds: [round], managerPlans: [managerPlan()] })
+            validateMeetingState({ ...state, rounds: [round], managerPlans: [managerPlan()] })
         ).toMatchObject({ kind: "invalid", path: "$.rounds[0].planId" });
     });
 
@@ -102,7 +102,7 @@ describe("canonical MeetingState validation", () => {
         };
 
         expect(
-            validateMeetingStateV1({
+            validateMeetingState({
                 ...state,
                 agenda: [...state.agenda, otherAgenda],
                 rounds: [round],
@@ -134,7 +134,7 @@ describe("canonical MeetingState validation", () => {
         };
 
         expect(
-            validateMeetingStateV1({
+            validateMeetingState({
                 ...state,
                 rounds: [round],
                 publications: [publication],
@@ -170,7 +170,7 @@ describe("canonical MeetingState validation", () => {
         };
 
         expect(
-            validateMeetingStateV1({
+            validateMeetingState({
                 ...state,
                 rounds: [round],
                 managerPlans: [managerPlan()],
@@ -234,7 +234,7 @@ describe("canonical MeetingState validation", () => {
             termination,
             archive
         };
-        expect(validateMeetingStateV1(archived)).toEqual({ kind: "valid", state: archived });
+        expect(validateMeetingState(archived)).toEqual({ kind: "valid", state: archived });
     });
 
     it("rejects the legacy archive summary shape", () => {
@@ -252,7 +252,7 @@ describe("canonical MeetingState validation", () => {
             identityProvenance: []
         };
         expect(
-            validateMeetingStateV1({
+            validateMeetingState({
                 ...state,
                 lifecycle: { status: "archiving", changedAt: 11, changedBy: "runtime" },
                 termination: {

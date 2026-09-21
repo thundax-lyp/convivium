@@ -24,28 +24,27 @@ const candidate = z.object({
 export type VersionedRef = z.infer<typeof versionedRef>;
 export type RoleErrorV1 = { code: string; message: string; targetId?: string };
 export type CapabilityKind = z.infer<typeof capability>["kind"];
-export type CapabilitySummaryV1 = z.infer<typeof capability>;
+export type CapabilitySummary = z.infer<typeof capability>;
 export type SuitabilityV1 = { scope: string; rationale: string };
-export type CatalogCandidateV1 = z.infer<typeof candidate>;
-export interface MeetingAgentCatalogV1 {
+export type CatalogCandidate = z.infer<typeof candidate>;
+export interface MeetingAgentCatalog {
     protocolVersion: 1;
     meetingId: string;
     catalogId: string;
     catalogVersion: string;
     generatedAt: number;
-    candidates: CatalogCandidateV1[];
+    candidates: CatalogCandidate[];
 }
-export interface ReadCatalogRequestV1 {
+export interface ReadCatalogRequest {
     protocolVersion: 1;
     meetingId: string;
     captainSessionId: string;
     managerSessionId: string;
 }
 export type ReadCatalogResultV1 =
-    | { kind: "available"; snapshot: MeetingAgentCatalogV1 }
-    | { kind: "rejected"; error: RoleErrorV1 };
+    { kind: "available"; snapshot: MeetingAgentCatalog } | { kind: "rejected"; error: RoleErrorV1 };
 export interface RoleCatalogPortV1 {
-    readSnapshot(request: ReadCatalogRequestV1): Promise<ReadCatalogResultV1>;
+    readSnapshot(request: ReadCatalogRequest): Promise<ReadCatalogResultV1>;
 }
 const snapshotSchema = z.object({
     protocolVersion: z.literal(1),

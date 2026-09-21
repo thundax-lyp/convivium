@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
-import { endMeeting, startMeetingArchiveV1 } from "@/domain/index.js";
+import { endMeeting, startMeetingArchive } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {
     it("projects opportunity requests without a plan binding", () => {
         const state = makeRunningMeetingStateV1();
@@ -287,7 +287,7 @@ describe("identity filtered view and archive provenance", () => {
         });
         expect(terminal.kind).toBe("accepted");
         if (terminal.kind !== "accepted") return;
-        const archiving = startMeetingArchiveV1(terminal.state, {
+        const archiving = startMeetingArchive(terminal.state, {
             archiveId: "archive-1",
             actorId: "runtime-recovery",
             now: 3,

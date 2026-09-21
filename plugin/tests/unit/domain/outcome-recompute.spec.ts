@@ -3,7 +3,7 @@ import {
     changeDecision,
     disposeRisk,
     isObjectiveSatisfied,
-    recalculateMeetingCompletionV1
+    recalculateMeetingCompletion
 } from "@/domain/transitions/outcome.js";
 import { completionReadyState } from "./outcome-fixtures.js";
 
@@ -245,7 +245,7 @@ describe("Recompute/Convergence", () => {
         const state = completedFactState();
         state.lifecycle = { ...state.lifecycle, status: "paused" };
         const before = structuredClone(state);
-        const result = recalculateMeetingCompletionV1(state, "captain", 9);
+        const result = recalculateMeetingCompletion(state, "captain", 9);
         expect(result.version).toBe(before.version);
         expect(result.updatedAt).toBe(before.updatedAt);
         expect(result.objective.hardConstraints).toEqual(before.objective.hardConstraints);

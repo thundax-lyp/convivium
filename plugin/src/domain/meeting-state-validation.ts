@@ -66,7 +66,7 @@ function schemaIssuePath(issue: { path: readonly PropertyKey[] }): string {
     return `$${suffix}`;
 }
 
-export function validateMeetingStateV1(value: unknown): MeetingStateValidationResult {
+export function validateMeetingState(value: unknown): MeetingStateValidationResult {
     if (!record(value)) return fail("$");
     const rawPath = validateRawMeetingState(value);
     if (rawPath) return fail(rawPath);

@@ -9,9 +9,9 @@ import type {
     TargetDomainFactPayload
 } from "./meeting-state.js";
 export type { TargetDomainFactPayload } from "./meeting-state.js";
-import { validateMeetingStateV1 } from "./meeting-state-validation.js";
+import { validateMeetingState } from "./meeting-state-validation.js";
 import { z } from "zod";
-import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome.js";
+import { recalculateMeetingCompletion } from "@/domain/transitions/outcome.js";
 
 export type TargetDomainActor =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
@@ -298,8 +298,8 @@ function completeTransition(
         ...(changes.lifecycle === undefined ? {} : { lifecycle: changes.lifecycle })
     };
     if (changes.recalculateCompletion)
-        nextState = recalculateMeetingCompletionV1(nextState, actor.id, now);
-    if (validateMeetingStateV1(nextState).kind !== "valid")
+        nextState = recalculateMeetingCompletion(nextState, actor.id, now);
+    if (validateMeetingState(nextState).kind !== "valid")
         return invalid(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
@@ -739,7 +739,7 @@ function dispatchTransition(
     }
 }
 
-export function transitionMeetingStateV1(
+export function transitionMeetingState(
     state: MeetingState,
     action: TargetMeetingAction,
     actor: TargetDomainActor,
@@ -748,7 +748,7 @@ export function transitionMeetingStateV1(
     generatedId?: OpaqueId
 ): TargetTransitionResult {
     if (
-        validateMeetingStateV1(state).kind !== "valid" ||
+        validateMeetingState(state).kind !== "valid" ||
         !record(action) ||
         !validId(factId) ||
         !validTime(now) ||

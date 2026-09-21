@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, Round } from "@/domain/index.js";
-import { rejectedTransitionV1 as rejected, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
 
 type OpenRoundInput = {
     roundId: OpaqueId;

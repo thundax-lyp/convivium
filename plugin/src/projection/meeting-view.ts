@@ -5,7 +5,7 @@ import {
     type MeetingState,
     type OpaqueId
 } from "@/domain/index.js";
-import type { MeetingAgentCatalogV1 } from "@/dsh/index.js";
+import type { MeetingAgentCatalog } from "@/dsh/index.js";
 import {
     ArchiveViewV1Schema,
     MeetingSummaryV1Schema,
@@ -51,7 +51,7 @@ function visibleVersions(state: MeetingState, caller: MeetingProjectionCallerV1)
     return visible;
 }
 
-function catalogView(catalog: MeetingAgentCatalogV1) {
+function catalogView(catalog: MeetingAgentCatalog) {
     return {
         catalogId: catalog.catalogId,
         catalogVersion: catalog.catalogVersion,
@@ -127,7 +127,7 @@ export function projectArchiveViewV1(
 export function projectMeetingViewV1(
     snapshot: MeetingSnapshot<MeetingState>,
     caller: MeetingProjectionCallerV1,
-    managerCatalog?: MeetingAgentCatalogV1
+    managerCatalog?: MeetingAgentCatalog
 ): MeetingViewV1 {
     const state = snapshot.state;
     const manager = hasRole(caller, "manager");

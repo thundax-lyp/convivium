@@ -6,59 +6,23 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `domain` | 19 |
-| `dsh` | 28 |
+| `dsh` | 17 |
 | `projection` | 4 |
 | `protocol` | 209 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 327 |
+| 合计（按模块去重） | 297 |
 
-声明出现次数：331
+声明出现次数：301
 
-全局唯一名称数：327
-
-## domain
-
-| 当前名称 | 删除后名称 |
-| --- | --- |
-| `recalculateMeetingCompletionV1` | `recalculateMeetingCompletion` |
-| `recommendIdentityV1` | `recommendIdentity` |
-| `recordCompletionFactV1` | `recordCompletionFact` |
-| `recordDecisionCandidateV1` | `recordDecisionCandidate` |
-| `recordIdentityAdmissionResultV1` | `recordIdentityAdmissionResult` |
-| `recordPositionV1` | `recordPosition` |
-| `recordProposalRevisionV1` | `recordProposalRevision` |
-| `recordReviewDeliveryV1` | `recordReviewDelivery` |
-| `rejectedTransitionV1` | `rejectedTransition` |
-| `releaseReviewBatchClaimV1` | `releaseReviewBatchClaim` |
-| `requestEvidenceOpportunityV1` | `requestEvidenceOpportunity` |
-| `sendPrivateMailV1` | `sendPrivateMail` |
-| `startMeetingArchiveV1` | `startMeetingArchive` |
-| `startPrivateMailV1` | `startPrivateMail` |
-| `submitCompletionDeclarationV1` | `submitCompletionDeclaration` |
-| `submitEvidenceV1` | `submitEvidence` |
-| `submitReviewBatchV1` | `submitReviewBatch` |
-| `transitionMeetingStateV1` | `transitionMeetingState` |
-| `validateMeetingStateV1` | `validateMeetingState` |
+全局唯一名称数：297
 
 ## dsh
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `AdmitIdentityResultV1` | `AdmitIdentityResult` |
-| `CapabilitySummaryV1` | `CapabilitySummary` |
-| `CatalogCandidateV1` | `CatalogCandidate` |
-| `FollowupMeetingIdentitySessionInputV1` | `FollowupMeetingIdentitySessionInput` |
-| `IdentityAdmissionPortV1` | `IdentityAdmissionPort` |
-| `MeetingAgentCatalogV1` | `MeetingAgentCatalog` |
-| `MeetingIdentityProvisioningEnvelopeV1` | `MeetingIdentityProvisioningEnvelope` |
-| `MeetingIdentitySessionLabelV1` | `MeetingIdentitySessionLabel` |
-| `MeetingOwnershipLookupV1` | `MeetingOwnershipLookup` |
-| `PreparedDescriptorV1` | `PreparedDescriptor` |
-| `ReadCatalogRequestV1` | `ReadCatalogRequest` |
 | `ReadCatalogResultV1` | `ReadCatalogResult` |
 | `ResolvedMeetingCallerV1` | `ResolvedMeetingCaller` |
 | `RoleCatalogPortV1` | `RoleCatalogPort` |

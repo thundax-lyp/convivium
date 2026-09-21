@@ -3,7 +3,7 @@ export {
     decodeMeetingSessionLabel,
     encodeMeetingIdentitySessionLabelV1,
     encodeMeetingSessionLabel,
-    type MeetingIdentitySessionLabelV1,
+    type MeetingIdentitySessionLabel,
     type ManagerSessionLabel,
     type MeetingSessionLabel,
     type ParticipantSessionLabel
@@ -11,7 +11,7 @@ export {
 export {
     resolveMeetingCaller,
     resolveMeetingCallerV1,
-    type MeetingOwnershipLookupV1,
+    type LabeledMeetingOwnershipLookup,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
     type ResolvedMeetingCaller,
@@ -22,7 +22,7 @@ export {
     createSessionProvisioningEnvelope,
     serializeMeetingIdentityProvisioningEnvelopeV1,
     serializeSessionProvisioningEnvelope,
-    type MeetingIdentityProvisioningEnvelopeV1,
+    type MeetingIdentityProvisioningEnvelope,
     type SessionProvisioningEnvelope
 } from "./provisioning.js";
 export {
@@ -37,7 +37,7 @@ export {
     followupContributionSession,
     followupMeetingIdentitySessionV1,
     type FollowupContributionSessionInput,
-    type FollowupMeetingIdentitySessionInputV1,
+    type FollowupMeetingIdentitySessionInput,
     interruptAndDrainOwnedSessions,
     inspectOwnedSessions,
     proveArchiveOwnedChildren,
@@ -63,8 +63,8 @@ export {
 export * from "./meeting-role-catalog.js";
 export {
     admitMeetingIdentityV1,
-    type AdmitIdentityResultV1,
-    type IdentityAdmissionPortV1,
-    type PreparedDescriptorV1,
+    type AdmitIdentityResult,
+    type IdentityAdmissionPort,
+    type PreparedDescriptor,
     type SessionOwnershipV1
 } from "./meeting-identity-admission.js";

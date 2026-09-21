@@ -1,10 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
-import {
-    followupMeetingIdentitySessionV1,
-    type MeetingIdentitySessionLabelV1
-} from "@/dsh/index.js";
+import { followupMeetingIdentitySessionV1, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
@@ -36,7 +33,7 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabelV1["role"] {
+function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabel["role"] {
     if (identity.roles.length !== 1) fail("NOTICE_IDENTITY_INVALID");
     switch (identity.roles[0]) {
         case "manager":

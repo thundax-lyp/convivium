@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import type { IdentityRecommendation } from "@/domain/index.js";
-export interface PreparedDescriptorV1 {
+export interface PreparedDescriptor {
     descriptorId: string;
     meetingId: string;
     parentSessionId: string;
@@ -25,7 +25,7 @@ export interface SessionOwnershipV1 {
     status: "provisioning" | "active" | "interrupted" | "stopped" | "unrecoverable";
 }
 export type RoleErrorV1 = { code: string; message: string; targetId?: string };
-export interface IdentityAdmissionPortV1 {
+export interface IdentityAdmissionPort {
     readOwnership(admissionId: string): Promise<SessionOwnershipV1 | undefined>;
     putProvisioning(
         owner: SessionOwnershipV1
@@ -40,16 +40,16 @@ export interface IdentityAdmissionPortV1 {
     markActive(owner: SessionOwnershipV1): Promise<SessionOwnershipV1 | RoleErrorV1>;
     revokeAndDrainOwned(owner: SessionOwnershipV1): Promise<void>;
 }
-export type AdmitIdentityResultV1 =
+export type AdmitIdentityResult =
     | { kind: "admitted"; identityId: string; ownership: SessionOwnershipV1 }
     | { kind: "rejected"; error: RoleErrorV1 };
 export async function admitMeetingIdentityV1(
     intent: IdentityRecommendation,
-    descriptor: PreparedDescriptorV1,
+    descriptor: PreparedDescriptor,
     parent: Agent,
     definition: MeetingAgentDefinitionV1,
-    ownerPort: IdentityAdmissionPortV1
-): Promise<AdmitIdentityResultV1> {
+    ownerPort: IdentityAdmissionPort
+): Promise<AdmitIdentityResult> {
     if (intent.decision !== "admit" || intent.status !== "provisioning")
         return {
             kind: "rejected",

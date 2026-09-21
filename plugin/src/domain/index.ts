@@ -2,11 +2,11 @@ export * from "./errors.js";
 export * from "./meeting-state.js";
 export * from "./transitions/index.js";
 export {
-    validateMeetingStateV1,
+    validateMeetingState,
     type MeetingStateValidationResult
 } from "./meeting-state-validation.js";
 export {
-    transitionMeetingStateV1,
+    transitionMeetingState,
     type TargetDomainActor,
     type TargetAgendaInput,
     type TargetMeetingAction,
@@ -15,8 +15,8 @@ export {
     type TargetTransitionResult
 } from "./meeting-state-transitions.js";
 export {
-    recommendIdentityV1,
-    recordIdentityAdmissionResultV1,
+    recommendIdentity,
+    recordIdentityAdmissionResult,
     type IdentityAdmissionResultContext,
     type IdentityRecommendationDraft,
     type IdentityTransitionResult

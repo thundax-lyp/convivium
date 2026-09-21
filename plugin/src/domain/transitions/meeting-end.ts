@@ -1,7 +1,7 @@
 import type { MeetingState, OpaqueId } from "@/domain/meeting-state.js";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import { isObjectiveSatisfied } from "./outcome.js";
-import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
 
 export interface EndMeetingInput {
     terminationId: OpaqueId;
@@ -25,16 +25,16 @@ const nonTerminalContributionStatuses = new Set([
 ]);
 
 export function endMeeting(state: MeetingState, input: EndMeetingInput): MeetingTransitionResult {
-    if (validateMeetingStateV1(state).kind === "invalid")
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
+    if (validateMeetingState(state).kind === "invalid")
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (!(
         "running" === state.lifecycle.status ||
         "paused" === state.lifecycle.status ||
         "converging" === state.lifecycle.status
     ))
-        return rejectedTransitionV1(state, "MEETING_TERMINAL", "meeting is not endable");
+        return rejectedTransition(state, "MEETING_TERMINAL", "meeting is not endable");
     if (state.rounds.some((round) => round.status === "open"))
-        return rejectedTransitionV1(state, "INVALID_STATE", "an open round remains");
+        return rejectedTransition(state, "INVALID_STATE", "an open round remains");
     if (
         !input.terminationId.trim() ||
         !input.reason.trim() ||
@@ -52,9 +52,9 @@ export function endMeeting(state: MeetingState, input: EndMeetingInput): Meeting
             ...input.unresolvedIssueIds
         ].some((id) => !id.trim())
     )
-        return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid end meeting input");
+        return rejectedTransition(state, "INVALID_ARGUMENT", "invalid end meeting input");
     if (state.termination !== undefined || state.rounds.some((round) => round.status === "open"))
-        return rejectedTransitionV1(state, "INVALID_STATE", "meeting is already ending");
+        return rejectedTransition(state, "INVALID_STATE", "meeting is already ending");
     const decisionIds = state.decisions
         .filter((item) => item.status === "accepted")
         .map((item) => item.id);
@@ -73,7 +73,7 @@ export function endMeeting(state: MeetingState, input: EndMeetingInput): Meeting
         !sameIds(input.unresolvedQuestionIds, unresolvedQuestionIds) ||
         !sameIds(input.unresolvedIssueIds, unresolvedIssueIds)
     )
-        return rejectedTransitionV1(
+        return rejectedTransition(
             state,
             "PRECONDITION_FAILED",
             "termination facts do not match state"
@@ -88,7 +88,7 @@ export function endMeeting(state: MeetingState, input: EndMeetingInput): Meeting
             unresolvedIssueIds.length > 0 ||
             unclosedContributionIds.length > 0)
     )
-        return rejectedTransitionV1(state, "PRECONDITION_FAILED", "meeting is not complete");
+        return rejectedTransition(state, "PRECONDITION_FAILED", "meeting is not complete");
     const next: MeetingState = {
         ...structuredClone(state),
         version: state.version + 1,

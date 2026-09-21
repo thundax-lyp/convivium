@@ -1,5 +1,5 @@
 import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReason } from "@/domain/index.js";
-import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 
 export interface EvidenceInput {
     observation: string;
@@ -102,7 +102,7 @@ function validInput(evidence: EvidenceInput) {
     );
 }
 
-export function submitEvidenceV1(
+export function submitEvidence(
     state: MeetingState,
     input: SubmitEvidenceInput
 ): MeetingTransitionResult {
