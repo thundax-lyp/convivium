@@ -7,7 +7,7 @@ import {
 } from "@/domain/index.js";
 import type { MeetingAgentCatalog } from "@/dsh/index.js";
 import {
-    ArchiveViewV1Schema,
+    ArchiveViewSchema,
     MeetingSummaryV1Schema,
     MeetingViewV1Schema,
     type ArchiveView,
@@ -115,7 +115,7 @@ export function projectArchiveView(
     caller: MeetingProjectionCaller
 ): ArchiveView {
     const used = new Set(archive.decisions.map(({ candidateId }) => candidateId));
-    return ArchiveViewV1Schema.parse({
+    return ArchiveViewSchema.parse({
         ...copy(archive),
         decisionCandidates:
             caller.kind === "local"

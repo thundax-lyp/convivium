@@ -3,8 +3,8 @@ import { defineTool, type ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import type { ResolvedMeetingCaller } from "@/dsh/index.js";
 import {
-    CreateMeetingActionV1Schema,
-    DisposeHandRaiseActionV1Schema,
+    CreateMeetingActionSchema,
+    DisposeHandRaiseActionSchema,
     MeetingCommandV1Schema,
     OpenRoundActionV1Schema,
     SubmitManagerPlanActionV1Schema,
@@ -130,7 +130,7 @@ export function registerMeetingToolsV1(
         {
             name: "convivium_create_meeting",
             kind: "create_meeting",
-            schema: CreateMeetingActionV1Schema
+            schema: CreateMeetingActionSchema
         },
         { name: "convivium_open_round", kind: "open_round", schema: OpenRoundActionV1Schema },
         {
@@ -141,7 +141,7 @@ export function registerMeetingToolsV1(
         {
             name: "convivium_dispose_hand_raise",
             kind: "dispose_hand_raise",
-            schema: DisposeHandRaiseActionV1Schema
+            schema: DisposeHandRaiseActionSchema
         },
         {
             name: "convivium_publish_round",

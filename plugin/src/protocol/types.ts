@@ -116,7 +116,7 @@ export interface AgendaItemSpec {
     relatedTaskIds?: readonly string[];
 }
 
-export interface ContinuationSelectionV1 {
+export interface ContinuationSelection {
     sourceMeetingId: string;
     includeFinalSummary: boolean;
     decisionIds: readonly string[];
@@ -126,7 +126,7 @@ export interface ContinuationSelectionV1 {
     artifactIds: readonly string[];
 }
 
-export interface CreateMeetingInputV1 {
+export interface CreateMeetingInput {
     evidenceReviewerKey: string;
     managerAgentDefinitionId?: string;
     protocolVersion: ProtocolVersion;
@@ -137,12 +137,12 @@ export interface CreateMeetingInputV1 {
     objectiveContract: ObjectiveContractSpecV1;
     agenda: readonly AgendaItemSpec[];
     participants: readonly ParticipantSpecV1[];
-    continuation?: ContinuationSelectionV1;
+    continuation?: ContinuationSelection;
     selectionMode?: "round_robin" | "rule_based" | "manager" | "hybrid";
     limits?: Partial<PublicMeetingLimitsV1>;
 }
 
-export interface CreateMeetingResultV1 {
+export interface CreateMeetingResult {
     meetingId: string;
     meetingVersion: number;
     status: "created" | "running" | "waiting";
@@ -198,7 +198,7 @@ export interface MeetingControlResultV1 {
 
 export type RiskLevelV1 = "low" | "medium" | "high";
 
-export interface CaptainDecisionDispositionInputV1 {
+export interface CaptainDecisionDispositionInput {
     protocolVersion: 1;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -210,7 +210,7 @@ export interface CaptainDecisionDispositionInputV1 {
     replacementCandidateId?: string;
 }
 
-export interface CaptainDecisionDispositionResultV1 {
+export interface CaptainDecisionDispositionResult {
     requestId: string;
     decisionId: string;
     action: "supersede" | "revoke";
@@ -218,7 +218,7 @@ export interface CaptainDecisionDispositionResultV1 {
     replacementDecisionId?: string;
 }
 
-export type CaptainAgendaCandidateDispositionInputV1 =
+export type CaptainAgendaCandidateDispositionInput =
     | {
           protocolVersion: 1;
           meetingId: string;
@@ -244,14 +244,14 @@ export type CaptainAgendaCandidateDispositionInputV1 =
           action: "park" | "reject";
       };
 
-export interface CaptainAgendaCandidateDispositionResultV1 {
+export interface CaptainAgendaCandidateDispositionResult {
     requestId: string;
     candidateId: string;
     action: "promote" | "park" | "reject";
     agendaItemId?: string;
 }
 
-export interface CaptainRiskDispositionInputV1 {
+export interface CaptainRiskDispositionInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -262,7 +262,7 @@ export interface CaptainRiskDispositionInputV1 {
     evidenceMessageIds: readonly string[];
 }
 
-export interface CaptainRiskDispositionResultV1 {
+export interface CaptainRiskDispositionResult {
     requestId: string;
     issueId: string;
     disposition: "accepted" | "rejected";
@@ -381,7 +381,7 @@ export interface SpeakerMeetingContextV1 {
     blockingQuestions: readonly PublicQuestionV1[];
     recentMessages: readonly PublicMeetingMessageV1[];
     relevantHistorySummary?: string;
-    taskResults: readonly AuthorizedTaskResultV1[];
+    taskResults: readonly AuthorizedTaskResult[];
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     turn: PublicTurnV1;
     step: PublicSpeakerStepV1;
@@ -487,7 +487,7 @@ export interface PublicRiskV1 {
     relatedTaskIds: readonly string[];
 }
 
-export interface AuthorizedTaskResultV1 {
+export interface AuthorizedTaskResult {
     meetingTaskId: string;
     executionId?: string;
     status: MeetingTaskStatusV1;
@@ -621,7 +621,7 @@ export type AgentRoleDefinitionId =
 
 export type AgentEvidenceScope = "repository" | "github" | "arxiv" | "web";
 
-export interface AgentRoleDefinitionV1 {
+export interface AgentRoleDefinition {
     roleDefinitionId: AgentRoleDefinitionId;
     version: string;
     displayName: string;
@@ -638,7 +638,7 @@ export interface MeetingAgentCatalogSnapshotV1 {
     catalogVersion: string;
     teamId: string;
     capturedAt: number;
-    roles: readonly AgentRoleDefinitionV1[];
+    roles: readonly AgentRoleDefinition[];
     candidates: readonly {
         candidateId: string;
         roleDefinitionId: AgentRoleDefinitionId;
@@ -680,7 +680,7 @@ export interface MeetingAgentCatalogProjectionV1 {
 }
 
 /** Captain-only rejection; approval and Participant admission are not implemented. */
-export interface CaptainAttendanceDispositionInputV1 {
+export interface CaptainAttendanceDispositionInput {
     protocolVersion: 1;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -689,12 +689,12 @@ export interface CaptainAttendanceDispositionInputV1 {
     decision: "reject";
     reason: string;
 }
-export interface CaptainAttendanceDispositionResultV1 {
+export interface CaptainAttendanceDispositionResult {
     requestId: string;
     recommendationId: string;
     disposition: "rejected";
 }
-export interface AttendanceRecommendationClaimV1 {
+export interface AttendanceRecommendationClaim {
     candidateId: string;
     agendaItemId: string;
     rationale: string;
@@ -703,7 +703,7 @@ export interface AttendanceRecommendationClaimV1 {
     urgency: "current_agenda" | "later_agenda" | "follow_up";
 }
 
-export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
+export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaim {
     rejection?: { reason: string; rejectedAt: number };
     recommendationId: string;
     roleDefinitionId: AgentRoleDefinitionId;
@@ -724,7 +724,7 @@ export interface ManagerPlanSubmissionV1 {
     objective: string;
     expectedOutputs: readonly string[];
     prohibitedTopics: readonly string[];
-    attendanceRecommendations?: readonly AttendanceRecommendationClaimV1[];
+    attendanceRecommendations?: readonly AttendanceRecommendationClaim[];
     steps: readonly {
         participantId: string;
         instruction: string;
@@ -748,7 +748,7 @@ export interface TurnSubmissionV1 {
     agendaRelation:
         "on_topic" | "supporting_context" | "new_topic_candidate" | "blocking_interrupt";
     changes: PublicMeetingChangesV1;
-    completionClaims?: CompletionClaimsV1;
+    completionClaims?: CompletionClaims;
     minutesDraft?: MinutesDraftInputV1;
 }
 
@@ -757,7 +757,7 @@ export interface PublicMeetingChangesV1 {
     proposals?: readonly ProposalClaimV1[];
     positions?: readonly PositionClaimV1[];
     issues?: readonly IssueClaimV1[];
-    decisionProposals?: readonly DecisionProposalClaimV1[];
+    decisionProposals?: readonly DecisionProposalClaim[];
     agendaCandidates?: readonly AgendaCandidateClaim[];
 }
 
@@ -797,14 +797,14 @@ export interface IssueClaimV1 {
     riskLevel: RiskLevelV1;
 }
 
-export interface DecisionProposalClaimV1 {
+export interface DecisionProposalClaim {
     proposalId: string;
     proposalRevision: number;
     statement: string;
     rationale: string;
 }
 
-export interface CaptainDecisionAcceptanceInputV1 {
+export interface CaptainDecisionAcceptanceInput {
     protocolVersion: 1;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -814,7 +814,7 @@ export interface CaptainDecisionAcceptanceInputV1 {
     evidenceMessageIds: readonly string[];
 }
 
-export interface CaptainDecisionAcceptanceResultV1 {
+export interface CaptainDecisionAcceptanceResult {
     requestId: string;
     decisionCandidateId: string;
     decisionId: string;
@@ -831,7 +831,7 @@ export interface AgendaCandidateClaim {
     suggestedParticipants: readonly string[];
 }
 
-export interface CompletionClaimsV1 {
+export interface CompletionClaims {
     outputClaims?: readonly EvidenceClaimV1[];
     criterionClaims?: readonly EvidenceClaimV1[];
     agendaResolution?: AgendaResolutionClaim;

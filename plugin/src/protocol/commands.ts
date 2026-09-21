@@ -5,11 +5,11 @@ import {
     ProtocolVersionSchema
 } from "./schema.js";
 import type {
-    CaptainRiskDispositionInputV1,
-    CaptainAttendanceDispositionInputV1,
-    CaptainAgendaCandidateDispositionInputV1,
-    CreateMeetingInputV1,
-    CaptainDecisionDispositionInputV1,
+    CaptainRiskDispositionInput,
+    CaptainAttendanceDispositionInput,
+    CaptainAgendaCandidateDispositionInput,
+    CreateMeetingInput,
+    CaptainDecisionDispositionInput,
     FinishMeetingMailInputV1,
     ManagerPlanSubmissionV1,
     SendMeetingMessageInputV1
@@ -96,7 +96,7 @@ const createMeetingInputSchema = Schema.object({
     limits: optionalObject(publicLimits)
 });
 
-export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInputV1> = Schema.transform(
+export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInput> = Schema.transform(
     createMeetingInputSchema,
     (value) => {
         if (!Array.isArray(value.participants)) throw new TypeError("Participants are required");
@@ -114,9 +114,9 @@ export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInputV1> = S
         if (!Array.isArray(value.agenda) || value.agenda.length === 0) {
             throw new TypeError("At least one agenda item is required");
         }
-        return value as CreateMeetingInputV1;
+        return value as CreateMeetingInput;
     }
-) as Schema<unknown, CreateMeetingInputV1>;
+) as Schema<unknown, CreateMeetingInput>;
 
 export const MeetingStatusInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
@@ -149,7 +149,7 @@ const captainRiskDispositionInput = Schema.object({
     evidenceMessageIds: array(nonEmptyString())
 });
 
-export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispositionInputV1> =
+export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispositionInput> =
     Schema.transform(captainRiskDispositionInput, (value) => {
         assertExactKeys(
             value,
@@ -173,8 +173,8 @@ export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispo
         ) {
             throw new TypeError("risk evidenceMessageIds must be unique");
         }
-        return value as CaptainRiskDispositionInputV1;
-    }) as Schema<unknown, CaptainRiskDispositionInputV1>;
+        return value as CaptainRiskDispositionInput;
+    }) as Schema<unknown, CaptainRiskDispositionInput>;
 
 const captainAgendaCandidateDispositionInput = Schema.union([
     Schema.object({
@@ -205,7 +205,7 @@ const captainAgendaCandidateDispositionInput = Schema.union([
 
 export const CaptainAgendaCandidateDispositionInputSchema: Schema<
     unknown,
-    CaptainAgendaCandidateDispositionInputV1
+    CaptainAgendaCandidateDispositionInput
 > = Schema.transform(captainAgendaCandidateDispositionInput, (value) => {
     const expected = [
         "protocolVersion",
@@ -238,8 +238,8 @@ export const CaptainAgendaCandidateDispositionInputSchema: Schema<
             throw new TypeError("agenda item arrays must be unique");
         }
     }
-    return value as CaptainAgendaCandidateDispositionInputV1;
-}) as Schema<unknown, CaptainAgendaCandidateDispositionInputV1>;
+    return value as CaptainAgendaCandidateDispositionInput;
+}) as Schema<unknown, CaptainAgendaCandidateDispositionInput>;
 
 const reassignTurnInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
@@ -383,7 +383,7 @@ const captainDecisionDispositionInput = Schema.object({
 
 export const CaptainDecisionDispositionInputSchema: Schema<
     unknown,
-    CaptainDecisionDispositionInputV1
+    CaptainDecisionDispositionInput
 > = Schema.transform(captainDecisionDispositionInput, (value) => {
     const expected = [
         "protocolVersion",
@@ -401,7 +401,7 @@ export const CaptainDecisionDispositionInputSchema: Schema<
         throw new TypeError("supersede requires replacementCandidateId");
     }
     return value;
-}) as Schema<unknown, CaptainDecisionDispositionInputV1>;
+}) as Schema<unknown, CaptainDecisionDispositionInput>;
 
 const agendaCandidateClaim = Schema.object({
     title: string(),
@@ -662,7 +662,7 @@ const captainAttendanceDispositionInput = Schema.object({
 
 export const CaptainAttendanceDispositionInputSchema: Schema<
     unknown,
-    CaptainAttendanceDispositionInputV1
+    CaptainAttendanceDispositionInput
 > = Schema.transform(captainAttendanceDispositionInput, (value) => {
     assertExactKeys(
         value,
@@ -685,4 +685,4 @@ export const CaptainAttendanceDispositionInputSchema: Schema<
         throw new TypeError("expectedMeetingVersion must be a non-negative safe integer");
     }
     return value;
-}) as Schema<unknown, CaptainAttendanceDispositionInputV1>;
+}) as Schema<unknown, CaptainAttendanceDispositionInput>;

@@ -2,7 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import type {
     MinutesDraftInputV1,
     PublicMinutesDraftV1,
-    AttendanceRecommendationClaimV1,
+    AttendanceRecommendationClaim,
     KnownMeetingProtocolErrorCodeV1,
     MeetingAgentCatalogProjectionV1,
     MeetingAgentCatalogSnapshotV1,
@@ -92,7 +92,7 @@ const agentRoleDefinitionSchema = Schema.transform(
                 "responsibilities",
                 "nonResponsibilities"
             ],
-            "AgentRoleDefinitionV1"
+            "AgentRoleDefinition"
         );
         return value;
     }
@@ -232,7 +232,7 @@ export const MeetingAgentCatalogProjectionSchema: Schema<unknown, MeetingAgentCa
         }
     ) as Schema<unknown, MeetingAgentCatalogProjectionV1>;
 
-export const AttendanceRecommendationClaimSchema: Schema<unknown, AttendanceRecommendationClaimV1> =
+export const AttendanceRecommendationClaimSchema: Schema<unknown, AttendanceRecommendationClaim> =
     Schema.transform(
         Schema.object({
             candidateId: requiredString(),
@@ -257,11 +257,11 @@ export const AttendanceRecommendationClaimSchema: Schema<unknown, AttendanceReco
                     "evidenceGapIds",
                     "urgency"
                 ],
-                "AttendanceRecommendationClaimV1"
+                "AttendanceRecommendationClaim"
             );
-            return value as AttendanceRecommendationClaimV1;
+            return value as AttendanceRecommendationClaim;
         }
-    ) as Schema<unknown, AttendanceRecommendationClaimV1>;
+    ) as Schema<unknown, AttendanceRecommendationClaim>;
 
 const attendanceRejection = Schema.transform(
     Schema.object({

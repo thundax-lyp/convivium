@@ -1,5 +1,5 @@
 import Schema from "@deepseek-ai/schemastery";
-import type { CaptainAttendanceDispositionResultV1 } from "./types.js";
+import type { CaptainAttendanceDispositionResult } from "./types.js";
 import { MeetingProtocolErrorCodeSchema, ProtocolVersionSchema } from "./schema.js";
 
 const string = () => Schema.string().required();
@@ -246,7 +246,7 @@ export const ProtocolErrorResultSchema = Schema.object({
 
 export const CaptainAttendanceDispositionResultSchema: Schema<
     unknown,
-    CaptainAttendanceDispositionResultV1
+    CaptainAttendanceDispositionResult
 > = Schema.transform(
     Schema.object({
         requestId: nonEmptyString(),
@@ -261,4 +261,4 @@ export const CaptainAttendanceDispositionResultSchema: Schema<
         );
         return value;
     }
-) as Schema<unknown, CaptainAttendanceDispositionResultV1>;
+) as Schema<unknown, CaptainAttendanceDispositionResult>;

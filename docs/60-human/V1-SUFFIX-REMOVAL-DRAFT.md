@@ -6,61 +6,21 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `protocol` | 200 |
+| `protocol` | 160 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 267 |
+| 合计（按模块去重） | 227 |
 
-声明出现次数：270
+声明出现次数：230
 
-全局唯一名称数：267
+全局唯一名称数：227
 
 ## protocol
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `AgentRoleDefinitionV1` | `AgentRoleDefinition` |
-| `AllowedControlV1` | `AllowedControl` |
-| `AllowedControlV1Schema` | `AllowedControlSchema` |
-| `ArchiveMaterialViewV1` | `ArchiveMaterialView` |
-| `ArchiveMaterialViewV1Schema` | `ArchiveMaterialViewSchema` |
-| `ArchiveViewV1Schema` | `ArchiveViewSchema` |
-| `AttendanceRecommendationClaimV1` | `AttendanceRecommendationClaim` |
-| `AuthorizedTaskResultV1` | `AuthorizedTaskResult` |
-| `CaptainAgendaCandidateDispositionInputV1` | `CaptainAgendaCandidateDispositionInput` |
-| `CaptainAgendaCandidateDispositionResultV1` | `CaptainAgendaCandidateDispositionResult` |
-| `CaptainAttendanceDispositionInputV1` | `CaptainAttendanceDispositionInput` |
-| `CaptainAttendanceDispositionResultV1` | `CaptainAttendanceDispositionResult` |
-| `CaptainDecisionAcceptanceInputV1` | `CaptainDecisionAcceptanceInput` |
-| `CaptainDecisionAcceptanceResultV1` | `CaptainDecisionAcceptanceResult` |
-| `CaptainDecisionDispositionInputV1` | `CaptainDecisionDispositionInput` |
-| `CaptainDecisionDispositionResultV1` | `CaptainDecisionDispositionResult` |
-| `CaptainRiskDispositionInputV1` | `CaptainRiskDispositionInput` |
-| `CaptainRiskDispositionResultV1` | `CaptainRiskDispositionResult` |
-| `ClaimReviewBatchActionV1Schema` | `ClaimReviewBatchActionSchema` |
-| `CommittedFactViewV1` | `CommittedFactView` |
-| `CommittedFactViewV1Schema` | `CommittedFactViewSchema` |
-| `CompletionClaimsV1` | `CompletionClaims` |
-| `CompletionFactViewV1` | `CompletionFactView` |
-| `CompletionFactViewV1Schema` | `CompletionFactViewSchema` |
-| `ContinuationMaterialViewV1` | `ContinuationMaterialView` |
-| `ContinuationMaterialViewV1Schema` | `ContinuationMaterialViewSchema` |
-| `ContinuationProvenanceViewV1` | `ContinuationProvenanceView` |
-| `ContinuationProvenanceViewV1Schema` | `ContinuationProvenanceViewSchema` |
-| `ContinuationSelectionV1` | `ContinuationSelection` |
-| `ContributionViewV1` | `ContributionView` |
-| `ContributionViewV1Schema` | `ContributionViewSchema` |
-| `CreateMeetingActionV1Schema` | `CreateMeetingActionSchema` |
-| `CreateMeetingInputV1` | `CreateMeetingInput` |
-| `CreateMeetingResultV1` | `CreateMeetingResult` |
-| `DecisionCandidateViewV1` | `DecisionCandidateView` |
-| `DecisionCandidateViewV1Schema` | `DecisionCandidateViewSchema` |
-| `DecisionProposalClaimV1` | `DecisionProposalClaim` |
-| `DecisionViewV1` | `DecisionView` |
-| `DecisionViewV1Schema` | `DecisionViewSchema` |
-| `DisposeHandRaiseActionV1Schema` | `DisposeHandRaiseActionSchema` |
 | `EndMeetingInputV1` | `EndMeetingInput` |
 | `EndMeetingResultV1` | `EndMeetingResult` |
 | `EvidenceClaimV1` | `EvidenceClaim` |

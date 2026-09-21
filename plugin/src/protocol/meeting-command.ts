@@ -39,7 +39,7 @@ const limits = z.object({
     reviewDeadlineMs: z.number().int().nonnegative()
 });
 const continuation = z.object({ sourceArchiveId: id, selectedMaterialIds: z.array(id) });
-export const CreateMeetingActionV1Schema = z.object({
+export const CreateMeetingActionSchema = z.object({
     kind: z.literal("create_meeting"),
     objective,
     identities: z.array(initialIdentity),
@@ -138,7 +138,7 @@ export const RaiseHandActionV1Schema = z.object({
     roundId: id,
     purpose: text
 });
-export const DisposeHandRaiseActionV1Schema = z.object({
+export const DisposeHandRaiseActionSchema = z.object({
     kind: z.literal("dispose_hand_raise"),
     roundId: id,
     contributorId: id,
@@ -150,7 +150,7 @@ export const SubmitEvidenceActionV1Schema = z.object({
     contributionId: id,
     evidence
 });
-export const ClaimReviewBatchActionV1Schema = z.object({
+export const ClaimReviewBatchActionSchema = z.object({
     kind: z.literal("claim_review_batch"),
     sourceEffectId: id,
     roundId: id,
@@ -192,13 +192,13 @@ export const ResumeMeetingActionV1Schema = z.object({
 });
 
 const actions = [
-    CreateMeetingActionV1Schema,
+    CreateMeetingActionSchema,
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema,
     SubmitManagerPlanActionV1Schema,
     OpenRoundActionV1Schema,
     RaiseHandActionV1Schema,
-    DisposeHandRaiseActionV1Schema,
+    DisposeHandRaiseActionSchema,
     SubmitEvidenceActionV1Schema,
     z.object({
         kind: z.literal("close_contribution"),
@@ -206,7 +206,7 @@ const actions = [
         exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
         reason: text
     }),
-    ClaimReviewBatchActionV1Schema,
+    ClaimReviewBatchActionSchema,
     ReleaseReviewBatchClaimActionV1Schema,
     SubmitReviewBatchActionV1Schema,
     z
