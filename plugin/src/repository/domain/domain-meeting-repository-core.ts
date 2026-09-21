@@ -326,15 +326,46 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         });
         if (patch.length === 0) return changed.result;
         const seq = this.headSeq + 1;
-        let record = createCommitRecord({
-            formatVersion: 1,
-            seq,
-            previousSeq: this.headSeq,
-            previousDigest: this.headDigest,
-            operation: _input.operation,
-            patch,
-            committedAt: _input.now
-        });
+        let record;
+        try {
+            record = createCommitRecord({
+                formatVersion: 1,
+                seq,
+                previousSeq: this.headSeq,
+                previousDigest: this.headDigest,
+                operation: _input.operation,
+                patch,
+                committedAt: _input.now
+            });
+        } catch (error) {
+            if (!(error instanceof RangeError) || error.message !== "commit is too large")
+                throw error;
+            await writeCheckpoint({
+                domain: this.meetingDomain,
+                projection: nextProjection,
+                baseSeq: seq,
+                createdAt: _input.now
+            });
+            const previous = this.projection;
+            this.projection = nextProjection;
+            this.headSeq = seq;
+            this.headDigest = projectionDigest(nextProjection);
+            this.maintenanceRequested = false;
+            this.maintenanceError = undefined;
+            observeCommit(
+                this.onDiagnostic,
+                this.meetingId,
+                previous,
+                this.projection,
+                _input.now,
+                _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
+            );
+            if (this.onProjectionCommitted && this.projection.snapshot)
+                this.onProjectionCommitted(
+                    this.decodeSnapshot(structuredClone(this.projection.snapshot))
+                );
+            return changed.result;
+        }
         let pointerBase =
             this.meetingDomain.table("checkpoint_pointer").get("current")?.baseSeq ?? 0;
         let tail = [...this.meetingDomain.table("commits").entries()].filter(
