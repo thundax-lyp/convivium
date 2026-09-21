@@ -3,8 +3,8 @@ import type {
     CaptainAttendanceDispositionResult,
     CreateMeetingInput,
     CreateMeetingResult,
-    EndMeetingInputV1,
-    EndMeetingResultV1,
+    EndMeetingInput,
+    EndMeetingResult,
     MeetingTaskRequestV1,
     MeetingTaskStatusInputV1,
     MeetingTaskStartInputV1,
@@ -13,10 +13,10 @@ import type {
     MeetingTaskStatusResultV1,
     MeetingTaskStartResultV1,
     MeetingTaskFinishResultV1,
-    HandRaiseSubmissionV1,
-    HandRaiseResultV1,
-    ManagerPlanResultV1,
-    ManagerPlanSubmissionV1,
+    HandRaiseSubmission,
+    HandRaiseResult,
+    ManagerPlanResult,
+    ManagerPlanSubmission,
     MeetingControlResultV1,
     TurnSubmissionResultV1,
     ProtocolErrorV1,
@@ -27,7 +27,7 @@ import type {
     ReassignTurnResultV1,
     CaptainRiskDispositionInput,
     CaptainRiskDispositionResult,
-    FinishMeetingMailInputV1,
+    FinishMeetingMailInput,
     MeetingMailResultV1,
     SendMeetingMessageInputV1,
     TurnSubmissionV1,
@@ -75,7 +75,7 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
     finishMeetingMail(
-        input: FinishMeetingMailInputV1,
+        input: FinishMeetingMailInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
@@ -105,20 +105,20 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingTaskFinishResultV1> | ProtocolErrorV1>;
     raiseHand(
-        input: HandRaiseSubmissionV1,
+        input: HandRaiseSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<HandRaiseResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccessV1<HandRaiseResult> | ProtocolErrorV1>;
     submitTurn(
         input: TurnSubmissionV1,
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
     submitManagerPlan(
-        input: ManagerPlanSubmissionV1,
+        input: ManagerPlanSubmission,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ManagerPlanResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccessV1<ManagerPlanResult> | ProtocolErrorV1>;
     pause(
         input: PauseMeetingInputV1,
         caller: MeetingToolCaller,
@@ -140,8 +140,8 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResult> | ProtocolErrorV1>;
     endMeeting(
-        input: EndMeetingInputV1,
+        input: EndMeetingInput,
         caller: MeetingToolCaller,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
+    ): Promise<ProtocolSuccessV1<EndMeetingResult> | ProtocolErrorV1>;
 }

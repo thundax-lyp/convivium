@@ -690,7 +690,7 @@ interface MeetingErrorV1 {
 ## Read, Remote And Projection
 
 ```ts
-interface ListMeetingsRequestV1 {
+interface ListMeetingsRequest {
   protocolVersion: 1;
 }
 interface MeetingSummaryV1 {

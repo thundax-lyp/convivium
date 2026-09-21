@@ -46,10 +46,10 @@ export interface MeetingMailExtensionV1 {
     replyToMailId?: string;
 }
 
-export type MailHandlingStatusV1 =
+export type MailHandlingStatus =
     "pending" | "processing" | "processed" | "obsolete" | "failed" | "timed_out" | "cancelled";
 
-export interface MailHandlingAttemptV1 {
+export interface MailHandlingAttempt {
     handlingAttemptId: string;
     mailId: string;
     meetingId: string;
@@ -57,7 +57,7 @@ export interface MailHandlingAttemptV1 {
     deliveryId?: string;
     snapshotThroughSeq: number;
     processingThroughSeq?: number;
-    status: MailHandlingStatusV1;
+    status: MailHandlingStatus;
 }
 
 export interface SendMeetingMessageInputV1 {
@@ -71,7 +71,7 @@ export interface SendMeetingMessageInputV1 {
     replyToMailId?: string;
 }
 
-export interface FinishMeetingMailInputV1 {
+export interface FinishMeetingMailInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     mailId: string;
@@ -84,7 +84,7 @@ export interface FinishMeetingMailInputV1 {
 export interface MeetingMailResultV1 {
     mailId: string;
     handlingAttemptId: string;
-    status: MailHandlingStatusV1;
+    status: MailHandlingStatus;
 }
 
 export interface ParticipantSpecV1 {
@@ -157,7 +157,7 @@ export interface MeetingStatusInputV1 {
     meetingId: string;
 }
 
-export interface LocalMeetingListItemV1 {
+export interface LocalMeetingListItem {
     meetingId: string;
     teamId: string;
     topic: string;
@@ -166,14 +166,14 @@ export interface LocalMeetingListItemV1 {
     updatedAt: number;
 }
 
-export interface LocalMeetingListResultV1 {
-    meetings: readonly LocalMeetingListItemV1[];
+export interface LocalMeetingListResult {
+    meetings: readonly LocalMeetingListItem[];
 }
 
-export interface LocalMeetingListResponseV1 {
+export interface LocalMeetingListResponse {
     protocolVersion: 1;
     ok: true;
-    result: LocalMeetingListResultV1;
+    result: LocalMeetingListResult;
 }
 
 export interface PauseMeetingInputV1 {
@@ -281,7 +281,7 @@ export interface ReassignTurnInputV1 {
     requestId: string;
 }
 
-export interface EndMeetingInputV1 {
+export interface EndMeetingInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -515,7 +515,7 @@ export interface PublicSpeakerStepV1 {
     status: "pending" | "assigned" | "running" | "submitted" | "skipped" | "revoked" | "failed";
 }
 
-export interface ManagerMeetingContextV1 {
+export interface ManagerMeetingContext {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     meetingVersion: number;
@@ -713,7 +713,7 @@ export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendati
     failureCode?: string;
 }
 
-export interface ManagerPlanSubmissionV1 {
+export interface ManagerPlanSubmission {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     planningAttemptId: string;
@@ -756,7 +756,7 @@ export interface PublicMeetingChangesV1 {
     questions?: readonly QuestionClaimV1[];
     proposals?: readonly ProposalClaimV1[];
     positions?: readonly PositionClaimV1[];
-    issues?: readonly IssueClaimV1[];
+    issues?: readonly IssueClaim[];
     decisionProposals?: readonly DecisionProposalClaim[];
     agendaCandidates?: readonly AgendaCandidateClaim[];
 }
@@ -785,7 +785,7 @@ export interface PositionClaimV1 {
     blocking: boolean;
 }
 
-export interface IssueClaimV1 {
+export interface IssueClaim {
     title: string;
     description: string;
     affectedOutputIds: readonly string[];
@@ -832,15 +832,15 @@ export interface AgendaCandidateClaim {
 }
 
 export interface CompletionClaims {
-    outputClaims?: readonly EvidenceClaimV1[];
-    criterionClaims?: readonly EvidenceClaimV1[];
+    outputClaims?: readonly EvidenceClaim[];
+    criterionClaims?: readonly EvidenceClaim[];
     agendaResolution?: AgendaResolutionClaim;
     review?: ReviewClaimV1;
     questionResolutions?: readonly QuestionResolutionClaimV1[];
     riskAcceptance?: RiskAcceptanceClaimV1;
 }
 
-export interface EvidenceClaimV1 {
+export interface EvidenceClaim {
     subjectId: string;
     evidenceMessageIds: readonly string[];
     taskIds: readonly string[];
@@ -871,7 +871,7 @@ export interface RiskAcceptanceClaimV1 {
     evidenceMessageIds: readonly string[];
 }
 
-export interface HandRaiseSubmissionV1 {
+export interface HandRaiseSubmission {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     requestId: string;
@@ -894,7 +894,7 @@ export interface ProtocolSuccessV1<T> extends ProtocolMeta {
     result: T;
 }
 
-export interface ManagerPlanResultV1 {
+export interface ManagerPlanResult {
     status: "planned" | "waiting";
     turnId?: string;
     firstStepId?: string;
@@ -914,7 +914,7 @@ export interface TurnSubmissionResultV1 {
     meetingStatus: LegacyMeetingStatus;
 }
 
-export interface HandRaiseResultV1 {
+export interface HandRaiseResult {
     handRaiseId: string;
     status: "pending" | "accepted" | "deferred" | "consumed" | "rejected";
 }
@@ -925,12 +925,12 @@ export interface ReassignTurnResultV1 {
     action: "reassign" | "skip";
 }
 
-export interface EndMeetingResultV1 {
+export interface EndMeetingResult {
     status: "completed" | "partial" | "no_consensus" | "cancelled";
     terminationCode: string;
 }
 
-export type KnownMeetingProtocolErrorCodeV1 =
+export type KnownMeetingProtocolErrorCode =
     | "INVALID_ARGUMENT"
     | "MEETING_NOT_FOUND"
     | "UNAUTHORIZED_CALLER"
@@ -958,7 +958,7 @@ export type KnownMeetingProtocolErrorCodeV1 =
     | "PARTICIPANT_PROVISIONING_FAILED"
     | "INTERNAL_ERROR";
 
-export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCodeV1 | (string & {});
+export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCode | (string & {});
 
 export interface ProtocolErrorV1 {
     protocolVersion: ProtocolVersion;

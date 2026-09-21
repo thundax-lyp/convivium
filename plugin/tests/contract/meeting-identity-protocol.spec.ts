@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { MeetingCommandV1Schema } from "@/protocol/meeting-command.js";
 import {
-    IdentityViewV1Schema,
-    IdentityRecommendationViewV1Schema,
+    IdentityViewSchema,
+    IdentityRecommendationViewSchema,
     RecommendIdentityActionV1Schema,
     RoleErrorCodeV1Schema
 } from "@/protocol/index.js";
@@ -54,7 +54,7 @@ describe("meeting identity protocol", () => {
     });
 
     it("does not expose forged runtime ownership in the public recommendation view", () => {
-        const result = IdentityRecommendationViewV1Schema.parse({
+        const result = IdentityRecommendationViewSchema.parse({
             id: "rec-1",
             candidateId: "candidate-1",
             definitionId: "domain_architect",
@@ -75,7 +75,7 @@ describe("meeting identity protocol", () => {
 
     it("exports the caller-filtered identity DTO schema from the protocol entrypoint", () => {
         expect(
-            IdentityViewV1Schema.parse({
+            IdentityViewSchema.parse({
                 id: "identity-1",
                 displayName: "Architect",
                 roles: ["contributor"]

@@ -3,7 +3,7 @@ import type {
     MinutesDraftInputV1,
     PublicMinutesDraftV1,
     AttendanceRecommendationClaim,
-    KnownMeetingProtocolErrorCodeV1,
+    KnownMeetingProtocolErrorCode,
     MeetingAgentCatalogProjectionV1,
     MeetingAgentCatalogSnapshotV1,
     PublicAttendanceRecommendationV1
@@ -353,7 +353,7 @@ export const MeetingProtocolErrorCodeSchema = Schema.string().required();
 
 export function isKnownMeetingProtocolErrorCode(
     value: string
-): value is KnownMeetingProtocolErrorCodeV1 {
+): value is KnownMeetingProtocolErrorCode {
     return (knownErrorCodes as readonly string[]).includes(value);
 }
 

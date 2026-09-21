@@ -6,61 +6,21 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `protocol` | 160 |
+| `protocol` | 120 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 227 |
+| 合计（按模块去重） | 187 |
 
-声明出现次数：230
+声明出现次数：187
 
-全局唯一名称数：227
+全局唯一名称数：187
 
 ## protocol
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `EndMeetingInputV1` | `EndMeetingInput` |
-| `EndMeetingResultV1` | `EndMeetingResult` |
-| `EvidenceClaimV1` | `EvidenceClaim` |
-| `EvidenceOpportunityRequestViewV1` | `EvidenceOpportunityRequestView` |
-| `EvidenceOpportunityRequestViewV1Schema` | `EvidenceOpportunityRequestViewSchema` |
-| `EvidencePackageViewV1` | `EvidencePackageView` |
-| `EvidencePackageViewV1Schema` | `EvidencePackageViewSchema` |
-| `EvidenceReviewViewV1` | `EvidenceReviewView` |
-| `EvidenceReviewViewV1Schema` | `EvidenceReviewViewSchema` |
-| `EvidenceVersionViewV1` | `EvidenceVersionView` |
-| `EvidenceVersionViewV1Schema` | `EvidenceVersionViewSchema` |
-| `FinishMeetingMailInputV1` | `FinishMeetingMailInput` |
-| `FormalMessageViewV1` | `FormalMessageView` |
-| `FormalMessageViewV1Schema` | `FormalMessageViewSchema` |
-| `HandRaiseResultV1` | `HandRaiseResult` |
-| `HandRaiseSubmissionV1` | `HandRaiseSubmission` |
-| `IdentityRecommendationViewV1` | `IdentityRecommendationView` |
-| `IdentityRecommendationViewV1Schema` | `IdentityRecommendationViewSchema` |
-| `IdentityViewV1` | `IdentityView` |
-| `IdentityViewV1Schema` | `IdentityViewSchema` |
-| `IssueClaimV1` | `IssueClaim` |
-| `IssueViewV1` | `IssueView` |
-| `IssueViewV1Schema` | `IssueViewSchema` |
-| `KnownMeetingProtocolErrorCodeV1` | `KnownMeetingProtocolErrorCode` |
-| `LifecycleViewV1` | `LifecycleView` |
-| `LifecycleViewV1Schema` | `LifecycleViewSchema` |
-| `ListMeetingsRequestV1` | `ListMeetingsRequest` |
-| `ListMeetingsRequestV1Schema` | `ListMeetingsRequestSchema` |
-| `LocalMeetingListItemV1` | `LocalMeetingListItem` |
-| `LocalMeetingListResponseV1` | `LocalMeetingListResponse` |
-| `LocalMeetingListResultV1` | `LocalMeetingListResult` |
-| `MailHandlingAttemptV1` | `MailHandlingAttempt` |
-| `MailHandlingStatusV1` | `MailHandlingStatus` |
-| `ManagerCatalogViewV1` | `ManagerCatalogView` |
-| `ManagerCatalogViewV1Schema` | `ManagerCatalogViewSchema` |
-| `ManagerMeetingContextV1` | `ManagerMeetingContext` |
-| `ManagerPlanResultV1` | `ManagerPlanResult` |
-| `ManagerPlanSubmissionV1` | `ManagerPlanSubmission` |
-| `ManagerPlanViewV1` | `ManagerPlanView` |
-| `ManagerPlanViewV1Schema` | `ManagerPlanViewSchema` |
 | `ManagerResearchNeedV1` | `ManagerResearchNeed` |
 | `MeetingActionV1` | `MeetingAction` |
 | `MeetingActionV1Schema` | `MeetingActionSchema` |

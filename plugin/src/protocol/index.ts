@@ -70,12 +70,12 @@ export {
     SubmitReviewBatchActionV1Schema,
     PublishRoundActionV1Schema,
     MeetingCommandV1Schema,
-    ListMeetingsRequestV1Schema,
+    ListMeetingsRequestSchema,
     ReadMeetingRequestV1Schema,
     MeetingCommandResultV1Schema,
     type MeetingActionV1,
     type MeetingCommandV1,
-    type ListMeetingsRequestV1,
+    type ListMeetingsRequest,
     type ReadMeetingRequestV1,
     type MeetingCommandResultV1
 } from "./meeting-command.js";

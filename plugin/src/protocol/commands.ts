@@ -10,8 +10,8 @@ import type {
     CaptainAgendaCandidateDispositionInput,
     CreateMeetingInput,
     CaptainDecisionDispositionInput,
-    FinishMeetingMailInputV1,
-    ManagerPlanSubmissionV1,
+    FinishMeetingMailInput,
+    ManagerPlanSubmission,
     SendMeetingMessageInputV1
 } from "./types.js";
 
@@ -489,8 +489,9 @@ const managerPlanSubmissionSchema = Schema.object({
     steps: array(managerPlanStep).min(1)
 });
 
-export const ManagerPlanSubmissionSchema: Schema<unknown, ManagerPlanSubmissionV1> =
-    Schema.transform(managerPlanSubmissionSchema, (value) => {
+export const ManagerPlanSubmissionSchema: Schema<unknown, ManagerPlanSubmission> = Schema.transform(
+    managerPlanSubmissionSchema,
+    (value) => {
         const expected = [
             "protocolVersion",
             "meetingId",
@@ -507,9 +508,10 @@ export const ManagerPlanSubmissionSchema: Schema<unknown, ManagerPlanSubmissionV
         if (Object.prototype.hasOwnProperty.call(value, "attendanceRecommendations")) {
             expected.push("attendanceRecommendations");
         }
-        assertExactKeys(value, expected, "ManagerPlanSubmissionV1");
-        return value as ManagerPlanSubmissionV1;
-    }) as Schema<unknown, ManagerPlanSubmissionV1>;
+        assertExactKeys(value, expected, "ManagerPlanSubmission");
+        return value as ManagerPlanSubmission;
+    }
+) as Schema<unknown, ManagerPlanSubmission>;
 
 export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.transform(
     Schema.object({
@@ -617,16 +619,15 @@ export const SendMeetingMessageInputSchema: Schema<unknown, SendMeetingMessageIn
         replyToMailId: Schema.string()
     }) as Schema<unknown, SendMeetingMessageInputV1>;
 
-export const FinishMeetingMailInputSchema: Schema<unknown, FinishMeetingMailInputV1> =
-    Schema.object({
-        protocolVersion: ProtocolVersionSchema,
-        meetingId: string(),
-        mailId: string(),
-        handlingAttemptId: string(),
-        deliveryId: string(),
-        requestId: nonEmptyString(),
-        status: enumOf(["processed", "obsolete", "failed"] as const)
-    }) as Schema<unknown, FinishMeetingMailInputV1>;
+export const FinishMeetingMailInputSchema: Schema<unknown, FinishMeetingMailInput> = Schema.object({
+    protocolVersion: ProtocolVersionSchema,
+    meetingId: string(),
+    mailId: string(),
+    handlingAttemptId: string(),
+    deliveryId: string(),
+    requestId: nonEmptyString(),
+    status: enumOf(["processed", "obsolete", "failed"] as const)
+}) as Schema<unknown, FinishMeetingMailInput>;
 
 export function validateCommandInput<T>(schema: Schema<T>, value: unknown): T {
     return schema(value as T);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import {
     MeetingActionV1Schema,
-    ListMeetingsRequestV1Schema,
+    ListMeetingsRequestSchema,
     ReadMeetingRequestV1Schema
 } from "@/protocol/meeting-command.js";
 import {
@@ -163,7 +163,7 @@ describe("target Meeting business-loop protocol", () => {
     });
 
     it("validates reads, result/error unions, and review/archive refinements", () => {
-        expect(ListMeetingsRequestV1Schema.parse({ protocolVersion: 1, forged: true })).toEqual({
+        expect(ListMeetingsRequestSchema.parse({ protocolVersion: 1, forged: true })).toEqual({
             protocolVersion: 1
         });
         expect(

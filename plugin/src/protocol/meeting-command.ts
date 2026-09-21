@@ -284,8 +284,8 @@ export const MeetingCommandV1Schema = z
 export type MeetingCommandV1 = z.infer<typeof MeetingCommandV1Schema>;
 export type MeetingActionV1 = z.infer<typeof MeetingActionV1Schema>;
 
-export const ListMeetingsRequestV1Schema = z.object({ protocolVersion: z.literal(1) });
-export type ListMeetingsRequestV1 = z.infer<typeof ListMeetingsRequestV1Schema>;
+export const ListMeetingsRequestSchema = z.object({ protocolVersion: z.literal(1) });
+export type ListMeetingsRequest = z.infer<typeof ListMeetingsRequestSchema>;
 export const ReadMeetingRequestV1Schema = z.object({
     protocolVersion: z.literal(1),
     meetingId: id

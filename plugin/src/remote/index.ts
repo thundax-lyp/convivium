@@ -1,7 +1,7 @@
 import { Remote, RemoteError, TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 import type { Context } from "@deepseek-ai/cordis";
 import {
-    ListMeetingsRequestV1Schema,
+    ListMeetingsRequestSchema,
     MeetingCommandResultV1Schema,
     MeetingListResultV1Schema,
     MeetingReadResultV1Schema,
@@ -61,7 +61,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
     async list(signal: AbortSignal): Promise<RemoteMeetingListResult> {
         signal.throwIfAborted();
         try {
-            const request = ListMeetingsRequestV1Schema.parse({ protocolVersion: 1 });
+            const request = ListMeetingsRequestSchema.parse({ protocolVersion: 1 });
             void request;
             return MeetingListResultV1Schema.parse(await this.runtime.list(signal));
         } catch (cause) {

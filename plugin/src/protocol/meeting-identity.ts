@@ -45,7 +45,7 @@ export const RecordIdentityAdmissionResultActionV1Schema = z.object({
     recommendationId: id
 });
 
-export const ManagerCatalogViewV1Schema = z.object({
+export const ManagerCatalogViewSchema = z.object({
     catalogId: id,
     catalogVersion: text,
     candidates: z.array(
@@ -64,7 +64,7 @@ export const ManagerCatalogViewV1Schema = z.object({
         })
     )
 });
-export const IdentityRecommendationViewV1Schema = z.object({
+export const IdentityRecommendationViewSchema = z.object({
     id,
     candidateId: id,
     definitionId: id,
@@ -79,7 +79,7 @@ export const IdentityRecommendationViewV1Schema = z.object({
     resolvedAt: z.number().int().nonnegative().optional(),
     failureCode: RoleErrorCodeV1Schema.optional()
 });
-export const IdentityViewV1Schema = z.object({
+export const IdentityViewSchema = z.object({
     id,
     displayName: text,
     roles: z.array(role),
