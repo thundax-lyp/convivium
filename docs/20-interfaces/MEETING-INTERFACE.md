@@ -15,13 +15,14 @@ type EpochMs = number;
 type OpaqueId = string;
 interface MeetingCommandV1 {
   protocolVersion: 1;
-  meetingId: OpaqueId;              // createMeeting 时必须为 "new"
-  expectedMeetingVersion: number;   // createMeeting 为 0，其余为正整数
+  meetingId: OpaqueId; // createMeeting 时必须为 "new"
+  expectedMeetingVersion?: number; // create_meeting 为 0；SubmitReviewBatch 禁止携带；其余 action 必填
   requestId: OpaqueId;
   action: MeetingActionV1;
 }
 interface CallerBinding {
-  channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
+  channel:
+    "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
   principalId: OpaqueId;
   sessionBindingId?: OpaqueId;
 }
@@ -35,49 +36,162 @@ interface CallerBinding {
 
 ```ts
 type MeetingActionV1 =
-  | CreateMeeting | PauseMeeting | ResumeMeeting | EndMeeting
-  | ActivateAgenda | RaiseAgendaCandidate | DisposeAgendaCandidate
-  | RecordQuestion | ResolveQuestion | RecordIssue | DisposeIssue
-  | RequestEvidenceOpportunity | DisposeEvidenceOpportunity | OpenRound | RaiseHand | DisposeHandRaise
-  | SubmitEvidence | SubmitReviewBatch | RecordReviewDelivery
-  | RaiseSupplementHand | DisposeSupplementHand
-  | CloseContribution | PublishRound | AbortRound
-  | RecordProposalRevision | RecordPosition | RecordDecisionCandidate | Decide | ChangeDecision
-  | DisposeRisk | SubmitCompletionDeclaration | RecordCompletionFact | ChangeCompletionFact
-  | PlanNextStep | CreateTask | ClaimTask | CompleteTask | CancelTask | ExpireTask | ReassignTask
-  | SendPrivateMail | StartPrivateMail | CompletePrivateMail | CancelPrivateMail | ExpirePrivateMail
-  | StartArchive | RecordArchiveSessionResult
-  | RecommendIdentity | RecordIdentityAdmissionResult;
+  | CreateMeeting
+  | PauseMeeting
+  | ResumeMeeting
+  | EndMeeting
+  | ActivateAgenda
+  | RaiseAgendaCandidate
+  | DisposeAgendaCandidate
+  | RecordQuestion
+  | ResolveQuestion
+  | RecordIssue
+  | DisposeIssue
+  | RequestEvidenceOpportunity
+  | DisposeEvidenceOpportunity
+  | OpenRound
+  | RaiseHand
+  | DisposeHandRaise
+  | SubmitEvidence
+  | ClaimReviewBatch
+  | ReleaseReviewBatchClaim
+  | SubmitReviewBatch
+  | RecordReviewDelivery
+  | RaiseSupplementHand
+  | DisposeSupplementHand
+  | CloseContribution
+  | PublishRound
+  | AbortRound
+  | RecordProposalRevision
+  | RecordPosition
+  | RecordDecisionCandidate
+  | Decide
+  | ChangeDecision
+  | DisposeRisk
+  | SubmitCompletionDeclaration
+  | RecordCompletionFact
+  | ChangeCompletionFact
+  | PlanNextStep
+  | CreateTask
+  | ClaimTask
+  | CompleteTask
+  | CancelTask
+  | ExpireTask
+  | ReassignTask
+  | SendPrivateMail
+  | StartPrivateMail
+  | CompletePrivateMail
+  | CancelPrivateMail
+  | ExpirePrivateMail
+  | StartArchive
+  | RecordArchiveSessionResult
+  | RecommendIdentity
+  | RecordIdentityAdmissionResult;
 ```
 
 ### Lifecycle, agenda and planning
 
 ```ts
-interface CreateMeeting { kind: "create_meeting"; objective: ObjectiveInput; identities: InitialIdentityInput[]; managerIdentityKey: OpaqueId; evidenceReviewerIdentityKey: OpaqueId; initialAgenda: InitialAgendaInput[]; initialActiveAgendaId: OpaqueId; limits: MeetingLimitsInput; continuation?: ContinuationInput }
-interface PauseMeeting { kind: "pause_meeting"; reason: string }
-interface ResumeMeeting { kind: "resume_meeting"; reason: string }
+interface CreateMeeting {
+  kind: "create_meeting";
+  objective: ObjectiveInput;
+  identities: InitialIdentityInput[];
+  managerIdentityKey: OpaqueId;
+  evidenceReviewerIdentityKey: OpaqueId;
+  initialAgenda: InitialAgendaInput[];
+  initialActiveAgendaId: OpaqueId;
+  limits: MeetingLimitsInput;
+  continuation?: ContinuationInput;
+}
+interface PauseMeeting {
+  kind: "pause_meeting";
+  reason: string;
+}
+interface ResumeMeeting {
+  kind: "resume_meeting";
+  reason: string;
+}
 interface EndMeeting {
   kind: "end_meeting";
   outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
-  reason: string; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[];
-  unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[];
+  reason: string;
+  decisionIds: OpaqueId[];
+  completionFactIds: OpaqueId[];
+  unresolvedQuestionIds: OpaqueId[];
+  unresolvedIssueIds: OpaqueId[];
 }
-interface ActivateAgenda { kind: "activate_agenda"; agendaId: OpaqueId; previousDisposition: "completed" | "deferred" | "closed"; reason: string }
-interface RaiseAgendaCandidate { kind: "raise_agenda_candidate"; title: string; reason: string; sourceMessageId?: OpaqueId }
-interface DisposeAgendaCandidate { kind: "dispose_agenda_candidate"; candidateId: OpaqueId; disposition: "promoted" | "parked" | "rejected"; reason: string; promotedAgenda?: AgendaInput }
-interface RecordQuestion { kind: "record_question"; agendaId: OpaqueId; text: string; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; blocking: boolean }
-interface ResolveQuestion { kind: "resolve_question"; questionId: OpaqueId; status: "answered" | "withdrawn" | "deferred"; rationale: string; evidenceIds: OpaqueId[] }
-interface RecordIssue { kind: "record_issue"; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "out_of_scope"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; requiresEvidenceReview: boolean; blocking: boolean; rationale: string }
-interface DisposeIssue { kind: "dispose_issue"; issueId: OpaqueId; status: "resolved" | "deferred" | "out_of_scope"; rationale: string; evidenceIds: OpaqueId[] }
+interface ActivateAgenda {
+  kind: "activate_agenda";
+  agendaId: OpaqueId;
+  previousDisposition: "completed" | "deferred" | "closed";
+  reason: string;
+}
+interface RaiseAgendaCandidate {
+  kind: "raise_agenda_candidate";
+  title: string;
+  reason: string;
+  sourceMessageId?: OpaqueId;
+}
+interface DisposeAgendaCandidate {
+  kind: "dispose_agenda_candidate";
+  candidateId: OpaqueId;
+  disposition: "promoted" | "parked" | "rejected";
+  reason: string;
+  promotedAgenda?: AgendaInput;
+}
+interface RecordQuestion {
+  kind: "record_question";
+  agendaId: OpaqueId;
+  text: string;
+  affectedOutputIds: OpaqueId[];
+  affectedCriterionIds: OpaqueId[];
+  affectedConstraintIds: OpaqueId[];
+  blocking: boolean;
+}
+interface ResolveQuestion {
+  kind: "resolve_question";
+  questionId: OpaqueId;
+  status: "answered" | "withdrawn" | "deferred";
+  rationale: string;
+  evidenceIds: OpaqueId[];
+}
+interface RecordIssue {
+  kind: "record_issue";
+  agendaId: OpaqueId;
+  description: string;
+  riskLevel: "low" | "medium" | "high";
+  classification:
+    "blocking" | "follow_up" | "pending_discussion" | "out_of_scope";
+  affectedOutputIds: OpaqueId[];
+  affectedCriterionIds: OpaqueId[];
+  affectedConstraintIds: OpaqueId[];
+  requiresEvidenceReview: boolean;
+  blocking: boolean;
+  rationale: string;
+}
+interface DisposeIssue {
+  kind: "dispose_issue";
+  issueId: OpaqueId;
+  status: "resolved" | "deferred" | "out_of_scope";
+  rationale: string;
+  evidenceIds: OpaqueId[];
+}
 interface RecommendIdentity {
-  kind: "recommend_identity"; candidateId: OpaqueId;
-  definitionId: OpaqueId; definitionVersion: string;
-  catalogId: OpaqueId; catalogVersion: string; agendaId: OpaqueId;
-  decision: "admit" | "reject"; rationale: string;
-  expectedContribution: string; evidenceGap: string;
+  kind: "recommend_identity";
+  candidateId: OpaqueId;
+  definitionId: OpaqueId;
+  definitionVersion: string;
+  catalogId: OpaqueId;
+  catalogVersion: string;
+  agendaId: OpaqueId;
+  decision: "admit" | "reject";
+  rationale: string;
+  expectedContribution: string;
+  evidenceGap: string;
 }
 interface RecordIdentityAdmissionResult {
-  kind: "record_identity_admission_result"; recommendationId: OpaqueId;
+  kind: "record_identity_admission_result";
+  recommendationId: OpaqueId;
 }
 ```
 
@@ -90,19 +204,107 @@ interface RecordIdentityAdmissionResult {
 ### Round, evidence and review
 
 ```ts
-interface OpenRound { kind: "open_round"; agendaId: OpaqueId; deadlineAt?: EpochMs }
-interface RequestEvidenceOpportunity { kind: "request_evidence_opportunity"; agendaId: OpaqueId; purpose: string }
-interface DisposeEvidenceOpportunity { kind: "dispose_evidence_opportunity"; requestId: OpaqueId; disposition: "rejected" | "deferred"; reason: string }
-interface RaiseHand { kind: "raise_hand"; roundId: OpaqueId; purpose: string }
-interface DisposeHandRaise { kind: "dispose_hand_raise"; roundId: OpaqueId; contributorId: OpaqueId; disposition: "accepted" | "rejected" | "deferred"; reason: string }
-interface SubmitEvidence { kind: "submit_evidence"; contributionId: OpaqueId; evidence: EvidenceInput }
-interface SubmitReviewBatch { kind: "submit_review_batch"; reviews: Array<{ versionId: OpaqueId; dimensions: ReviewDimensionsInput; scope: string }> }
-interface RecordReviewDelivery { kind: "record_review_delivery"; reviewId: OpaqueId; status: "sent" | "failed"; failureReason?: string }
-interface RaiseSupplementHand { kind: "raise_supplement_hand"; contributionId: OpaqueId; purpose: string }
-interface DisposeSupplementHand { kind: "dispose_supplement_hand"; contributionId: OpaqueId; disposition: "accepted" | "rejected" | "deferred"; reason: string }
-interface CloseContribution { kind: "close_contribution"; contributionId: OpaqueId; exit: "withdrawn" | "submission_missing" | "timed_out"; reason: string }
-interface PublishRound { kind: "publish_round"; roundId: OpaqueId }
-interface AbortRound { kind: "abort_round"; roundId: OpaqueId; reason: string }
+interface SubmitManagerPlan {
+  kind: "submit_manager_plan";
+  agendaId: OpaqueId;
+  planKind:
+    | "open_round"
+    | "continue_agenda"
+    | "stop_agenda"
+    | "raise_agenda_candidate"
+    | "wait_for_required_identity";
+  roundGoal?: { question: string; evidenceGap: string; expectedOutput: string };
+  rationale: string;
+  blockingReason?: string;
+}
+interface OpenRound {
+  kind: "open_round";
+  agendaId: OpaqueId;
+  planId: OpaqueId;
+  deadlineAt?: EpochMs;
+}
+interface RequestEvidenceOpportunity {
+  kind: "request_evidence_opportunity";
+  agendaId: OpaqueId;
+  purpose: string;
+}
+interface DisposeEvidenceOpportunity {
+  kind: "dispose_evidence_opportunity";
+  requestId: OpaqueId;
+  disposition: "rejected" | "deferred";
+  reason: string;
+}
+interface RaiseHand {
+  kind: "raise_hand";
+  roundId: OpaqueId;
+  purpose: string;
+}
+interface DisposeHandRaise {
+  kind: "dispose_hand_raise";
+  roundId: OpaqueId;
+  contributorId: OpaqueId;
+  disposition: "accepted" | "rejected" | "deferred";
+  reason: string;
+}
+interface SubmitEvidence {
+  kind: "submit_evidence";
+  contributionId: OpaqueId;
+  evidence: EvidenceInput;
+}
+interface ClaimReviewBatch {
+  kind: "claim_review_batch";
+  sourceEffectId: OpaqueId;
+  roundId: OpaqueId;
+  versionIds: OpaqueId[];
+}
+interface ReleaseReviewBatchClaim {
+  kind: "release_review_batch_claim";
+  roundId: OpaqueId;
+  claimId: OpaqueId;
+  reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
+}
+interface SubmitReviewBatch {
+  kind: "submit_review_batch";
+  roundId: OpaqueId;
+  claimId: OpaqueId;
+  reviews: Array<{
+    versionId: OpaqueId;
+    dimensions: ReviewDimensionsInput;
+    scope: string;
+  }>;
+}
+interface RecordReviewDelivery {
+  kind: "record_review_delivery";
+  reviewId: OpaqueId;
+  status: "sent" | "failed";
+  failureReason?: string;
+}
+interface RaiseSupplementHand {
+  kind: "raise_supplement_hand";
+  contributionId: OpaqueId;
+  purpose: string;
+}
+interface DisposeSupplementHand {
+  kind: "dispose_supplement_hand";
+  contributionId: OpaqueId;
+  disposition: "accepted" | "rejected" | "deferred";
+  reason: string;
+}
+interface CloseContribution {
+  kind: "close_contribution";
+  contributionId: OpaqueId;
+  exit: "withdrawn" | "submission_missing" | "timed_out";
+  reason: string;
+}
+interface PublishRound {
+  kind: "publish_round";
+  roundId: OpaqueId;
+}
+interface AbortRound {
+  kind: "abort_round";
+  roundId: OpaqueId;
+  reason: string;
+}
 ```
 
 `SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权、补充机会和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。首份合法提交创建 ordinal 1 和 complete Registration；已有登记版本的更新必须消费获接纳的 supplement hand，在同一 EvidencePackage 追加 ordinal + 1 并把计数 + 1。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 只能使用 `CloseContribution` 且 Runtime 必须验证 deadline 已到。
@@ -115,26 +317,64 @@ interface AbortRound { kind: "abort_round"; roundId: OpaqueId; reason: string }
 
 ```ts
 interface EvidenceInput {
-  observation: string; interpretation: string; method: string;
-  falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[];
-  claims: EvidenceClaimInput[]; materials: MaterialInput[];
+  observation: string;
+  interpretation: string;
+  method: string;
+  falsifiers: TextWithReason[];
+  uncertainties: TextWithReason[];
+  limitations: TextWithReason[];
+  claims: EvidenceClaimInput[];
+  materials: MaterialInput[];
 }
-interface TextWithReason { value: string; reason?: string }
-interface EvidenceClaimInput { id: OpaqueId; statement: string; materialIds: OpaqueId[]; qualification: string }
+interface TextWithReason {
+  value: string;
+  reason?: string;
+}
+interface EvidenceClaimInput {
+  id: OpaqueId;
+  statement: string;
+  materialIds: OpaqueId[];
+  qualification: string;
+}
 interface MaterialInput {
   id: OpaqueId;
-  kind: "document" | "dataset" | "experiment" | "observation" | "tool_output" | "unknown" | "not_applicable";
-  originator: string; originalSource: string; sourcePublishedAt: string; acquiredAt: string;
-  version: string; locator: string; location: string;
-  verificationConditions: string; limitations: string; sharedDependencies: string[]; reason?: string;
+  kind:
+    | "document"
+    | "dataset"
+    | "experiment"
+    | "observation"
+    | "tool_output"
+    | "unknown"
+    | "not_applicable";
+  originator: string;
+  originalSource: string;
+  sourcePublishedAt: string;
+  acquiredAt: string;
+  version: string;
+  locator: string;
+  location: string;
+  verificationConditions: string;
+  limitations: string;
+  sharedDependencies: string[];
+  reason?: string;
 }
-interface ReviewDimensionsInput { source: ReviewDimensionInput; credibility: ReviewDimensionInput; completeness: ReviewDimensionInput; support: ReviewDimensionInput }
-interface ReviewDimensionInput { score: 0 | 1 | 2 | 3 | "unable_to_assess"; scope: string; reason: string; baselineEvidenceIds: OpaqueId[] }
+interface ReviewDimensionsInput {
+  source: ReviewDimensionInput;
+  credibility: ReviewDimensionInput;
+  completeness: ReviewDimensionInput;
+  support: ReviewDimensionInput;
+}
+interface ReviewDimensionInput {
+  score: 0 | 1 | 2 | 3 | "unable_to_assess";
+  scope: string;
+  reason: string;
+  baselineEvidenceIds: OpaqueId[];
+}
 ```
 
 `falsifiers`、`uncertainties`、`limitations`、`claims`、`materials` 各至少一项；每个 `TextWithReason.value` 必须非空，填写“无”或“未知”时必须有非空 `reason`，不能由公开模板替作者生成缺项理由。每个 claim 至少引用一个本 evidence 的 material。kind 为 unknown/not_applicable 时必须给出 reason；Runtime 从 Round 注入固定 `baselinePublicationIds`，请求不得提供它。每维 `scope` 与 `reason` 均须非空；每维 `baselineEvidenceIds` 只可引用固定 baseline 中 Publication.finalVersionIds 所列的版本；未引用上一轮依据时数组明确为 []，不能用本轮其他证据补入。reviewer 不能审核作者 identity 的版本，且只能审核当前、已 complete 的版本。
 
-Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。它可以读取全部当前待审 EvidenceVersion 与各自固定 Round baseline，并可选择任意非空子集交给 DSH 原生 worker sessions 并发分析。worker 不是 MeetingIdentity、没有 Meeting 写权限。`SubmitReviewBatch` 只由该 reviewer 的 coordinator Session 提交，reviews 不得为空且 versionId 不重复；每项必须指向当前 complete version，并分别验证固定 baseline、维度和“每版至多一个最终 Review”。整批验证成功后原子追加全部 Review 及各自 delivery effect；任一包含项失效则整批拒绝，未完成 worker 项应从请求中省略并继续保持待审。V1 不持久化 batch、claim、lease 或 worker 状态。
+Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。Runtime-only `ClaimReviewBatch` 在唤醒 reviewer 前以普通 Meeting version CAS 原子认领同一 Round 的确切非空待审集合；成功状态记录 `claimId`、`roundId`、reviewerId、versionIds、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt，同一 Round 至多一个未过期 claim。reviewer coordinator 只能把该 claim 的全部 version 逐份交给 DSH 原生 worker sessions 并发分析；worker 不是 MeetingIdentity、没有 Meeting 写权限。`SubmitReviewBatch` 只由该 reviewer 的 coordinator Session 提交，必须携带所属 `roundId` 与未过期 `claimId`，不得携带全局 `expectedMeetingVersion`；reviews 的 versionId 集合必须与 claim 精确相等。每项还必须仍属于该 Round、仍是对应 package 的 current complete version、尚无最终 Review，并分别验证固定 baseline 与维度。整批成功时原子追加全部 Review、移除 claim 并创建各自 delivery effect；任一项缺失、失效或多余均整批拒绝，不能提交部分 worker 结果。相同 submit requestId 重放返回原 receipt；重复 review effect 若其 version 已被同 Round 的有效 claim 覆盖，则作为已去重完成，不再次唤醒 reviewer，也不持续竞争写入。Reviewer turn 超时、中断或投递失败时，dispatcher 以当前 Meeting version 调用 Runtime-only `ReleaseReviewBatchClaim`，只撤销精确匹配的 roundId 与 claimId；撤销先提交时旧 turn 的迟到 Review 返回 `REVIEWER_CONFLICT`，Review 先提交时撤销观察到 claim 已不存在并成为无操作。未观察到 turn 结束时由 expiresAt 兜底。冷恢复从持久 claim 与 Review 决定等待或重新认领，不依赖进程内锁；worker 内部过程不持久化。
 
 已接纳但还没有登记证据的 Contribution 的准备期限为 acceptedAt + limits.taskDeadlineMs，并与存在的 Round.deadlineAt、该作者同 Agenda 未结束 MeetingTask.deadlineAt 取最早值；期限到达后可信 deadline handler 才能记录 submission_missing，绝不造空包。当前版审核或 ReviewDelivery 尚未成功时，不能据作者沉默记录 timed_out 或正常 PublishRound；reviewDeadlineMs 到达须报告未审/未送达包并交由后续异常轮次处置，不把该包视为最终已审。
 
@@ -142,32 +382,159 @@ Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity�
 
 `MaterialInput.originator`、`originalSource`、`sourcePublishedAt`、`acquiredAt`、`version`、`locator`、`location`、`verificationConditions`、`limitations` 均须非空；sourcePublishedAt/acquiredAt 不适用或无法获知时填写“未知”或“不适用”并给出非空 reason，不得删字段或代填时间。原始作者/机构不明时 originator=“未知”且给出 reason。Runtime 只做上述确定性校验；来源真实性、可访问性、完整性和观点支撑由 evidence reviewer 评价。
 
+`sourceEffectId` 由 dispatcher 从当前 outbox effect 注入并持久化；只有该原始 effect 在有效期内重投时保持 retryable，覆盖同一 version 的其它 effect 直接去重完成。这样重复通知不会形成写竞争，而原 effect 在进程崩溃后仍能等到 claim 过期并重新认领。
+
 ### Deliberation, outcome, task and mail
 
 ```ts
-interface RecordProposalRevision { kind: "record_proposal_revision"; proposalId?: OpaqueId; supersedesRevisionId?: OpaqueId; agendaId: OpaqueId; summary: string; body: string; evidenceIds: OpaqueId[] }
-interface RecordPosition { kind: "record_position"; proposalRevisionId: OpaqueId; stance: "support" | "oppose" | "abstain" | "conditional"; rationale: string; evidenceIds: OpaqueId[] }
-interface RecordDecisionCandidate { kind: "record_decision_candidate"; proposalRevisionId: OpaqueId; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[] }
-interface Decide { kind: "decide"; candidateId: OpaqueId }
-interface ChangeDecision { kind: "change_decision"; decisionId: OpaqueId; status: "superseded" | "revoked"; rationale: string; evidenceIds: OpaqueId[]; replacementCandidateId?: OpaqueId }
-interface DisposeRisk { kind: "dispose_risk"; issueId: OpaqueId; action: "accept" | "reject"; scope: string; rationale: string; evidenceIds: OpaqueId[] }
-interface SubmitCompletionDeclaration { kind: "submit_completion_declaration"; outputId: OpaqueId; criterionId?: OpaqueId; statement: string; evidenceIds: OpaqueId[]; taskId?: OpaqueId }
-interface RecordCompletionFact { kind: "record_completion_fact"; outputId: OpaqueId; criterionId?: OpaqueId; statement: string; rationale: string; evidenceIds: OpaqueId[]; decisionIds: OpaqueId[] }
-interface ChangeCompletionFact { kind: "change_completion_fact"; factId: OpaqueId; status: "superseded" | "revoked"; rationale: string; replacement?: Omit<RecordCompletionFact, "kind"> }
-interface PlanNextStep { kind: "plan_next_step"; agendaId: OpaqueId; planKind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string }
-interface CreateTask { kind: "create_task"; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; instructions: string; deadlineAt?: EpochMs }
-interface ClaimTask { kind: "claim_task"; taskId: OpaqueId }
-interface CompleteTask { kind: "complete_task"; taskId: OpaqueId; result: string }
-interface CancelTask { kind: "cancel_task"; taskId: OpaqueId; reason: string }
-interface ExpireTask { kind: "expire_task"; taskId: OpaqueId; reason: string }
-interface ReassignTask { kind: "reassign_task"; taskId: OpaqueId; assigneeId: OpaqueId; reason: string; deadlineAt?: EpochMs }
-interface SendPrivateMail { kind: "send_private_mail"; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[] }
-interface StartPrivateMail { kind: "start_private_mail"; mailId: OpaqueId }
-interface CompletePrivateMail { kind: "complete_private_mail"; mailId: OpaqueId }
-interface CancelPrivateMail { kind: "cancel_private_mail"; mailId: OpaqueId; reason: string }
-interface ExpirePrivateMail { kind: "expire_private_mail"; mailId: OpaqueId; reason: string }
-interface StartArchive { kind: "start_archive" }
-interface RecordArchiveSessionResult { kind: "record_archive_session_result"; sessionOwnershipId: OpaqueId; status: "closed" | "failed"; failureReason?: string }
+interface RecordProposalRevision {
+  kind: "record_proposal_revision";
+  proposalId?: OpaqueId;
+  supersedesRevisionId?: OpaqueId;
+  agendaId: OpaqueId;
+  summary: string;
+  body: string;
+  evidenceIds: OpaqueId[];
+}
+interface RecordPosition {
+  kind: "record_position";
+  proposalRevisionId: OpaqueId;
+  stance: "support" | "oppose" | "abstain" | "conditional";
+  rationale: string;
+  evidenceIds: OpaqueId[];
+}
+interface RecordDecisionCandidate {
+  kind: "record_decision_candidate";
+  proposalRevisionId: OpaqueId;
+  outcome: "adopt" | "reject" | "defer";
+  rationale: string;
+  evidenceIds: OpaqueId[];
+  positionIds: OpaqueId[];
+}
+interface Decide {
+  kind: "decide";
+  candidateId: OpaqueId;
+}
+interface ChangeDecision {
+  kind: "change_decision";
+  decisionId: OpaqueId;
+  status: "superseded" | "revoked";
+  rationale: string;
+  evidenceIds: OpaqueId[];
+  replacementCandidateId?: OpaqueId;
+}
+interface DisposeRisk {
+  kind: "dispose_risk";
+  issueId: OpaqueId;
+  action: "accept" | "reject";
+  scope: string;
+  rationale: string;
+  evidenceIds: OpaqueId[];
+}
+interface SubmitCompletionDeclaration {
+  kind: "submit_completion_declaration";
+  outputId: OpaqueId;
+  criterionId?: OpaqueId;
+  statement: string;
+  evidenceIds: OpaqueId[];
+  taskId?: OpaqueId;
+}
+interface RecordCompletionFact {
+  kind: "record_completion_fact";
+  outputId: OpaqueId;
+  criterionId?: OpaqueId;
+  statement: string;
+  rationale: string;
+  evidenceIds: OpaqueId[];
+  decisionIds: OpaqueId[];
+}
+interface ChangeCompletionFact {
+  kind: "change_completion_fact";
+  factId: OpaqueId;
+  status: "superseded" | "revoked";
+  rationale: string;
+  replacement?: Omit<RecordCompletionFact, "kind">;
+}
+interface PlanNextStep {
+  kind: "plan_next_step";
+  agendaId: OpaqueId;
+  planKind:
+    | "open_round"
+    | "continue_agenda"
+    | "stop_agenda"
+    | "raise_agenda_candidate"
+    | "wait_for_required_identity";
+  rationale: string;
+  blockingReason?: string;
+}
+interface CreateTask {
+  kind: "create_task";
+  assigneeId: OpaqueId;
+  agendaId?: OpaqueId;
+  title: string;
+  instructions: string;
+  deadlineAt?: EpochMs;
+}
+interface ClaimTask {
+  kind: "claim_task";
+  taskId: OpaqueId;
+}
+interface CompleteTask {
+  kind: "complete_task";
+  taskId: OpaqueId;
+  result: string;
+}
+interface CancelTask {
+  kind: "cancel_task";
+  taskId: OpaqueId;
+  reason: string;
+}
+interface ExpireTask {
+  kind: "expire_task";
+  taskId: OpaqueId;
+  reason: string;
+}
+interface ReassignTask {
+  kind: "reassign_task";
+  taskId: OpaqueId;
+  assigneeId: OpaqueId;
+  reason: string;
+  deadlineAt?: EpochMs;
+}
+interface SendPrivateMail {
+  kind: "send_private_mail";
+  recipientId: OpaqueId;
+  agendaId?: OpaqueId;
+  body: string;
+  relatedIds: OpaqueId[];
+}
+interface StartPrivateMail {
+  kind: "start_private_mail";
+  mailId: OpaqueId;
+}
+interface CompletePrivateMail {
+  kind: "complete_private_mail";
+  mailId: OpaqueId;
+}
+interface CancelPrivateMail {
+  kind: "cancel_private_mail";
+  mailId: OpaqueId;
+  reason: string;
+}
+interface ExpirePrivateMail {
+  kind: "expire_private_mail";
+  mailId: OpaqueId;
+  reason: string;
+}
+interface StartArchive {
+  kind: "start_archive";
+}
+interface RecordArchiveSessionResult {
+  kind: "record_archive_session_result";
+  sessionOwnershipId: OpaqueId;
+  status: "closed" | "failed";
+  failureReason?: string;
+}
 ```
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；V1 不通过这些 action 从 `converging` 重新打开 Meeting。
@@ -205,13 +572,51 @@ PlanNextStep is Manager-only and is rejected while a Round is open; a new plan s
 ## Input Components
 
 ```ts
-interface ObjectiveInput { statement: string; requiredOutputs: TargetInput[]; acceptanceCriteria: TargetInput[]; hardConstraints: TargetInput[]; acceptableRiskLevel: "low" | "medium" | "high" }
-interface TargetInput { id: OpaqueId; text: string }
-interface InitialIdentityInput { identityKey: OpaqueId; definitionId: OpaqueId; definitionVersion: string; displayName: string; roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">; agendaResponsibilityIds: OpaqueId[]; riskAuthority: boolean; required: boolean }
-interface InitialAgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerIdentityKey?: OpaqueId }
-interface AgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerId?: OpaqueId }
-interface MeetingLimitsInput { maxFormalMessages: number; maxDurationMs: number; taskDeadlineMs: number; reviewDeadlineMs: number }
-interface ContinuationInput { sourceArchiveId: OpaqueId; selectedMaterialIds: OpaqueId[] }
+interface ObjectiveInput {
+  statement: string;
+  requiredOutputs: TargetInput[];
+  acceptanceCriteria: TargetInput[];
+  hardConstraints: TargetInput[];
+  acceptableRiskLevel: "low" | "medium" | "high";
+}
+interface TargetInput {
+  id: OpaqueId;
+  text: string;
+}
+interface InitialIdentityInput {
+  identityKey: OpaqueId;
+  definitionId: OpaqueId;
+  definitionVersion: string;
+  displayName: string;
+  roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">;
+  agendaResponsibilityIds: OpaqueId[];
+  riskAuthority: boolean;
+  required: boolean;
+}
+interface InitialAgendaInput {
+  id: OpaqueId;
+  title: string;
+  question: string;
+  requiredOutputIds: OpaqueId[];
+  ownerIdentityKey?: OpaqueId;
+}
+interface AgendaInput {
+  id: OpaqueId;
+  title: string;
+  question: string;
+  requiredOutputIds: OpaqueId[];
+  ownerId?: OpaqueId;
+}
+interface MeetingLimitsInput {
+  maxFormalMessages: number;
+  maxDurationMs: number;
+  taskDeadlineMs: number;
+  reviewDeadlineMs: number;
+}
+interface ContinuationInput {
+  sourceArchiveId: OpaqueId;
+  selectedMaterialIds: OpaqueId[];
+}
 ```
 
 IDs and identityKey values supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID or identity IDs. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
@@ -223,20 +628,60 @@ IDs and identityKey values supplied during creation must be locally unique and a
 ## Results, Errors And Precedence
 
 ```ts
-type MeetingCommandResultV1 = MeetingCommandAcceptedV1 | MeetingCommandRejectedV1;
+type MeetingCommandResultV1 =
+  MeetingCommandAcceptedV1 | MeetingCommandRejectedV1;
 interface MeetingCommandAcceptedV1 {
-  kind: "accepted"; meetingId: OpaqueId; committedVersion: number; receiptId: OpaqueId;
+  kind: "accepted";
+  meetingId: OpaqueId;
+  committedVersion: number;
+  receiptId: OpaqueId;
   factIds: OpaqueId[];
-  effects: Array<{ id: OpaqueId; kind: "refresh" | "session_mail" | "agent_notice" | "review_delivery" | "markdown_projection" | "archive" | "identity_provision"; status: "queued" }>;
-  identityDecision?: { recommendationId: OpaqueId; decision: "admit" | "reject"; status: "provisioning" | "rejected" | "active" | "failed"; identityId?: OpaqueId; failureCode?: RoleErrorV1["code"] };
+  effects: Array<{
+    id: OpaqueId;
+    kind:
+      | "refresh"
+      | "session_mail"
+      | "agent_notice"
+      | "review_delivery"
+      | "markdown_projection"
+      | "archive"
+      | "identity_provision";
+    status: "queued";
+  }>;
+  identityDecision?: {
+    recommendationId: OpaqueId;
+    decision: "admit" | "reject";
+    status: "provisioning" | "rejected" | "active" | "failed";
+    identityId?: OpaqueId;
+    failureCode?: RoleErrorV1["code"];
+  };
 }
-interface MeetingCommandRejectedV1 { kind: "rejected"; error: MeetingErrorV1 }
+interface MeetingCommandRejectedV1 {
+  kind: "rejected";
+  error: MeetingErrorV1;
+}
 interface MeetingErrorV1 {
-  code: "INVALID_ARGUMENT" | "MEETING_NOT_FOUND" | "UNAUTHORIZED" | "STALE_AUTHORIZATION" |
-    "IDEMPOTENCY_CONFLICT" | "MEETING_TERMINAL" | "VERSION_CONFLICT" | "NOT_FOUND" |
-    "INVALID_STATE" | "PRECONDITION_FAILED" | "REVIEWER_CONFLICT" | "ROUND_NOT_CLOSABLE" |
-    "LIMIT_EXCEEDED" | "RECOVERY_UNAVAILABLE" | "STORAGE_UNAVAILABLE" | "INCOMPATIBLE_VERSION";
-  message: string; currentMeetingVersion?: number; targetKind?: string; targetId?: OpaqueId;
+  code:
+    | "INVALID_ARGUMENT"
+    | "MEETING_NOT_FOUND"
+    | "UNAUTHORIZED"
+    | "STALE_AUTHORIZATION"
+    | "IDEMPOTENCY_CONFLICT"
+    | "MEETING_TERMINAL"
+    | "VERSION_CONFLICT"
+    | "NOT_FOUND"
+    | "INVALID_STATE"
+    | "PRECONDITION_FAILED"
+    | "REVIEWER_CONFLICT"
+    | "ROUND_NOT_CLOSABLE"
+    | "LIMIT_EXCEEDED"
+    | "RECOVERY_UNAVAILABLE"
+    | "STORAGE_UNAVAILABLE"
+    | "INCOMPATIBLE_VERSION";
+  message: string;
+  currentMeetingVersion?: number;
+  targetKind?: string;
+  targetId?: OpaqueId;
 }
 ```
 
@@ -245,36 +690,95 @@ interface MeetingErrorV1 {
 ## Read, Remote And Projection
 
 ```ts
-interface ListMeetingsRequestV1 { protocolVersion: 1 }
-interface MeetingSummaryV1 { meetingId: OpaqueId; version: number; objective: string; lifecycle: "preparing" | "running" | "paused" | "converging" | "ending" | "terminal" | "archiving" | "archived"; activeAgenda?: { id: OpaqueId; title: string }; updatedAt: EpochMs; unavailableReason?: string }
-interface ReadMeetingRequestV1 { protocolVersion: 1; meetingId: OpaqueId }
-interface IdentityView { id: OpaqueId; displayName: string; roles: MeetingRole[] }
+interface ListMeetingsRequestV1 {
+  protocolVersion: 1;
+}
+interface MeetingSummaryV1 {
+  meetingId: OpaqueId;
+  version: number;
+  objective: string;
+  lifecycle:
+    | "preparing"
+    | "running"
+    | "paused"
+    | "converging"
+    | "ending"
+    | "terminal"
+    | "archiving"
+    | "archived";
+  activeAgenda?: { id: OpaqueId; title: string };
+  updatedAt: EpochMs;
+  unavailableReason?: string;
+}
+interface ReadMeetingRequestV1 {
+  protocolVersion: 1;
+  meetingId: OpaqueId;
+}
+interface IdentityView {
+  id: OpaqueId;
+  displayName: string;
+  roles: MeetingRole[];
+}
 interface IdentityRecommendationView {
-  id: OpaqueId; candidateId: OpaqueId; agendaId: OpaqueId;
-  decision: "admit" | "reject"; status: "provisioning" | "rejected" | "active" | "failed";
-  rationale: string; createdAt: EpochMs;
-  identityId?: OpaqueId; failureCode?: RoleErrorV1["code"];
+  id: OpaqueId;
+  candidateId: OpaqueId;
+  agendaId: OpaqueId;
+  decision: "admit" | "reject";
+  status: "provisioning" | "rejected" | "active" | "failed";
+  rationale: string;
+  createdAt: EpochMs;
+  identityId?: OpaqueId;
+  failureCode?: RoleErrorV1["code"];
 }
 interface ManagerCatalogView {
-  catalogId: OpaqueId; catalogVersion: string;
-  candidates: Array<{ candidateId: OpaqueId; definitionId: OpaqueId; definitionVersion: string;
-    displayName: string; availability: "available" | "unavailable";
-    meetingRoles: MeetingRole[]; responsibilitySummary: string;
-    capabilitySummary: Array<{ kind: "preset" | "skill" | "tool" | "mcp"; label: string }>;
-    suitability: Array<{ scope: string; rationale: string }> }>;
+  catalogId: OpaqueId;
+  catalogVersion: string;
+  candidates: Array<{
+    candidateId: OpaqueId;
+    definitionId: OpaqueId;
+    definitionVersion: string;
+    displayName: string;
+    availability: "available" | "unavailable";
+    meetingRoles: MeetingRole[];
+    responsibilitySummary: string;
+    capabilitySummary: Array<{
+      kind: "preset" | "skill" | "tool" | "mcp";
+      label: string;
+    }>;
+    suitability: Array<{ scope: string; rationale: string }>;
+  }>;
 }
 interface MeetingViewV1 {
-  meetingId: OpaqueId; version: number; objective: ObjectiveView; lifecycle: LifecycleView;
+  meetingId: OpaqueId;
+  version: number;
+  objective: ObjectiveView;
+  lifecycle: LifecycleView;
   continuation?: ContinuationProvenanceView;
-  identities: IdentityView[]; identityRecommendations?: IdentityRecommendationView[];
+  identities: IdentityView[];
+  identityRecommendations?: IdentityRecommendationView[];
   managerCatalog?: ManagerCatalogView;
-  agenda: AgendaView[]; opportunityRequests: EvidenceOpportunityRequestView[]; rounds: RoundView[]; publications: PublicationView[];
-  evidencePackages: EvidencePackageView[]; evidenceReviews: EvidenceReviewView[]; reviewDeliveries: ReviewDeliveryView[];
-  messages: FormalMessageView[]; questions: QuestionView[]; issues: IssueView[];
-  outcomes: OutcomeView; archive?: ArchiveView; managerPlans: ManagerPlanView[]; tasks: TaskView[];
-  privateMail: PrivateMailView[]; controls: AllowedControl[];
+  agenda: AgendaView[];
+  opportunityRequests: EvidenceOpportunityRequestView[];
+  rounds: RoundView[];
+  publications: PublicationView[];
+  evidencePackages: EvidencePackageView[];
+  evidenceReviews: EvidenceReviewView[];
+  reviewDeliveries: ReviewDeliveryView[];
+  messages: FormalMessageView[];
+  questions: QuestionView[];
+  issues: IssueView[];
+  outcomes: OutcomeView;
+  archive?: ArchiveView;
+  managerPlans: ManagerPlanView[];
+  tasks: TaskView[];
+  privateMail: PrivateMailView[];
+  controls: AllowedControl[];
 }
-interface RefreshNoticeV1 { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
+interface RefreshNoticeV1 {
+  kind: "refresh";
+  meetingId: OpaqueId;
+  committedVersion: number;
+}
 ```
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
@@ -294,7 +798,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface AgendaView { id: OpaqueId; title: string; question: string; status: "pending" | "active" | "blocked" | "completed" | "deferred" | "closed"; ownerId?: OpaqueId; requiredOutputIds: OpaqueId[] }
     interface AgendaCandidateView { id: OpaqueId; title: string; reason: string; sourceMessageId?: OpaqueId; status: "pending" | "promoted" | "parked" | "rejected" }
     interface EvidenceOpportunityRequestView { id: OpaqueId; agendaId: OpaqueId; contributorId: OpaqueId; purpose: string; requestedAt: EpochMs }
-    interface RoundView { id: OpaqueId; agendaId: OpaqueId; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
+    interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
     interface PendingHandRaiseView { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; raisedAt: EpochMs }
     interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "awaiting_response" | "withdrawn" | "submission_missing" | "timed_out" | "supplement_rejected" | "aborted" | "closed"; packageId?: OpaqueId; substantiveSupplementCount: number; exitReason?: string }
     interface PublicationView { id: OpaqueId; roundId: OpaqueId; seq: number; finalVersionIds: OpaqueId[]; finalReviewIds: OpaqueId[]; exitReasons: string[]; publishedAt: EpochMs }
@@ -356,10 +860,15 @@ ArchiveView 仅从完整 ArchivePackageV1 读取，`terminationId` 必须等于 
 
 ```ts
 interface MarkdownProjectionInputV1 {
-  meetingId: OpaqueId; committedVersion: number;
-  publicPublications: PublicationView[]; formalMessages: FormalMessageView[];
-  decisions: DecisionView[]; questions: QuestionView[]; issues: IssueView[];
-  termination?: TerminationView; archive?: ArchiveView;
+  meetingId: OpaqueId;
+  committedVersion: number;
+  publicPublications: PublicationView[];
+  formalMessages: FormalMessageView[];
+  decisions: DecisionView[];
+  questions: QuestionView[];
+  issues: IssueView[];
+  termination?: TerminationView;
+  archive?: ArchiveView;
 }
 ```
 
@@ -369,54 +878,158 @@ Markdown 异步从已提交 snapshot 生成；生成、映射、写入、替换�
 
 ```ts
 interface MeetingCommitV1 {
-  meetingId: OpaqueId; expectedVersion: number; nextState: MeetingStateRecordV1;
-  receipt: ReceiptRecordV1; facts: CommittedFactRecordV1[]; outbox: OutboxEffectRecordV1[];
+  meetingId: OpaqueId;
+  expectedVersion: number;
+  nextState: MeetingStateRecordV1;
+  receipt: ReceiptRecordV1;
+  facts: CommittedFactRecordV1[];
+  outbox: OutboxEffectRecordV1[];
 }
 type MeetingStateRecordV1 = MeetingState; // exact lossless JSON codec of meeting/domain aggregate
 interface CommittedFactRecordV1 {
-  factId: OpaqueId; kind: MeetingActionV1["kind"]; actorId: OpaqueId;
-  occurredAt: EpochMs; meetingVersion: number; relatedIds: OpaqueId[];
+  factId: OpaqueId;
+  kind: MeetingActionV1["kind"];
+  actorId: OpaqueId;
+  occurredAt: EpochMs;
+  meetingVersion: number;
+  relatedIds: OpaqueId[];
   payload: CommittedFactPayloadV1;
   resultingState: MeetingStateRecordV1;
 }
 type CommittedFactPayloadV1 =
   | { kind: "references"; relatedIds: OpaqueId[] }
-  | { kind: "question_disposition"; questionId: OpaqueId; oldStatus: "open" | "deferred"; newStatus: "answered" | "withdrawn" | "deferred"; oldBlocking: boolean; newBlocking: boolean; rationale: string; evidenceIds: OpaqueId[] }
-  | { kind: "issue_disposition"; issueId: OpaqueId; oldStatus: "open" | "deferred"; newStatus: "resolved" | "deferred" | "out_of_scope"; oldBlocking: boolean; newBlocking: boolean; rationale: string; evidenceIds: OpaqueId[] };
+  | {
+      kind: "question_disposition";
+      questionId: OpaqueId;
+      oldStatus: "open" | "deferred";
+      newStatus: "answered" | "withdrawn" | "deferred";
+      oldBlocking: boolean;
+      newBlocking: boolean;
+      rationale: string;
+      evidenceIds: OpaqueId[];
+    }
+  | {
+      kind: "issue_disposition";
+      issueId: OpaqueId;
+      oldStatus: "open" | "deferred";
+      newStatus: "resolved" | "deferred" | "out_of_scope";
+      oldBlocking: boolean;
+      newBlocking: boolean;
+      rationale: string;
+      evidenceIds: OpaqueId[];
+    };
 interface ReceiptRecordV1 {
-  receiptId: OpaqueId; meetingId: OpaqueId; principalId: OpaqueId; requestId: OpaqueId;
-  actionKind: MeetingActionV1["kind"]; normalizedPayloadHash: string;
-  result: MeetingCommandAcceptedV1; committedVersion: number; createdAt: EpochMs;
+  receiptId: OpaqueId;
+  meetingId: OpaqueId;
+  principalId: OpaqueId;
+  requestId: OpaqueId;
+  actionKind: MeetingActionV1["kind"];
+  normalizedPayloadHash: string;
+  result: MeetingCommandAcceptedV1;
+  committedVersion: number;
+  createdAt: EpochMs;
 }
 interface OutboxEffectRecordV1 {
-  id: OpaqueId; meetingId: OpaqueId; committedVersion: number;
-  kind: "refresh" | "session_mail" | "agent_notice" | "review_delivery" | "markdown_projection" | "archive" | "identity_provision";
-  payload: OutboxPayloadV1; status: "pending" | "delivered" | "failed"; attempts: number;
-  createdAt: EpochMs; deliveredAt?: EpochMs; lastFailure?: string;
+  id: OpaqueId;
+  meetingId: OpaqueId;
+  committedVersion: number;
+  kind:
+    | "refresh"
+    | "session_mail"
+    | "agent_notice"
+    | "review_delivery"
+    | "markdown_projection"
+    | "archive"
+    | "identity_provision";
+  payload: OutboxPayloadV1;
+  status: "pending" | "delivered" | "failed";
+  attempts: number;
+  createdAt: EpochMs;
+  deliveredAt?: EpochMs;
+  lastFailure?: string;
 }
 type OutboxPayloadV1 =
   | { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
-  | { kind: "session_mail"; mailId: OpaqueId; recipientId: OpaqueId; contextPublicationUpperBound: OpaqueId[] }
+  | {
+      kind: "session_mail";
+      mailId: OpaqueId;
+      recipientId: OpaqueId;
+      contextPublicationUpperBound: OpaqueId[];
+    }
   | AgentNoticePayloadV1
   | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
-  | { kind: "markdown_projection"; meetingId: OpaqueId; committedVersion: number }
+  | {
+      kind: "markdown_projection";
+      meetingId: OpaqueId;
+      committedVersion: number;
+    }
   | { kind: "archive"; archiveId: OpaqueId; meetingId: OpaqueId }
-  | { kind: "identity_provision"; recommendationId: OpaqueId; admissionId: OpaqueId };
-interface AgentNoticeBaseV1 { kind: "agent_notice"; meetingId: OpaqueId; recipientId: OpaqueId; agendaId: OpaqueId }
+  | {
+      kind: "identity_provision";
+      recommendationId: OpaqueId;
+      admissionId: OpaqueId;
+    };
+interface AgentNoticeBaseV1 {
+  kind: "agent_notice";
+  meetingId: OpaqueId;
+  recipientId: OpaqueId;
+  agendaId: OpaqueId;
+}
 type AgentNoticePayloadV1 =
   | (AgentNoticeBaseV1 & { noticeKind: "meeting_started" })
-  | (AgentNoticeBaseV1 & { noticeKind: "transcript_update"; publicMessageId: OpaqueId })
-  | (AgentNoticeBaseV1 & { noticeKind: "opportunity_request"; requestId: OpaqueId })
-  | (AgentNoticeBaseV1 & { noticeKind: "opportunity_disposition"; requestId: OpaqueId; disposition: "rejected" | "deferred"; reason: string })
-  | (AgentNoticeBaseV1 & { noticeKind: "hand_request"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId })
-  | (AgentNoticeBaseV1 & { noticeKind: "hand_request"; requestKind: "supplement"; contributionId: OpaqueId })
-  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId; disposition: "accepted"; reason: string; contributionId: OpaqueId })
-  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId; disposition: "rejected" | "deferred"; reason: string })
-  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "supplement"; contributionId: OpaqueId; disposition: "accepted" | "rejected" | "deferred"; reason: string })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "transcript_update";
+      publicMessageId: OpaqueId;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "opportunity_request";
+      requestId: OpaqueId;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "opportunity_disposition";
+      requestId: OpaqueId;
+      disposition: "rejected" | "deferred";
+      reason: string;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "hand_request";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "hand_request";
+      requestKind: "supplement";
+      contributionId: OpaqueId;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+      disposition: "accepted";
+      reason: string;
+      contributionId: OpaqueId;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+      disposition: "rejected" | "deferred";
+      reason: string;
+    })
+  | (AgentNoticeBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "supplement";
+      contributionId: OpaqueId;
+      disposition: "accepted" | "rejected" | "deferred";
+      reason: string;
+    })
   | (AgentNoticeBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackageV1` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
+`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackageV1` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 
 ## Compatibility And Acceptance
 
