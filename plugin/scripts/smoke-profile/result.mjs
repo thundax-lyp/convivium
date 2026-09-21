@@ -30,23 +30,24 @@ function validateMeetingBusinessLoopResult(value) {
         !isDeepStrictEqual(value.assertions, [
             "target-create",
             "meeting-started",
-            "two-evidence",
-            "review-batch",
+            "four-fixture-rounds",
+            "four-review-batches",
             "worker-authority",
-            "published",
+            "four-published-rounds",
             "archived",
             "cold-reopen"
         ]) ||
         !exact(value.observed, [
             "status",
-            "evidenceVersionIds",
+            "rounds",
             "startedNoticeCounts",
             "workerSessionIds",
+            "subtopicOrigin",
             "coldReopen"
         ]) ||
         value.observed.status !== "archived" ||
         value.observed.coldReopen !== true ||
-        value.observed.evidenceVersionIds.length !== 2 ||
+        !validRoundTrace(value.observed.rounds) ||
         !exact(value.observed.startedNoticeCounts, [
             "contributor-a",
             "contributor-b",
@@ -55,8 +56,9 @@ function validateMeetingBusinessLoopResult(value) {
             "contributor-e"
         ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
-        value.observed.workerSessionIds.length !== 2 ||
-        new Set(value.observed.workerSessionIds).size !== 2
+        value.observed.workerSessionIds.length !== 8 ||
+        new Set(value.observed.workerSessionIds).size !== 8 ||
+        value.observed.subtopicOrigin !== "manager-round-goal"
     )
         throw new Error("Meeting business loop smoke result is invalid.");
 }
@@ -70,20 +72,21 @@ export function validateMeetingBusinessLoopHotResult(value) {
         !isDeepStrictEqual(value.assertions, [
             "target-create",
             "meeting-started",
-            "two-evidence",
-            "review-batch",
+            "four-fixture-rounds",
+            "four-review-batches",
             "worker-authority",
-            "published",
+            "four-published-rounds",
             "archived"
         ]) ||
         !exact(value.observed, [
             "status",
-            "evidenceVersionIds",
+            "rounds",
             "startedNoticeCounts",
-            "workerSessionIds"
+            "workerSessionIds",
+            "subtopicOrigin"
         ]) ||
         value.observed.status !== "archived" ||
-        value.observed.evidenceVersionIds.length !== 2 ||
+        !validRoundTrace(value.observed.rounds) ||
         !exact(value.observed.startedNoticeCounts, [
             "contributor-a",
             "contributor-b",
@@ -92,11 +95,34 @@ export function validateMeetingBusinessLoopHotResult(value) {
             "contributor-e"
         ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
-        value.observed.workerSessionIds.length !== 2 ||
-        new Set(value.observed.workerSessionIds).size !== 2
+        value.observed.workerSessionIds.length !== 8 ||
+        new Set(value.observed.workerSessionIds).size !== 8 ||
+        value.observed.subtopicOrigin !== "manager-round-goal"
     )
         throw new Error("Meeting business loop hot smoke result is invalid.");
     return value;
+}
+
+function validRoundTrace(rounds) {
+    return (
+        Array.isArray(rounds) &&
+        rounds.length === 4 &&
+        isDeepStrictEqual(
+            rounds.map((round) => round.id),
+            ["literature", "source", "implementation", "decision"]
+        ) &&
+        rounds.every(
+            (round) =>
+                typeof round.question === "string" &&
+                typeof round.sourceScope === "string" &&
+                typeof round.roundId === "string" &&
+                typeof round.publicationId === "string" &&
+                Array.isArray(round.evidenceVersionIds) &&
+                round.evidenceVersionIds.length === 2 &&
+                Array.isArray(round.reviewIds) &&
+                round.reviewIds.length === 2
+        )
+    );
 }
 
 export function completeMeetingBusinessLoopResult(hotValue, coldValue) {

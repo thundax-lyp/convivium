@@ -2,11 +2,41 @@ import { createHash } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
     objective:
-        "评估在 vLLM 推理链路中引入 FP8／INT8 KV Cache 量化，是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发；应优先采用哪种量化粒度与校准策略。",
-    title: "vLLM KV Cache 量化的收益与实现路径",
+        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。",
+    title: "vLLM FP8 KV Cache 量化的优先级与最小实现",
     question:
-        "在 vLLM 的推理链路中，引入 KV Cache 量化（FP8／INT8）是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发？应优先采用哪种量化粒度与校准策略？"
+        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。"
 };
+
+export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
+    maxFormalMessages: 20,
+    maxDurationMs: 600000,
+    taskDeadlineMs: 30000,
+    reviewDeadlineMs: 90000
+});
+
+export const MEETING_BUSINESS_LOOP_ROUNDS = [
+    {
+        id: "literature",
+        sourceScope: "arxiv-fixture",
+        question: "哪些 arXiv 结论需要被验证，FP8 KV Cache 的收益和质量风险分别是什么？"
+    },
+    {
+        id: "source",
+        sourceScope: "vllm-source-fixture",
+        question: "vLLM 当前源码中的 KV Cache 路径、配置与 kernel 边界在哪里？"
+    },
+    {
+        id: "implementation",
+        sourceScope: "design-fixture",
+        question: "在不改变已有格式兼容边界的前提下，可合并的最小 FP8 实现是什么？"
+    },
+    {
+        id: "decision",
+        sourceScope: "benchmark-fixture",
+        question: "哪些基准、质量阈值和失败信号应决定继续或停止？"
+    }
+];
 
 function canonical(value) {
     if (Array.isArray(value)) return value.map(canonical);
@@ -112,31 +142,31 @@ function reviewerTurnSummary(agent) {
     };
 }
 
-const evidence = (suffix) => ({
-    observation: `observation-${suffix}`,
-    interpretation: `interpretation-${suffix}`,
+const evidence = (round, suffix) => ({
+    observation: `fixture observation for ${round.id} from ${suffix}`,
+    interpretation: `fixture interpretation for ${round.id} from ${suffix}`,
     method: "deterministic smoke method",
     falsifiers: [{ value: "different result" }],
     uncertainties: [{ value: "none known" }],
     limitations: [{ value: "smoke fixture" }],
     claims: [
         {
-            id: `claim-${suffix}`,
-            statement: `claim-${suffix}`,
-            materialIds: [`material-${suffix}`],
+            id: `claim-${round.id}-${suffix}`,
+            statement: `fixture claim for ${round.id}; not external research`,
+            materialIds: [`material-${round.id}-${suffix}`],
             qualification: "fixture"
         }
     ],
     materials: [
         {
-            id: `material-${suffix}`,
+            id: `material-${round.id}-${suffix}`,
             kind: "document",
             originator: "smoke",
             originalSource: "smoke",
             sourcePublishedAt: "2026-01-01",
             acquiredAt: "2026-01-01",
             version: "1",
-            locator: `smoke://${suffix}`,
+            locator: `smoke://${round.sourceScope}/${suffix}`,
             location: "local",
             verificationConditions: "deterministic",
             limitations: "fixture",
@@ -167,7 +197,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     ];
     const definitions = [
         ["manager", "convivium.meeting_manager", "1.2.0", "manager"],
-        ["reviewer", "convivium.verification_reviewer", "1.2.2", "evidence_reviewer"],
+        ["reviewer", "convivium.verification_reviewer", "1.2.3", "evidence_reviewer"],
         ["contributor-a", "convivium.domain_architect", "1.0.0", "contributor"],
         ["contributor-b", "convivium.runtime_engineer", "1.0.0", "contributor"],
         ["contributor-c", "convivium.protocol_ui_engineer", "1.0.0", "contributor"],
@@ -210,12 +240,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 }
             ],
             initialActiveAgendaId: "agenda-1",
-            limits: {
-                maxFormalMessages: 20,
-                maxDurationMs: 120000,
-                taskDeadlineMs: 30000,
-                reviewDeadlineMs: 30000
-            }
+            limits: MEETING_BUSINESS_LOOP_LIMITS
         }
     };
     const created = await callTargetTool(
@@ -315,238 +340,308 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         String(captain.agent.id),
         ...Object.values(agents).map((agent) => String(agent.id))
     ]);
-    const open = await callTargetTool(
-        ctx,
-        manager,
-        "convivium_open_round",
-        {
-            protocolVersion: 1,
-            meetingId,
-            expectedMeetingVersion: version,
-            requestId: "loop-open-round",
-            action: { kind: "open_round", agendaId: "agenda-1" }
-        },
-        nextCall()
-    );
-    const roundId = open.relatedIds?.[0];
-    assert(roundId, "open_round did not return its related round id");
-    version = open.committedVersion;
-    const raised = [];
-    for (const key of ["contributor-a", "contributor-b"]) {
-        const contributor = await runtime.waitForAgent(ctx, agents[key].id);
-        const result = await callTargetTool(
-            ctx,
-            contributor,
-            "convivium_raise_hand",
-            {
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: version,
-                requestId: `loop-raise-${key}`,
-                action: { kind: "raise_hand", roundId, purpose: "submit smoke evidence" }
-            },
-            nextCall()
-        );
-        raised.push(key);
-        version = result.committedVersion;
-    }
-    const contributions = [];
-    for (const key of raised) {
+    const roundTrace = [];
+    const workerSessionIds = new Set();
+    let workerAuthorityVerified = false;
+    for (const roundPlan of MEETING_BUSINESS_LOOP_ROUNDS) {
+        // Publishing the prior round can complete the Manager's turn. Each
+        // plan/open-round pair therefore starts from a live Manager session.
         manager = await runtime.waitForAgent(ctx, manager.id);
-        const result = await callTargetTool(
+        const plan = await callTargetTool(
             ctx,
             manager,
-            "convivium_dispose_hand_raise",
+            "convivium_submit_manager_plan",
             {
                 protocolVersion: 1,
                 meetingId,
                 expectedMeetingVersion: version,
-                requestId: `loop-dispose-${key}`,
+                requestId: `loop-plan-${roundPlan.id}`,
                 action: {
-                    kind: "dispose_hand_raise",
-                    roundId,
-                    contributorId: identities[key],
-                    disposition: "accepted",
-                    reason: "needed for smoke"
+                    kind: "submit_manager_plan",
+                    agendaId: "agenda-1",
+                    planKind: "open_round",
+                    roundGoal: {
+                        question: roundPlan.question,
+                        evidenceGap: `${roundPlan.sourceScope} evidence gap`,
+                        expectedOutput: `fixture output for ${roundPlan.id}`
+                    },
+                    rationale: `plan ${roundPlan.id} fixture investigation`
                 }
             },
             nextCall()
         );
-        contributions.push(result.relatedIds?.[1]);
-        version = result.committedVersion;
-    }
-    for (const [index, key] of raised.entries()) {
-        const beforeEvidence = await read();
-        try {
+        const planId = plan.relatedIds?.[1];
+        assert(planId, `submit_manager_plan did not return its plan id for ${roundPlan.id}`);
+        version = plan.committedVersion;
+        // A target-tool invocation can complete the caller's Agent turn. Reacquire the
+        // live Manager before using it for the dependent open_round command.
+        manager = await runtime.waitForAgent(ctx, manager.id);
+        const open = await callTargetTool(
+            ctx,
+            manager,
+            "convivium_open_round",
+            {
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: version,
+                requestId: `loop-open-round-${roundPlan.id}`,
+                action: {
+                    kind: "open_round",
+                    agendaId: "agenda-1",
+                    planId
+                }
+            },
+            nextCall()
+        );
+        const roundId = open.relatedIds?.[0];
+        assert(roundId, `open_round did not return its related round id for ${roundPlan.id}`);
+        version = open.committedVersion;
+        const raised = [];
+        for (const key of ["contributor-a", "contributor-b"]) {
             const contributor = await runtime.waitForAgent(ctx, agents[key].id);
-            await callTargetTool(
+            const result = await callTargetTool(
                 ctx,
                 contributor,
-                "convivium_submit_evidence",
+                "convivium_raise_hand",
                 {
                     protocolVersion: 1,
                     meetingId,
-                    expectedMeetingVersion: beforeEvidence.version,
-                    requestId: `loop-evidence-${key}`,
+                    expectedMeetingVersion: version,
+                    requestId: `loop-raise-${roundPlan.id}-${key}`,
                     action: {
-                        kind: "submit_evidence",
-                        contributionId: contributions[index],
-                        evidence: evidence(key)
+                        kind: "raise_hand",
+                        roundId,
+                        purpose: `submit fixture evidence for ${roundPlan.id}`
                     }
+                },
+                nextCall()
+            );
+            raised.push(key);
+            version = result.committedVersion;
+        }
+        const contributions = [];
+        for (const key of raised) {
+            manager = await runtime.waitForAgent(ctx, manager.id);
+            const result = await callTargetTool(
+                ctx,
+                manager,
+                "convivium_dispose_hand_raise",
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: version,
+                    requestId: `loop-dispose-${roundPlan.id}-${key}`,
+                    action: {
+                        kind: "dispose_hand_raise",
+                        roundId,
+                        contributorId: identities[key],
+                        disposition: "accepted",
+                        reason: `needed for ${roundPlan.id} fixture smoke`
+                    }
+                },
+                nextCall()
+            );
+            contributions.push(result.relatedIds?.[1]);
+            version = result.committedVersion;
+        }
+        for (const [index, key] of raised.entries()) {
+            const beforeEvidence = await read();
+            try {
+                const contributor = await runtime.waitForAgent(ctx, agents[key].id);
+                await callTargetTool(
+                    ctx,
+                    contributor,
+                    "convivium_submit_evidence",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: beforeEvidence.version,
+                        requestId: `loop-evidence-${roundPlan.id}-${key}`,
+                        action: {
+                            kind: "submit_evidence",
+                            contributionId: contributions[index],
+                            evidence: evidence(roundPlan, key)
+                        }
+                    },
+                    nextCall()
+                );
+            } catch (error) {
+                throw new Error(
+                    `submit evidence failed for ${roundPlan.id}/${key} contribution=${contributions[index]} version=${beforeEvidence.version}: ${error.message}`,
+                    { cause: error }
+                );
+            }
+        }
+        const afterEvidence = await read();
+        const versionIds = afterEvidence.evidencePackages
+            .filter((item) => contributions.includes(item.contributionId))
+            .map((item) => item.currentVersion.id);
+        assert(versionIds.length === 2, `expected two evidence versions for ${roundPlan.id}`);
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+            if (
+                runtime
+                    .observedMessages(currentReviewer())
+                    .flatMap(messageTexts)
+                    .some((text) => text.includes('"pending"'))
+            )
+                break;
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        assert(
+            runtime
+                .observedMessages(currentReviewer())
+                .flatMap(messageTexts)
+                .some((text) => text.includes('"pending"')),
+            `review request was not delivered to the coordinator for ${roundPlan.id}`
+        );
+        let workers = [];
+        for (let attempt = 0; attempt < 300; attempt += 1) {
+            workers = runtime
+                .observedAgents()
+                .filter(
+                    (agent) =>
+                        !knownSessionIds.has(String(agent.id)) &&
+                        !workerSessionIds.has(String(agent.id))
+                );
+            if (workers.length >= 2) break;
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        assert(
+            workers.length >= 2,
+            `reviewer did not create two one-shot workers for ${roundPlan.id}; observed=${JSON.stringify(runtime.observedAgents().map((agent) => String(agent.id)))}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
+        );
+        const selectedWorkers = workers.slice(0, 2);
+        for (const worker of selectedWorkers) workerSessionIds.add(String(worker.id));
+        if (!workerAuthorityVerified) {
+            const authorityVersion = (await read()).version;
+            for (const [index, selectedWorker] of selectedWorkers.entries()) {
+                const worker = await runtime.waitForAgent(ctx, selectedWorker.id);
+                const unauthorized = await callTargetToolResult(
+                    ctx,
+                    worker,
+                    "convivium_raise_hand",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: authorityVersion,
+                        requestId: `loop-worker-authority-${index}`,
+                        action: { kind: "raise_hand", roundId, purpose: "must be rejected" }
+                    },
+                    nextCall(),
+                    { retryUnknown: false }
+                );
+                const toolUnavailable =
+                    unauthorized.isError &&
+                    String(unauthorized.error?.message).includes("unknown tool");
+                const commandRejected =
+                    !unauthorized.isError &&
+                    unauthorized.value?.kind === "rejected" &&
+                    unauthorized.value.error?.code === "UNAUTHORIZED";
+                assert(
+                    toolUnavailable || commandRejected,
+                    "review worker gained Meeting command authority"
+                );
+            }
+            workerAuthorityVerified = true;
+        }
+        let reviewedView;
+        for (let attempt = 0; attempt < 900; attempt += 1) {
+            reviewedView = await read();
+            const reviewedVersionIds =
+                reviewedView.evidenceReviews?.map((review) => review.versionId) ?? [];
+            if (versionIds.every((versionId) => reviewedVersionIds.includes(versionId))) break;
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        assert(
+            versionIds.every((versionId) =>
+                reviewedView?.evidenceReviews?.some((review) => review.versionId === versionId)
+            ),
+            `reviewer did not atomically submit the worker review batch for ${roundPlan.id}; currentVersion=${reviewedView?.version}; reviewed=${JSON.stringify(reviewedView?.evidenceReviews?.map((review) => review.versionId) ?? [])}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
+        );
+        let reviewDelivered;
+        for (let attempt = 0; attempt < 900; attempt += 1) {
+            for (const key of raised) {
+                const turns = reviewerTurnSummary(currentAgent(key));
+                if (turns.starts > turns.ends && interruptedTurnCount.get(key) !== turns.starts) {
+                    ctx.subagents.interrupt(agents[key].id, {
+                        kind: "ancestor",
+                        agent: captain.agent
+                    });
+                    interruptedTurnCount.set(key, turns.starts);
+                }
+            }
+            reviewDelivered = await read();
+            const sentReviewIds = new Set(
+                reviewDelivered.reviewDeliveries
+                    ?.filter((delivery) => delivery.status === "sent")
+                    .map((delivery) => delivery.reviewId) ?? []
+            );
+            if (
+                reviewDelivered.evidenceReviews
+                    ?.filter((review) => versionIds.includes(review.versionId))
+                    .every((review) => sentReviewIds.has(review.id))
+            )
+                break;
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        assert(
+            reviewDelivered?.evidenceReviews
+                ?.filter((review) => versionIds.includes(review.versionId))
+                .every((review) =>
+                    reviewDelivered.reviewDeliveries?.some(
+                        (delivery) => delivery.reviewId === review.id && delivery.status === "sent"
+                    )
+                ),
+            `evidence reviews were not delivered for ${roundPlan.id}: ${JSON.stringify({ version: reviewDelivered?.version, reviews: reviewDelivered?.evidenceReviews?.map((review) => review.versionId), deliveries: reviewDelivered?.reviewDeliveries })}`
+        );
+        const liveManager = await runtime.waitForAgent(ctx, manager.id);
+        let published;
+        try {
+            published = await callTargetTool(
+                ctx,
+                liveManager,
+                "convivium_publish_round",
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: reviewDelivered.version,
+                    requestId: `loop-publish-${roundPlan.id}`,
+                    action: { kind: "publish_round", roundId }
                 },
                 nextCall()
             );
         } catch (error) {
             throw new Error(
-                `submit evidence failed for ${key} contribution=${contributions[index]} version=${beforeEvidence.version} rounds=${JSON.stringify(beforeEvidence.rounds)}: ${error.message}`,
+                `publish failed for ${roundPlan.id}: ${error.message}; state=${JSON.stringify({ version: reviewDelivered.version, round: reviewDelivered.rounds.find((round) => round.id === roundId), contributions: reviewDelivered.contributions, reviews: reviewDelivered.reviews, reviewDeliveries: reviewDelivered.reviewDeliveries })}`,
                 { cause: error }
             );
         }
-    }
-    const afterEvidence = await read();
-    const versionIds = afterEvidence.evidencePackages.map((item) => item.currentVersion.id);
-    assert(versionIds.length === 2, "expected two visible evidence versions");
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-        if (
-            runtime
-                .observedMessages(currentReviewer())
-                .flatMap(messageTexts)
-                .some((text) => text.includes('"pending"'))
-        )
-            break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    assert(
-        runtime
-            .observedMessages(currentReviewer())
-            .flatMap(messageTexts)
-            .some((text) => text.includes('"pending"')),
-        "review request was not delivered to the coordinator"
-    );
-    let workers = [];
-    for (let attempt = 0; attempt < 300; attempt += 1) {
-        workers = runtime
-            .observedAgents()
-            .filter(
-                (agent) =>
-                    !knownSessionIds.has(String(agent.id)) && ctx.agents.get(agent.id) === agent
-            );
-        if (workers.length >= 2) break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    assert(
-        workers.length >= 2,
-        `reviewer did not create two live one-shot workers; observed=${JSON.stringify(runtime.observedAgents().map((agent) => String(agent.id)))}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
-    );
-    const authorityVersion = (await read()).version;
-    for (const [index, worker] of workers.slice(0, 2).entries()) {
-        const unauthorized = await callTargetToolResult(
-            ctx,
-            worker,
-            "convivium_raise_hand",
-            {
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: authorityVersion,
-                requestId: `loop-worker-authority-${index}`,
-                action: { kind: "raise_hand", roundId, purpose: "must be rejected" }
-            },
-            nextCall(),
-            { retryUnknown: false }
+        version = published.committedVersion;
+        const publication = (await read()).publications.find(
+            (candidate) => candidate.roundId === roundId
         );
-        const toolUnavailable =
-            unauthorized.isError && String(unauthorized.error?.message).includes("unknown tool");
-        const commandRejected =
-            !unauthorized.isError &&
-            unauthorized.value?.kind === "rejected" &&
-            unauthorized.value.error?.code === "UNAUTHORIZED";
-        assert(
-            toolUnavailable || commandRejected,
-            "review worker gained Meeting command authority"
-        );
-    }
-    let reviewedView;
-    for (let attempt = 0; attempt < 900; attempt += 1) {
-        reviewedView = await read();
-        const reviewedVersionIds =
-            reviewedView.evidenceReviews?.map((review) => review.versionId) ?? [];
-        if (versionIds.every((versionId) => reviewedVersionIds.includes(versionId))) break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    assert(
-        versionIds.every((versionId) =>
-            reviewedView?.evidenceReviews?.some((review) => review.versionId === versionId)
-        ),
-        `reviewer did not atomically submit the worker review batch; currentVersion=${reviewedView?.version}; reviewed=${JSON.stringify(reviewedView?.evidenceReviews?.map((review) => review.versionId) ?? [])}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
-    );
-    let reviewDelivered;
-    for (let attempt = 0; attempt < 900; attempt += 1) {
-        for (const key of raised) {
-            const turns = reviewerTurnSummary(currentAgent(key));
-            if (turns.starts > turns.ends && interruptedTurnCount.get(key) !== turns.starts) {
-                ctx.subagents.interrupt(agents[key].id, {
-                    kind: "ancestor",
-                    agent: captain.agent
-                });
-                interruptedTurnCount.set(key, turns.starts);
-            }
-        }
-        reviewDelivered = await read();
-        const sentReviewIds = new Set(
-            reviewDelivered.reviewDeliveries
-                ?.filter((delivery) => delivery.status === "sent")
-                .map((delivery) => delivery.reviewId) ?? []
-        );
-        if (
-            reviewDelivered.evidenceReviews
-                ?.filter((review) => versionIds.includes(review.versionId))
-                .every((review) => sentReviewIds.has(review.id))
-        )
-            break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    assert(
-        reviewDelivered?.evidenceReviews
-            ?.filter((review) => versionIds.includes(review.versionId))
-            .every((review) =>
-                reviewDelivered.reviewDeliveries?.some(
-                    (delivery) => delivery.reviewId === review.id && delivery.status === "sent"
-                )
-            ),
-        `evidence reviews were not delivered: ${JSON.stringify({ version: reviewDelivered?.version, reviews: reviewDelivered?.evidenceReviews?.map((review) => review.versionId), deliveries: reviewDelivered?.reviewDeliveries })}`
-    );
-    const liveManager = await runtime.waitForAgent(ctx, manager.id);
-    let published;
-    try {
-        published = await callTargetTool(
-            ctx,
-            liveManager,
-            "convivium_publish_round",
-            {
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: reviewDelivered.version,
-                requestId: "loop-publish",
-                action: { kind: "publish_round", roundId }
-            },
-            nextCall()
-        );
-    } catch (error) {
-        throw new Error(
-            `publish failed: ${error.message}; state=${JSON.stringify({ version: reviewDelivered.version, round: reviewDelivered.rounds.find((round) => round.id === roundId), contributions: reviewDelivered.contributions, reviews: reviewDelivered.reviews, reviewDeliveries: reviewDelivered.reviewDeliveries })}`,
-            { cause: error }
-        );
+        assert(publication, `publication is missing for ${roundPlan.id}`);
+        roundTrace.push({
+            ...roundPlan,
+            planId,
+            roundId,
+            evidenceVersionIds: versionIds,
+            publicationId: publication.id,
+            reviewIds: reviewedView.evidenceReviews
+                .filter((review) => versionIds.includes(review.versionId))
+                .map((review) => review.id)
+        });
     }
     const ended = await runtimeApi.control(
         {
             protocolVersion: 1,
             meetingId,
-            expectedMeetingVersion: published.committedVersion,
+            expectedMeetingVersion: version,
             requestId: "loop-end",
             action: {
                 kind: "end_meeting",
                 outcome: "partial",
-                reason: "smoke complete",
+                reason: "four fixture research stages complete",
                 decisionIds: [],
                 completionFactIds: [],
                 unresolvedQuestionIds: [],
@@ -588,17 +683,18 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         assertions: [
             "target-create",
             "meeting-started",
-            "two-evidence",
-            "review-batch",
+            "four-fixture-rounds",
+            "four-review-batches",
             "worker-authority",
-            "published",
+            "four-published-rounds",
             "archived"
         ],
         observed: {
             status: archived.lifecycle.status,
-            evidenceVersionIds: versionIds,
+            rounds: roundTrace,
             startedNoticeCounts,
-            workerSessionIds: workers.slice(0, 2).map((worker) => String(worker.id))
+            workerSessionIds: [...workerSessionIds],
+            subtopicOrigin: "manager-round-goal"
         }
     });
 }

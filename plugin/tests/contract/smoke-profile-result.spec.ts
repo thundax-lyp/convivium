@@ -13,15 +13,23 @@ const hotResult = {
     assertions: [
         "target-create",
         "meeting-started",
-        "two-evidence",
-        "review-batch",
+        "four-fixture-rounds",
+        "four-review-batches",
         "worker-authority",
-        "published",
+        "four-published-rounds",
         "archived"
     ],
     observed: {
         status: "archived",
-        evidenceVersionIds: ["version-1", "version-2"],
+        rounds: ["literature", "source", "implementation", "decision"].map((id) => ({
+            id,
+            question: `${id} question`,
+            sourceScope: `${id}-fixture`,
+            roundId: `round-${id}`,
+            evidenceVersionIds: [`version-${id}-1`, `version-${id}-2`],
+            publicationId: `publication-${id}`,
+            reviewIds: [`review-${id}-1`, `review-${id}-2`]
+        })),
         startedNoticeCounts: {
             "contributor-a": 1,
             "contributor-b": 1,
@@ -29,7 +37,8 @@ const hotResult = {
             "contributor-d": 1,
             "contributor-e": 1
         },
-        workerSessionIds: ["worker-1", "worker-2"]
+        workerSessionIds: Array.from({ length: 8 }, (_, index) => `worker-${index + 1}`),
+        subtopicOrigin: "manager-round-goal"
     }
 };
 
