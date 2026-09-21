@@ -6,7 +6,7 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `domain` | 49 |
+| `domain` | 19 |
 | `dsh` | 28 |
 | `projection` | 4 |
 | `protocol` | 209 |
@@ -14,46 +14,16 @@
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 357 |
+| 合计（按模块去重） | 327 |
 
-声明出现次数：361
+声明出现次数：331
 
-全局唯一名称数：357
+全局唯一名称数：327
 
 ## domain
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `TargetDomainActorV1` | `TargetDomainActor` |
-| `TargetDomainFactPayloadV1` | `TargetDomainFactPayload` |
-| `TargetDomainFactV1` | `TargetDomainFact` |
-| `TargetMeetingActionV1` | `TargetMeetingAction` |
-| `TargetTransitionResultV1` | `TargetTransitionResult` |
-| `TerminationV1` | `Termination` |
-| `TextWithReasonV1` | `TextWithReason` |
-| `abortRoundV1` | `abortRound` |
-| `cancelPrivateMailV1` | `cancelPrivateMail` |
-| `changeCompletionFactV1` | `changeCompletionFact` |
-| `changeDecisionV1` | `changeDecision` |
-| `claimReviewBatchV1` | `claimReviewBatch` |
-| `closeContributionV1` | `closeContribution` |
-| `completeMeetingArchiveV1` | `completeMeetingArchive` |
-| `completePrivateMailV1` | `completePrivateMail` |
-| `createMeetingV1` | `createMeeting` |
-| `decideV1` | `decide` |
-| `disposeEvidenceOpportunityV1` | `disposeEvidenceOpportunity` |
-| `disposeHandRaiseV1` | `disposeHandRaise` |
-| `disposeRiskV1` | `disposeRisk` |
-| `disposeSupplementHandV1` | `disposeSupplementHand` |
-| `endMeetingV1` | `endMeeting` |
-| `expirePrivateMailV1` | `expirePrivateMail` |
-| `isObjectiveSatisfiedV1` | `isObjectiveSatisfied` |
-| `isRoundClosableV1` | `isRoundClosable` |
-| `openRoundV1` | `openRound` |
-| `pendingDecisionCandidatesV1` | `pendingDecisionCandidates` |
-| `publishRoundV1` | `publishRound` |
-| `raiseHandV1` | `raiseHand` |
-| `raiseSupplementHandV1` | `raiseSupplementHand` |
 | `recalculateMeetingCompletionV1` | `recalculateMeetingCompletion` |
 | `recommendIdentityV1` | `recommendIdentity` |
 | `recordCompletionFactV1` | `recordCompletionFact` |

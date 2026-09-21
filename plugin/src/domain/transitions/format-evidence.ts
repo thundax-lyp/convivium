@@ -1,13 +1,13 @@
-import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReasonV1 } from "@/domain/index.js";
+import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReason } from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResult } from "./result.js";
 
 export interface EvidenceInput {
     observation: string;
     interpretation: string;
     method: string;
-    falsifiers: readonly TextWithReasonV1[];
-    uncertainties: readonly TextWithReasonV1[];
-    limitations: readonly TextWithReasonV1[];
+    falsifiers: readonly TextWithReason[];
+    uncertainties: readonly TextWithReason[];
+    limitations: readonly TextWithReason[];
     claims: readonly {
         id: OpaqueId;
         statement: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
+import { endMeeting } from "@/domain/transitions/meeting-end.js";
 import { recoverMeetingCommandsV1 } from "@/runtime/services/meeting-command-recovery.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 describe("identity admission recovery", () => {
@@ -52,7 +52,7 @@ describe("identity admission recovery", () => {
                 }
             ]
         };
-        const terminal = endMeetingV1(state, {
+        const terminal = endMeeting(state, {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "结束会议",

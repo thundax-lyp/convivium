@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
+import { endMeeting } from "@/domain/transitions/meeting-end.js";
 import {
-    completeMeetingArchiveV1,
+    completeMeetingArchive,
     startMeetingArchiveV1
 } from "@/domain/transitions/meeting-archive.js";
 
 describe("meeting archive", () => {
     it("materializes a value archive and gates archived on ownership closure", () => {
-        const ended = endMeetingV1(makeRunningMeetingStateV1(), {
+        const ended = endMeeting(makeRunningMeetingStateV1(), {
             terminationId: "termination-v1",
             outcome: "partial",
             reason: "未完成目标",
@@ -30,13 +30,13 @@ describe("meeting archive", () => {
         if (archiving.kind !== "accepted") return;
         expect(archiving.state.archive?.status).toBe("complete");
         expect(
-            completeMeetingArchiveV1(archiving.state, {
+            completeMeetingArchive(archiving.state, {
                 actorId: "runtime",
                 now: 12,
                 allSessionOwnershipClosed: false
             })
         ).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
-        const archived = completeMeetingArchiveV1(archiving.state, {
+        const archived = completeMeetingArchive(archiving.state, {
             actorId: "runtime",
             now: 12,
             allSessionOwnershipClosed: true

@@ -135,7 +135,7 @@ export function requestEvidenceOpportunityV1(
     );
 }
 
-export function disposeEvidenceOpportunityV1(
+export function disposeEvidenceOpportunity(
     state: MeetingState,
     input: DisposeInput
 ): MeetingTransitionResult {

@@ -210,7 +210,7 @@ export interface Contribution {
     response?: string;
 }
 
-export interface TextWithReasonV1 {
+export interface TextWithReason {
     value: string;
     reason?: string;
 }
@@ -251,9 +251,9 @@ export interface EvidenceVersion {
     observation: string;
     interpretation: string;
     method: string;
-    falsifiers: readonly TextWithReasonV1[];
-    uncertainties: readonly TextWithReasonV1[];
-    limitations: readonly TextWithReasonV1[];
+    falsifiers: readonly TextWithReason[];
+    uncertainties: readonly TextWithReason[];
+    limitations: readonly TextWithReason[];
     claims: readonly EvidenceClaim[];
     materials: readonly EvidenceMaterial[];
     submittedAt: EpochMs;
@@ -473,7 +473,7 @@ export interface PrivateMail {
     failureReason?: string;
 }
 
-export interface TerminationV1 {
+export interface Termination {
     id: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     reason: string;
@@ -485,7 +485,7 @@ export interface TerminationV1 {
     unclosedContributionIds: readonly OpaqueId[];
 }
 
-export type TargetDomainFactPayloadV1 =
+export type TargetDomainFactPayload =
     | { kind: "references"; relatedIds: readonly OpaqueId[] }
     | {
           kind: "question_disposition";
@@ -547,7 +547,7 @@ export type ArchiveQuestionIssueDispositionFact =
           actorId: OpaqueId;
           occurredAt: EpochMs;
           relatedIds: readonly OpaqueId[];
-          payload: Extract<TargetDomainFactPayloadV1, { kind: "question_disposition" }>;
+          payload: Extract<TargetDomainFactPayload, { kind: "question_disposition" }>;
       }
     | {
           factId: OpaqueId;
@@ -555,7 +555,7 @@ export type ArchiveQuestionIssueDispositionFact =
           actorId: OpaqueId;
           occurredAt: EpochMs;
           relatedIds: readonly OpaqueId[];
-          payload: Extract<TargetDomainFactPayloadV1, { kind: "issue_disposition" }>;
+          payload: Extract<TargetDomainFactPayload, { kind: "issue_disposition" }>;
       };
 
 export interface ArchivePackage {
@@ -579,7 +579,7 @@ export interface ArchivePackage {
     issues: readonly Issue[];
     riskDispositions: readonly RiskDisposition[];
     questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFact[];
-    termination: TerminationV1;
+    termination: Termination;
     unresolvedQuestionIds: readonly OpaqueId[];
     unresolvedIssueIds: readonly OpaqueId[];
     unresolvedItemIds: readonly OpaqueId[];
@@ -640,6 +640,6 @@ export interface MeetingState {
     privateMails: readonly PrivateMail[];
     completionFacts: readonly CompletionFact[];
     limits: MeetingLimits;
-    termination?: TerminationV1;
+    termination?: Termination;
     archive?: ArchivePackage;
 }

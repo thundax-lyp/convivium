@@ -1,12 +1,12 @@
 import {
-    closeContributionV1,
-    claimReviewBatchV1,
-    completeMeetingArchiveV1,
-    disposeHandRaiseV1,
-    endMeetingV1,
-    openRoundV1,
-    publishRoundV1,
-    raiseHandV1,
+    closeContribution,
+    claimReviewBatch,
+    completeMeetingArchive,
+    disposeHandRaise,
+    endMeeting,
+    openRound,
+    publishRound,
+    raiseHand,
     releaseReviewBatchClaimV1,
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,
@@ -410,7 +410,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "open_round":
-            transition = openRoundV1(snapshot.state, {
+            transition = openRound(snapshot.state, {
                 roundId: generated("round"),
                 agendaId: action.agendaId,
                 planId: action.planId,
@@ -420,7 +420,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "raise_hand":
-            transition = raiseHandV1(snapshot.state, {
+            transition = raiseHand(snapshot.state, {
                 roundId: action.roundId,
                 contributorId: actorId,
                 purpose: action.purpose,
@@ -428,7 +428,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "dispose_hand_raise":
-            transition = disposeHandRaiseV1(snapshot.state, {
+            transition = disposeHandRaise(snapshot.state, {
                 roundId: action.roundId,
                 contributorId: action.contributorId,
                 managerId: actorId,
@@ -451,7 +451,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "close_contribution":
-            transition = closeContributionV1(snapshot.state, {
+            transition = closeContribution(snapshot.state, {
                 contributionId: action.contributionId,
                 actorId,
                 actorKind:
@@ -474,7 +474,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         case "claim_review_batch":
-            transition = claimReviewBatchV1(snapshot.state, {
+            transition = claimReviewBatch(snapshot.state, {
                 claimId: generated("review_claim"),
                 sourceEffectId: action.sourceEffectId,
                 reviewerId: snapshot.state.evidenceReviewerId,
@@ -515,7 +515,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                     );
                     return contribution?.packageId !== undefined;
                 }).length ?? 0;
-            transition = publishRoundV1(snapshot.state, {
+            transition = publishRound(snapshot.state, {
                 roundId: action.roundId,
                 managerId: actorId,
                 publicationId: generated("publication"),
@@ -543,7 +543,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "end_meeting":
-            transition = endMeetingV1(snapshot.state, {
+            transition = endMeeting(snapshot.state, {
                 ...action,
                 terminationId: generated("termination"),
                 actorId,
@@ -582,7 +582,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             transition =
                 action.status === "closed" &&
                 repositoryContext.allSessionOwnershipClosedAfterResult === true
-                    ? completeMeetingArchiveV1(snapshot.state, {
+                    ? completeMeetingArchive(snapshot.state, {
                           actorId,
                           now,
                           allSessionOwnershipClosed: true

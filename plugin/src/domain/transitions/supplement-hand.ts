@@ -25,7 +25,7 @@ function managerFor(state: MeetingState, agendaId: OpaqueId) {
     );
 }
 
-export function raiseSupplementHandV1(
+export function raiseSupplementHand(
     state: MeetingState,
     input: RaiseInput
 ): MeetingTransitionResult {
@@ -129,7 +129,7 @@ export function raiseSupplementHandV1(
     };
 }
 
-export function disposeSupplementHandV1(
+export function disposeSupplementHand(
     state: MeetingState,
     input: DisposeInput
 ): MeetingTransitionResult {

@@ -7,12 +7,12 @@ export {
 } from "./meeting-state-validation.js";
 export {
     transitionMeetingStateV1,
-    type TargetDomainActorV1,
+    type TargetDomainActor,
     type TargetAgendaInput,
-    type TargetMeetingActionV1,
-    type TargetDomainFactPayloadV1,
-    type TargetDomainFactV1,
-    type TargetTransitionResultV1
+    type TargetMeetingAction,
+    type TargetDomainFactPayload,
+    type TargetDomainFact,
+    type TargetTransitionResult
 } from "./meeting-state-transitions.js";
 export {
     recommendIdentityV1,

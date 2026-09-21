@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingViewV1 } from "@/projection/meeting-view.js";
-import { endMeetingV1, startMeetingArchiveV1 } from "@/domain/index.js";
+import { endMeeting, startMeetingArchiveV1 } from "@/domain/index.js";
 describe("identity filtered view and archive provenance", () => {
     it("projects opportunity requests without a plan binding", () => {
         const state = makeRunningMeetingStateV1();
@@ -274,7 +274,7 @@ describe("identity filtered view and archive provenance", () => {
     });
 
     it("projects the value archive locally without identity ownership data", () => {
-        const terminal = endMeetingV1(makeRunningMeetingStateV1(), {
+        const terminal = endMeeting(makeRunningMeetingStateV1(), {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "done",

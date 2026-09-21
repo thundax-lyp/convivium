@@ -247,13 +247,13 @@ function finish(
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }
-export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInput) {
+export function completePrivateMail(s: MeetingState, i: CompletePrivateMailInput) {
     return finish(s, i, "completed", "completed", i?.recipientId);
 }
-export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInput) {
+export function cancelPrivateMail(s: MeetingState, i: CancelPrivateMailInput) {
     return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
 }
-export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInput) {
+export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
     const bad = stateCheck(s);
     if (bad) return bad;
     if (

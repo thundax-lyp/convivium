@@ -2,7 +2,7 @@ import type { MeetingState } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
 
-export function createMeetingV1(state: MeetingState): MeetingTransitionResult {
+export function createMeeting(state: MeetingState): MeetingTransitionResult {
     const validation = validateMeetingStateV1(state);
     if (validation.kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");

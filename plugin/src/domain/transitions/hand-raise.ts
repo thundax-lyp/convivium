@@ -38,7 +38,7 @@ function validTime(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
 
-export function raiseHandV1(state: MeetingState, input: RaiseInput): MeetingTransitionResult {
+export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.contributorId.trim() === "" ||
@@ -123,7 +123,7 @@ export function raiseHandV1(state: MeetingState, input: RaiseInput): MeetingTran
     };
 }
 
-export function disposeHandRaiseV1(
+export function disposeHandRaise(
     state: MeetingState,
     input: DisposeInput
 ): MeetingTransitionResult {

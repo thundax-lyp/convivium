@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-    completeMeetingArchiveV1,
-    endMeetingV1,
+    completeMeetingArchive,
+    endMeeting,
     startMeetingArchiveV1,
     type MeetingState
 } from "@/domain/index.js";
@@ -15,7 +15,7 @@ function terminalState(): MeetingState {
         ...identity,
         sessionOwnershipId: `ownership:${identity.id}`
     }));
-    const result = endMeetingV1(running, {
+    const result = endMeeting(running, {
         terminationId: "termination-1",
         outcome: "partial",
         reason: "done",
@@ -124,7 +124,7 @@ describe("meeting archive dispatcher v1", () => {
             );
             state = { ...state, version: state.version + 1 };
             if (current.every((candidate) => candidate.lifecycleStatus === "closed")) {
-                const completed = completeMeetingArchiveV1(state, {
+                const completed = completeMeetingArchive(state, {
                     actorId: "runtime-recovery",
                     now: 4,
                     allSessionOwnershipClosed: true

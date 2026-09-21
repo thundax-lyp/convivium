@@ -1,27 +1,27 @@
 export * from "./result.js";
-export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity.js";
-export { openRoundV1, isRoundClosableV1 } from "./round.js";
-export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise.js";
+export { requestEvidenceOpportunityV1, disposeEvidenceOpportunity } from "./opportunity.js";
+export { openRound, isRoundClosable } from "./round.js";
+export { raiseHand, disposeHandRaise } from "./hand-raise.js";
 export {
     sendPrivateMailV1,
     startPrivateMailV1,
-    completePrivateMailV1,
-    cancelPrivateMailV1,
-    expirePrivateMailV1,
+    completePrivateMail,
+    cancelPrivateMail,
+    expirePrivateMail,
     type SendPrivateMailInput,
     type StartPrivateMailInput,
     type CompletePrivateMailInput,
     type CancelPrivateMailInput,
     type ExpirePrivateMailInput
 } from "./private-mail.js";
-export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand.js";
+export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.js";
 export {
     submitEvidenceV1,
     type EvidenceInput,
     type SubmitEvidenceInput
 } from "./format-evidence.js";
 export {
-    claimReviewBatchV1,
+    claimReviewBatch,
     releaseReviewBatchClaimV1,
     submitReviewBatchV1,
     recordReviewDeliveryV1,
@@ -30,11 +30,11 @@ export {
     type SubmitReviewBatchInput,
     type SubmitReviewBatchItem
 } from "./evidence-review.js";
-export { closeContributionV1 } from "./contribution-exit.js";
-export { publishRoundV1 } from "./round-publication.js";
-export { createMeetingV1 } from "./meeting-create.js";
-export { endMeetingV1 } from "./meeting-end.js";
-export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archive.js";
+export { closeContribution } from "./contribution-exit.js";
+export { publishRound } from "./round-publication.js";
+export { createMeeting } from "./meeting-create.js";
+export { endMeeting } from "./meeting-end.js";
+export { startMeetingArchiveV1, completeMeetingArchive } from "./meeting-archive.js";
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,
@@ -47,14 +47,14 @@ export {
     recordProposalRevisionV1,
     recordPositionV1,
     recordDecisionCandidateV1,
-    pendingDecisionCandidatesV1,
-    decideV1,
-    changeDecisionV1,
-    disposeRiskV1,
+    pendingDecisionCandidates,
+    decide,
+    changeDecision,
+    disposeRisk,
     submitCompletionDeclarationV1,
     recordCompletionFactV1,
-    changeCompletionFactV1,
-    isObjectiveSatisfiedV1
+    changeCompletionFact,
+    isObjectiveSatisfied
 } from "./outcome.js";
 export type {
     OutcomeActor,

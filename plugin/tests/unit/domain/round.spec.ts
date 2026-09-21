@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { requestEvidenceOpportunityV1 } from "@/domain/transitions/opportunity.js";
 import {
-    abortRoundV1,
-    isRoundClosableV1,
-    openRoundV1 as openRoundTransition
+    abortRound,
+    isRoundClosable,
+    openRound as openRoundTransition
 } from "@/domain/transitions/round.js";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
-const openRoundV1 = (
+const openRoundWithPlan = (
     state: Parameters<typeof openRoundTransition>[0],
     input: OpenRoundFixtureInput
 ) => {
@@ -65,7 +65,7 @@ describe("round transitions", () => {
         });
         expect(queued.kind).toBe("accepted");
         if (queued.kind !== "accepted") return;
-        const result = openRoundV1(queued.state, {
+        const result = openRoundWithPlan(queued.state, {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -100,7 +100,7 @@ describe("round transitions", () => {
 
     it("rejects a second open round and an invalid deadline atomically", () => {
         const state = makeRunningMeetingStateV1();
-        const opened = openRoundV1(state, {
+        const opened = openRoundWithPlan(state, {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -108,7 +108,7 @@ describe("round transitions", () => {
         });
         expect(opened.kind).toBe("accepted");
         if (opened.kind !== "accepted") return;
-        const duplicate = openRoundV1(opened.state, {
+        const duplicate = openRoundWithPlan(opened.state, {
             roundId: "round-v2",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -117,7 +117,7 @@ describe("round transitions", () => {
         expect(duplicate.kind).toBe("rejected");
         expect(duplicate.kind === "rejected" && duplicate.error.code).toBe("PRECONDITION_FAILED");
         expect(duplicate.kind === "rejected" && duplicate.state).toBe(opened.state);
-        const invalidDeadline = openRoundV1(state, {
+        const invalidDeadline = openRoundWithPlan(state, {
             roundId: "round-v3",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -132,7 +132,7 @@ describe("round transitions", () => {
 
     it("treats an empty open round as closable and pending hands as blocking", () => {
         const state = makeRunningMeetingStateV1();
-        const opened = openRoundV1(state, {
+        const opened = openRoundWithPlan(state, {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -140,19 +140,19 @@ describe("round transitions", () => {
         });
         expect(opened.kind).toBe("accepted");
         if (opened.kind !== "accepted") return;
-        expect(isRoundClosableV1(opened.state, "round-v1")).toBe(true);
+        expect(isRoundClosable(opened.state, "round-v1")).toBe(true);
         const blocked = {
             ...opened.state,
             pendingHandRaises: [
                 { roundId: "round-v1", contributorId: "contributor-v1", purpose: "x", raisedAt: 10 }
             ]
         };
-        expect(isRoundClosableV1(blocked, "round-v1")).toBe(false);
-        expect(isRoundClosableV1(opened.state, "missing")).toBe(false);
+        expect(isRoundClosable(blocked, "round-v1")).toBe(false);
+        expect(isRoundClosable(opened.state, "missing")).toBe(false);
     });
 
     it("aborts an open round and closes unfinished contributions without publishing", () => {
-        const opened = openRoundV1(makeRunningMeetingStateV1(), {
+        const opened = openRoundWithPlan(makeRunningMeetingStateV1(), {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -178,7 +178,7 @@ describe("round transitions", () => {
                 { roundId: "round-v1", contributorId: "contributor-v1", purpose: "x", raisedAt: 1 }
             ]
         };
-        const result = abortRoundV1(state, {
+        const result = abortRound(state, {
             roundId: "round-v1",
             actor: { kind: "local_controller", id: "local-v1" },
             reason: "无法继续",

@@ -68,7 +68,7 @@ function validDimensions(
     );
 }
 
-export function claimReviewBatchV1(
+export function claimReviewBatch(
     state: MeetingState,
     input: ClaimReviewBatchInput
 ): MeetingTransitionResult {

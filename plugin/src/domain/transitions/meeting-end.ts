@@ -1,6 +1,6 @@
 import type { MeetingState, OpaqueId } from "@/domain/meeting-state.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
-import { isObjectiveSatisfiedV1 } from "./outcome.js";
+import { isObjectiveSatisfied } from "./outcome.js";
 import { rejectedTransitionV1, type MeetingTransitionResult } from "./result.js";
 
 export interface EndMeetingInput {
@@ -24,7 +24,7 @@ const nonTerminalContributionStatuses = new Set([
     "awaiting_response"
 ]);
 
-export function endMeetingV1(state: MeetingState, input: EndMeetingInput): MeetingTransitionResult {
+export function endMeeting(state: MeetingState, input: EndMeetingInput): MeetingTransitionResult {
     if (validateMeetingStateV1(state).kind === "invalid")
         return rejectedTransitionV1(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (!(
@@ -83,7 +83,7 @@ export function endMeetingV1(state: MeetingState, input: EndMeetingInput): Meeti
         .map((item) => item.id);
     if (
         input.outcome === "completed" &&
-        (!isObjectiveSatisfiedV1(state) ||
+        (!isObjectiveSatisfied(state) ||
             unresolvedQuestionIds.length > 0 ||
             unresolvedIssueIds.length > 0 ||
             unclosedContributionIds.length > 0)

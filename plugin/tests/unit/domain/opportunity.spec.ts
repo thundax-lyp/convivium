@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import {
-    disposeEvidenceOpportunityV1,
+    disposeEvidenceOpportunity,
     requestEvidenceOpportunityV1
 } from "@/domain/transitions/opportunity.js";
 
@@ -51,7 +51,7 @@ describe("evidence opportunity transitions", () => {
         });
         expect(queued.kind).toBe("accepted");
         if (queued.kind !== "accepted") return;
-        const result = disposeEvidenceOpportunityV1(queued.state, {
+        const result = disposeEvidenceOpportunity(queued.state, {
             requestId: "request-v1",
             managerId: "manager-v1",
             disposition: "rejected",
@@ -133,7 +133,7 @@ describe("evidence opportunity transitions", () => {
                 }
             ]
         };
-        const result = disposeEvidenceOpportunityV1(pendingState, {
+        const result = disposeEvidenceOpportunity(pendingState, {
             requestId: "request-v1",
             managerId: "contributor-v1",
             disposition: "deferred",

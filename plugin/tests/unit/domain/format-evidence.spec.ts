@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRoundV1 } from "@/domain/transitions/round.js";
-import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
+import { openRound } from "@/domain/transitions/round.js";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
 import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
 import {
-    disposeSupplementHandV1,
-    raiseSupplementHandV1
+    disposeSupplementHand,
+    raiseSupplementHand
 } from "@/domain/transitions/supplement-hand.js";
 
 function stateWithContribution() {
@@ -22,7 +22,7 @@ function stateWithContribution() {
             status: "active"
         }
     ];
-    const opened = openRoundV1(state, {
+    const opened = openRound(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
         planId: "plan-v1",
@@ -30,14 +30,14 @@ function stateWithContribution() {
         now: 1
     });
     if (opened.kind !== "accepted") throw new Error("round");
-    const raised = raiseHandV1(opened.state, {
+    const raised = raiseHand(opened.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
         now: 2
     });
     if (raised.kind !== "accepted") throw new Error("hand");
-    const accepted = disposeHandRaiseV1(raised.state, {
+    const accepted = disposeHandRaise(raised.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         managerId: "manager-v1",
@@ -159,14 +159,14 @@ describe("format and evidence transitions", () => {
                 status: "awaiting_response" as const
             }))
         };
-        const raised = raiseSupplementHandV1(awaitingResponse, {
+        const raised = raiseSupplementHand(awaitingResponse, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             purpose: "补充反证",
             now: 5
         });
         if (raised.kind !== "accepted") throw new Error("supplement hand did not raise");
-        const accepted = disposeSupplementHandV1(raised.state, {
+        const accepted = disposeSupplementHand(raised.state, {
             contributionId: "contribution-v1",
             managerId: "manager-v1",
             disposition: "accepted",

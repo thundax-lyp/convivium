@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
+import { endMeeting } from "@/domain/transitions/meeting-end.js";
 
 describe("meeting end", () => {
     it("ends a running meeting with a partial termination and archive effect", () => {
         const state = makeRunningMeetingStateV1();
-        const ended = endMeetingV1(state, {
+        const ended = endMeeting(state, {
             terminationId: "termination-v1",
             outcome: "partial",
             reason: "未完成目标",
@@ -28,7 +28,7 @@ describe("meeting end", () => {
     it("requires completion facts before a completed termination", () => {
         const state = makeRunningMeetingStateV1();
         expect(
-            endMeetingV1(state, {
+            endMeeting(state, {
                 terminationId: "termination-v1",
                 outcome: "completed",
                 reason: "完成",

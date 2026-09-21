@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { decideV1, changeDecisionV1 } from "@/domain/transitions/outcome.js";
+import { decide, changeDecision } from "@/domain/transitions/outcome.js";
 import { validState, decisionReadyState } from "./outcome-fixtures.js";
 
 describe("decision change corrective gates", () => {
@@ -11,7 +11,7 @@ describe("decision change corrective gates", () => {
             id: "replacement",
             rationale: "replacement"
         });
-        const result = decideV1(state, {
+        const result = decide(state, {
             decisionId: "old-decision",
             candidateId: "cand",
             actor: { kind: "identity", id: "captain" },
@@ -21,7 +21,7 @@ describe("decision change corrective gates", () => {
         return result.state;
     };
     const change = (state: MeetingState, overrides: Record<string, unknown> = {}) =>
-        changeDecisionV1(state, {
+        changeDecision(state, {
             decisionId: "old-decision",
             status: "revoked",
             rationale: "x",
@@ -217,7 +217,7 @@ describe("decision change corrective gates", () => {
     it("keeps change authorization and shape ahead of lifecycle", () => {
         const paused = validState("paused");
         expect(
-            changeDecisionV1(paused, {
+            changeDecision(paused, {
                 decisionId: "missing",
                 status: "revoked",
                 rationale: "x",
@@ -232,7 +232,7 @@ describe("decision change corrective gates", () => {
             effectRequests: []
         });
         expect(
-            changeDecisionV1(paused, {
+            changeDecision(paused, {
                 decisionId: "",
                 status: "revoked",
                 rationale: "x",

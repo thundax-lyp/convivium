@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import {
     recordPositionV1,
     recordDecisionCandidateV1,
-    pendingDecisionCandidatesV1
+    pendingDecisionCandidates
 } from "@/domain/transitions/outcome.js";
 import { validState, expectRejected } from "./outcome-fixtures.js";
 
@@ -151,7 +151,7 @@ it("derives pending candidates only for current unused revisions without mutatin
     ];
     state.decisions = [{ ...state.decisionCandidates[0], candidateId: "used", status: "accepted" }];
     const before = structuredClone(state);
-    expect(pendingDecisionCandidatesV1(state)).toEqual([]);
+    expect(pendingDecisionCandidates(state)).toEqual([]);
     expect(state).toEqual(before);
     expect(state.positions).toBe(positions);
 });
@@ -396,7 +396,7 @@ it("keeps pending order for running and paused and filters used/old while retain
             { ...state.decisionCandidates[1], candidateId: "used", status: "accepted" }
         ];
         const before = structuredClone(state);
-        const pending = pendingDecisionCandidatesV1(state);
+        const pending = pendingDecisionCandidates(state);
         expect(pending.map((c) => c.id)).toEqual(["free"]);
         expect(state).toEqual(before);
     }
@@ -418,6 +418,6 @@ it.each(["preparing", "converging", "ending", "terminal", "archiving", "archived
                 createdAt: 0
             }
         ];
-        expect(pendingDecisionCandidatesV1(state)).toEqual([]);
+        expect(pendingDecisionCandidates(state)).toEqual([]);
     }
 );

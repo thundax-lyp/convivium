@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
-import { recordCompletionFactV1, changeCompletionFactV1 } from "@/domain/transitions/outcome.js";
+import { recordCompletionFactV1, changeCompletionFact } from "@/domain/transitions/outcome.js";
 import { validState, completionReadyState, completionInput } from "./outcome-fixtures.js";
 
 describe("CompletionFact", () => {
@@ -134,7 +134,7 @@ describe("CompletionFact", () => {
         });
         state.publications[0].finalVersionIds = ["v", "v2"];
         state.publications[0].finalReviewIds = ["review"];
-        const reviewResult = changeCompletionFactV1(state, {
+        const reviewResult = changeCompletionFact(state, {
             factId: "old",
             status: "superseded",
             rationale: "replace",
@@ -177,7 +177,7 @@ describe("CompletionFact", () => {
             ordinal: 2,
             supersedesRevisionId: "rev"
         });
-        const basisResult = changeCompletionFactV1(basisState, {
+        const basisResult = changeCompletionFact(basisState, {
             factId: "old",
             status: "superseded",
             rationale: "replace",
@@ -255,7 +255,7 @@ describe("CompletionFact", () => {
             } as never
         ];
         expect(
-            changeCompletionFactV1(state, {
+            changeCompletionFact(state, {
                 factId: "fact",
                 rationale: "x",
                 actor: { kind: "identity", id: "captain" },

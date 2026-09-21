@@ -26,7 +26,7 @@ function reservedFormalMessages(state: MeetingState): number {
         .reduce((total, round) => total + round.contributionIds.length, 0);
 }
 
-export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResult {
+export function openRound(state: MeetingState, input: OpenRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim().length === 0 ||
         input.agendaId.trim().length === 0 ||
@@ -116,7 +116,7 @@ type AbortRoundInput = {
     now: number;
 };
 
-export function abortRoundV1(state: MeetingState, input: AbortRoundInput): MeetingTransitionResult {
+export function abortRound(state: MeetingState, input: AbortRoundInput): MeetingTransitionResult {
     if (
         input.roundId.trim() === "" ||
         input.actor.id.trim() === "" ||
@@ -175,7 +175,7 @@ export function abortRoundV1(state: MeetingState, input: AbortRoundInput): Meeti
     };
 }
 
-export function isRoundClosableV1(state: MeetingState, roundId: OpaqueId): boolean {
+export function isRoundClosable(state: MeetingState, roundId: OpaqueId): boolean {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     if (!round || round.status !== "open") return false;
     if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) return false;

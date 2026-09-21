@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
+import { openRound as openRoundTransition } from "@/domain/transitions/round.js";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
-const openRoundV1 = (
+const openRoundWithPlan = (
     state: Parameters<typeof openRoundTransition>[0],
     input: OpenRoundFixtureInput
 ) =>
@@ -27,7 +27,7 @@ const openRoundV1 = (
         },
         { ...input, planId: "plan-v1" }
     );
-import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
 function openState() {
@@ -68,7 +68,7 @@ function openState() {
             exitReasons: []
         }
     ];
-    const opened = openRoundV1(state, {
+    const opened = openRoundWithPlan(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
         managerId: "manager-v1",
@@ -112,7 +112,7 @@ function stateWithMail(
 
 describe("hand raise", () => {
     it("raises a hand and emits an initial hand request", () => {
-        const result = raiseHandV1(openState(), {
+        const result = raiseHand(openState(), {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "提交证据",
@@ -142,7 +142,7 @@ describe("hand raise", () => {
     });
 
     it("accepts a pending hand into one preparing contribution", () => {
-        const raised = raiseHandV1(openState(), {
+        const raised = raiseHand(openState(), {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "提交证据",
@@ -150,7 +150,7 @@ describe("hand raise", () => {
         });
         expect(raised.kind).toBe("accepted");
         if (raised.kind !== "accepted") return;
-        const result = disposeHandRaiseV1(raised.state, {
+        const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             managerId: "manager-v1",
@@ -190,7 +190,7 @@ describe("hand raise", () => {
     });
 
     it("rejects an accepted hand when all formal message slots are reserved", () => {
-        const raised = raiseHandV1(
+        const raised = raiseHand(
             { ...openState(), limits: { ...openState().limits, maxFormalMessages: 0 } },
             {
                 roundId: "round-v1",
@@ -201,7 +201,7 @@ describe("hand raise", () => {
         );
         expect(raised.kind).toBe("accepted");
         if (raised.kind !== "accepted") return;
-        const result = disposeHandRaiseV1(raised.state, {
+        const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             managerId: "manager-v1",
@@ -217,7 +217,7 @@ describe("hand raise", () => {
 
     it("rejects one hand while another contributor remains independently eligible", () => {
         const state = openState();
-        const first = raiseHandV1(state, {
+        const first = raiseHand(state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "A",
@@ -225,7 +225,7 @@ describe("hand raise", () => {
         });
         expect(first.kind).toBe("accepted");
         if (first.kind !== "accepted") return;
-        const rejected = disposeHandRaiseV1(first.state, {
+        const rejected = disposeHandRaise(first.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             managerId: "manager-v1",
@@ -235,7 +235,7 @@ describe("hand raise", () => {
         });
         expect(rejected.kind).toBe("accepted");
         if (rejected.kind !== "accepted") return;
-        const second = raiseHandV1(rejected.state, {
+        const second = raiseHand(rejected.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "B",
@@ -248,7 +248,7 @@ describe("hand raise", () => {
     });
 
     it("atomically rejects accepting a contributor who is a processing mail recipient", () => {
-        const raised = raiseHandV1(stateWithMail("processing"), {
+        const raised = raiseHand(stateWithMail("processing"), {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "提交证据",
@@ -257,7 +257,7 @@ describe("hand raise", () => {
         expect(raised.kind).toBe("accepted");
         if (raised.kind !== "accepted") return;
         const before = raised.state;
-        const result = disposeHandRaiseV1(before, {
+        const result = disposeHandRaise(before, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             managerId: "manager-v1",
@@ -279,7 +279,7 @@ describe("hand raise", () => {
     it.each(["rejected", "deferred"] as const)(
         "allows %s disposition while mail is processing",
         (disposition) => {
-            const raised = raiseHandV1(stateWithMail("processing"), {
+            const raised = raiseHand(stateWithMail("processing"), {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
                 purpose: "提交证据",
@@ -287,7 +287,7 @@ describe("hand raise", () => {
             });
             expect(raised.kind).toBe("accepted");
             if (raised.kind !== "accepted") return;
-            const result = disposeHandRaiseV1(raised.state, {
+            const result = disposeHandRaise(raised.state, {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
                 managerId: "manager-v1",
@@ -303,7 +303,7 @@ describe("hand raise", () => {
     it.each(["queued", "completed", "timed_out", "cancelled"] as const)(
         "allows accepted hand with %s mail",
         (status) => {
-            const raised = raiseHandV1(stateWithMail(status), {
+            const raised = raiseHand(stateWithMail(status), {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
                 purpose: "提交证据",
@@ -311,7 +311,7 @@ describe("hand raise", () => {
             });
             expect(raised.kind).toBe("accepted");
             if (raised.kind !== "accepted") return;
-            const result = disposeHandRaiseV1(raised.state, {
+            const result = disposeHandRaise(raised.state, {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
                 managerId: "manager-v1",
@@ -325,7 +325,7 @@ describe("hand raise", () => {
     );
 
     it("allows accepted hand when another recipient has a processing mail", () => {
-        const raised = raiseHandV1(stateWithMail("processing", "reviewer-v1"), {
+        const raised = raiseHand(stateWithMail("processing", "reviewer-v1"), {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             purpose: "提交证据",
@@ -333,7 +333,7 @@ describe("hand raise", () => {
         });
         expect(raised.kind).toBe("accepted");
         if (raised.kind !== "accepted") return;
-        const result = disposeHandRaiseV1(raised.state, {
+        const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             managerId: "manager-v1",

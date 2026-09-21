@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { abortRoundV1, openRoundV1 } from "@/domain/transitions/round.js";
-import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
+import { abortRound, openRound } from "@/domain/transitions/round.js";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
 import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
 import {
-    claimReviewBatchV1,
+    claimReviewBatch,
     recordReviewDeliveryV1,
     releaseReviewBatchClaimV1,
     submitReviewBatchV1
 } from "@/domain/transitions/evidence-review.js";
-import { isRoundClosableV1 } from "@/domain/transitions/round.js";
-import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
-import { closeContributionV1 } from "@/domain/transitions/contribution-exit.js";
+import { isRoundClosable } from "@/domain/transitions/round.js";
+import { publishRound } from "@/domain/transitions/round-publication.js";
+import { closeContribution } from "@/domain/transitions/contribution-exit.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import {
     decodeMeetingStateV1,
@@ -39,7 +39,7 @@ function evidenceState() {
             }
         ]
     };
-    const open = openRoundV1(state, {
+    const open = openRound(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
         planId: "plan-v1",
@@ -48,7 +48,7 @@ function evidenceState() {
     });
     if (open.kind !== "accepted") throw new Error("round");
     state = open.state;
-    const hand = raiseHandV1(state, {
+    const hand = raiseHand(state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
@@ -56,7 +56,7 @@ function evidenceState() {
     });
     if (hand.kind !== "accepted") throw new Error("hand");
     state = hand.state;
-    const accept = disposeHandRaiseV1(state, {
+    const accept = disposeHandRaise(state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         managerId: "manager-v1",
@@ -156,7 +156,7 @@ function submitClaimedReview(
     reviewerId = "reviewer-v1",
     now = 6
 ) {
-    const claim = claimReviewBatchV1(state, {
+    const claim = claimReviewBatch(state, {
         claimId: "review-claim-v1",
         sourceEffectId: "review-effect-v1",
         reviewerId: "reviewer-v1",
@@ -192,7 +192,7 @@ describe("evidence review and delivery", () => {
 
     it("rejects a batch that does not exactly match its claim", () => {
         const state = twoEvidenceState();
-        const claim = claimReviewBatchV1(state, {
+        const claim = claimReviewBatch(state, {
             claimId: "review-claim-v1",
             sourceEffectId: "review-effect-v1",
             reviewerId: "reviewer-v1",
@@ -218,7 +218,7 @@ describe("evidence review and delivery", () => {
 
     it("blocks a second claim until the first expires, then replaces it", () => {
         const state = evidenceState();
-        const first = claimReviewBatchV1(state, {
+        const first = claimReviewBatch(state, {
             claimId: "claim-first",
             sourceEffectId: "review-effect-first",
             reviewerId: "reviewer-v1",
@@ -228,7 +228,7 @@ describe("evidence review and delivery", () => {
             expiresAt: 10
         });
         if (first.kind !== "accepted") throw new Error("first claim");
-        const conflict = claimReviewBatchV1(first.state, {
+        const conflict = claimReviewBatch(first.state, {
             claimId: "claim-conflict",
             sourceEffectId: "review-effect-conflict",
             reviewerId: "reviewer-v1",
@@ -238,7 +238,7 @@ describe("evidence review and delivery", () => {
             expiresAt: 20
         });
         expect(conflict).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
-        const replaced = claimReviewBatchV1(first.state, {
+        const replaced = claimReviewBatch(first.state, {
             claimId: "claim-replacement",
             sourceEffectId: "review-effect-replacement",
             reviewerId: "reviewer-v1",
@@ -253,7 +253,7 @@ describe("evidence review and delivery", () => {
     });
 
     it("preserves an active claim across state encoding and cold recovery", () => {
-        const claim = claimReviewBatchV1(evidenceState(), {
+        const claim = claimReviewBatch(evidenceState(), {
             claimId: "review-claim-v1",
             sourceEffectId: "review-effect-v1",
             reviewerId: "reviewer-v1",
@@ -272,7 +272,7 @@ describe("evidence review and delivery", () => {
 
     it("rejects a late review after the timed-out turn releases its exact claim", () => {
         const state = evidenceState();
-        const claim = claimReviewBatchV1(state, {
+        const claim = claimReviewBatch(state, {
             claimId: "review-claim-v1",
             sourceEffectId: "review-effect-v1",
             reviewerId: "reviewer-v1",
@@ -318,7 +318,7 @@ describe("evidence review and delivery", () => {
     });
 
     it("removes the round claim when an exceptional abort closes the round", () => {
-        const claim = claimReviewBatchV1(evidenceState(), {
+        const claim = claimReviewBatch(evidenceState(), {
             claimId: "review-claim-v1",
             sourceEffectId: "review-effect-v1",
             reviewerId: "reviewer-v1",
@@ -329,7 +329,7 @@ describe("evidence review and delivery", () => {
         });
         if (claim.kind !== "accepted") throw new Error("claim");
 
-        const aborted = abortRoundV1(claim.state, {
+        const aborted = abortRound(claim.state, {
             roundId: "round-v1",
             actor: { kind: "local_controller", id: "runtime-v1" },
             reason: "审核无法恢复",
@@ -406,7 +406,7 @@ describe("evidence review and delivery", () => {
             }
         ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
-        const withdrawn = closeContributionV1(reviewed.state, {
+        const withdrawn = closeContribution(reviewed.state, {
             contributionId: "contribution-v1",
             actorId: "contributor-v1",
             actorKind: "author",
@@ -449,8 +449,8 @@ describe("evidence review and delivery", () => {
         });
         if (delivered.kind !== "accepted") throw new Error("delivery");
 
-        expect(isRoundClosableV1(delivered.state, "round-v1")).toBe(true);
-        const published = publishRoundV1(delivered.state, {
+        expect(isRoundClosable(delivered.state, "round-v1")).toBe(true);
+        const published = publishRound(delivered.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
             publicationId: "publication-v1",

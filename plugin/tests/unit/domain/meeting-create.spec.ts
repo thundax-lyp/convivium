@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeetingV1 } from "@/domain/transitions/meeting-create.js";
+import { createMeeting } from "@/domain/transitions/meeting-create.js";
 
 describe("meeting create", () => {
     it("creates an isolated target aggregate", () => {
@@ -30,7 +30,7 @@ describe("meeting create", () => {
                 required: false
             }
         );
-        const created = createMeetingV1(state);
+        const created = createMeeting(state);
         expect(created.kind).toBe("accepted");
         if (created.kind !== "accepted") return;
         expect(created.state).toEqual(state);
@@ -54,7 +54,7 @@ describe("meeting create", () => {
     it("does not emit a start notice when creation is rejected", () => {
         const state = makeRunningMeetingStateV1();
         state.version = 2;
-        expect(createMeetingV1(state)).toMatchObject({
+        expect(createMeeting(state)).toMatchObject({
             kind: "rejected",
             effectRequests: []
         });

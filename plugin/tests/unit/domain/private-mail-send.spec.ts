@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-    cancelPrivateMailV1,
-    completePrivateMailV1,
-    expirePrivateMailV1,
+    cancelPrivateMail,
+    completePrivateMail,
+    expirePrivateMail,
     sendPrivateMailV1,
     startPrivateMailV1
 } from "@/domain/transitions/private-mail.js";
@@ -267,7 +267,7 @@ describe("private mail start gates", () => {
                     now: 20
                 });
                 if (started.kind !== "accepted") return;
-                const completed = completePrivateMailV1(started.state, {
+                const completed = completePrivateMail(started.state, {
                     mailId: "mail-1",
                     recipientId: "recipient",
                     now: 30
@@ -275,7 +275,7 @@ describe("private mail start gates", () => {
                 if (completed.kind !== "accepted") return;
                 candidate = completed.state;
             } else if (status === "cancelled") {
-                const cancelled = cancelPrivateMailV1(candidate, {
+                const cancelled = cancelPrivateMail(candidate, {
                     mailId: "mail-1",
                     senderId: "sender",
                     reason: "stop",
@@ -284,7 +284,7 @@ describe("private mail start gates", () => {
                 if (cancelled.kind !== "accepted") return;
                 candidate = cancelled.state;
             } else {
-                const expired = expirePrivateMailV1(candidate, {
+                const expired = expirePrivateMail(candidate, {
                     mailId: "mail-1",
                     actorKind: "deadline_handler",
                     reason: "late",

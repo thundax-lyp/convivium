@@ -8,7 +8,7 @@ type Input = {
     reason: string;
     now: number;
 };
-export function closeContributionV1(state: MeetingState, input: Input): MeetingTransitionResult {
+export function closeContribution(state: MeetingState, input: Input): MeetingTransitionResult {
     if (
         !input.contributionId.trim() ||
         !input.actorId.trim() ||

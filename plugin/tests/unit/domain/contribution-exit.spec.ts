@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRoundV1 } from "@/domain/transitions/round.js";
-import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
-import { closeContributionV1 } from "@/domain/transitions/contribution-exit.js";
-import { isRoundClosableV1 } from "@/domain/transitions/round.js";
+import { openRound } from "@/domain/transitions/round.js";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
+import { closeContribution } from "@/domain/transitions/contribution-exit.js";
+import { isRoundClosable } from "@/domain/transitions/round.js";
 
 function stateWithContribution() {
     const state = makeRunningMeetingStateV1();
@@ -19,7 +19,7 @@ function stateWithContribution() {
             status: "active"
         }
     ];
-    const open = openRoundV1(state, {
+    const open = openRound(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
         planId: "plan-v1",
@@ -27,14 +27,14 @@ function stateWithContribution() {
         now: 1
     });
     if (open.kind !== "accepted") throw new Error("round");
-    const hand = raiseHandV1(open.state, {
+    const hand = raiseHand(open.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
         now: 2
     });
     if (hand.kind !== "accepted") throw new Error("hand");
-    const accepted = disposeHandRaiseV1(hand.state, {
+    const accepted = disposeHandRaise(hand.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         managerId: "manager-v1",
@@ -50,7 +50,7 @@ function stateWithContribution() {
 describe("contribution exit", () => {
     it("lets the author explicitly withdraw with a durable reason", () => {
         const state = stateWithContribution();
-        const result = closeContributionV1(state, {
+        const result = closeContribution(state, {
             contributionId: "contribution-v1",
             actorId: "contributor-v1",
             actorKind: "author",
@@ -155,7 +155,7 @@ describe("contribution exit", () => {
                 }
             ]
         };
-        const result = closeContributionV1(state, {
+        const result = closeContribution(state, {
             contributionId: "contribution-v1",
             actorId: "deadline-handler",
             actorKind: "deadline_handler",
@@ -169,6 +169,6 @@ describe("contribution exit", () => {
             status: "timed_out",
             exitReason: "响应期限已到"
         });
-        expect(isRoundClosableV1(result.state, "round-v1")).toBe(true);
+        expect(isRoundClosable(result.state, "round-v1")).toBe(true);
     });
 });

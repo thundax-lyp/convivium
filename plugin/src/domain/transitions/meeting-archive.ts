@@ -137,7 +137,7 @@ export function startMeetingArchiveV1(
     };
 }
 
-export function completeMeetingArchiveV1(
+export function completeMeetingArchive(
     state: MeetingState,
     input: CompleteMeetingArchiveInput
 ): MeetingTransitionResult {

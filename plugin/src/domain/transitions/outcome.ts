@@ -435,7 +435,7 @@ export function recordDecisionCandidateV1(
         effectRequests: []
     };
 }
-export function pendingDecisionCandidatesV1(state: MeetingState): readonly DecisionCandidate[] {
+export function pendingDecisionCandidates(state: MeetingState): readonly DecisionCandidate[] {
     if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") return [];
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const used = new Set(state.decisions.map((d) => d.candidateId));
@@ -443,7 +443,7 @@ export function pendingDecisionCandidatesV1(state: MeetingState): readonly Decis
         (c) => current.has(c.proposalRevisionId) && !used.has(c.id)
     );
 }
-export function decideV1(state: MeetingState, _input: DecideInput): MeetingTransitionResult {
+export function decide(state: MeetingState, _input: DecideInput): MeetingTransitionResult {
     const input = _input;
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -490,7 +490,7 @@ export function decideV1(state: MeetingState, _input: DecideInput): MeetingTrans
         effectRequests: []
     };
 }
-export function changeDecisionV1(
+export function changeDecision(
     state: MeetingState,
     input: ChangeDecisionInput
 ): MeetingTransitionResult {
@@ -589,10 +589,7 @@ export function changeDecisionV1(
         effectRequests: []
     };
 }
-export function disposeRiskV1(
-    state: MeetingState,
-    input: DisposeRiskInput
-): MeetingTransitionResult {
+export function disposeRisk(state: MeetingState, input: DisposeRiskInput): MeetingTransitionResult {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -838,7 +835,7 @@ export function recordCompletionFactV1(
         effectRequests: []
     };
 }
-export function changeCompletionFactV1(
+export function changeCompletionFact(
     state: MeetingState,
     input: ChangeCompletionFactInput
 ): MeetingTransitionResult {
@@ -963,7 +960,7 @@ export function changeCompletionFactV1(
         effectRequests: []
     };
 }
-export function isObjectiveSatisfiedV1(state: MeetingState): boolean {
+export function isObjectiveSatisfied(state: MeetingState): boolean {
     const recalculated = recalculateMeetingCompletionV1(
         { ...state, lifecycle: { ...state.lifecycle, status: "paused" } },
         state.lifecycle.changedBy,

@@ -3,7 +3,7 @@ import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
 import type { SessionId } from "@deepseek-ai/dsh-session";
-import { createMeetingV1, type MeetingState } from "@/domain/index.js";
+import { createMeeting, type MeetingState } from "@/domain/index.js";
 import {
     encodeMeetingIdentitySessionLabelV1,
     interruptAndDrainOwnedSessions,
@@ -263,7 +263,7 @@ export function createMeetingCreationCoordinatorV1(
                     };
                 });
                 const state = targetCreateState(command, meetingId, now, identities);
-                const transition = createMeetingV1(state);
+                const transition = createMeeting(state);
                 if (transition.kind !== "accepted") throw new RoleCompositionError();
                 const receiptId = stableId("receipt", meetingId, command.requestId);
                 const effects = transition.effectRequests.map((effect, index) => {

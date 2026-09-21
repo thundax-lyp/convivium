@@ -1,9 +1,5 @@
 import { expect, it } from "vitest";
-import {
-    pendingDecisionCandidatesV1,
-    decideV1,
-    changeDecisionV1
-} from "@/domain/transitions/outcome.js";
+import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/transitions/outcome.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 import { validState, decisionReadyState } from "./outcome-fixtures.js";
 
@@ -14,7 +10,7 @@ it("decides with captain and local controller while copying candidate fields", (
     ] as const) {
         const state = decisionReadyState();
         const before = structuredClone(state);
-        const result = decideV1(state, {
+        const result = decide(state, {
             decisionId: "dec",
             candidateId: "cand",
             actor,
@@ -37,7 +33,7 @@ it("decides with captain and local controller while copying candidate fields", (
         });
         expect(result.state.version).toBe(2);
         expect(result.state.updatedAt).toBe(1);
-        expect(pendingDecisionCandidatesV1(result.state)).toEqual([]);
+        expect(pendingDecisionCandidates(result.state)).toEqual([]);
         expect(state).toEqual(before);
     }
 });
@@ -48,7 +44,7 @@ const decidedState = () => {
         id: "replacement",
         rationale: "replacement"
     });
-    const result = decideV1(state, {
+    const result = decide(state, {
         decisionId: "old-decision",
         candidateId: "cand",
         actor: { kind: "identity", id: "captain" },
@@ -63,7 +59,7 @@ it.each([
 ] as const)("supersedes atomically with %s", (_name, actor) => {
     const state = decidedState();
     const before = structuredClone(state);
-    const result = changeDecisionV1(state, {
+    const result = changeDecision(state, {
         decisionId: "old-decision",
         status: "superseded",
         replacementCandidateId: "replacement",
@@ -109,7 +105,7 @@ it("supersedes with a replacement candidate from the current revision of the sam
         positionIds: ["pos-2"]
     };
 
-    const result = changeDecisionV1(state, {
+    const result = changeDecision(state, {
         decisionId: "old-decision",
         status: "superseded",
         replacementCandidateId: "replacement",
@@ -133,7 +129,7 @@ it("rejects a superseded decision without an atomic replacement", () => {
 });
 it.each(["contributor"] as const)("rejects %s decision actors", (id) => {
     const state = decisionReadyState();
-    const decideResult = decideV1(state, {
+    const decideResult = decide(state, {
         decisionId: "d",
         candidateId: "cand",
         actor: { kind: "identity", id },
@@ -146,7 +142,7 @@ it.each(["contributor"] as const)("rejects %s decision actors", (id) => {
         effectRequests: []
     });
     const changeState = decidedState();
-    const changeResult = changeDecisionV1(changeState, {
+    const changeResult = changeDecision(changeState, {
         decisionId: "d",
         status: "revoked",
         rationale: "x",
@@ -164,7 +160,7 @@ it.each(["contributor"] as const)("rejects %s decision actors", (id) => {
 it("rejects decision discriminant shapes and preserves state", () => {
     const state = decisionReadyState();
     expect(
-        changeDecisionV1(state, {
+        changeDecision(state, {
             decisionId: "d",
             status: "revoked",
             rationale: "x",
@@ -180,7 +176,7 @@ it("rejects decision discriminant shapes and preserves state", () => {
         effectRequests: []
     });
     expect(
-        decideV1(state, {
+        decide(state, {
             decisionId: "",
             candidateId: "cand",
             actor: { kind: "identity", id: "captain" },
@@ -192,13 +188,13 @@ it("keeps converging pending candidates empty", () => {
     const state = decisionReadyState();
     state.lifecycle = { ...state.lifecycle, status: "converging" };
     state.decisionCandidates = [state.decisionCandidates[0]];
-    expect(pendingDecisionCandidatesV1(state)).toEqual([]);
+    expect(pendingDecisionCandidates(state)).toEqual([]);
 });
 it.each([
     [
         "missing candidate",
         () =>
-            decideV1(decisionReadyState(), {
+            decide(decisionReadyState(), {
                 decisionId: "d",
                 candidateId: "missing",
                 actor: { kind: "identity", id: "captain" },
@@ -213,7 +209,7 @@ it.each([
             s.decisions = [
                 { ...s.decisionCandidates[0], id: "d", candidateId: "cand", status: "accepted" }
             ];
-            return decideV1(s, {
+            return decide(s, {
                 decisionId: "d",
                 candidateId: "cand",
                 actor: { kind: "identity", id: "captain" },
@@ -261,7 +257,7 @@ it.each(["used candidate", "same revision accepted", "old revision candidate"] a
                 supersedesRevisionId: "rev"
             });
         }
-        const result = decideV1(state, {
+        const result = decide(state, {
             decisionId: "new-decision",
             candidateId: "cand",
             actor: { kind: "identity", id: "captain" },
@@ -283,7 +279,7 @@ it.each([
     const state = decidedState();
     state.decisions[0].status = status;
     expect(
-        changeDecisionV1(state, {
+        changeDecision(state, {
             decisionId: "old-decision",
             status: "revoked",
             rationale: "x",
@@ -301,7 +297,7 @@ it.each([
 it.each(["paused"] as const)("decision lifecycle %s", (status) => {
     const state = decisionReadyState();
     state.lifecycle = { ...state.lifecycle, status };
-    const result = decideV1(state, {
+    const result = decide(state, {
         decisionId: "d",
         candidateId: "cand",
         actor: { kind: "identity", id: "captain" },
@@ -316,7 +312,7 @@ it.each(["paused"] as const)("decision lifecycle %s", (status) => {
 });
 it.each(["terminal"] as const)("decision terminal lifecycle %s", (status) => {
     const state = validState(status);
-    const result = decideV1(state, {
+    const result = decide(state, {
         decisionId: "d",
         candidateId: "cand",
         actor: { kind: "identity", id: "captain" },
@@ -332,7 +328,7 @@ it.each(["terminal"] as const)("decision terminal lifecycle %s", (status) => {
 it.each(["terminal"] as const)("change terminal lifecycle %s", (status) => {
     const state = validState(status);
     expect(
-        changeDecisionV1(state, {
+        changeDecision(state, {
             decisionId: "missing",
             status: "revoked",
             rationale: "x",

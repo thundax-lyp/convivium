@@ -1,5 +1,5 @@
 import {
-    pendingDecisionCandidatesV1,
+    pendingDecisionCandidates,
     type ArchivePackage,
     type MeetingRole,
     type MeetingState,
@@ -260,7 +260,7 @@ export function projectMeetingViewV1(
             completionFacts: copy(state.completionFacts),
             riskDispositions: caller.kind === "local" ? copy(state.riskDispositions) : [],
             ...(caller.kind === "local" || caller.kind === "captain"
-                ? { pendingDecisionCandidates: copy(pendingDecisionCandidatesV1(state)) }
+                ? { pendingDecisionCandidates: copy(pendingDecisionCandidates(state)) }
                 : {}),
             ...(state.termination ? { termination: copy(state.termination) } : {})
         },
