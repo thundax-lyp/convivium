@@ -1,7 +1,7 @@
 import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
-import type { ProtocolErrorV1 } from "@/protocol/index.js";
+import type { ProtocolError } from "@/protocol/index.js";
 import { decodeMeetingSessionLabel } from "./labels.js";
 import { isActiveMeetingIdentityOwnership } from "./session-ownership.js";
 
@@ -110,7 +110,7 @@ export async function resolveMeetingCaller(
     };
 }
 
-function unauthorized(message: string): ProtocolErrorV1 {
+function unauthorized(message: string): ProtocolError {
     return {
         protocolVersion: 1,
         ok: false,
@@ -128,7 +128,7 @@ export async function resolveLabeledMeetingCaller(
     agent: Agent,
     lookup: LabeledMeetingOwnershipLookup,
     signal: AbortSignal
-): Promise<LabeledMeetingCaller | ProtocolErrorV1> {
+): Promise<LabeledMeetingCaller | ProtocolError> {
     const sessionId = sessionIdOf(agent);
     const found = await lookup.findBySessionId(sessionId, signal);
     if (found === undefined || found.ownership.sessionId !== sessionId) {

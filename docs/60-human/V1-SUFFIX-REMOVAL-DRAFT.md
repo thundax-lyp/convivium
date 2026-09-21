@@ -6,61 +6,21 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `protocol` | 80 |
+| `protocol` | 40 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 147 |
+| 合计（按模块去重） | 107 |
 
-声明出现次数：147
+声明出现次数：107
 
-全局唯一名称数：147
+全局唯一名称数：107
 
 ## protocol
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `ObjectiveViewV1` | `ObjectiveView` |
-| `ObjectiveViewV1Schema` | `ObjectiveViewSchema` |
-| `OpenRoundActionV1Schema` | `OpenRoundActionSchema` |
-| `OutcomeViewV1` | `OutcomeView` |
-| `OutcomeViewV1Schema` | `OutcomeViewSchema` |
-| `ParticipantSpecV1` | `ParticipantSpec` |
-| `PauseMeetingActionV1Schema` | `PauseMeetingActionSchema` |
-| `PauseMeetingInputV1` | `PauseMeetingInput` |
-| `PendingHandRaiseViewV1` | `PendingHandRaiseView` |
-| `PendingHandRaiseViewV1Schema` | `PendingHandRaiseViewSchema` |
-| `PositionClaimV1` | `PositionClaim` |
-| `PositionViewV1` | `PositionView` |
-| `PositionViewV1Schema` | `PositionViewSchema` |
-| `PrivateMailViewV1` | `PrivateMailView` |
-| `PrivateMailViewV1Schema` | `PrivateMailViewSchema` |
-| `ProposalClaimV1` | `ProposalClaim` |
-| `ProposalRevisionViewV1` | `ProposalRevisionView` |
-| `ProposalRevisionViewV1Schema` | `ProposalRevisionViewSchema` |
-| `ProtocolErrorV1` | `ProtocolError` |
-| `ProtocolSuccessV1` | `ProtocolSuccess` |
-| `PublicAgendaItemV1` | `PublicAgendaItem` |
-| `PublicAttendanceRecommendationV1` | `PublicAttendanceRecommendation` |
-| `PublicBlockingFactV1` | `PublicBlockingFact` |
-| `PublicContinuationMaterialV1` | `PublicContinuationMaterial` |
-| `PublicDecisionCandidateV1` | `PublicDecisionCandidate` |
-| `PublicDecisionV1` | `PublicDecision` |
-| `PublicHandRaiseV1` | `PublicHandRaise` |
-| `PublicMeetingChangesV1` | `PublicMeetingChanges` |
-| `PublicMeetingLimitsV1` | `PublicMeetingLimits` |
-| `PublicMeetingMessageV1` | `PublicMeetingMessage` |
-| `PublicMinutesDraftV1` | `PublicMinutesDraft` |
-| `PublicObjectiveContractV1` | `PublicObjectiveContract` |
-| `PublicQuestionV1` | `PublicQuestion` |
-| `PublicRiskV1` | `PublicRisk` |
-| `PublicSpeakerStepV1` | `PublicSpeakerStep` |
-| `PublicTurnV1` | `PublicTurn` |
-| `PublicationViewV1` | `PublicationView` |
-| `PublicationViewV1Schema` | `PublicationViewSchema` |
-| `PublishRoundActionV1Schema` | `PublishRoundActionSchema` |
-| `QuestionClaimV1` | `QuestionClaim` |
 | `QuestionResolutionClaimV1` | `QuestionResolutionClaim` |
 | `QuestionViewV1` | `QuestionView` |
 | `QuestionViewV1Schema` | `QuestionViewSchema` |

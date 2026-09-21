@@ -218,7 +218,7 @@ Browser 模式完成前四项后输出 `browserReady: true` 和带一次性 toke
 
 `--json` 每行保留原 profile/provider、完整 probe、dumpConfig、bootLogs，并附 `restore: "PASS"` 与耗时。路径指向已清理目录，仅供定位该次运行；失败信息中的日志尾才是自动清理后可用的诊断。Browser mode 的 ready JSON 和 URL 仍在清理前输出，须等待停止后的 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。
 
-两个收敛归档场景由正式 `MeetingStatusResultSchema` 校验实际 archived DTO，再核对 Meeting/transcript/termination、业务完成事实、迟到提交不变性和 Session 清理。Schema 在共享构建临时目录加载一次，随最终清理删除；中间计数由 driver 在真实状态上断言，不再在输出校验器重复实现。协议拒绝读取 `ProtocolErrorV1.code`，与 DSH 工具层拒绝分别识别。
+两个收敛归档场景由正式 `MeetingStatusResultSchema` 校验实际 archived DTO，再核对 Meeting/transcript/termination、业务完成事实、迟到提交不变性和 Session 清理。Schema 在共享构建临时目录加载一次，随最终清理删除；中间计数由 driver 在真实状态上断言，不再在输出校验器重复实现。协议拒绝读取 `ProtocolError.code`，与 DSH 工具层拒绝分别识别。
 
 ### Reassign browser-ready 模式
 

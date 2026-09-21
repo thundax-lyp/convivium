@@ -108,7 +108,7 @@ const reviewDimensions = z.object({
     completeness: reviewDimension,
     support: reviewDimension
 });
-export const OpenRoundActionV1Schema = z.object({
+export const OpenRoundActionSchema = z.object({
     kind: z.literal("open_round"),
     agendaId: id,
     planId: id,
@@ -178,11 +178,11 @@ export const SubmitReviewBatchActionV1Schema = z
         const ids = value.reviews.map((review) => review.versionId);
         if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["reviews"] });
     });
-export const PublishRoundActionV1Schema = z.object({
+export const PublishRoundActionSchema = z.object({
     kind: z.literal("publish_round"),
     roundId: id
 });
-export const PauseMeetingActionV1Schema = z.object({
+export const PauseMeetingActionSchema = z.object({
     kind: z.literal("pause_meeting"),
     reason: text
 });
@@ -196,7 +196,7 @@ const actions = [
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema,
     SubmitManagerPlanActionV1Schema,
-    OpenRoundActionV1Schema,
+    OpenRoundActionSchema,
     RaiseHandActionV1Schema,
     DisposeHandRaiseActionSchema,
     SubmitEvidenceActionV1Schema,
@@ -222,8 +222,8 @@ const actions = [
             if (value.status === "failed" && value.failureReason === undefined)
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         }),
-    PublishRoundActionV1Schema,
-    PauseMeetingActionV1Schema,
+    PublishRoundActionSchema,
+    PauseMeetingActionSchema,
     ResumeMeetingActionV1Schema,
     z.object({
         kind: z.literal("end_meeting"),

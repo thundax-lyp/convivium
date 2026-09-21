@@ -60,7 +60,7 @@ export * from "./types.js";
 export {
     MeetingActionSchema,
     CreateMeetingActionSchema,
-    OpenRoundActionV1Schema,
+    OpenRoundActionSchema,
     SubmitManagerPlanActionV1Schema,
     RaiseHandActionV1Schema,
     DisposeHandRaiseActionSchema,
@@ -68,7 +68,7 @@ export {
     ClaimReviewBatchActionSchema,
     ReleaseReviewBatchClaimActionV1Schema,
     SubmitReviewBatchActionV1Schema,
-    PublishRoundActionV1Schema,
+    PublishRoundActionSchema,
     MeetingCommandSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestV1Schema,

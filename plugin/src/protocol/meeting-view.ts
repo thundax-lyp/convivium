@@ -22,7 +22,7 @@ const target = z.object({
     status: z.enum(["pending", "satisfied", "unsatisfied"])
 });
 
-export const ObjectiveViewV1Schema = z.object({
+export const ObjectiveViewSchema = z.object({
     statement: text,
     requiredOutputs: z.array(target),
     acceptanceCriteria: z.array(target),
@@ -58,7 +58,7 @@ export const EvidenceOpportunityRequestViewSchema = z.object({
     purpose: text,
     requestedAt: epoch
 });
-export const PendingHandRaiseViewV1Schema = z.object({
+export const PendingHandRaiseViewSchema = z.object({
     roundId: id,
     contributorId: id,
     purpose: text,
@@ -95,10 +95,10 @@ export const RoundViewV1Schema = z.object({
     publicationId: id.optional(),
     abortReason: text.optional(),
     abortedAt: epoch.optional(),
-    pendingHandRaises: z.array(PendingHandRaiseViewV1Schema),
+    pendingHandRaises: z.array(PendingHandRaiseViewSchema),
     contributions: z.array(ContributionViewSchema)
 });
-export const PublicationViewV1Schema = z.object({
+export const PublicationViewSchema = z.object({
     id,
     roundId: id,
     seq: z.number().int().positive(),
@@ -219,7 +219,7 @@ export const FormalMessageViewSchema = z.object({
     relatedIds: z.array(id),
     createdAt: epoch
 });
-export const ProposalRevisionViewV1Schema = z.object({
+export const ProposalRevisionViewSchema = z.object({
     id,
     proposalId: id,
     ordinal: z.number().int().positive(),
@@ -231,7 +231,7 @@ export const ProposalRevisionViewV1Schema = z.object({
     supersedesRevisionId: id.optional(),
     createdAt: epoch
 });
-export const PositionViewV1Schema = z.object({
+export const PositionViewSchema = z.object({
     id,
     proposalRevisionId: id,
     actorId: id,
@@ -321,7 +321,7 @@ export const TerminationViewV1Schema = z.object({
     unresolvedIssueIds: z.array(id),
     unclosedContributionIds: z.array(id)
 });
-export const OutcomeViewV1Schema = z.object({
+export const OutcomeViewSchema = z.object({
     decisions: z.array(DecisionViewSchema),
     completionFacts: z.array(CompletionFactViewSchema),
     riskDispositions: z.array(RiskDispositionViewV1Schema),
@@ -466,7 +466,7 @@ export const TaskViewV1Schema = z.object({
     startedAt: epoch.optional(),
     completedAt: epoch.optional()
 });
-export const PrivateMailViewV1Schema = z.object({
+export const PrivateMailViewSchema = z.object({
     id,
     senderId: id,
     recipientId: id,
@@ -490,10 +490,10 @@ export const ArchiveViewSchema = z
         createdAt: epoch,
         publicSnapshotVersion: z.number().int().nonnegative(),
         terminationId: id,
-        objective: ObjectiveViewV1Schema,
+        objective: ObjectiveViewSchema,
         agenda: z.array(AgendaViewSchema),
         agendaCandidates: z.array(AgendaCandidateViewSchema),
-        publications: z.array(PublicationViewV1Schema),
+        publications: z.array(PublicationViewSchema),
         messages: z.array(FormalMessageViewSchema),
         evidenceBundles: z.array(
             z.object({
@@ -504,8 +504,8 @@ export const ArchiveViewSchema = z
                 review: EvidenceReviewViewSchema
             })
         ),
-        proposalRevisions: z.array(ProposalRevisionViewV1Schema),
-        positions: z.array(PositionViewV1Schema),
+        proposalRevisions: z.array(ProposalRevisionViewSchema),
+        positions: z.array(PositionViewSchema),
         decisionCandidates: z.array(DecisionCandidateViewSchema),
         decisions: z.array(DecisionViewSchema),
         completionFacts: z.array(CompletionFactViewSchema),
@@ -599,7 +599,7 @@ export const MeetingSummarySchema = z.object({
 export const MeetingViewSchema = z.object({
     meetingId: id,
     version: z.number().int().nonnegative(),
-    objective: ObjectiveViewV1Schema,
+    objective: ObjectiveViewSchema,
     lifecycle: LifecycleViewSchema,
     continuation: ContinuationProvenanceViewSchema.optional(),
     identities: z.array(IdentityViewSchema),
@@ -608,18 +608,18 @@ export const MeetingViewSchema = z.object({
     agenda: z.array(AgendaViewSchema),
     opportunityRequests: z.array(EvidenceOpportunityRequestViewSchema),
     rounds: z.array(RoundViewV1Schema),
-    publications: z.array(PublicationViewV1Schema),
+    publications: z.array(PublicationViewSchema),
     evidencePackages: z.array(EvidencePackageViewSchema),
     evidenceReviews: z.array(EvidenceReviewViewSchema),
     reviewDeliveries: z.array(ReviewDeliveryViewV1Schema),
     messages: z.array(FormalMessageViewSchema),
     questions: z.array(QuestionViewV1Schema),
     issues: z.array(IssueViewSchema),
-    outcomes: OutcomeViewV1Schema,
+    outcomes: OutcomeViewSchema,
     archive: ArchiveViewSchema.optional(),
     managerPlans: z.array(ManagerPlanViewSchema),
     tasks: z.array(TaskViewV1Schema),
-    privateMail: z.array(PrivateMailViewV1Schema),
+    privateMail: z.array(PrivateMailViewSchema),
     controls: z.array(AllowedControlSchema)
 });
 export const MeetingListResultSchema = z.object({ meetings: z.array(MeetingSummarySchema) });
@@ -630,22 +630,22 @@ export const RefreshNoticeV1Schema = z.object({
     committedVersion: z.number().int().nonnegative()
 });
 
-export type ObjectiveViewV1 = z.infer<typeof ObjectiveViewV1Schema>;
+export type ObjectiveView = z.infer<typeof ObjectiveViewSchema>;
 export type LifecycleView = z.infer<typeof LifecycleViewSchema>;
 export type AgendaView = z.infer<typeof AgendaViewSchema>;
 export type AgendaCandidateView = z.infer<typeof AgendaCandidateViewSchema>;
 export type EvidenceOpportunityRequestView = z.infer<typeof EvidenceOpportunityRequestViewSchema>;
-export type PendingHandRaiseViewV1 = z.infer<typeof PendingHandRaiseViewV1Schema>;
+export type PendingHandRaiseView = z.infer<typeof PendingHandRaiseViewSchema>;
 export type ContributionView = z.infer<typeof ContributionViewSchema>;
 export type RoundViewV1 = z.infer<typeof RoundViewV1Schema>;
-export type PublicationViewV1 = z.infer<typeof PublicationViewV1Schema>;
+export type PublicationView = z.infer<typeof PublicationViewSchema>;
 export type EvidenceVersionView = z.infer<typeof EvidenceVersionViewSchema>;
 export type EvidencePackageView = z.infer<typeof EvidencePackageViewSchema>;
 export type EvidenceReviewView = z.infer<typeof EvidenceReviewViewSchema>;
 export type ReviewDeliveryViewV1 = z.infer<typeof ReviewDeliveryViewV1Schema>;
 export type FormalMessageView = z.infer<typeof FormalMessageViewSchema>;
-export type ProposalRevisionViewV1 = z.infer<typeof ProposalRevisionViewV1Schema>;
-export type PositionViewV1 = z.infer<typeof PositionViewV1Schema>;
+export type ProposalRevisionView = z.infer<typeof ProposalRevisionViewSchema>;
+export type PositionView = z.infer<typeof PositionViewSchema>;
 export type DecisionCandidateView = z.infer<typeof DecisionCandidateViewSchema>;
 export type DecisionView = z.infer<typeof DecisionViewSchema>;
 export type QuestionViewV1 = z.infer<typeof QuestionViewV1Schema>;
@@ -653,7 +653,7 @@ export type IssueView = z.infer<typeof IssueViewSchema>;
 export type CompletionFactView = z.infer<typeof CompletionFactViewSchema>;
 export type RiskDispositionViewV1 = z.infer<typeof RiskDispositionViewV1Schema>;
 export type TerminationViewV1 = z.infer<typeof TerminationViewV1Schema>;
-export type OutcomeViewV1 = z.infer<typeof OutcomeViewV1Schema>;
+export type OutcomeView = z.infer<typeof OutcomeViewSchema>;
 export type CommittedFactView = z.infer<typeof CommittedFactViewSchema>;
 export type UnclosedContributionViewV1 = z.infer<typeof UnclosedContributionViewV1Schema>;
 export type ArchiveMaterialView = z.infer<typeof ArchiveMaterialViewSchema>;
@@ -661,7 +661,7 @@ export type ContinuationMaterialView = z.infer<typeof ContinuationMaterialViewSc
 export type ContinuationProvenanceView = z.infer<typeof ContinuationProvenanceViewSchema>;
 export type ManagerPlanView = z.infer<typeof ManagerPlanViewSchema>;
 export type TaskViewV1 = z.infer<typeof TaskViewV1Schema>;
-export type PrivateMailViewV1 = z.infer<typeof PrivateMailViewV1Schema>;
+export type PrivateMailView = z.infer<typeof PrivateMailViewSchema>;
 export type IdentityView = z.infer<typeof IdentityViewSchema>;
 export type IdentityRecommendationView = z.infer<typeof IdentityRecommendationViewSchema>;
 export type ManagerCatalogView = z.infer<typeof ManagerCatalogViewSchema>;

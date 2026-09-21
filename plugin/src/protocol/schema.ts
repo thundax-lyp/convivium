@@ -1,12 +1,12 @@
 import Schema from "@deepseek-ai/schemastery";
 import type {
     MinutesDraftInput,
-    PublicMinutesDraftV1,
+    PublicMinutesDraft,
     AttendanceRecommendationClaim,
     KnownMeetingProtocolErrorCode,
     MeetingAgentCatalogProjection,
     MeetingAgentCatalogSnapshot,
-    PublicAttendanceRecommendationV1
+    PublicAttendanceRecommendation
 } from "./types.js";
 
 const requiredString = () => Schema.string().required();
@@ -283,70 +283,72 @@ const attendanceRejection = Schema.transform(
     }
 );
 
-export const PublicAttendanceRecommendationSchema: Schema<
-    unknown,
-    PublicAttendanceRecommendationV1
-> = Schema.transform(
-    Schema.object({
-        candidateId: requiredString(),
-        agendaItemId: requiredString(),
-        rationale: requiredString(),
-        expectedContribution: requiredString(),
-        evidenceGapIds: Schema.array(requiredString()).required(),
-        urgency: Schema.union(["current_agenda", "later_agenda", "follow_up"] as const).required(),
-        recommendationId: requiredString(),
-        roleDefinitionId: agentRoleDefinitionIdSchema,
-        displayName: requiredString(),
-        status: Schema.union([
-            "pending",
-            "approved",
-            "rejected",
-            "expired",
-            "cancelled"
-        ] as const).required(),
-        admissionStatus: Schema.union([
-            "approved",
-            "provisioning",
-            "active",
-            "failed",
-            "cancelled"
-        ] as const),
-        failureCode: Schema.string(),
-        rejection: Schema.union([attendanceRejection, Schema.const(undefined)])
-    }),
-    (value) => {
-        const expected = [
-            "candidateId",
-            "agendaItemId",
-            "rationale",
-            "expectedContribution",
-            "evidenceGapIds",
-            "urgency",
-            "recommendationId",
-            "roleDefinitionId",
-            "displayName",
-            "status"
-        ];
-        if (Object.prototype.hasOwnProperty.call(value, "admissionStatus")) {
-            expected.push("admissionStatus");
+export const PublicAttendanceRecommendationSchema: Schema<unknown, PublicAttendanceRecommendation> =
+    Schema.transform(
+        Schema.object({
+            candidateId: requiredString(),
+            agendaItemId: requiredString(),
+            rationale: requiredString(),
+            expectedContribution: requiredString(),
+            evidenceGapIds: Schema.array(requiredString()).required(),
+            urgency: Schema.union([
+                "current_agenda",
+                "later_agenda",
+                "follow_up"
+            ] as const).required(),
+            recommendationId: requiredString(),
+            roleDefinitionId: agentRoleDefinitionIdSchema,
+            displayName: requiredString(),
+            status: Schema.union([
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "cancelled"
+            ] as const).required(),
+            admissionStatus: Schema.union([
+                "approved",
+                "provisioning",
+                "active",
+                "failed",
+                "cancelled"
+            ] as const),
+            failureCode: Schema.string(),
+            rejection: Schema.union([attendanceRejection, Schema.const(undefined)])
+        }),
+        (value) => {
+            const expected = [
+                "candidateId",
+                "agendaItemId",
+                "rationale",
+                "expectedContribution",
+                "evidenceGapIds",
+                "urgency",
+                "recommendationId",
+                "roleDefinitionId",
+                "displayName",
+                "status"
+            ];
+            if (Object.prototype.hasOwnProperty.call(value, "admissionStatus")) {
+                expected.push("admissionStatus");
+            }
+            if (Object.prototype.hasOwnProperty.call(value, "failureCode")) {
+                expected.push("failureCode");
+            }
+            if (Object.prototype.hasOwnProperty.call(value, "rejection")) {
+                if (value.rejection == null) throw new TypeError("Invalid attendance rejection");
+                expected.push("rejection");
+            }
+            if (
+                (value.status !== "rejected" && Object.hasOwn(value, "rejection")) ||
+                (value.status === "rejected" && value.rejection == null)
+            ) {
+                throw new TypeError("Attendance rejection must match recommendation status");
+            }
+            assertExactKeys(value, expected, "PublicAttendanceRecommendation");
+            return value as PublicAttendanceRecommendation;
         }
-        if (Object.prototype.hasOwnProperty.call(value, "failureCode")) {
-            expected.push("failureCode");
-        }
-        if (Object.prototype.hasOwnProperty.call(value, "rejection")) {
-            if (value.rejection == null) throw new TypeError("Invalid attendance rejection");
-            expected.push("rejection");
-        }
-        if (
-            (value.status !== "rejected" && Object.hasOwn(value, "rejection")) ||
-            (value.status === "rejected" && value.rejection == null)
-        ) {
-            throw new TypeError("Attendance rejection must match recommendation status");
-        }
-        assertExactKeys(value, expected, "PublicAttendanceRecommendationV1");
-        return value as PublicAttendanceRecommendationV1;
-    }
-) as Schema<unknown, PublicAttendanceRecommendationV1>;
+    ) as Schema<unknown, PublicAttendanceRecommendation>;
 
 export const KnownMeetingProtocolErrorCodeSchema = Schema.union(knownErrorCodes).required();
 export const MeetingProtocolErrorCodeSchema = Schema.string().required();
@@ -455,7 +457,7 @@ export const MinutesDraftInputSchema: Schema<unknown, MinutesDraftInput> = Schem
     }
 ) as Schema<unknown, MinutesDraftInput>;
 
-export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraftV1> = Schema.transform(
+export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraft> = Schema.transform(
     Schema.object({
         status: Schema.const("draft").required(),
         coverage: minutesCoverage,
@@ -465,7 +467,7 @@ export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraftV1> = S
         assertExactKeys(
             value,
             ["status", "coverage", "referencedMessageIds"],
-            "PublicMinutesDraftV1"
+            "PublicMinutesDraft"
         );
         if (
             value.status !== "draft" ||
@@ -481,4 +483,4 @@ export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraftV1> = S
             referencedMessageIds: value.referencedMessageIds
         };
     }
-) as Schema<unknown, PublicMinutesDraftV1>;
+) as Schema<unknown, PublicMinutesDraft>;

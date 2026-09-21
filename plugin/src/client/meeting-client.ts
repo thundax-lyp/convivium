@@ -12,11 +12,11 @@ import {
     type MeetingReadResult,
     type ReadMeetingRequestV1,
     type RefreshNoticeV1,
-    type ProtocolErrorV1
+    type ProtocolError
 } from "@/protocol/index.js";
 
 export class ProtocolFailure extends Error {
-    constructor(readonly protocolError: ProtocolErrorV1) {
+    constructor(readonly protocolError: ProtocolError) {
         super(protocolError.message);
         this.name = "ProtocolFailure";
     }
@@ -30,7 +30,7 @@ export interface MeetingClient {
 }
 
 function protocolFailure(value: unknown): ProtocolFailure {
-    const error = value as ProtocolErrorV1;
+    const error = value as ProtocolError;
     if (error.code === "convivium/invalid-request")
         return new ProtocolFailure({
             protocolVersion: 1,

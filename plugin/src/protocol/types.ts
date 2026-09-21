@@ -87,7 +87,7 @@ export interface MeetingMailResult {
     status: MailHandlingStatus;
 }
 
-export interface ParticipantSpecV1 {
+export interface ParticipantSpec {
     agentDefinitionId?: string;
     participantKey: string;
     sourceMemberName?: string;
@@ -136,10 +136,10 @@ export interface CreateMeetingInput {
     objective: string;
     objectiveContract: ObjectiveContractSpec;
     agenda: readonly AgendaItemSpec[];
-    participants: readonly ParticipantSpecV1[];
+    participants: readonly ParticipantSpec[];
     continuation?: ContinuationSelection;
     selectionMode?: "round_robin" | "rule_based" | "manager" | "hybrid";
-    limits?: Partial<PublicMeetingLimitsV1>;
+    limits?: Partial<PublicMeetingLimits>;
 }
 
 export interface CreateMeetingResult {
@@ -176,7 +176,7 @@ export interface LocalMeetingListResponse {
     result: LocalMeetingListResult;
 }
 
-export interface PauseMeetingInputV1 {
+export interface PauseMeetingInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     expectedMeetingVersion: number;
@@ -375,16 +375,16 @@ export interface SpeakerMeetingContextV1 {
     meetingId: string;
     meetingVersion: number;
     objective: string;
-    objectiveContract: PublicObjectiveContractV1;
-    activeAgendaItem: PublicAgendaItemV1;
-    acceptedDecisions: readonly PublicDecisionV1[];
-    blockingQuestions: readonly PublicQuestionV1[];
-    recentMessages: readonly PublicMeetingMessageV1[];
+    objectiveContract: PublicObjectiveContract;
+    activeAgendaItem: PublicAgendaItem;
+    acceptedDecisions: readonly PublicDecision[];
+    blockingQuestions: readonly PublicQuestion[];
+    recentMessages: readonly PublicMeetingMessage[];
     relevantHistorySummary?: string;
     taskResults: readonly AuthorizedTaskResult[];
-    continuationMaterials: readonly PublicContinuationMaterialV1[];
-    turn: PublicTurnV1;
-    step: PublicSpeakerStepV1;
+    continuationMaterials: readonly PublicContinuationMaterial[];
+    turn: PublicTurn;
+    step: PublicSpeakerStep;
     attempt: {
         attemptId: string;
         deliveryId: string;
@@ -394,7 +394,7 @@ export interface SpeakerMeetingContextV1 {
     };
 }
 
-export interface PublicObjectiveContractV1 {
+export interface PublicObjectiveContract {
     requiredOutputs: readonly {
         id: string;
         description: string;
@@ -411,7 +411,7 @@ export interface PublicObjectiveContractV1 {
     acceptableRiskLevel: "low" | "medium" | "high";
 }
 
-export interface PublicAgendaItemV1 {
+export interface PublicAgendaItem {
     id: string;
     title: string;
     objective: string;
@@ -425,7 +425,7 @@ export interface PublicAgendaItemV1 {
     resolution?: string;
 }
 
-export interface PublicQuestionV1 {
+export interface PublicQuestion {
     id: string;
     text: string;
     askedBy?: string;
@@ -439,7 +439,7 @@ export interface PublicQuestionV1 {
     answerMessageId?: string;
 }
 
-export interface PublicDecisionCandidateV1 {
+export interface PublicDecisionCandidate {
     id: string;
     proposalId: string;
     proposalRevision: number;
@@ -451,7 +451,7 @@ export interface PublicDecisionCandidateV1 {
     createdAt: number;
 }
 
-export interface PublicDecisionV1 {
+export interface PublicDecision {
     id: string;
     agendaItemId?: string;
     proposalId: string;
@@ -464,7 +464,7 @@ export interface PublicDecisionV1 {
     supersededByDecisionId?: string;
 }
 
-export interface PublicRiskV1 {
+export interface PublicRisk {
     id: string;
     title: string;
     description: string;
@@ -495,7 +495,7 @@ export interface AuthorizedTaskResult {
     observedAt: number;
 }
 
-export interface PublicTurnV1 {
+export interface PublicTurn {
     id: string;
     seq: number;
     agendaItemId: string;
@@ -504,10 +504,10 @@ export interface PublicTurnV1 {
     objective: string;
     expectedOutputs: readonly string[];
     prohibitedTopics: readonly string[];
-    steps: readonly PublicSpeakerStepV1[];
+    steps: readonly PublicSpeakerStep[];
 }
 
-export interface PublicSpeakerStepV1 {
+export interface PublicSpeakerStep {
     id: string;
     participantId: string;
     instruction: string;
@@ -521,27 +521,27 @@ export interface ManagerMeetingContext {
     meetingVersion: number;
     planningAttemptId: string;
     objective: string;
-    activeAgendaItem: PublicAgendaItemV1;
+    activeAgendaItem: PublicAgendaItem;
     requiredSpeakerIds: readonly string[];
     dispatchableParticipantIds: readonly string[];
-    recentPublicMessages: readonly PublicMeetingMessageV1[];
-    blockingFacts: readonly PublicBlockingFactV1[];
+    recentPublicMessages: readonly PublicMeetingMessage[];
+    blockingFacts: readonly PublicBlockingFact[];
     meetingTasks: readonly MeetingTaskProjection[];
-    pendingHandRaises: readonly PublicHandRaiseV1[];
-    continuationMaterials: readonly PublicContinuationMaterialV1[];
-    limits: PublicMeetingLimitsV1;
+    pendingHandRaises: readonly PublicHandRaise[];
+    continuationMaterials: readonly PublicContinuationMaterial[];
+    limits: PublicMeetingLimits;
     planningReason: string;
     agentCatalog: MeetingAgentCatalogProjection | null;
 }
 
-export interface PublicBlockingFactV1 {
+export interface PublicBlockingFact {
     id: string;
     kind: "question" | "objection" | "issue" | "risk" | "required_review";
     subjectId: string;
     summary: string;
 }
 
-export interface PublicHandRaiseV1 {
+export interface PublicHandRaise {
     id: string;
     participantId: string;
     reason: string;
@@ -552,7 +552,7 @@ export interface PublicHandRaiseV1 {
     priority: "normal" | "high" | "blocking";
 }
 
-export interface PublicContinuationMaterialV1 {
+export interface PublicContinuationMaterial {
     sourceMeetingId: string;
     sourceKind: "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
     sourceObjectId?: string;
@@ -560,7 +560,7 @@ export interface PublicContinuationMaterialV1 {
     checksum?: string;
 }
 
-export interface PublicMeetingLimitsV1 {
+export interface PublicMeetingLimits {
     maxTurns: number;
     maxSpeakersPerTurn: number;
     maxTotalMessages: number;
@@ -588,11 +588,11 @@ export interface MinutesDraftInput {
     readonly referencedMessageIds: readonly string[];
 }
 
-export interface PublicMinutesDraftV1 extends MinutesDraftInput {
+export interface PublicMinutesDraft extends MinutesDraftInput {
     readonly status: "draft";
 }
 
-export interface PublicMeetingMessageV1 {
+export interface PublicMeetingMessage {
     id: string;
     seq: number;
     turnId?: string;
@@ -607,7 +607,7 @@ export interface PublicMeetingMessageV1 {
     replyTo?: string;
     taskIds: readonly string[];
     createdAt: number;
-    minutesDraft?: PublicMinutesDraftV1;
+    minutesDraft?: PublicMinutesDraft;
 }
 
 export type AgentRoleDefinitionId =
@@ -703,7 +703,7 @@ export interface AttendanceRecommendationClaim {
     urgency: "current_agenda" | "later_agenda" | "follow_up";
 }
 
-export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaim {
+export interface PublicAttendanceRecommendation extends AttendanceRecommendationClaim {
     rejection?: { reason: string; rejectedAt: number };
     recommendationId: string;
     roleDefinitionId: AgentRoleDefinitionId;
@@ -747,21 +747,21 @@ export interface TurnSubmissionV1 {
     taskIds: readonly string[];
     agendaRelation:
         "on_topic" | "supporting_context" | "new_topic_candidate" | "blocking_interrupt";
-    changes: PublicMeetingChangesV1;
+    changes: PublicMeetingChanges;
     completionClaims?: CompletionClaims;
     minutesDraft?: MinutesDraftInput;
 }
 
-export interface PublicMeetingChangesV1 {
-    questions?: readonly QuestionClaimV1[];
-    proposals?: readonly ProposalClaimV1[];
-    positions?: readonly PositionClaimV1[];
+export interface PublicMeetingChanges {
+    questions?: readonly QuestionClaim[];
+    proposals?: readonly ProposalClaim[];
+    positions?: readonly PositionClaim[];
     issues?: readonly IssueClaim[];
     decisionProposals?: readonly DecisionProposalClaim[];
     agendaCandidates?: readonly AgendaCandidateClaim[];
 }
 
-export interface QuestionClaimV1 {
+export interface QuestionClaim {
     text: string;
     directedTo?: string;
     blocking: boolean;
@@ -770,14 +770,14 @@ export interface QuestionClaimV1 {
     violatedConstraintIds?: readonly string[];
 }
 
-export interface ProposalClaimV1 {
+export interface ProposalClaim {
     proposalId?: string;
     expectedRevision?: number;
     title: string;
     description: string;
 }
 
-export interface PositionClaimV1 {
+export interface PositionClaim {
     proposalId: string;
     proposalRevision: number;
     position: "support" | "accept" | "object" | "needs_revision" | "abstain";
@@ -889,7 +889,7 @@ export interface HandRaiseSubmission {
     priority: "normal" | "high" | "blocking";
 }
 
-export interface ProtocolSuccessV1<T> extends ProtocolMeta {
+export interface ProtocolSuccess<T> extends ProtocolMeta {
     ok: true;
     result: T;
 }
@@ -960,7 +960,7 @@ export type KnownMeetingProtocolErrorCode =
 
 export type MeetingProtocolErrorCode = KnownMeetingProtocolErrorCode | (string & {});
 
-export interface ProtocolErrorV1 {
+export interface ProtocolError {
     protocolVersion: ProtocolVersion;
     ok: false;
     code: MeetingProtocolErrorCode;
