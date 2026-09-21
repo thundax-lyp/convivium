@@ -410,7 +410,9 @@ describe("evidence review request dispatcher v1", () => {
         });
         expect(envelope).not.toHaveProperty("sessionId");
     });
+});
 
+describe("evidence review request dispatcher claim lifecycle", () => {
     it("keeps the review effect retryable when the coordinator returns without committing", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);

@@ -54,6 +54,21 @@ const reject = (
 const valid = (value: unknown): value is string =>
     typeof value === "string" && value.trim().length > 0;
 
+function validRecommendationDraft(action: IdentityRecommendationDraftV1): boolean {
+    return (
+        !!action &&
+        valid(action.candidateId) &&
+        valid(action.definitionId) &&
+        valid(action.definitionVersion) &&
+        valid(action.catalogId) &&
+        valid(action.catalogVersion) &&
+        valid(action.agendaId) &&
+        valid(action.rationale) &&
+        valid(action.expectedContribution) &&
+        valid(action.evidenceGap)
+    );
+}
+
 export function recommendIdentityV1(
     state: MeetingState,
     action: IdentityRecommendationDraftV1,
@@ -73,19 +88,7 @@ export function recommendIdentityV1(
         !valid(ids.recommendationId)
     )
         return reject(state, "INVALID_ARGUMENT");
-    if (
-        !action ||
-        !valid(action.candidateId) ||
-        !valid(action.definitionId) ||
-        !valid(action.definitionVersion) ||
-        !valid(action.catalogId) ||
-        !valid(action.catalogVersion) ||
-        !valid(action.agendaId) ||
-        !valid(action.rationale) ||
-        !valid(action.expectedContribution) ||
-        !valid(action.evidenceGap)
-    )
-        return reject(state, "INVALID_ARGUMENT");
+    if (!validRecommendationDraft(action)) return reject(state, "INVALID_ARGUMENT");
     if (state.lifecycle.status !== "running") return reject(state, "INVALID_STATE");
     if (
         !state.identities.some(

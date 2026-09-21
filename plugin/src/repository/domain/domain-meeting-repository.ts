@@ -103,340 +103,445 @@ export class DomainMeetingRepository<TState = JsonObject>
             };
         });
     }
-    async execute<T>(_command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>> {
-        const command = _command;
+    async execute<T>(command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>> {
         this.ensureOpen();
-        return this.enqueueMutation(async () => {
-            if (!this.projection?.snapshot)
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Meeting is not ready"
-                );
-            const persistedSnapshot = structuredClone(this.projection.snapshot);
-            const snapshot = this.decodeSnapshot(persistedSnapshot);
-            this.authorizationValidator.validateCommand({ snapshot, command });
-            const key = receiptKey(
-                command.requestId,
-                command.commandKind,
-                command.authorization.callerBinding
+        return this.enqueueMutation(() => this.executeCommand(command), command.commandKind);
+    }
+
+    private async executeCommand<T>(
+        command: RepositoryCommand<T, TState>
+    ): Promise<CommittedResult<T>> {
+        if (!this.projection?.snapshot)
+            throw new RepositoryError(
+                "INVALID_STATE",
+                false,
+                this.meetingId,
+                "Meeting is not ready"
             );
-            const existing = this.projection.receipts[key];
-            if (existing) {
-                if (existing.requestHash !== command.requestHash)
-                    throw new RepositoryError(
-                        "IDEMPOTENCY_CONFLICT",
-                        false,
-                        this.meetingId,
-                        "Request hash conflicts with receipt"
-                    );
-                return {
+        const snapshot = this.decodeSnapshot(structuredClone(this.projection.snapshot));
+        this.authorizationValidator.validateCommand({ snapshot, command });
+        const key = receiptKey(
+            command.requestId,
+            command.commandKind,
+            command.authorization.callerBinding
+        );
+        const replayed = this.replayCommandReceipt(command, key);
+        if (replayed) return replayed;
+        if (
+            command.expectedMeetingVersion !== undefined &&
+            snapshot.version !== command.expectedMeetingVersion
+        )
+            throw new RepositoryError(
+                "VERSION_CONFLICT",
+                true,
+                this.meetingId,
+                "Meeting version is stale"
+            );
+        const archiveContext = this.validateArchiveSessionResult(command);
+        const now = this.now();
+        const transition = command.transition(snapshot, {
+            ...(archiveContext.allSessionOwnershipClosedAfterResult === undefined
+                ? {}
+                : {
+                      allSessionOwnershipClosedAfterResult:
+                          archiveContext.allSessionOwnershipClosedAfterResult
+                  })
+        });
+        const encoded = this.encodeTransition(transition);
+        if (transition.events.length === 0 && (command.facts ?? []).length === 0)
+            return this.commitNoop(command, key, snapshot.version, transition, encoded.result, now);
+        return this.commitTransition(
+            command,
+            key,
+            snapshot,
+            transition,
+            encoded,
+            archiveContext.archiveSessionOwnershipKey,
+            now
+        );
+    }
+
+    private replayCommandReceipt<T>(
+        command: RepositoryCommand<T, TState>,
+        key: string
+    ): CommittedResult<T> | undefined {
+        const existing = this.projection!.receipts[key];
+        if (!existing) return undefined;
+        if (existing.requestHash !== command.requestHash)
+            throw new RepositoryError(
+                "IDEMPOTENCY_CONFLICT",
+                false,
+                this.meetingId,
+                "Request hash conflicts with receipt"
+            );
+        return {
+            requestId: command.requestId,
+            meetingId: this.meetingId,
+            meetingVersion: existing.meetingVersion,
+            result: existing.result as T,
+            eventSeqs: [...existing.eventSeqs]
+        };
+    }
+
+    private validateArchiveSessionResult<T>(command: RepositoryCommand<T, TState>): {
+        allSessionOwnershipClosedAfterResult?: boolean;
+        archiveSessionOwnershipKey?: string;
+    } {
+        const closure = command.archiveSessionResult;
+        if (closure === undefined) return {};
+        const failureCode = closure.failureCode?.trim();
+        if (
+            command.commandKind !== "record_archive_session_result" ||
+            (closure.status === "closed" && closure.failureCode !== undefined) ||
+            (closure.status === "failed" && !failureCode)
+        )
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                this.meetingId,
+                "Archive Session result is invalid"
+            );
+        const ownershipEntry = Object.entries(this.projection!.sessionOwnership).find(
+            ([, candidate]) =>
+                candidate.id === closure.sessionOwnershipId &&
+                candidate.supersededBySessionId === undefined
+        );
+        if (!ownershipEntry)
+            throw new RepositoryError(
+                "RECOVERY_UNAVAILABLE",
+                false,
+                this.meetingId,
+                "Archive Session ownership is unavailable"
+            );
+        const [ownershipKey, ownership] = ownershipEntry;
+        if (
+            !ownership.id ||
+            ownership.id !== closure.sessionOwnershipId ||
+            ownership.meetingId !== this.meetingId ||
+            !ownership.identityId ||
+            ownership.lifecycleStatus === "closed"
+        )
+            throw new RepositoryError(
+                "RECOVERY_UNAVAILABLE",
+                false,
+                this.meetingId,
+                "Archive Session ownership is unavailable"
+            );
+        return {
+            archiveSessionOwnershipKey: ownershipKey,
+            allSessionOwnershipClosedAfterResult:
+                closure.status === "closed" &&
+                Object.values(this.projection!.sessionOwnership).every(
+                    (candidate) =>
+                        candidate.meetingId !== this.meetingId ||
+                        candidate.id === closure.sessionOwnershipId ||
+                        candidate.lifecycleStatus === "closed"
+                )
+        };
+    }
+
+    private encodeTransition<T>(
+        transition: ReturnType<RepositoryCommand<T, TState>["transition"]>
+    ): { state: JsonObject; result: JsonValue } {
+        try {
+            return {
+                state: this.encodeState(transition.state),
+                result: jsonValue(transition.result)
+            };
+        } catch {
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                this.meetingId,
+                "Command state or result is invalid"
+            );
+        }
+    }
+
+    private commitNoop<T>(
+        command: RepositoryCommand<T, TState>,
+        key: string,
+        meetingVersion: number,
+        transition: ReturnType<RepositoryCommand<T, TState>["transition"]>,
+        transitionResult: JsonValue,
+        now: number
+    ): Promise<CommittedResult<T>> {
+        if (!command.allowNoop)
+            throw new RepositoryError(
+                "INVALID_STATE",
+                false,
+                this.meetingId,
+                "State transitions must emit at least one domain event"
+            );
+        return this.commit({
+            operation: `command:${command.commandKind}`,
+            now,
+            mutate: (current) => {
+                const next = decodeProjection(encodeProjection(current));
+                const receipt = PersistedReceiptV1Schema.safeParse({
+                    formatVersion: 1,
                     requestId: command.requestId,
-                    meetingId: this.meetingId,
-                    meetingVersion: existing.meetingVersion,
-                    result: existing.result as T,
-                    eventSeqs: [...existing.eventSeqs]
-                };
-            }
-            if (
-                command.expectedMeetingVersion !== undefined &&
-                snapshot.version !== command.expectedMeetingVersion
-            )
-                throw new RepositoryError(
-                    "VERSION_CONFLICT",
-                    true,
-                    this.meetingId,
-                    "Meeting version is stale"
-                );
-            const closure = command.archiveSessionResult;
-            let allSessionOwnershipClosedAfterResult: boolean | undefined;
-            let archiveSessionOwnershipKey: string | undefined;
-            if (closure !== undefined) {
-                const failureCode = closure.failureCode?.trim();
-                if (
-                    command.commandKind !== "record_archive_session_result" ||
-                    (closure.status === "closed" && closure.failureCode !== undefined) ||
-                    (closure.status === "failed" && !failureCode)
-                )
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Archive Session result is invalid"
-                    );
-                const ownershipEntry = Object.entries(this.projection.sessionOwnership).find(
-                    ([, candidate]) =>
-                        candidate.id === closure.sessionOwnershipId &&
-                        candidate.supersededBySessionId === undefined
-                );
-                if (!ownershipEntry)
-                    throw new RepositoryError(
-                        "RECOVERY_UNAVAILABLE",
-                        false,
-                        this.meetingId,
-                        "Archive Session ownership is unavailable"
-                    );
-                const [ownershipKey, ownership] = ownershipEntry;
-                if (
-                    !ownership.id ||
-                    ownership.id !== closure.sessionOwnershipId ||
-                    ownership.meetingId !== this.meetingId ||
-                    !ownership.identityId ||
-                    ownership.lifecycleStatus === "closed"
-                )
-                    throw new RepositoryError(
-                        "RECOVERY_UNAVAILABLE",
-                        false,
-                        this.meetingId,
-                        "Archive Session ownership is unavailable"
-                    );
-                archiveSessionOwnershipKey = ownershipKey;
-                allSessionOwnershipClosedAfterResult =
-                    closure.status === "closed" &&
-                    Object.values(this.projection.sessionOwnership).every(
-                        (candidate) =>
-                            candidate.meetingId !== this.meetingId ||
-                            candidate.id === closure.sessionOwnershipId ||
-                            candidate.lifecycleStatus === "closed"
-                    );
-            }
-            const now = this.now();
-            const transition = command.transition(snapshot, {
-                ...(allSessionOwnershipClosedAfterResult === undefined
-                    ? {}
-                    : { allSessionOwnershipClosedAfterResult })
-            });
-            let transitionState: JsonObject;
-            let transitionResult: JsonValue;
-            try {
-                transitionState = this.encodeState(transition.state);
-                transitionResult = jsonValue(transition.result);
-            } catch {
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Command state or result is invalid"
-                );
-            }
-            const facts = command.facts ?? [];
-            if (transition.events.length === 0 && facts.length === 0) {
-                if (!command.allowNoop)
-                    throw new RepositoryError(
-                        "INVALID_STATE",
-                        false,
-                        this.meetingId,
-                        "State transitions must emit at least one domain event"
-                    );
-                const meetingVersion = snapshot.version;
-                return this.commit({
-                    operation: `command:${command.commandKind}`,
-                    now,
-                    mutate: (current) => {
-                        const next = decodeProjection(encodeProjection(current));
-                        const receipt = PersistedReceiptV1Schema.safeParse({
-                            formatVersion: 1,
-                            requestId: command.requestId,
-                            commandKind: command.commandKind,
-                            callerBinding: command.authorization.callerBinding,
-                            requestHash: command.requestHash,
-                            meetingVersion,
-                            result: transitionResult,
-                            eventSeqs: [],
-                            createdAt: now
-                        });
-                        if (!receipt.success)
-                            throw new RepositoryError(
-                                "INVALID_INPUT",
-                                false,
-                                this.meetingId,
-                                "Command result is invalid"
-                            );
-                        next.receipts[key] = receipt.data;
-                        return {
-                            next,
-                            result: {
-                                requestId: command.requestId,
-                                meetingId: this.meetingId,
-                                meetingVersion,
-                                result: transition.result,
-                                eventSeqs: []
-                            }
-                        };
-                    }
-                });
-            }
-            const nextVersion = snapshot.version + 1;
-            let next: PersistenceProjectionV1;
-            try {
-                next = decodeProjection(
-                    encodeCanonicalJson({
-                        ...this.projection,
-                        snapshot: {
-                            ...snapshot,
-                            version: nextVersion,
-                            state: { ...transitionState, version: nextVersion },
-                            updatedAt: now
-                        }
-                    })
-                );
-            } catch {
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Command state is invalid"
-                );
-            }
-            const eventSeqs: number[] = [];
-            for (const event of transition.events) {
-                const eventSeq = next.nextEventSeq++;
-                eventSeqs.push(eventSeq);
-                const persisted = PersistedEventV1Schema.safeParse({
-                    formatVersion: 1,
-                    eventSeq,
-                    meetingVersion: nextVersion,
-                    type: event.type,
-                    payload: jsonValue(event.payload),
-                    turnId: event.turnId ?? null,
-                    attemptId: event.attemptId ?? null,
+                    commandKind: command.commandKind,
+                    callerBinding: command.authorization.callerBinding,
+                    requestHash: command.requestHash,
+                    meetingVersion,
+                    result: transitionResult,
+                    eventSeqs: [],
                     createdAt: now
                 });
-                if (!persisted.success)
+                if (!receipt.success)
                     throw new RepositoryError(
                         "INVALID_INPUT",
                         false,
                         this.meetingId,
-                        "Command event is invalid"
+                        "Command result is invalid"
                     );
-                next.events[seqKey(eventSeq)] = persisted.data;
-            }
-            for (const fact of facts) {
-                if (fact.meetingVersion !== nextVersion || next.facts[fact.factId] !== undefined)
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Command fact identity or version is invalid"
-                    );
-                const persisted = CommittedFactRecordV1Schema.safeParse({
-                    ...fact,
-                    relatedIds: [...fact.relatedIds],
-                    payload: jsonValue(fact.payload),
-                    resultingState: this.encodeState(fact.resultingState)
-                });
-                if (!persisted.success)
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Command fact is invalid"
-                    );
-                next.facts[fact.factId] = persisted.data;
-            }
-            if (closure !== undefined) {
-                const failureCode = closure.failureCode?.trim();
-                if (!archiveSessionOwnershipKey)
-                    throw new Error("validated ownership key is missing");
-                const ownership = next.sessionOwnership[archiveSessionOwnershipKey];
-                if (!ownership) throw new Error("validated ownership is missing");
-                if (closure.status === "closed") {
-                    const { lastClosureFailureCode: _discarded, ...identity } = ownership;
-                    next.sessionOwnership[archiveSessionOwnershipKey] = {
-                        ...identity,
-                        lifecycleStatus: "closed",
-                        capabilityStatus: "revoked",
-                        updatedAt: now
-                    };
-                } else {
-                    next.sessionOwnership[archiveSessionOwnershipKey] = {
-                        ...ownership,
-                        lastClosureFailureCode: failureCode,
-                        updatedAt: now
-                    };
-                }
-            }
-            const deliveryIds = new Set(Object.values(next.outbox).map((item) => item.deliveryId));
-            for (const item of transition.outbox) {
-                if (item.kind !== "dispatch")
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Outbox kind is not registered"
-                    );
-                if (deliveryIds.has(item.deliveryId))
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Outbox deliveryId already exists"
-                    );
-                deliveryIds.add(item.deliveryId);
-                const id = item.id ?? crypto.randomUUID();
-                const persisted = PersistedOutboxV1Schema.safeParse({
-                    formatVersion: 1,
-                    id,
-                    deliveryId: item.deliveryId,
-                    kind: "dispatch",
-                    priority: item.priority ?? 50,
-                    payload: jsonValue(item.payload),
-                    status: "pending",
-                    attempts: 0,
-                    availableAt: item.availableAt ?? now,
-                    leaseOwner: null,
-                    leaseToken: null,
-                    leaseDeadline: null,
-                    deliveredAt: null,
-                    failedAt: null,
-                    lastError: null,
-                    createdAt: now
-                });
-                if (!persisted.success)
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Command outbox item is invalid"
-                    );
-                next.outbox[id] = persisted.data;
-            }
-            const result = transition.result;
-            const receipt = PersistedReceiptV1Schema.safeParse({
-                formatVersion: 1,
-                requestId: command.requestId,
-                commandKind: command.commandKind,
-                callerBinding: command.authorization.callerBinding,
-                requestHash: command.requestHash,
-                meetingVersion: nextVersion,
-                result: transitionResult,
-                eventSeqs,
-                createdAt: now
-            });
-            if (!receipt.success)
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Command result is invalid"
-                );
-            next.receipts[key] = receipt.data;
-            return this.commit({
-                operation: `command:${command.commandKind}`,
-                now,
-                mutate: () => ({
+                next.receipts[key] = receipt.data;
+                return {
                     next,
                     result: {
                         requestId: command.requestId,
                         meetingId: this.meetingId,
-                        meetingVersion: nextVersion,
-                        result,
-                        eventSeqs
+                        meetingVersion,
+                        result: transition.result,
+                        eventSeqs: []
+                    }
+                };
+            }
+        });
+    }
+
+    private createTransitionProjection(
+        snapshot: Parameters<RepositoryCommand<unknown, TState>["transition"]>[0],
+        transitionState: JsonObject,
+        nextVersion: number,
+        now: number
+    ): PersistenceProjectionV1 {
+        try {
+            return decodeProjection(
+                encodeCanonicalJson({
+                    ...this.projection,
+                    snapshot: {
+                        ...snapshot,
+                        version: nextVersion,
+                        state: { ...transitionState, version: nextVersion },
+                        updatedAt: now
                     }
                 })
+            );
+        } catch {
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                this.meetingId,
+                "Command state is invalid"
+            );
+        }
+    }
+
+    private appendEvents(
+        next: PersistenceProjectionV1,
+        events: ReturnType<RepositoryCommand<unknown, TState>["transition"]>["events"],
+        nextVersion: number,
+        now: number
+    ): number[] {
+        const eventSeqs: number[] = [];
+        for (const event of events) {
+            const eventSeq = next.nextEventSeq++;
+            eventSeqs.push(eventSeq);
+            const persisted = PersistedEventV1Schema.safeParse({
+                formatVersion: 1,
+                eventSeq,
+                meetingVersion: nextVersion,
+                type: event.type,
+                payload: jsonValue(event.payload),
+                turnId: event.turnId ?? null,
+                attemptId: event.attemptId ?? null,
+                createdAt: now
             });
-        }, command.commandKind);
+            if (!persisted.success)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command event is invalid"
+                );
+            next.events[seqKey(eventSeq)] = persisted.data;
+        }
+        return eventSeqs;
+    }
+
+    private appendFacts(
+        next: PersistenceProjectionV1,
+        facts: readonly CommittedFactRecordV1<TState>[],
+        nextVersion: number
+    ): void {
+        for (const fact of facts) {
+            if (fact.meetingVersion !== nextVersion || next.facts[fact.factId] !== undefined)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command fact identity or version is invalid"
+                );
+            const persisted = CommittedFactRecordV1Schema.safeParse({
+                ...fact,
+                relatedIds: [...fact.relatedIds],
+                payload: jsonValue(fact.payload),
+                resultingState: this.encodeState(fact.resultingState)
+            });
+            if (!persisted.success)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command fact is invalid"
+                );
+            next.facts[fact.factId] = persisted.data;
+        }
+    }
+
+    private applyArchiveSessionResult<T>(
+        next: PersistenceProjectionV1,
+        command: RepositoryCommand<T, TState>,
+        archiveSessionOwnershipKey: string | undefined,
+        now: number
+    ): void {
+        const closure = command.archiveSessionResult;
+        if (closure === undefined) return;
+        const failureCode = closure.failureCode?.trim();
+        if (!archiveSessionOwnershipKey) throw new Error("validated ownership key is missing");
+        const ownership = next.sessionOwnership[archiveSessionOwnershipKey];
+        if (!ownership) throw new Error("validated ownership is missing");
+        if (closure.status === "closed") {
+            const { lastClosureFailureCode: _discarded, ...identity } = ownership;
+            next.sessionOwnership[archiveSessionOwnershipKey] = {
+                ...identity,
+                lifecycleStatus: "closed",
+                capabilityStatus: "revoked",
+                updatedAt: now
+            };
+            return;
+        }
+        next.sessionOwnership[archiveSessionOwnershipKey] = {
+            ...ownership,
+            lastClosureFailureCode: failureCode,
+            updatedAt: now
+        };
+    }
+
+    private appendOutbox(
+        next: PersistenceProjectionV1,
+        outbox: ReturnType<RepositoryCommand<unknown, TState>["transition"]>["outbox"],
+        now: number
+    ): void {
+        const deliveryIds = new Set(Object.values(next.outbox).map((item) => item.deliveryId));
+        for (const item of outbox) {
+            if (item.kind !== "dispatch")
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Outbox kind is not registered"
+                );
+            if (deliveryIds.has(item.deliveryId))
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Outbox deliveryId already exists"
+                );
+            deliveryIds.add(item.deliveryId);
+            const id = item.id ?? crypto.randomUUID();
+            const persisted = PersistedOutboxV1Schema.safeParse({
+                formatVersion: 1,
+                id,
+                deliveryId: item.deliveryId,
+                kind: "dispatch",
+                priority: item.priority ?? 50,
+                payload: jsonValue(item.payload),
+                status: "pending",
+                attempts: 0,
+                availableAt: item.availableAt ?? now,
+                leaseOwner: null,
+                leaseToken: null,
+                leaseDeadline: null,
+                deliveredAt: null,
+                failedAt: null,
+                lastError: null,
+                createdAt: now
+            });
+            if (!persisted.success)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command outbox item is invalid"
+                );
+            next.outbox[id] = persisted.data;
+        }
+    }
+
+    private appendReceipt<T>(
+        next: PersistenceProjectionV1,
+        command: RepositoryCommand<T, TState>,
+        key: string,
+        nextVersion: number,
+        transitionResult: JsonValue,
+        eventSeqs: readonly number[],
+        now: number
+    ): void {
+        const receipt = PersistedReceiptV1Schema.safeParse({
+            formatVersion: 1,
+            requestId: command.requestId,
+            commandKind: command.commandKind,
+            callerBinding: command.authorization.callerBinding,
+            requestHash: command.requestHash,
+            meetingVersion: nextVersion,
+            result: transitionResult,
+            eventSeqs,
+            createdAt: now
+        });
+        if (!receipt.success)
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                this.meetingId,
+                "Command result is invalid"
+            );
+        next.receipts[key] = receipt.data;
+    }
+
+    private commitTransition<T>(
+        command: RepositoryCommand<T, TState>,
+        key: string,
+        snapshot: Parameters<RepositoryCommand<T, TState>["transition"]>[0],
+        transition: ReturnType<RepositoryCommand<T, TState>["transition"]>,
+        encoded: { state: JsonObject; result: JsonValue },
+        archiveSessionOwnershipKey: string | undefined,
+        now: number
+    ): Promise<CommittedResult<T>> {
+        const nextVersion = snapshot.version + 1;
+        const next = this.createTransitionProjection(snapshot, encoded.state, nextVersion, now);
+        const eventSeqs = this.appendEvents(next, transition.events, nextVersion, now);
+        this.appendFacts(next, command.facts ?? [], nextVersion);
+        this.applyArchiveSessionResult(next, command, archiveSessionOwnershipKey, now);
+        this.appendOutbox(next, transition.outbox, now);
+        this.appendReceipt(next, command, key, nextVersion, encoded.result, eventSeqs, now);
+        return this.commit({
+            operation: `command:${command.commandKind}`,
+            now,
+            mutate: () => ({
+                next,
+                result: {
+                    requestId: command.requestId,
+                    meetingId: this.meetingId,
+                    meetingVersion: nextVersion,
+                    result: transition.result,
+                    eventSeqs
+                }
+            })
+        });
     }
     async readCommittedFacts(): Promise<readonly CommittedFactRecordV1<TState>[]> {
         this.ensureOpen();

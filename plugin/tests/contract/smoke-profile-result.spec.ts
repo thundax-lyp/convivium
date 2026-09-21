@@ -10,6 +10,7 @@ import {
 import {
     assertPortReleased,
     selectScenarios,
+    stageScenarioRecord,
     writeScenarioRecord
 } from "../../scripts/smoke-profile/index.mjs";
 
@@ -108,19 +109,21 @@ describe("Meeting business-loop smoke result", () => {
         await expect(assertPortReleased(address.port)).resolves.toBeUndefined();
     });
 
-    it("records a redacted summary as a JSON object", async () => {
+    it("publishes the redacted PASS summary only after record staging completes", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-smoke-record-test-"));
         try {
-            await writeScenarioRecord(
-                root,
-                {
-                    ok: true,
-                    scenario: "identity-admission",
-                    probe: { secret: "smoke-secret" },
-                    bootLogs: {}
-                },
-                "smoke-secret"
-            );
+            const result = {
+                ok: true,
+                scenario: "identity-admission",
+                probe: { secret: "smoke-secret" },
+                bootLogs: {}
+            };
+            await stageScenarioRecord(root, result, "smoke-secret");
+            await expect(readFile(join(root, "summary.json"), "utf8")).rejects.toMatchObject({
+                code: "ENOENT"
+            });
+
+            await writeScenarioRecord(root, result, "smoke-secret");
 
             const text = await readFile(join(root, "summary.json"), "utf8");
             expect(JSON.parse(text)).toMatchObject({

@@ -110,7 +110,7 @@ function stateWithMail(
     return candidate;
 }
 
-describe("hand raise transitions", () => {
+describe("hand raise", () => {
     it("raises a hand and emits an initial hand request", () => {
         const result = raiseHandV1(openState(), {
             roundId: "round-v1",
