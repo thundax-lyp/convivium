@@ -40,7 +40,7 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.2.0",
+        definitionVersion: "1.3.0",
         toolFilter: {
             allow: [
                 "skill",
@@ -74,7 +74,11 @@ it("publishes only the current contribution tools for Manager", () => {
         (path) => readFileSync(new URL(path, roleSkills), "utf8")
     );
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
-    expect(currentGuidance[0]).toContain("convivium_contribution");
+    expect(currentGuidance[0]).toContain("convivium_submit_manager_plan");
+    expect(currentGuidance[0]).toContain("convivium_open_round");
+    expect(currentGuidance[0].indexOf("convivium_submit_manager_plan")).toBeLessThan(
+        currentGuidance[0].indexOf("convivium_open_round")
+    );
     expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
     expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);

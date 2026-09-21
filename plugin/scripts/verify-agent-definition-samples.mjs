@@ -117,7 +117,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
                             (role === "meeting_manager"
-                                ? "1.2.0"
+                                ? "1.3.0"
                                 : role === "verification_reviewer"
                                   ? "1.2.3"
                                   : "1.0.0") ||
