@@ -16,7 +16,8 @@
 | `tools` | 1 |
 | 合计（按模块去重） | 423 |
 
-声明出现次数：427  
+声明出现次数：427
+
 全局唯一名称数：421
 
 ## domain
@@ -481,4 +482,3 @@
 | 当前名称 | 删除后名称 |
 | --- | --- |
 | `registerMeetingToolsV1` | `registerMeetingTools` |
-
