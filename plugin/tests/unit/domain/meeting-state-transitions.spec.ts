@@ -231,6 +231,8 @@ function publishedQuestionState(blocking: boolean): MeetingState {
         {
             id: "round-1",
             agendaId: "agenda-1",
+            planId: "plan-1",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "published",
@@ -694,6 +696,12 @@ describe("meeting lifecycle transitions", () => {
                           {
                               id: "round-1",
                               agendaId: "agenda-1",
+                              planId: "plan-1",
+                              roundGoal: {
+                                  question: "q",
+                                  evidenceGap: "gap",
+                                  expectedOutput: "output"
+                              },
                               publicBaselinePublicationIds: [],
                               openedAt: 1,
                               status: "open" as const,
@@ -777,6 +785,8 @@ describe("meeting lifecycle transitions", () => {
             {
                 id: "round-1",
                 agendaId: "agenda-1",
+                planId: "plan-1",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
                 status: "published",
@@ -1524,7 +1534,10 @@ describe("meeting lifecycle transitions", () => {
         ];
         const result = transitionMeetingStateV1(
             current,
-            planNextStep({ planKind: "open_round" }),
+            planNextStep({
+                planKind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" }
+            }),
             manager,
             10,
             "fact-10",
@@ -1542,6 +1555,7 @@ describe("meeting lifecycle transitions", () => {
                 agendaId: "agenda-1",
                 managerId: "manager-1",
                 kind: "open_round",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 rationale: "next",
                 createdAt: 10,
                 status: "active"
@@ -1592,6 +1606,8 @@ describe("meeting lifecycle transitions", () => {
             {
                 id: "round-open",
                 agendaId: "agenda-1",
+                planId: "plan-open",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
                 status: "open",

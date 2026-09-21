@@ -7,7 +7,12 @@ import {
     openRoundV1 as openRoundTransition
 } from "@/domain/transitions/round.js";
 
-const openRoundV1 = (state: Parameters<typeof openRoundTransition>[0], input: any) => {
+type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
+
+const openRoundV1 = (
+    state: Parameters<typeof openRoundTransition>[0],
+    input: OpenRoundFixtureInput
+) => {
     if (state.managerPlans.some((plan) => plan.id === "plan-v1"))
         return openRoundTransition(state, { ...input, planId: "plan-v1" });
     return openRoundTransition(

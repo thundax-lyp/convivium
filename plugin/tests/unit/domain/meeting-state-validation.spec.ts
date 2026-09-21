@@ -26,6 +26,8 @@ describe("canonical MeetingState validation", () => {
         const round = {
             id: "round-1",
             agendaId: "agenda-v1",
+            planId: "plan-v1",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "aborted" as const,
@@ -46,6 +48,8 @@ describe("canonical MeetingState validation", () => {
         const round = {
             id: "round-1",
             agendaId: "agenda-v1",
+            planId: "plan-v1",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open" as const,
@@ -83,6 +87,8 @@ describe("canonical MeetingState validation", () => {
         const round = {
             id: "round-1",
             agendaId: "agenda-v1",
+            planId: "plan-v1",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "published" as const,

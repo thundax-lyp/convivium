@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
 
-const openRoundV1 = (state: Parameters<typeof openRoundTransition>[0], input: any) =>
+type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
+
+const openRoundV1 = (
+    state: Parameters<typeof openRoundTransition>[0],
+    input: OpenRoundFixtureInput
+) =>
     openRoundTransition(
         {
             ...state,

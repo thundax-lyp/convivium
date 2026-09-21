@@ -79,6 +79,8 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
             {
                 id: "r",
                 agendaId: "a",
+                planId: "plan-r",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
                 status: "published",
@@ -3100,6 +3102,8 @@ describe("Recompute/Convergence", () => {
         state.rounds.push({
             id: "pending-round",
             agendaId: "a",
+            planId: "pending-plan",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open",

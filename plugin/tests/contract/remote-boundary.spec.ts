@@ -48,7 +48,7 @@ describe("target Remote boundary", () => {
                     meetingId: "meeting-1",
                     expectedMeetingVersion: 1,
                     requestId: "request-1",
-                    action: { kind: "open_round", agendaId: "agenda-1" }
+                    action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
                 }
             })
         ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });

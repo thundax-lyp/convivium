@@ -46,6 +46,8 @@ function state(): MeetingState {
             {
                 id: "round-1",
                 agendaId: "agenda-1",
+                planId: "plan-1",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 publicBaselinePublicationIds: [],
                 openedAt: 0,
                 status: "published",
@@ -168,6 +170,7 @@ describe("private mail transitions", () => {
                 {
                     ...sent.state.rounds[0],
                     id: "round-2",
+                    planId: "plan-2",
                     publicationId: "pub-2"
                 }
             ],
