@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createMeetingRefreshFeed } from "@/runtime/services/meeting-refresh-feed.js";
 
-describe("meeting refresh feed", () => {
+describe("Meeting refresh feed", () => {
     it("delivers one initial refresh and deduplicates versions", async () => {
         const feed = createMeetingRefreshFeed();
         const iterator = feed.watch(new AbortController().signal)[Symbol.asyncIterator]();
