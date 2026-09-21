@@ -1,19 +1,19 @@
-import type { MeetingRefreshNoticeV1 } from "@/protocol/index.js";
+import type { MeetingRefreshNotice } from "@/protocol/index.js";
 
 export interface MeetingRefreshFeed {
     notify(meetingId: string, version: number): void;
-    watch(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1>;
+    watch(signal: AbortSignal): AsyncIterable<MeetingRefreshNotice>;
     dispose(): void;
 }
 
 interface Subscriber {
     closed: boolean;
     dirty: boolean;
-    pending?: (result: IteratorResult<MeetingRefreshNoticeV1>) => void;
+    pending?: (result: IteratorResult<MeetingRefreshNotice>) => void;
     removeAbortListener: () => void;
 }
 
-const refresh: MeetingRefreshNoticeV1 = { kind: "refresh" };
+const refresh: MeetingRefreshNotice = { kind: "refresh" };
 
 export function createMeetingRefreshFeed(): MeetingRefreshFeed {
     let disposed = false;
@@ -58,14 +58,14 @@ export function createMeetingRefreshFeed(): MeetingRefreshFeed {
             };
             subscribers.add(subscriber);
 
-            const iterator: AsyncIterableIterator<MeetingRefreshNoticeV1> = {
+            const iterator: AsyncIterableIterator<MeetingRefreshNotice> = {
                 next: () => {
                     if (subscriber.closed) return Promise.resolve({ done: true, value: undefined });
                     if (subscriber.dirty) {
                         subscriber.dirty = false;
                         return Promise.resolve({ done: false, value: refresh });
                     }
-                    return new Promise<IteratorResult<MeetingRefreshNoticeV1>>((resolve) => {
+                    return new Promise<IteratorResult<MeetingRefreshNotice>>((resolve) => {
                         subscriber.pending = resolve;
                     });
                 },
@@ -89,7 +89,7 @@ export function createMeetingRefreshFeed(): MeetingRefreshFeed {
     return feed;
 }
 
-function closedIterable(): AsyncIterable<MeetingRefreshNoticeV1> {
+function closedIterable(): AsyncIterable<MeetingRefreshNotice> {
     return {
         [Symbol.asyncIterator]() {
             return { next: async () => ({ done: true, value: undefined }) };

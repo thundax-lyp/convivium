@@ -5,7 +5,7 @@ import type { ResolvedMeetingCaller } from "@/dsh/index.js";
 import {
     CreateMeetingActionSchema,
     DisposeHandRaiseActionSchema,
-    MeetingCommandV1Schema,
+    MeetingCommandSchema,
     OpenRoundActionV1Schema,
     SubmitManagerPlanActionV1Schema,
     PublishRoundActionV1Schema,
@@ -13,8 +13,8 @@ import {
     RecommendIdentityActionV1Schema,
     SubmitEvidenceActionV1Schema,
     SubmitReviewBatchActionV1Schema,
-    type MeetingCommandResultV1,
-    type MeetingCommandV1
+    type MeetingCommandResult,
+    type MeetingCommand
 } from "@/protocol/index.js";
 import type { MeetingCommandApplicationV1 } from "@/runtime/index.js";
 
@@ -34,7 +34,7 @@ const toolParameters = {
         type: "json",
         required: true,
         description:
-            "Complete MeetingCommandV1 object. The tool-call arguments must have exactly one top-level field named input; input must be an object, never a serialized JSON string."
+            "Complete MeetingCommand object. The tool-call arguments must have exactly one top-level field named input; input must be an object, never a serialized JSON string."
     }
 } as const;
 
@@ -48,21 +48,21 @@ type ToolDefinition = {
 function rejected(
     code: "INVALID_ARGUMENT" | "UNAUTHORIZED",
     message: string
-): MeetingCommandResultV1 {
+): MeetingCommandResult {
     return { kind: "rejected", error: { code, message } };
 }
 
 function parseCommand(
     input: unknown,
     definition: ToolDefinition
-): MeetingCommandV1 | MeetingCommandResultV1 {
-    const parsed = MeetingCommandV1Schema.safeParse(input);
+): MeetingCommand | MeetingCommandResult {
+    const parsed = MeetingCommandSchema.safeParse(input);
     if (!parsed.success || parsed.data.action.kind !== definition.kind)
         return rejected("INVALID_ARGUMENT", `Expected ${definition.kind} command input.`);
     const action = definition.schema.safeParse(parsed.data.action);
     if (!action.success)
         return rejected("INVALID_ARGUMENT", `Expected valid ${definition.kind} command input.`);
-    return { ...parsed.data, action: action.data } as MeetingCommandV1;
+    return { ...parsed.data, action: action.data } as MeetingCommand;
 }
 
 function registerTool(

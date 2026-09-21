@@ -58,7 +58,7 @@ export {
 } from "./schema.js";
 export * from "./types.js";
 export {
-    MeetingActionV1Schema,
+    MeetingActionSchema,
     CreateMeetingActionSchema,
     OpenRoundActionV1Schema,
     SubmitManagerPlanActionV1Schema,
@@ -69,22 +69,22 @@ export {
     ReleaseReviewBatchClaimActionV1Schema,
     SubmitReviewBatchActionV1Schema,
     PublishRoundActionV1Schema,
-    MeetingCommandV1Schema,
+    MeetingCommandSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestV1Schema,
-    MeetingCommandResultV1Schema,
-    type MeetingActionV1,
-    type MeetingCommandV1,
+    MeetingCommandResultSchema,
+    type MeetingAction,
+    type MeetingCommand,
     type ListMeetingsRequest,
     type ReadMeetingRequestV1,
-    type MeetingCommandResultV1
+    type MeetingCommandResult
 } from "./meeting-command.js";
 export {
-    MeetingRoleV1Schema,
+    MeetingRoleSchema,
     RoleErrorCodeV1Schema,
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema,
-    type MeetingRoleV1,
+    type MeetingRole,
     type RoleErrorCodeV1
 } from "./meeting-identity.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";

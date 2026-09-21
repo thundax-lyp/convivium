@@ -1,18 +1,18 @@
 import type {
-    MeetingCommandResultV1,
-    MeetingCommandV1,
-    MeetingListResultV1,
-    MeetingReadResultV1,
+    MeetingCommandResult,
+    MeetingCommand,
+    MeetingListResult,
+    MeetingReadResult,
     RefreshNoticeV1
 } from "@/protocol/index.js";
 
 export interface LocalMeetingWebRuntime {
-    list(signal: AbortSignal): Promise<MeetingListResultV1>;
+    list(signal: AbortSignal): Promise<MeetingListResult>;
     read(
         request: { readonly protocolVersion: 1; readonly meetingId: string },
         signal: AbortSignal
-    ): Promise<MeetingReadResultV1>;
-    control(command: MeetingCommandV1, signal: AbortSignal): Promise<MeetingCommandResultV1>;
+    ): Promise<MeetingReadResult>;
+    control(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNoticeV1>;
 }
 

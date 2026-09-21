@@ -249,10 +249,10 @@ const actions = [
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         })
 ] as const;
-export const MeetingActionV1Schema = z.discriminatedUnion("kind", actions);
+export const MeetingActionSchema = z.discriminatedUnion("kind", actions);
 const nonEmpty = z.string().trim().min(1);
-const action = MeetingActionV1Schema;
-export const MeetingCommandV1Schema = z
+const action = MeetingActionSchema;
+export const MeetingCommandSchema = z
     .object({
         protocolVersion: z.literal(1),
         meetingId: nonEmpty,
@@ -281,8 +281,8 @@ export const MeetingCommandV1Schema = z
         )
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
     });
-export type MeetingCommandV1 = z.infer<typeof MeetingCommandV1Schema>;
-export type MeetingActionV1 = z.infer<typeof MeetingActionV1Schema>;
+export type MeetingCommand = z.infer<typeof MeetingCommandSchema>;
+export type MeetingAction = z.infer<typeof MeetingActionSchema>;
 
 export const ListMeetingsRequestSchema = z.object({ protocolVersion: z.literal(1) });
 export type ListMeetingsRequest = z.infer<typeof ListMeetingsRequestSchema>;
@@ -329,7 +329,7 @@ const error = z.object({
     targetKind: text.optional(),
     targetId: id.optional()
 });
-export const MeetingCommandResultV1Schema = z.discriminatedUnion("kind", [
+export const MeetingCommandResultSchema = z.discriminatedUnion("kind", [
     z.object({
         kind: z.literal("accepted"),
         meetingId: id,
@@ -350,4 +350,4 @@ export const MeetingCommandResultV1Schema = z.discriminatedUnion("kind", [
     }),
     z.object({ kind: z.literal("rejected"), error })
 ]);
-export type MeetingCommandResultV1 = z.infer<typeof MeetingCommandResultV1Schema>;
+export type MeetingCommandResult = z.infer<typeof MeetingCommandResultSchema>;

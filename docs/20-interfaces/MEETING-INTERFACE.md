@@ -13,12 +13,12 @@ DSH/Remote transport 提供可信 caller binding；Meeting Runtime 是唯一业�
 ```ts
 type EpochMs = number;
 type OpaqueId = string;
-interface MeetingCommandV1 {
+interface MeetingCommand {
   protocolVersion: 1;
   meetingId: OpaqueId; // createMeeting 时必须为 "new"
   expectedMeetingVersion?: number; // create_meeting 为 0；SubmitReviewBatch 禁止携带；其余 action 必填
   requestId: OpaqueId;
-  action: MeetingActionV1;
+  action: MeetingAction;
 }
 interface CallerBinding {
   channel:
@@ -35,7 +35,7 @@ interface CallerBinding {
 除非另有说明，全部 action 只能在非 `terminal|archiving|archived` Meeting 执行。所有 `reason`、`rationale`、`text`、`title`、`question`、`description`、`body`、`instructions` 均为去首尾空白后的非空字符串；引用数组不得重复。引用数组默认不得为空；`RecordQuestion` 和 `RecordIssue` 的 affected 数组允许单组为空，但 blocking 必须满足下述明确的非空关联、`requiresEvidenceReview` 或 high 风险条件。
 
 ```ts
-type MeetingActionV1 =
+type MeetingAction =
   | CreateMeeting
   | PauseMeeting
   | ResumeMeeting
@@ -628,7 +628,7 @@ IDs and identityKey values supplied during creation must be locally unique and a
 ## Results, Errors And Precedence
 
 ```ts
-type MeetingCommandResultV1 =
+type MeetingCommandResult =
   MeetingCommandAcceptedV1 | MeetingCommandRejectedV1;
 interface MeetingCommandAcceptedV1 {
   kind: "accepted";
@@ -693,7 +693,7 @@ interface MeetingErrorV1 {
 interface ListMeetingsRequest {
   protocolVersion: 1;
 }
-interface MeetingSummaryV1 {
+interface MeetingSummary {
   meetingId: OpaqueId;
   version: number;
   objective: string;
@@ -748,7 +748,7 @@ interface ManagerCatalogView {
     suitability: Array<{ scope: string; rationale: string }>;
   }>;
 }
-interface MeetingViewV1 {
+interface MeetingView {
   meetingId: OpaqueId;
   version: number;
   objective: ObjectiveView;
@@ -850,7 +850,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
     interface TaskView { id: OpaqueId; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; status: "open" | "claimed" | "completed" | "cancelled" | "expired"; authorizationId: OpaqueId; authorizationStatus: "active" | "revoked" | "expired"; attempt: number; reassignedFromTaskId?: OpaqueId; deadlineAt?: EpochMs; result?: string; exitReason?: string; startedAt?: EpochMs; completedAt?: EpochMs }
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
-    type AllowedControl = MeetingActionV1["kind"];
+    type AllowedControl = MeetingAction["kind"];
 
 evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核；Manager 只读取 Contribution/Review 状态，不读取本轮证据正文、资料 ID 或评分。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
 
@@ -888,7 +888,7 @@ interface MeetingCommitV1 {
 type MeetingStateRecordV1 = MeetingState; // exact lossless JSON codec of meeting/domain aggregate
 interface CommittedFactRecordV1 {
   factId: OpaqueId;
-  kind: MeetingActionV1["kind"];
+  kind: MeetingAction["kind"];
   actorId: OpaqueId;
   occurredAt: EpochMs;
   meetingVersion: number;
@@ -923,7 +923,7 @@ interface ReceiptRecordV1 {
   meetingId: OpaqueId;
   principalId: OpaqueId;
   requestId: OpaqueId;
-  actionKind: MeetingActionV1["kind"];
+  actionKind: MeetingAction["kind"];
   normalizedPayloadHash: string;
   result: MeetingCommandAcceptedV1;
   committedVersion: number;
@@ -1033,7 +1033,7 @@ type AgentNoticePayloadV1 =
 
 ## Compatibility And Acceptance
 
-V1 不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。本轮 `MeetingActionV1`、`MeetingViewV1` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。V1 首次发布后，可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
+V1 不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。本轮 `MeetingAction`、`MeetingView` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。V1 首次发布后，可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
 
 1. TypeScript 实现可从本文声明每个 command、result、error 和 port，而无需 untyped 业务 payload。
 2. 每个 action 具有唯一 discriminant、确定字段、角色边界、原子成功结果和拒绝条件。

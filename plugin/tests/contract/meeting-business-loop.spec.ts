@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import {
-    MeetingActionV1Schema,
+    MeetingActionSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestV1Schema
 } from "@/protocol/meeting-command.js";
@@ -10,8 +10,8 @@ import {
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec.js";
 import {
-    MeetingActionV1Schema as PublicMeetingActionV1Schema,
-    MeetingCommandResultV1Schema as PublicMeetingCommandResultV1Schema,
+    MeetingActionSchema as PublicMeetingActionV1Schema,
+    MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
     serializeValidatedRequestV1
 } from "@/protocol/index.js";
 
@@ -156,7 +156,7 @@ describe("target Meeting business-loop protocol", () => {
         ];
         expect(actions).toHaveLength(16);
         for (const value of actions) {
-            const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
+            const parsed = MeetingActionSchema.parse({ ...value, forgedRuntimeField: "strip" });
             expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);
             expect(parsed).not.toHaveProperty("forgedRuntimeField");
         }
@@ -170,7 +170,7 @@ describe("target Meeting business-loop protocol", () => {
             ReadMeetingRequestV1Schema.parse({ protocolVersion: 1, meetingId: "meeting-1" })
         ).toEqual({ protocolVersion: 1, meetingId: "meeting-1" });
         expect(
-            MeetingActionV1Schema.safeParse({
+            MeetingActionSchema.safeParse({
                 kind: "record_archive_session_result",
                 sessionOwnershipId: "ownership-1",
                 status: "closed",
@@ -178,7 +178,7 @@ describe("target Meeting business-loop protocol", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingActionV1Schema.safeParse({
+            MeetingActionSchema.safeParse({
                 kind: "submit_review_batch",
                 roundId: "round-1",
                 claimId: "review-claim-1",

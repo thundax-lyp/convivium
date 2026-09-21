@@ -8,11 +8,11 @@ import {
 import type { MeetingAgentCatalog } from "@/dsh/index.js";
 import {
     ArchiveViewSchema,
-    MeetingSummaryV1Schema,
-    MeetingViewV1Schema,
+    MeetingSummarySchema,
+    MeetingViewSchema,
     type ArchiveView,
-    type MeetingSummaryV1,
-    type MeetingViewV1
+    type MeetingSummary,
+    type MeetingView
 } from "@/protocol/index.js";
 import type { MeetingSnapshot } from "@/repository/types.js";
 
@@ -98,9 +98,9 @@ function allowedControls(state: MeetingState, caller: MeetingProjectionCaller) {
     return [];
 }
 
-export function projectMeetingSummary(snapshot: MeetingSnapshot<MeetingState>): MeetingSummaryV1 {
+export function projectMeetingSummary(snapshot: MeetingSnapshot<MeetingState>): MeetingSummary {
     const active = snapshot.state.agenda.find(({ status }) => status === "active");
-    return MeetingSummaryV1Schema.parse({
+    return MeetingSummarySchema.parse({
         meetingId: snapshot.meetingId,
         version: snapshot.version,
         objective: snapshot.state.objective.statement,
@@ -128,7 +128,7 @@ export function projectMeetingView(
     snapshot: MeetingSnapshot<MeetingState>,
     caller: MeetingProjectionCaller,
     managerCatalog?: MeetingAgentCatalog
-): MeetingViewV1 {
+): MeetingView {
     const state = snapshot.state;
     const manager = hasRole(caller, "manager");
     const reviewer = hasRole(caller, "evidence_reviewer");
@@ -277,5 +277,5 @@ export function projectMeetingView(
             .map(copy),
         controls: [...allowedControls(state, caller)]
     };
-    return MeetingViewV1Schema.parse(result);
+    return MeetingViewSchema.parse(result);
 }

@@ -1,11 +1,11 @@
 import Schema from "@deepseek-ai/schemastery";
 import type {
-    MinutesDraftInputV1,
+    MinutesDraftInput,
     PublicMinutesDraftV1,
     AttendanceRecommendationClaim,
     KnownMeetingProtocolErrorCode,
-    MeetingAgentCatalogProjectionV1,
-    MeetingAgentCatalogSnapshotV1,
+    MeetingAgentCatalogProjection,
+    MeetingAgentCatalogSnapshot,
     PublicAttendanceRecommendationV1
 } from "./types.js";
 
@@ -118,13 +118,13 @@ const catalogSnapshotCandidateSchema = Schema.transform(
                 "agentDefinitionId",
                 "availability"
             ],
-            "MeetingAgentCatalogSnapshotV1.candidate"
+            "MeetingAgentCatalogSnapshot.candidate"
         );
         return value;
     }
 );
 
-export const MeetingAgentCatalogSnapshotSchema: Schema<unknown, MeetingAgentCatalogSnapshotV1> =
+export const MeetingAgentCatalogSnapshotSchema: Schema<unknown, MeetingAgentCatalogSnapshot> =
     Schema.transform(
         Schema.object({
             protocolVersion: ProtocolVersionSchema,
@@ -147,11 +147,11 @@ export const MeetingAgentCatalogSnapshotSchema: Schema<unknown, MeetingAgentCata
                     "roles",
                     "candidates"
                 ],
-                "MeetingAgentCatalogSnapshotV1"
+                "MeetingAgentCatalogSnapshot"
             );
-            return value as MeetingAgentCatalogSnapshotV1;
+            return value as MeetingAgentCatalogSnapshot;
         }
-    ) as Schema<unknown, MeetingAgentCatalogSnapshotV1>;
+    ) as Schema<unknown, MeetingAgentCatalogSnapshot>;
 
 const meetingAgentCandidateSchema = Schema.transform(
     Schema.object({
@@ -181,7 +181,7 @@ const meetingAgentCandidateSchema = Schema.transform(
                 "nonResponsibilities",
                 "availability"
             ],
-            "MeetingAgentCandidateV1"
+            "MeetingAgentCandidate"
         );
         return value;
     }
@@ -207,13 +207,13 @@ const managerResearchNeedSchema = Schema.transform(
                 "existingEvidenceIds",
                 "status"
             ],
-            "ManagerResearchNeedV1"
+            "ManagerResearchNeed"
         );
         return value;
     }
 );
 
-export const MeetingAgentCatalogProjectionSchema: Schema<unknown, MeetingAgentCatalogProjectionV1> =
+export const MeetingAgentCatalogProjectionSchema: Schema<unknown, MeetingAgentCatalogProjection> =
     Schema.transform(
         Schema.object({
             protocolVersion: ProtocolVersionSchema,
@@ -226,11 +226,11 @@ export const MeetingAgentCatalogProjectionSchema: Schema<unknown, MeetingAgentCa
             assertExactKeys(
                 value,
                 ["protocolVersion", "catalogId", "catalogVersion", "candidates", "researchNeeds"],
-                "MeetingAgentCatalogProjectionV1"
+                "MeetingAgentCatalogProjection"
             );
-            return value as MeetingAgentCatalogProjectionV1;
+            return value as MeetingAgentCatalogProjection;
         }
-    ) as Schema<unknown, MeetingAgentCatalogProjectionV1>;
+    ) as Schema<unknown, MeetingAgentCatalogProjection>;
 
 export const AttendanceRecommendationClaimSchema: Schema<unknown, AttendanceRecommendationClaim> =
     Schema.transform(
@@ -434,13 +434,13 @@ const minutesReferences = Schema.transform(Schema.array(requiredString()).requir
     return value;
 });
 
-export const MinutesDraftInputSchema: Schema<unknown, MinutesDraftInputV1> = Schema.transform(
+export const MinutesDraftInputSchema: Schema<unknown, MinutesDraftInput> = Schema.transform(
     Schema.object({
         coverage: minutesCoverage,
         referencedMessageIds: minutesReferences
     }).required(),
     (value) => {
-        assertExactKeys(value, ["coverage", "referencedMessageIds"], "MinutesDraftInputV1");
+        assertExactKeys(value, ["coverage", "referencedMessageIds"], "MinutesDraftInput");
         if (
             !value.coverage ||
             typeof value.coverage.fromSeq !== "number" ||
@@ -453,7 +453,7 @@ export const MinutesDraftInputSchema: Schema<unknown, MinutesDraftInputV1> = Sch
             referencedMessageIds: value.referencedMessageIds
         };
     }
-) as Schema<unknown, MinutesDraftInputV1>;
+) as Schema<unknown, MinutesDraftInput>;
 
 export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraftV1> = Schema.transform(
     Schema.object({

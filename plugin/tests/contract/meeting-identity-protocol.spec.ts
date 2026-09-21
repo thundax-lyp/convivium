@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MeetingCommandV1Schema } from "@/protocol/meeting-command.js";
+import { MeetingCommandSchema } from "@/protocol/meeting-command.js";
 import {
     IdentityViewSchema,
     IdentityRecommendationViewSchema,
@@ -24,7 +24,7 @@ const action = {
 describe("meeting identity protocol", () => {
     it("decodes both target actions and ignores unknown fields", () => {
         expect(
-            MeetingCommandV1Schema.parse({
+            MeetingCommandSchema.parse({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
                 expectedMeetingVersion: 1,
@@ -33,7 +33,7 @@ describe("meeting identity protocol", () => {
             }).action
         ).toMatchObject(action);
         expect(
-            MeetingCommandV1Schema.parse({
+            MeetingCommandSchema.parse({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
                 expectedMeetingVersion: 1,

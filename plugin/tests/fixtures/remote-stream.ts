@@ -3,7 +3,7 @@ import type {
     ConnectionGeneration,
     ConnectionHandle
 } from "@deepseek-ai/dsh-client-connection/client";
-import type { MeetingRefreshNoticeV1 } from "@/protocol/index.js";
+import type { MeetingRefreshNotice } from "@/protocol/index.js";
 import { loadRemoteClientModule } from "./remote-client.js";
 
 export function createControlledMeetingStream(
@@ -11,9 +11,9 @@ export function createControlledMeetingStream(
     initialNotice = true,
     createStream?: (
         connection: Pick<ConnectionHandle, "generation">,
-        options: RemoteStreamOptions<MeetingRefreshNoticeV1>,
+        options: RemoteStreamOptions<MeetingRefreshNotice>,
         Stream: typeof RemoteStream
-    ) => RemoteStream<MeetingRefreshNoticeV1>
+    ) => RemoteStream<MeetingRefreshNotice>
 ) {
     const { RemoteStream, RemoteStreamCarrierError } = loadRemoteClientModule();
     let id = 1;
@@ -30,17 +30,17 @@ export function createControlledMeetingStream(
             }
         }
     };
-    let deliver: ((value: MeetingRefreshNoticeV1) => void) | undefined;
+    let deliver: ((value: MeetingRefreshNotice) => void) | undefined;
     let fail: ((error: Error) => void) | undefined;
-    const options: RemoteStreamOptions<MeetingRefreshNoticeV1> = {
+    const options: RemoteStreamOptions<MeetingRefreshNotice> = {
         name: "convivium-test-updates",
         open(signal) {
-            const queue: MeetingRefreshNoticeV1[] = initialNotice ? [{ kind: "refresh" }] : [];
+            const queue: MeetingRefreshNotice[] = initialNotice ? [{ kind: "refresh" }] : [];
             let closed = false;
             let failure: Error | undefined;
             let pending:
                 | {
-                      resolve(value: IteratorResult<MeetingRefreshNoticeV1>): void;
+                      resolve(value: IteratorResult<MeetingRefreshNotice>): void;
                       reject(error: Error): void;
                   }
                 | undefined;
@@ -64,7 +64,7 @@ export function createControlledMeetingStream(
             };
             signal.addEventListener("abort", close, { once: true });
             if (signal.aborted) close();
-            const iterator: AsyncIterableIterator<MeetingRefreshNoticeV1> = {
+            const iterator: AsyncIterableIterator<MeetingRefreshNotice> = {
                 next() {
                     if (closed) return Promise.resolve({ done: true, value: undefined });
                     if (failure) return Promise.reject(failure);
@@ -92,7 +92,7 @@ export function createControlledMeetingStream(
         : new RemoteStream(connection, options);
     return {
         stream,
-        push(notice: MeetingRefreshNoticeV1 = { kind: "refresh" }) {
+        push(notice: MeetingRefreshNotice = { kind: "refresh" }) {
             deliver?.(notice);
         },
         disconnect() {

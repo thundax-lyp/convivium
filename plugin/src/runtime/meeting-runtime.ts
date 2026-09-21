@@ -13,7 +13,7 @@ import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { CreateMeetingInput, JsonObject } from "@/repository/types.js";
-import type { MeetingCommandResultV1 } from "@/protocol/index.js";
+import type { MeetingCommandResult } from "@/protocol/index.js";
 import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import type {
     CreateMeetingCommandV1,
@@ -194,7 +194,7 @@ function assertInitialTargetIdentities(
 export function createMeetingCreationCoordinatorV1(
     dependencies: TargetMeetingCreationDependenciesV1
 ): MeetingCreationCoordinatorV1 {
-    const inFlight = new Map<string, Promise<MeetingCommandResultV1>>();
+    const inFlight = new Map<string, Promise<MeetingCommandResult>>();
     const stableId = (kind: string, meetingId: string, key: string) =>
         `${kind}-${sha256Hex(encodeCanonicalJson([meetingId, kind, key])).slice(0, 32)}`;
     const coordinator: MeetingCreationCoordinatorV1 = {
@@ -223,7 +223,7 @@ export function createMeetingCreationCoordinatorV1(
                         requestHash
                     });
                     if (replay !== undefined)
-                        return replay.result as unknown as MeetingCommandResultV1;
+                        return replay.result as unknown as MeetingCommandResult;
                 } catch (error) {
                     if (!(error instanceof RepositoryError) || error.code !== "MEETING_NOT_FOUND")
                         throw error;
@@ -304,7 +304,7 @@ export function createMeetingCreationCoordinatorV1(
                 });
                 const recovered = await repository.recover();
                 if (recovered.bootstrap.status === "ready")
-                    return recovered.bootstrap.createResult as unknown as MeetingCommandResultV1;
+                    return recovered.bootstrap.createResult as unknown as MeetingCommandResult;
                 const owned = [] as Awaited<ReturnType<typeof repository.recordSessionOwnership>>[];
                 try {
                     for (const identity of identities) {
@@ -380,7 +380,7 @@ export function createMeetingCreationCoordinatorV1(
                         );
                     }
                     const committed = await repository.completeCreate(createInput);
-                    return committed.result as unknown as MeetingCommandResultV1;
+                    return committed.result as unknown as MeetingCommandResult;
                 } catch (error) {
                     await repository.updateBootstrap({
                         status: "creation_failed",

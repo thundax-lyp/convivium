@@ -1,12 +1,12 @@
 import { createElement, type ReactElement } from "react";
-import type { MeetingReadResultV1, MeetingSummaryV1 } from "@/protocol/index.js";
+import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import { renderObservabilitySections } from "./meeting-panel-sections.js";
 
 export interface MeetingPanelLayoutProps {
-    meetings: readonly MeetingSummaryV1[];
+    meetings: readonly MeetingSummary[];
     selectedId?: string;
-    detail?: MeetingReadResultV1;
+    detail?: MeetingReadResult;
     listCached: boolean;
     detailCached: boolean;
     listError?: string;

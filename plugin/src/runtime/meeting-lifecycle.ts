@@ -3,8 +3,8 @@ import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
 import type { Config } from "@/config.js";
 import type { MeetingState } from "@/domain/index.js";
-import type { MeetingCommandV1, ReadMeetingRequestV1 } from "@/protocol/index.js";
-import { MeetingCommandResultV1Schema } from "@/protocol/index.js";
+import type { MeetingCommand, ReadMeetingRequestV1 } from "@/protocol/index.js";
+import { MeetingCommandResultSchema } from "@/protocol/index.js";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
 import {
     decodeMeetingStateV1,
@@ -445,9 +445,9 @@ export async function activateTargetMeetingApplicationV1(
             if (!snapshot) throw new Error("Meeting is not ready.");
             return projectMeetingView(snapshot, { kind: "local" });
         },
-        async control(command: MeetingCommandV1, signal: AbortSignal) {
+        async control(command: MeetingCommand, signal: AbortSignal) {
             if (!["pause_meeting", "resume_meeting", "end_meeting"].includes(command.action.kind))
-                return MeetingCommandResultV1Schema.parse({
+                return MeetingCommandResultSchema.parse({
                     kind: "rejected",
                     error: {
                         code: "UNAUTHORIZED",

@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/index.js";
-import {
-    MeetingCommandResultV1Schema,
-    MeetingCommandV1Schema
-} from "@/protocol/meeting-command.js";
+import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.js";
 import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
@@ -32,7 +29,7 @@ describe("target Meeting command core", () => {
     });
 
     it("rejects unknown command kinds and invalid envelopes", () => {
-        expect(MeetingCommandV1Schema.safeParse({ kind: "unknown" }).success).toBe(false);
+        expect(MeetingCommandSchema.safeParse({ kind: "unknown" }).success).toBe(false);
     });
 
     it("requires the create envelope to use meetingId new and version zero", () => {
@@ -58,7 +55,7 @@ describe("target Meeting command core", () => {
             }
         };
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId: "existing",
                 expectedMeetingVersion: 99,
@@ -67,7 +64,7 @@ describe("target Meeting command core", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId: "new",
                 expectedMeetingVersion: 0,
@@ -120,9 +117,9 @@ describe("target Meeting command core", () => {
                 ]
             }
         };
-        expect(MeetingCommandV1Schema.safeParse(review).success).toBe(true);
+        expect(MeetingCommandSchema.safeParse(review).success).toBe(true);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...review,
                 action: { kind: "open_round", agendaId: "agenda-v1", planId: "plan-v1" }
             }).success
@@ -137,13 +134,13 @@ describe("target Meeting command core", () => {
             requestId: "delivery-1"
         };
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: { kind: "record_review_delivery", reviewId: "review-1", status: "sent" }
             }).success
         ).toBe(true);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: {
                     kind: "record_review_delivery",
@@ -153,7 +150,7 @@ describe("target Meeting command core", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingCommandV1Schema.safeParse({
+            MeetingCommandSchema.safeParse({
                 ...envelope,
                 action: {
                     kind: "record_review_delivery",
@@ -256,7 +253,7 @@ describe("target Meeting command application creation", () => {
             clock: { now: () => 11 },
             resolveCallerScope: vi.fn()
         });
-        const command = MeetingCommandV1Schema.parse({
+        const command = MeetingCommandSchema.parse({
             protocolVersion: 1,
             meetingId: "new",
             expectedMeetingVersion: 0,
@@ -427,12 +424,12 @@ describe("target Meeting command application transitions", () => {
             effects: [{ kind: "archive", status: "queued" }]
         });
         expect(result.kind === "accepted" && result.effects).toHaveLength(1);
-        expect(MeetingCommandResultV1Schema.safeParse(result).success).toBe(true);
+        expect(MeetingCommandResultSchema.safeParse(result).success).toBe(true);
     });
 
     it("lets the repository replay an archive result before checking mutable ownership", async () => {
         const state = { ...makeRunningMeetingStateV1(), lifecycle: "archiving" as const };
-        const replayed: MeetingCommandResultV1 = {
+        const replayed: MeetingCommandResult = {
             kind: "accepted",
             meetingId: state.id,
             committedVersion: 2,

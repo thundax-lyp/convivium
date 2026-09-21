@@ -15,7 +15,7 @@ type LegacyMeetingStatus =
 export type ProtocolVersion = 1;
 
 /** Ephemeral invalidation signal; the consumer must refetch complete facts. */
-export interface MeetingRefreshNoticeV1 {
+export interface MeetingRefreshNotice {
     readonly kind: "refresh";
 }
 
@@ -25,13 +25,13 @@ export interface ProtocolMeta {
     meetingVersion: number;
 }
 
-export interface MeetingMailboxRecipientV1 {
+export interface MeetingMailboxRecipient {
     kind: "meeting_participant";
     meetingId: string;
     participantId: string;
 }
 
-export interface MeetingMailContextV1 {
+export interface MeetingMailContext {
     meetingId: string;
     agendaItemId?: string;
     contextFromSeq: number;
@@ -40,9 +40,9 @@ export interface MeetingMailContextV1 {
     snapshotSummary?: string;
 }
 
-export interface MeetingMailExtensionV1 {
-    recipient: MeetingMailboxRecipientV1;
-    meetingContext: MeetingMailContextV1;
+export interface MeetingMailExtension {
+    recipient: MeetingMailboxRecipient;
+    meetingContext: MeetingMailContext;
     replyToMailId?: string;
 }
 
@@ -65,9 +65,9 @@ export interface SendMeetingMessageInputV1 {
     meetingId: string;
     expectedMeetingVersion: number;
     requestId: string;
-    recipient: MeetingMailboxRecipientV1;
+    recipient: MeetingMailboxRecipient;
     content: string;
-    meetingContext: MeetingMailContextV1;
+    meetingContext: MeetingMailContext;
     replyToMailId?: string;
 }
 
@@ -81,7 +81,7 @@ export interface FinishMeetingMailInput {
     status: "processed" | "obsolete" | "failed";
 }
 
-export interface MeetingMailResultV1 {
+export interface MeetingMailResult {
     mailId: string;
     handlingAttemptId: string;
     status: MailHandlingStatus;
@@ -95,7 +95,7 @@ export interface ParticipantSpecV1 {
     role?: string;
 }
 
-export interface ObjectiveContractSpecV1 {
+export interface ObjectiveContractSpec {
     requiredOutputs: readonly { key: string; description: string }[];
     acceptanceCriteria: readonly { key: string; description: string }[];
     hardConstraints: readonly { key: string; description: string }[];
@@ -134,7 +134,7 @@ export interface CreateMeetingInput {
     teamId: string;
     topic: string;
     objective: string;
-    objectiveContract: ObjectiveContractSpecV1;
+    objectiveContract: ObjectiveContractSpec;
     agenda: readonly AgendaItemSpec[];
     participants: readonly ParticipantSpecV1[];
     continuation?: ContinuationSelection;
@@ -152,7 +152,7 @@ export interface CreateMeetingResult {
     }[];
 }
 
-export interface MeetingStatusInputV1 {
+export interface MeetingStatusInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
 }
@@ -191,7 +191,7 @@ export interface ResumeMeetingInputV1 {
     requestId: string;
 }
 
-export interface MeetingControlResultV1 {
+export interface MeetingControlResult {
     status: "paused" | "running" | "waiting";
     changed: boolean;
 }
@@ -297,10 +297,10 @@ export interface EndMeetingInput {
     requestId: string;
 }
 
-export type MeetingTaskStatusV1 =
+export type MeetingTaskStatus =
     "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
 
-export interface MeetingTaskRequestV1 {
+export interface MeetingTaskRequest {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     attemptId: string;
@@ -310,20 +310,20 @@ export interface MeetingTaskRequestV1 {
     blocking: boolean;
 }
 
-export interface MeetingTaskResultV1 {
+export interface MeetingTaskResult {
     requestId: string;
     meetingTaskId: string;
     participantId: string;
     originatingSpeakerAttemptId: string;
-    status: MeetingTaskStatusV1;
+    status: MeetingTaskStatus;
 }
 
-export interface MeetingTaskProjectionV1 {
+export interface MeetingTaskProjection {
     meetingTaskId: string;
     participantId: string;
     title: string;
     blocking: boolean;
-    status: MeetingTaskStatusV1;
+    status: MeetingTaskStatus;
     resultSummary?: string;
     failureReason?: string;
     createdAt: number;
@@ -332,30 +332,30 @@ export interface MeetingTaskProjectionV1 {
     finishedAt?: number;
 }
 
-export interface MeetingTaskStatusInputV1 {
+export interface MeetingTaskStatusInput {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     meetingTaskId: string;
 }
 
-export interface MeetingTaskStatusResultV1 {
-    task: MeetingTaskProjectionV1;
+export interface MeetingTaskStatusResult {
+    task: MeetingTaskProjection;
     observedMeetingVersion: number;
     meetingTerminal: boolean;
     mayExecute: boolean;
 }
 
-export interface MeetingTaskStartInputV1 extends MeetingTaskStatusInputV1 {
+export interface MeetingTaskStartInput extends MeetingTaskStatusInput {
     requestId: string;
 }
 
-export interface MeetingTaskStartResultV1 {
+export interface MeetingTaskStartResult {
     requestId: string;
     meetingTaskId: string;
     status: "running";
 }
 
-export interface MeetingTaskFinishInputV1 extends MeetingTaskStatusInputV1 {
+export interface MeetingTaskFinishInput extends MeetingTaskStatusInput {
     requestId: string;
     executionId: string;
     status: "completed" | "failed";
@@ -363,7 +363,7 @@ export interface MeetingTaskFinishInputV1 extends MeetingTaskStatusInputV1 {
     failureReason?: string;
 }
 
-export interface MeetingTaskFinishResultV1 {
+export interface MeetingTaskFinishResult {
     requestId: string;
     meetingTaskId: string;
     status: "completed" | "failed";
@@ -490,7 +490,7 @@ export interface PublicRiskV1 {
 export interface AuthorizedTaskResult {
     meetingTaskId: string;
     executionId?: string;
-    status: MeetingTaskStatusV1;
+    status: MeetingTaskStatus;
     resultSummary?: string;
     observedAt: number;
 }
@@ -526,12 +526,12 @@ export interface ManagerMeetingContext {
     dispatchableParticipantIds: readonly string[];
     recentPublicMessages: readonly PublicMeetingMessageV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
-    meetingTasks: readonly MeetingTaskProjectionV1[];
+    meetingTasks: readonly MeetingTaskProjection[];
     pendingHandRaises: readonly PublicHandRaiseV1[];
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     limits: PublicMeetingLimitsV1;
     planningReason: string;
-    agentCatalog: MeetingAgentCatalogProjectionV1 | null;
+    agentCatalog: MeetingAgentCatalogProjection | null;
 }
 
 export interface PublicBlockingFactV1 {
@@ -580,7 +580,7 @@ export type PublicMessageKind =
     | "summary"
     | "decision";
 
-export interface MinutesDraftInputV1 {
+export interface MinutesDraftInput {
     readonly coverage: {
         readonly fromSeq: number;
         readonly throughSeq: number;
@@ -588,7 +588,7 @@ export interface MinutesDraftInputV1 {
     readonly referencedMessageIds: readonly string[];
 }
 
-export interface PublicMinutesDraftV1 extends MinutesDraftInputV1 {
+export interface PublicMinutesDraftV1 extends MinutesDraftInput {
     readonly status: "draft";
 }
 
@@ -632,7 +632,7 @@ export interface AgentRoleDefinition {
     nonResponsibilities: readonly string[];
 }
 
-export interface MeetingAgentCatalogSnapshotV1 {
+export interface MeetingAgentCatalogSnapshot {
     protocolVersion: 1;
     catalogId: string;
     catalogVersion: string;
@@ -649,7 +649,7 @@ export interface MeetingAgentCatalogSnapshotV1 {
     }[];
 }
 
-export interface MeetingAgentCandidateV1 {
+export interface MeetingAgentCandidate {
     candidateId: string;
     roleDefinitionId: AgentRoleDefinitionId;
     roleDefinitionVersion: string;
@@ -662,7 +662,7 @@ export interface MeetingAgentCandidateV1 {
     availability: "available" | "unavailable";
 }
 
-export interface ManagerResearchNeedV1 {
+export interface ManagerResearchNeed {
     evidenceGapId: string;
     agendaItemId: string;
     question: string;
@@ -671,12 +671,12 @@ export interface ManagerResearchNeedV1 {
     status: "open" | "stale" | "satisfied";
 }
 
-export interface MeetingAgentCatalogProjectionV1 {
+export interface MeetingAgentCatalogProjection {
     protocolVersion: 1;
     catalogId: string;
     catalogVersion: string;
-    candidates: readonly MeetingAgentCandidateV1[];
-    researchNeeds: readonly ManagerResearchNeedV1[];
+    candidates: readonly MeetingAgentCandidate[];
+    researchNeeds: readonly ManagerResearchNeed[];
 }
 
 /** Captain-only rejection; approval and Participant admission are not implemented. */
@@ -749,7 +749,7 @@ export interface TurnSubmissionV1 {
         "on_topic" | "supporting_context" | "new_topic_candidate" | "blocking_interrupt";
     changes: PublicMeetingChangesV1;
     completionClaims?: CompletionClaims;
-    minutesDraft?: MinutesDraftInputV1;
+    minutesDraft?: MinutesDraftInput;
 }
 
 export interface PublicMeetingChangesV1 {
@@ -958,12 +958,12 @@ export type KnownMeetingProtocolErrorCode =
     | "PARTICIPANT_PROVISIONING_FAILED"
     | "INTERNAL_ERROR";
 
-export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCode | (string & {});
+export type MeetingProtocolErrorCode = KnownMeetingProtocolErrorCode | (string & {});
 
 export interface ProtocolErrorV1 {
     protocolVersion: ProtocolVersion;
     ok: false;
-    code: MeetingProtocolErrorCodeV1;
+    code: MeetingProtocolErrorCode;
     message: string;
     meetingId?: string;
     meetingVersion?: number;

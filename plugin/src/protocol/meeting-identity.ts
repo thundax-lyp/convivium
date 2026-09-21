@@ -3,8 +3,8 @@ import { z } from "zod";
 const id = z.string().trim().min(1);
 const text = z.string().trim().min(1);
 const role = z.enum(["captain", "manager", "contributor", "evidence_reviewer"]);
-export const MeetingRoleV1Schema = role;
-export type MeetingRoleV1 = z.infer<typeof role>;
+export const MeetingRoleSchema = role;
+export type MeetingRole = z.infer<typeof role>;
 
 export const RoleErrorCodeV1Schema = z.enum([
     "INVALID_ARGUMENT",

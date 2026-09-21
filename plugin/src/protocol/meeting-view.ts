@@ -587,7 +587,7 @@ export const AllowedControlSchema = z.enum([
     "record_identity_admission_result"
 ]);
 
-export const MeetingSummaryV1Schema = z.object({
+export const MeetingSummarySchema = z.object({
     meetingId: id,
     version: z.number().int().nonnegative(),
     objective: text,
@@ -596,7 +596,7 @@ export const MeetingSummaryV1Schema = z.object({
     updatedAt: epoch,
     unavailableReason: text.optional()
 });
-export const MeetingViewV1Schema = z.object({
+export const MeetingViewSchema = z.object({
     meetingId: id,
     version: z.number().int().nonnegative(),
     objective: ObjectiveViewV1Schema,
@@ -622,8 +622,8 @@ export const MeetingViewV1Schema = z.object({
     privateMail: z.array(PrivateMailViewV1Schema),
     controls: z.array(AllowedControlSchema)
 });
-export const MeetingListResultV1Schema = z.object({ meetings: z.array(MeetingSummaryV1Schema) });
-export const MeetingReadResultV1Schema = MeetingViewV1Schema;
+export const MeetingListResultSchema = z.object({ meetings: z.array(MeetingSummarySchema) });
+export const MeetingReadResultSchema = MeetingViewSchema;
 export const RefreshNoticeV1Schema = z.object({
     kind: z.literal("refresh"),
     meetingId: id,
@@ -667,8 +667,8 @@ export type IdentityRecommendationView = z.infer<typeof IdentityRecommendationVi
 export type ManagerCatalogView = z.infer<typeof ManagerCatalogViewSchema>;
 export type AllowedControl = z.infer<typeof AllowedControlSchema>;
 export type ArchiveView = z.infer<typeof ArchiveViewSchema>;
-export type MeetingSummaryV1 = z.infer<typeof MeetingSummaryV1Schema>;
-export type MeetingViewV1 = z.infer<typeof MeetingViewV1Schema>;
-export type MeetingListResultV1 = z.infer<typeof MeetingListResultV1Schema>;
-export type MeetingReadResultV1 = z.infer<typeof MeetingReadResultV1Schema>;
+export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
+export type MeetingView = z.infer<typeof MeetingViewSchema>;
+export type MeetingListResult = z.infer<typeof MeetingListResultSchema>;
+export type MeetingReadResult = z.infer<typeof MeetingReadResultSchema>;
 export type RefreshNoticeV1 = z.infer<typeof RefreshNoticeV1Schema>;

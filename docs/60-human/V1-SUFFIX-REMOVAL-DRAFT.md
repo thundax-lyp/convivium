@@ -6,61 +6,21 @@
 
 | 模块 | 名称数 |
 | --- | ---: |
-| `protocol` | 120 |
+| `protocol` | 80 |
 | `repository` | 23 |
 | `role-composition` | 6 |
 | `runtime` | 37 |
 | `tools` | 1 |
-| 合计（按模块去重） | 187 |
+| 合计（按模块去重） | 147 |
 
-声明出现次数：187
+声明出现次数：147
 
-全局唯一名称数：187
+全局唯一名称数：147
 
 ## protocol
 
 | 当前名称 | 删除后名称 |
 | --- | --- |
-| `ManagerResearchNeedV1` | `ManagerResearchNeed` |
-| `MeetingActionV1` | `MeetingAction` |
-| `MeetingActionV1Schema` | `MeetingActionSchema` |
-| `MeetingAgentCandidateV1` | `MeetingAgentCandidate` |
-| `MeetingAgentCatalogProjectionV1` | `MeetingAgentCatalogProjection` |
-| `MeetingAgentCatalogSnapshotV1` | `MeetingAgentCatalogSnapshot` |
-| `MeetingCommandResultV1` | `MeetingCommandResult` |
-| `MeetingCommandResultV1Schema` | `MeetingCommandResultSchema` |
-| `MeetingCommandV1` | `MeetingCommand` |
-| `MeetingCommandV1Schema` | `MeetingCommandSchema` |
-| `MeetingControlResultV1` | `MeetingControlResult` |
-| `MeetingListResultV1` | `MeetingListResult` |
-| `MeetingListResultV1Schema` | `MeetingListResultSchema` |
-| `MeetingMailContextV1` | `MeetingMailContext` |
-| `MeetingMailExtensionV1` | `MeetingMailExtension` |
-| `MeetingMailResultV1` | `MeetingMailResult` |
-| `MeetingMailboxRecipientV1` | `MeetingMailboxRecipient` |
-| `MeetingProtocolErrorCodeV1` | `MeetingProtocolErrorCode` |
-| `MeetingReadResultV1` | `MeetingReadResult` |
-| `MeetingReadResultV1Schema` | `MeetingReadResultSchema` |
-| `MeetingRefreshNoticeV1` | `MeetingRefreshNotice` |
-| `MeetingRoleV1` | `MeetingRole` |
-| `MeetingRoleV1Schema` | `MeetingRoleSchema` |
-| `MeetingStatusInputV1` | `MeetingStatusInput` |
-| `MeetingSummaryV1` | `MeetingSummary` |
-| `MeetingSummaryV1Schema` | `MeetingSummarySchema` |
-| `MeetingTaskFinishInputV1` | `MeetingTaskFinishInput` |
-| `MeetingTaskFinishResultV1` | `MeetingTaskFinishResult` |
-| `MeetingTaskProjectionV1` | `MeetingTaskProjection` |
-| `MeetingTaskRequestV1` | `MeetingTaskRequest` |
-| `MeetingTaskResultV1` | `MeetingTaskResult` |
-| `MeetingTaskStartInputV1` | `MeetingTaskStartInput` |
-| `MeetingTaskStartResultV1` | `MeetingTaskStartResult` |
-| `MeetingTaskStatusInputV1` | `MeetingTaskStatusInput` |
-| `MeetingTaskStatusResultV1` | `MeetingTaskStatusResult` |
-| `MeetingTaskStatusV1` | `MeetingTaskStatus` |
-| `MeetingViewV1` | `MeetingView` |
-| `MeetingViewV1Schema` | `MeetingViewSchema` |
-| `MinutesDraftInputV1` | `MinutesDraftInput` |
-| `ObjectiveContractSpecV1` | `ObjectiveContractSpec` |
 | `ObjectiveViewV1` | `ObjectiveView` |
 | `ObjectiveViewV1Schema` | `ObjectiveViewSchema` |
 | `OpenRoundActionV1Schema` | `OpenRoundActionSchema` |
