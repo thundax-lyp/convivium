@@ -17,10 +17,10 @@ import type { MeetingCommandResult } from "@/protocol/index.js";
 import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import type {
     CreateMeetingCommand,
-    MeetingCreationCoordinatorV1
+    MeetingCreationCoordinator
 } from "@/runtime/application-service/meeting-command.js";
 
-export interface TargetMeetingCreationDependenciesV1 {
+export interface TargetMeetingCreationDependencies {
     readonly registry: DomainRepositoryRegistry<MeetingState>;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
@@ -191,13 +191,13 @@ function assertInitialTargetIdentities(
             throw new RoleCompositionError();
 }
 
-export function createMeetingCreationCoordinatorV1(
-    dependencies: TargetMeetingCreationDependenciesV1
-): MeetingCreationCoordinatorV1 {
+export function createMeetingCreationCoordinator(
+    dependencies: TargetMeetingCreationDependencies
+): MeetingCreationCoordinator {
     const inFlight = new Map<string, Promise<MeetingCommandResult>>();
     const stableId = (kind: string, meetingId: string, key: string) =>
         `${kind}-${sha256Hex(encodeCanonicalJson([meetingId, kind, key])).slice(0, 32)}`;
-    const coordinator: MeetingCreationCoordinatorV1 = {
+    const coordinator: MeetingCreationCoordinator = {
         async create(command, context, meetingId, now, signal) {
             const parent = context.captainParent;
             if (!parent || context.caller.principalId !== String(parent.id))

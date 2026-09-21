@@ -4,7 +4,7 @@ import type { MeetingState } from "@/domain/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RepositoryCommand } from "@/repository/types.js";
-import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
 import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity.js";
 
 const managerCaller = {
@@ -39,7 +39,7 @@ function managerScope() {
 describe("meeting identity command", () => {
     it("rejects an untrusted caller before repository execution", async () => {
         const openMeeting = vi.fn();
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: { openMeeting } as unknown as DomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
@@ -106,7 +106,7 @@ describe("meeting identity command", () => {
             execute,
             replayReceipt: async () => undefined
         } as unknown as MeetingRepositoryPort<MeetingState>;
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
@@ -210,7 +210,7 @@ describe("meeting identity command", () => {
             kind: "unavailable" as const,
             error: { code: "CATALOG_NOT_FOUND" as const, message: "Catalog unavailable" }
         }));
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)

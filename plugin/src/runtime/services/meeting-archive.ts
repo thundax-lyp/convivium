@@ -148,7 +148,7 @@ const context = {
     }
 };
 
-export function createMeetingArchiveDispatcherV1(
+export function createMeetingArchiveDispatcher(
     dependencies: MeetingArchiveDispatcherDependencies
 ): { dispatch(input: DispatchArchiveCleanupInput): Promise<void> } {
     async function recordResult(

@@ -33,7 +33,7 @@ export interface OutboxWorkerOptions {
     readonly sleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
 
-export type MeetingOutboxWakeupV1 = Pick<ReturnType<typeof createOutboxWorker>, "wake">;
+export type MeetingOutboxWakeup = Pick<ReturnType<typeof createOutboxWorker>, "wake">;
 
 export interface OutboxPollResult {
     readonly claimed: number;

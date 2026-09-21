@@ -10,30 +10,30 @@ import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meet
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import {
-    createMeetingCommandApplicationV1,
+    createMeetingCommandApplication,
     DEADLINE_HANDLER_PRINCIPAL_ID,
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
 } from "./application-service/meeting-command.js";
-import { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
-import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
+import { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
+import { createMeetingCreationCoordinator } from "./meeting-runtime.js";
 import { requireContinuableProvider, type RoleCatalogPort } from "@/dsh/index.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
-import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch.js";
-import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js";
+import { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
+import { createMeetingArchiveDispatcher } from "./services/meeting-archive.js";
 import {
-    createEvidenceReviewDispatcherV1,
-    createReviewDeliveryDispatcherV1
+    createEvidenceReviewDispatcher,
+    createReviewDeliveryDispatcher
 } from "./services/evidence-review-dispatch.js";
-import { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";
-import type { MeetingIdentityProvisionDependenciesV1 } from "./services/meeting-identity-provision.js";
+import { provisionMeetingIdentity } from "./services/meeting-identity-provision.js";
+import type { MeetingIdentityProvisionDependencies } from "./services/meeting-identity-provision.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 
-export function createTargetMeetingEffectDispatcherV1(dependencies: {
+export function createTargetMeetingEffectDispatcher(dependencies: {
     readonly parent: Agent;
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
     readonly notice: {
@@ -97,7 +97,7 @@ export function createTargetMeetingEffectDispatcherV1(dependencies: {
     };
 }
 
-export async function recoverTargetMeetingDeliveriesV1(dependencies: {
+export async function recoverTargetMeetingDeliveries(dependencies: {
     readonly registry: Pick<DomainRepositoryRegistry<MeetingState>, "listMeetings" | "openMeeting">;
     readonly agents: Pick<Context["agents"], "get">;
     readonly ensureDelivery: (meetingId: string, parent: Agent) => void | Promise<void>;
@@ -120,11 +120,11 @@ export async function recoverTargetMeetingDeliveriesV1(dependencies: {
     }
 }
 
-function createIdentityProvisionOwnerV1(dependencies: {
+function createIdentityProvisionOwner(dependencies: {
     readonly repository: MeetingRepositoryPort<MeetingState>;
     readonly sessions: Context["subagents"];
     readonly parent: Agent;
-}): MeetingIdentityProvisionDependenciesV1["owner"] {
+}): MeetingIdentityProvisionDependencies["owner"] {
     const { repository, sessions, parent } = dependencies;
     return {
         async readOwnership(admissionId) {
@@ -202,7 +202,7 @@ const deliveryEnsurers = new WeakMap<
     (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => void
 >();
 
-export function ensureTargetMeetingDeliveryV1(
+export function ensureTargetMeetingDelivery(
     owner: object,
     meetingId: string,
     parent: import("@deepseek-ai/dsh-agent").Agent
@@ -235,13 +235,13 @@ function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">):
         throw new Error("Convivium requires the exact seven enabled Meeting role definitions.");
 }
 
-export function getMeetingCommandApplicationV1(owner: object): MeetingCommandApplication {
+export function getMeetingCommandApplication(owner: object): MeetingCommandApplication {
     const application = applications.get(owner);
     if (!application) throw new Error("Target Meeting application is not active.");
     return application;
 }
 
-export function getLocalMeetingWebRuntimeV1(
+export function getLocalMeetingWebRuntime(
     owner: object
 ): LocalMeetingWebRuntime & MeetingOwnershipLookup {
     const runtime = runtimes.get(owner);
@@ -249,7 +249,7 @@ export function getLocalMeetingWebRuntimeV1(
     return runtime;
 }
 
-export async function activateTargetMeetingApplicationV1(
+export async function activateTargetMeetingApplication(
     ctx: Context,
     config: Config
 ): Promise<() => Promise<void>> {
@@ -317,13 +317,13 @@ export async function activateTargetMeetingApplicationV1(
             ownership
         };
     };
-    const application = createMeetingCommandApplicationV1({
+    const application = createMeetingCommandApplication({
         registry,
         ids,
         clock: { now: Date.now },
         resolveCallerScope,
         ...(catalog === undefined ? {} : { catalog }),
-        creation: createMeetingCreationCoordinatorV1({
+        creation: createMeetingCreationCoordinator({
             registry,
             definitions,
             agentModelOverrides: config.agentModelOverrides,
@@ -340,37 +340,37 @@ export async function activateTargetMeetingApplicationV1(
             existing.wake();
             return;
         }
-        const notice = createMeetingNoticeDispatcherV1({
+        const notice = createMeetingNoticeDispatcher({
             sessions: ctx.subagents,
             repository
         });
-        const archive = createMeetingArchiveDispatcherV1({
+        const archive = createMeetingArchiveDispatcher({
             sessions: ctx.subagents,
             repository,
             application
         });
-        const review = createEvidenceReviewDispatcherV1({
+        const review = createEvidenceReviewDispatcher({
             sessions: ctx.subagents,
             repository,
             application,
             clock: { now: Date.now }
         });
-        const reviewDelivery = createReviewDeliveryDispatcherV1({
+        const reviewDelivery = createReviewDeliveryDispatcher({
             sessions: ctx.subagents,
             repository,
             application
         });
-        const identityOwner = createIdentityProvisionOwnerV1({
+        const identityOwner = createIdentityProvisionOwner({
             repository,
             sessions: ctx.subagents,
             parent
         });
-        const identity = createMeetingIdentityEffectHandlerV1({
+        const identity = createMeetingIdentityEffectHandler({
             application,
             repository,
             definitions,
             provision: (input) =>
-                provisionMeetingIdentityV1(input, {
+                provisionMeetingIdentity(input, {
                     definitions,
                     agentModelOverrides: config.agentModelOverrides,
                     parent,
@@ -384,7 +384,7 @@ export async function activateTargetMeetingApplicationV1(
                 if (ownership !== undefined) await identityOwner.revokeAndDrainOwned(ownership);
             }
         });
-        const dispatch = createTargetMeetingEffectDispatcherV1({
+        const dispatch = createTargetMeetingEffectDispatcher({
             parent,
             identity,
             notice,
@@ -406,7 +406,7 @@ export async function activateTargetMeetingApplicationV1(
     deliveryEnsurers.set(ctx, (meetingId, parent) => {
         void ensureDelivery(meetingId, parent);
     });
-    await recoverTargetMeetingDeliveriesV1({
+    await recoverTargetMeetingDeliveries({
         registry,
         agents: ctx.agents,
         ensureDelivery
@@ -416,7 +416,7 @@ export async function activateTargetMeetingApplicationV1(
             on?: (event: "agent/created", listener: (agent: Agent) => void) => unknown;
         }
     ).on?.("agent/created", () => {
-        void recoverTargetMeetingDeliveriesV1({
+        void recoverTargetMeetingDeliveries({
             registry,
             agents: ctx.agents,
             ensureDelivery

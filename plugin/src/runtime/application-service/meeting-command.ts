@@ -62,7 +62,7 @@ export type CreateMeetingCommand = Omit<MeetingCommand, "action"> & {
     action: Extract<MeetingAction, { kind: "create_meeting" }>;
 };
 
-export interface MeetingCreationCoordinatorV1 {
+export interface MeetingCreationCoordinator {
     create(
         command: CreateMeetingCommand,
         context: MeetingCommandExecutionContext,
@@ -72,7 +72,7 @@ export interface MeetingCreationCoordinatorV1 {
     ): Promise<MeetingCommandResult>;
 }
 
-export interface ResolvedCallerScopeV1 {
+export interface ResolvedCallerScope {
     caller: CallerBinding;
     meetingId: string;
     identityId?: string;
@@ -80,10 +80,10 @@ export interface ResolvedCallerScopeV1 {
     ownership?: SessionOwnership;
 }
 
-export type ResolveCallerScopeV1 = (input: {
+export type ResolveCallerScope = (input: {
     meetingId: string;
     caller: CallerBinding;
-}) => Promise<ResolvedCallerScopeV1 | undefined>;
+}) => Promise<ResolvedCallerScope | undefined>;
 
 export interface MeetingCommandApplication {
     execute(
@@ -94,11 +94,11 @@ export interface MeetingCommandApplication {
 }
 
 export interface MeetingCommandApplicationDependencies {
-    creation: MeetingCreationCoordinatorV1;
+    creation: MeetingCreationCoordinator;
     registry: DomainRepositoryRegistry<MeetingState>;
     ids: { nextId(kind: string): string };
     clock: { now(): number };
-    resolveCallerScope: ResolveCallerScopeV1;
+    resolveCallerScope: ResolveCallerScope;
     catalog?: RoleCatalogPort;
 }
 
@@ -136,7 +136,7 @@ function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
     );
 }
 
-function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScopeV1): boolean {
+function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean {
     if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
         return scope.role === "local";
     if (
@@ -167,8 +167,8 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
 function validScope(
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
-    scope: ResolvedCallerScopeV1 | undefined
-): scope is ResolvedCallerScopeV1 {
+    scope: ResolvedCallerScope | undefined
+): scope is ResolvedCallerScope {
     if (
         !scope ||
         scope.meetingId !== command.meetingId ||
@@ -204,7 +204,7 @@ function validScope(
     );
 }
 
-function authorization(scope: ResolvedCallerScopeV1): CommandAuthorization {
+function authorization(scope: ResolvedCallerScope): CommandAuthorization {
     return {
         callerBinding: scope.caller.channel + ":" + scope.caller.principalId,
         capabilityId:
@@ -282,7 +282,7 @@ type TransitionInput = {
     deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
     context: MeetingCommandExecutionContext;
-    scope: ResolvedCallerScopeV1;
+    scope: ResolvedCallerScope;
     now: number;
     factId: string;
     catalogDefinitionHash?: string;
@@ -292,7 +292,7 @@ type TransitionInput = {
 function actionAuthorizationFailure(
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
-    scope: ResolvedCallerScopeV1
+    scope: ResolvedCallerScope
 ): MeetingCommandResult | undefined {
     if (!authorizedRole(command.action.kind, scope))
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
@@ -326,7 +326,7 @@ async function prepareIdentityCatalog(
     deps: MeetingCommandApplicationDependencies,
     repository: MeetingRepository,
     command: MeetingCommand,
-    scope: ResolvedCallerScopeV1
+    scope: ResolvedCallerScope
 ): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> {
     if (command.action.kind !== "recommend_identity") return {};
     const replay = await repository.replayReceipt({
@@ -752,7 +752,7 @@ function createRepositoryCommand(input: {
     deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
     context: MeetingCommandExecutionContext;
-    scope: ResolvedCallerScopeV1;
+    scope: ResolvedCallerScope;
     now: number;
     catalogDefinitionHash?: string;
     committedFacts: readonly CommittedFactRecord<MeetingState>[];
@@ -838,7 +838,7 @@ async function executeExistingMeeting(
     deps: MeetingCommandApplicationDependencies,
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
-    scope: ResolvedCallerScopeV1,
+    scope: ResolvedCallerScope,
     now: number
 ): Promise<MeetingCommandResult> {
     const authorizationFailure = actionAuthorizationFailure(command, context, scope);
@@ -889,7 +889,7 @@ async function executeMeetingCommand(
     return executeExistingMeeting(deps, command, context, scope, now);
 }
 
-export function createMeetingCommandApplicationV1(
+export function createMeetingCommandApplication(
     deps: MeetingCommandApplicationDependencies
 ): MeetingCommandApplication {
     return {

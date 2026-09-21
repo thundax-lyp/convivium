@@ -5,7 +5,7 @@ import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/mee
 import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
-import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command.js";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RepositoryCommand } from "@/repository/types.js";
@@ -172,7 +172,7 @@ describe("target Meeting command application creation", () => {
         }));
         const openMeeting = vi.fn();
         const now = vi.fn(() => 11);
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create },
             registry: { openMeeting } as unknown as DomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
@@ -234,7 +234,7 @@ describe("target Meeting command application creation", () => {
     });
 
     it("maps a conflicting create replay to the protocol rejection", async () => {
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: {
                 create: vi.fn(async () => {
                     throw new RepositoryError(
@@ -320,7 +320,7 @@ describe("target Meeting command application transitions", () => {
             principalId: "manager-session",
             sessionBindingId: "ownership-v1"
         };
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
@@ -382,7 +382,7 @@ describe("target Meeting command application transitions", () => {
         });
         let id = 0;
         const repository = { execute } as unknown as MeetingRepositoryPort<MeetingState>;
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
@@ -448,7 +448,7 @@ describe("target Meeting command application transitions", () => {
             channel: "runtime_recovery" as const,
             principalId: "runtime-recovery"
         };
-        const app = createMeetingCommandApplicationV1({
+        const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => ({ execute, recover }))

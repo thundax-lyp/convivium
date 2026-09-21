@@ -7,9 +7,9 @@ import Tools from "@deepseek-ai/dsh-tools";
 import { apply, assertContinuableProvider, inject } from "@/index.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
 import {
-    activateTargetMeetingApplicationV1,
-    getLocalMeetingWebRuntimeV1,
-    getMeetingCommandApplicationV1
+    activateTargetMeetingApplication,
+    getLocalMeetingWebRuntime,
+    getMeetingCommandApplication
 } from "@/runtime/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
 import roleResources from "../../meeting-roles/definitions.json" with { type: "json" };
@@ -134,8 +134,8 @@ describe("target Meeting lifecycle", () => {
             subagents,
             get: (key: string) => (key === "convivium.agentCatalog" ? { readSnapshot } : undefined)
         };
-        const dispose = await activateTargetMeetingApplicationV1(owner as never, config);
-        const application = getMeetingCommandApplicationV1(owner);
+        const dispose = await activateTargetMeetingApplication(owner as never, config);
+        const application = getMeetingCommandApplication(owner);
         const captain = {
             id: "captain-1",
             session: { header: { cwd: "/fixture" } },
@@ -215,7 +215,7 @@ describe("target Meeting lifecycle", () => {
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
         expect(replay).toEqual(result);
         expect(starts).toHaveLength(7);
-        const runtime = getLocalMeetingWebRuntimeV1(owner);
+        const runtime = getLocalMeetingWebRuntime(owner);
         const managerStart = starts.find((item) =>
             String((item as { label?: string }).label).includes(":manager:")
         ) as { childId: string };

@@ -6,7 +6,7 @@ import {
     type MeetingState
 } from "@/domain/index.js";
 import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
-import { createMeetingArchiveDispatcherV1 } from "@/runtime/services/meeting-archive.js";
+import { createMeetingArchiveDispatcher } from "@/runtime/services/meeting-archive.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 
 function terminalState(): MeetingState {
@@ -134,7 +134,7 @@ describe("meeting archive dispatcher v1", () => {
             }
             return { kind: "accepted" as const };
         });
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -178,7 +178,7 @@ describe("meeting archive dispatcher v1", () => {
         const current = ownerships(state);
         const interrupt = vi.fn();
         const execute = vi.fn();
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: { meetingId: state.id, version: state.version, state },
@@ -253,7 +253,7 @@ describe("meeting archive dispatcher v1", () => {
                 };
             return { kind: "accepted" as const };
         });
-        const dispatcher = createMeetingArchiveDispatcherV1({
+        const dispatcher = createMeetingArchiveDispatcher({
             repository: {
                 recover: async () => ({
                     snapshot: { meetingId: state.id, version: state.version, state },

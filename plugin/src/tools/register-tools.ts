@@ -123,7 +123,7 @@ function registerTool(
     );
 }
 
-export function registerMeetingToolsV1(
+export function registerMeetingTools(
     dependencies: MeetingCommandToolDependencies
 ): readonly (() => void)[] {
     const definitions: readonly ToolDefinition[] = [

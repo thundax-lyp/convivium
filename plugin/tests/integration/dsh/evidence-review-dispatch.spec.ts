@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createReviewDeliveryDispatcherV1 } from "@/runtime/services/evidence-review-dispatch.js";
+import { createReviewDeliveryDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
 
 const item = {
     id: "effect-delivery-1",
@@ -92,7 +92,7 @@ describe("review delivery dispatcher v1", () => {
         const { state, ownership } = reviewedState();
         const sendMessage = vi.fn().mockResolvedValue("message-1");
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
-        const dispatcher = createReviewDeliveryDispatcherV1({
+        const dispatcher = createReviewDeliveryDispatcher({
             sessions: { sendMessage },
             application: { execute } as never,
             repository: {
@@ -152,7 +152,7 @@ describe("review delivery dispatcher v1", () => {
                 error: { code: "VERSION_CONFLICT", message: "retry" }
             })
             .mockResolvedValueOnce({ kind: "accepted" });
-        const dispatcher = createReviewDeliveryDispatcherV1({
+        const dispatcher = createReviewDeliveryDispatcher({
             sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
             application: { execute } as never,
             repository: { recover } as never
@@ -173,7 +173,7 @@ describe("review delivery dispatcher v1", () => {
     it("records a safe failed attempt and retries when inbox delivery fails", async () => {
         const { state, ownership } = reviewedState();
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
-        const dispatcher = createReviewDeliveryDispatcherV1({
+        const dispatcher = createReviewDeliveryDispatcher({
             sessions: { sendMessage: vi.fn().mockRejectedValue(new Error("secret transport")) },
             application: { execute } as never,
             repository: {
@@ -225,7 +225,7 @@ describe("review delivery dispatcher v1", () => {
         ];
         const sendMessage = vi.fn();
         const execute = vi.fn();
-        const dispatcher = createReviewDeliveryDispatcherV1({
+        const dispatcher = createReviewDeliveryDispatcher({
             sessions: { sendMessage },
             application: { execute } as never,
             repository: {

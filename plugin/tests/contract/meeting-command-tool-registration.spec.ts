@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
-import { registerMeetingToolsV1 } from "@/tools/index.js";
+import { registerMeetingTools } from "@/tools/index.js";
 
 describe("target Meeting tool registration", () => {
     it("registers only target commands and binds the resolved identity", async () => {
@@ -10,7 +10,7 @@ describe("target Meeting tool registration", () => {
             kind: "rejected" as const,
             error: { code: "UNAUTHORIZED" as const, message: "denied" }
         }));
-        registerMeetingToolsV1({
+        registerMeetingTools({
             registry: {
                 register: (definition) => {
                     definitions.push(definition);

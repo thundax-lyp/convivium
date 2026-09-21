@@ -5,7 +5,7 @@ import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port
 import type { OutboxItem } from "@/repository/types.js";
 import type { IdentityProvisionResult } from "@/runtime/services/meeting-identity-provision.js";
 
-export interface MeetingIdentityEffectHandlerDependenciesV1 {
+export interface MeetingIdentityEffectHandlerDependencies {
     readonly application: MeetingCommandApplication;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "read">;
     readonly definitions: readonly MeetingAgentDefinition[];
@@ -24,8 +24,8 @@ export interface MeetingIdentityEffectHandlerDependenciesV1 {
     readonly cleanupProvisioned: (recommendationId: string) => Promise<void>;
 }
 
-export function createMeetingIdentityEffectHandlerV1(
-    dependencies: MeetingIdentityEffectHandlerDependenciesV1
+export function createMeetingIdentityEffectHandler(
+    dependencies: MeetingIdentityEffectHandlerDependencies
 ): { dispatch(outboxItem: OutboxItem, signal: AbortSignal): Promise<void> } {
     return {
         async dispatch(outboxItem, signal) {

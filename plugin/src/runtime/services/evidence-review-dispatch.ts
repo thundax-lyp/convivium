@@ -179,7 +179,7 @@ const workerReviewOutputSchema = {
     }
 } as const;
 
-export function createEvidenceReviewDispatcherV1(
+export function createEvidenceReviewDispatcher(
     dependencies: EvidenceReviewDispatcherDependencies
 ): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function releaseClaim(
@@ -431,7 +431,7 @@ export function createEvidenceReviewDispatcherV1(
     };
 }
 
-interface ReviewDeliveryDispatcherDependenciesV1 extends Omit<
+interface ReviewDeliveryDispatcherDependencies extends Omit<
     EvidenceReviewDispatcherDependencies,
     "clock"
 > {
@@ -444,8 +444,8 @@ function alreadySent(state: MeetingState, reviewId: string): boolean {
     );
 }
 
-export function createReviewDeliveryDispatcherV1(
-    dependencies: ReviewDeliveryDispatcherDependenciesV1
+export function createReviewDeliveryDispatcher(
+    dependencies: ReviewDeliveryDispatcherDependencies
 ): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
     async function record(
         input: DispatchEvidenceReviewBatchInput,

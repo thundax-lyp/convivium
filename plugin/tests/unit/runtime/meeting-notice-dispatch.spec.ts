@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeetingNoticeDispatcherV1 } from "@/runtime/services/meeting-notice-dispatch.js";
+import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.js";
 
 const item = (payload: Record<string, unknown>) => ({
     id: "effect-1",
@@ -44,7 +44,7 @@ describe("meeting notice dispatcher v1", () => {
     it("delivers meeting_started only to the matching active owned contributor", async () => {
         const { state, ownership } = fixture();
         const sendMessage = vi.fn().mockResolvedValue("message-1");
-        const dispatcher = createMeetingNoticeDispatcherV1({
+        const dispatcher = createMeetingNoticeDispatcher({
             sessions: { sendMessage },
             repository: {
                 recover: async () => ({
@@ -85,7 +85,7 @@ describe("meeting notice dispatcher v1", () => {
     it("accepts a committed disposition after its pending source was removed", async () => {
         const { state, ownership } = fixture();
         const sendMessage = vi.fn().mockResolvedValue("message-2");
-        const dispatcher = createMeetingNoticeDispatcherV1({
+        const dispatcher = createMeetingNoticeDispatcher({
             sessions: { sendMessage },
             repository: {
                 recover: async () => ({
@@ -172,7 +172,7 @@ describe("meeting notice dispatcher v1", () => {
             }
         ];
         const sendMessage = vi.fn().mockResolvedValue("accepted");
-        const dispatcher = createMeetingNoticeDispatcherV1({
+        const dispatcher = createMeetingNoticeDispatcher({
             sessions: { sendMessage },
             repository: {
                 recover: async () => ({
@@ -236,7 +236,7 @@ describe("meeting notice dispatcher v1", () => {
         const changed = ownership.map((candidate) =>
             candidate.identityId === "contributor-v1" ? { ...candidate, ...override } : candidate
         );
-        const dispatcher = createMeetingNoticeDispatcherV1({
+        const dispatcher = createMeetingNoticeDispatcher({
             sessions: { sendMessage: vi.fn() },
             repository: {
                 recover: async () => ({
@@ -267,7 +267,7 @@ describe("meeting notice dispatcher v1", () => {
 
     it("fails closed for review_request and unknown notice kinds", async () => {
         const { state, ownership } = fixture();
-        const dispatcher = createMeetingNoticeDispatcherV1({
+        const dispatcher = createMeetingNoticeDispatcher({
             sessions: { sendMessage: vi.fn() },
             repository: {
                 recover: async () => ({

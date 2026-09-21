@@ -30,7 +30,7 @@ export type IdentityProvisionResult =
       }
     | { kind: "rejected"; failureCode: string };
 
-export interface MeetingIdentityProvisionDependenciesV1 {
+export interface MeetingIdentityProvisionDependencies {
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly parent: Agent;
@@ -48,7 +48,7 @@ export interface MeetingIdentityProvisionDependenciesV1 {
     readonly now: () => number;
 }
 
-export async function provisionMeetingIdentityV1(
+export async function provisionMeetingIdentity(
     input: {
         recommendation: {
             id: string;
@@ -61,7 +61,7 @@ export async function provisionMeetingIdentityV1(
         meetingId: string;
         signal: AbortSignal;
     },
-    dependencies: MeetingIdentityProvisionDependenciesV1
+    dependencies: MeetingIdentityProvisionDependencies
 ): Promise<IdentityProvisionResult> {
     const recommendation = input.recommendation;
     if (

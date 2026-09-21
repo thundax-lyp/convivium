@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createEvidenceReviewDispatcherV1 } from "@/runtime/services/evidence-review-dispatch.js";
+import { createEvidenceReviewDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
 
 const outboxItem = (payload: Record<string, unknown>) => ({
     id: "effect-review-1",
@@ -244,7 +244,7 @@ describe("evidence review request dispatcher v1", () => {
             state.reviewClaims = [];
             return "message-1";
         });
-        const dispatcher = createEvidenceReviewDispatcherV1({
+        const dispatcher = createEvidenceReviewDispatcher({
             sessions: { sendMessage },
             application: application as never,
             clock: { now: () => 6 },
@@ -416,7 +416,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
     it("keeps the review effect retryable when the coordinator returns without committing", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
-        const dispatcher = createEvidenceReviewDispatcherV1({
+        const dispatcher = createEvidenceReviewDispatcher({
             sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
             application: application as never,
             clock: { now: () => 6 },
@@ -456,7 +456,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
     it("releases the claim when the reviewer turn times out", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
-        const dispatcher = createEvidenceReviewDispatcherV1({
+        const dispatcher = createEvidenceReviewDispatcher({
             sessions: {
                 sendMessage: vi.fn().mockRejectedValue(new Error("review turn timed out"))
             },
@@ -534,13 +534,13 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 sessionOwnership: ownership
             })
         } as never;
-        const first = createEvidenceReviewDispatcherV1({
+        const first = createEvidenceReviewDispatcher({
             sessions: { sendMessage: firstSend },
             application: application as never,
             clock: { now: () => 6 },
             repository
         });
-        const second = createEvidenceReviewDispatcherV1({
+        const second = createEvidenceReviewDispatcher({
             sessions: { sendMessage: secondSend },
             application: application as never,
             clock: { now: () => 6 },
@@ -604,7 +604,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             state.reviewClaims = [];
             return "message-1";
         });
-        const dispatcher = createEvidenceReviewDispatcherV1({
+        const dispatcher = createEvidenceReviewDispatcher({
             sessions: { sendMessage },
             application: application as never,
             clock: { now: () => 6 },
@@ -653,7 +653,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         ];
         const sendMessage = vi.fn();
         const application = claimApplication(state);
-        const dispatcher = createEvidenceReviewDispatcherV1({
+        const dispatcher = createEvidenceReviewDispatcher({
             sessions: { sendMessage },
             application: application as never,
             clock: { now: () => 6 },

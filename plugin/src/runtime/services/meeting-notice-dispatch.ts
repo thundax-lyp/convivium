@@ -220,14 +220,12 @@ function findOwnership(
     return matches[0]!;
 }
 
-export interface MeetingNoticeDispatcherV1Dependencies {
+export interface MeetingNoticeDispatcherDependencies {
     readonly sessions: Pick<SubagentRuntime, "sendMessage">;
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
 }
 
-export function createMeetingNoticeDispatcherV1(
-    dependencies: MeetingNoticeDispatcherV1Dependencies
-): {
+export function createMeetingNoticeDispatcher(dependencies: MeetingNoticeDispatcherDependencies): {
     dispatch(input: { outboxItem: OutboxItem; parent: Agent; signal: AbortSignal }): Promise<void>;
 } {
     return {

@@ -1,5 +1,5 @@
 export {
-    registerMeetingToolsV1,
+    registerMeetingTools,
     type MeetingCommandToolDependencies,
     type TargetMeetingToolCallerResolver
 } from "./register-tools.js";
