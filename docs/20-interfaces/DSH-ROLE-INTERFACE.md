@@ -26,12 +26,12 @@ Definition 与 Catalog 不得携带完整 Agent 配置、prompt、凭据、MCP �
       | "protocol_ui_engineer" | "verification_reviewer"
       | "github_research_analyst" | "arxiv_research_analyst";
     type AgentEvidenceScope = "repository" | "github" | "arxiv" | "web";
-    interface ToolRestrictionV1 { allow?: string[]; deny?: string[] }
+    interface ToolRestriction { allow?: string[]; deny?: string[] }
     interface MeetingAgentDefinition {
       agentDefinitionId: DefinitionId; definitionVersion: string;
       roleDefinitionId: AgentRoleDefinitionId; displayName: string; summary: string;
       roleDescription: string; dshPresetId: string; requiredSkillNames: string[];
-      toolFilter?: ToolRestrictionV1; expertiseTags: string[];
+      toolFilter?: ToolRestriction; expertiseTags: string[];
       evidenceScopes: AgentEvidenceScope[];
     }
     interface AgentDefinitionBinding {
@@ -61,7 +61,7 @@ Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMEN
     }
     interface CapabilitySummary { kind: CapabilityKind; label: string }
     interface Suitability { scope: string; rationale: string }
-    interface IdentityRecommendationInputV1 {
+    interface IdentityRecommendationInput {
       candidateId: string; definition: VersionedRef; catalog: VersionedRef; agendaId: string;
       decision: "admit" | "reject"; rationale: string;
       expectedContribution: string; evidenceGap: string;
@@ -71,30 +71,30 @@ Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围�
 
 ## Definition Resolution And Preflight
 
-    interface ResolveDefinitionRequestV1 { protocolVersion: 1; definition: VersionedRef }
-    type ResolveDefinitionResultV1 =
+    interface ResolveDefinitionRequest { protocolVersion: 1; definition: VersionedRef }
+    type ResolveDefinitionResult =
       | { kind: "resolved"; definition: MeetingAgentDefinition; binding: AgentDefinitionBinding }
       | { kind: "rejected"; error: RoleError };
-    interface PreflightIdentityRequestV1 {
+    interface PreflightIdentityRequest {
       protocolVersion: 1; meetingId: string; parentSessionId: string;
       definition: VersionedRef; requestedRoles: MeetingRole[];
     }
 type PreflightIdentityResult =
-      | { kind: "ready"; descriptor: PreparedDescriptor; verifiedPresetId: string; verifiedSkillNames: string[]; verifiedCapabilities: VerifiedCapabilityV1[] }
-      | { kind: "rejected"; error: RoleError; missing: MissingCapabilityV1[] };
+      | { kind: "ready"; descriptor: PreparedDescriptor; verifiedPresetId: string; verifiedSkillNames: string[]; verifiedCapabilities: VerifiedCapability[] }
+      | { kind: "rejected"; error: RoleError; missing: MissingCapability[] };
     interface PreparedDescriptor {
       descriptorId: DescriptorId; meetingId: string; parentSessionId: string;
       definition: VersionedRef; definitionHash: string;
       descriptorHash: string; expiresAt: EpochMs;
     }
-    interface VerifiedCapabilityV1 { id: string; kind: "preset" | "skill"; version?: string }
-    interface MissingCapabilityV1 { id: string; kind: "preset" | "skill"; reason: string }
+    interface VerifiedCapability { id: string; kind: "preset" | "skill"; version?: string }
+    interface MissingCapability { id: string; kind: "preset" | "skill"; reason: string }
 
 Runtime 在创建动态身份 Session 或写入 MeetingIdentity 前调用 preflight。`parentSessionId` 取自本 Meeting 已验证 Captain parent ownership，不由 Manager 提交。动态准入 `requestedRoles` 必须精确为 `["contributor"]`，Definition 不能是 `meeting_manager|verification_reviewer`；`dshPresetId` 必须等于 parent 的实际共享 Preset，全部 `requiredSkillNames` 必须由 DSH 原生 Skill provider 在该 scope 验证。不能以 persona、toolFilter 或当前 Host 默认资源代替失败的必需能力。ready descriptor 只属于当前 Meeting、parent、精确 Definition version/hash 且会到期；过期或不匹配不得给另一 Meeting、Definition 或 admission 复用。
 
 ## Atomic Admission And Ownership
 
-    interface AdmitIdentityRequestV1 {
+    interface AdmitIdentityRequest {
       protocolVersion: 1; meetingId: string; admissionId: string; preparedDescriptorId: DescriptorId;
       identityId: string; childSessionId: string;
       identity: {
@@ -115,7 +115,7 @@ Runtime 在创建动态身份 Session 或写入 MeetingIdentity 前调用 prefli
 
 Manager 的 `admit` 只先形成不可调度的 Meeting provisioning 意图，其 `recommendationId` 同时是稳定 `admissionId`；Runtime 在该 intent 中一并固定唯一预留 identityId 和 childSessionId，`reject` 不调用本 port。Admission activation 是跨 Definition validation、descriptor validity、Session creation、durable ownership 与 Meeting identity fact 的 all-or-nothing 操作：不能返回 admitted 或公开 identity，除非五者都成功；返回的 identityId 必须精确等于请求的预留 ID。失败前新建 Session 必须释放或标记不可访问。admissionId 在同一 Meeting/Definition identity 内幂等，等 payload replay 返回同 identity/ownership；进程退出后的 provisioning intent 只能重试该 id 与记录的精确 Definition identity/identityId/childSessionId，同 id 不同 payload 返回 ADMISSION_CONFLICT。恢复已创建身份仅在存储的 admissionId、meetingId、identityId、descriptorId/hash/到期时间、Definition provenance 都匹配时继续；descriptor 缺失或不匹配返回 RECOVERY_UNAVAILABLE，绝不使用当前 Definition 替代。`provisioning` ownership 不授予 child Meeting authority；Session 可证明创建且 ready 后才转为 `active`。
 
-`AdmitIdentityRequestV1.identity.agendaResponsibilityIds` 指本 Meeting 已存在的 `AgendaItem.id`，未知 ID 拒绝，不能凭 displayName 或 Definition 推断。动态准入不能改变 Meeting.evidenceReviewerId、授予 evidence_reviewer role 或替换创建时固化的专职审核身份。
+`AdmitIdentityRequest.identity.agendaResponsibilityIds` 指本 Meeting 已存在的 `AgendaItem.id`，未知 ID 拒绝，不能凭 displayName 或 Definition 推断。动态准入不能改变 Meeting.evidenceReviewerId、授予 evidence_reviewer role 或替换创建时固化的专职审核身份。
 
 ## Role Errors And Authorization
 
@@ -134,7 +134,7 @@ Manager 的 `admit` 只先形成不可调度的 Meeting provisioning 意图，�
 
 ## Compatibility And Acceptance
 
-V1 不适配 legacy role record、display-name lookup、松散 capability label 或路径发现配置。unknown discriminant、缺失 version 字段均 fail closed。Catalog 安全摘要可增加 optional read field；Definition 语义、descriptor provenance、ownership 或 preflight/admission 顺序变化必须形成新的 versioned contract。
+当前契约不适配 legacy role record、display-name lookup、松散 capability label 或路径发现配置。unknown discriminant、缺失 version 字段均 fail closed。Catalog 安全摘要可增加 optional read field；Definition 语义、descriptor provenance、ownership 或 preflight/admission 顺序变化必须形成新的 versioned contract。
 
 1. 每个 Definition/admission 输入可由这些类型表达，没有 catch-all resource/config 字段。
 2. 测试可以证明 Definition 变更只影响新 identity，缺失 required capability 不创建 identity/Session。

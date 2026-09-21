@@ -4,7 +4,7 @@
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
 
-当前基线为插件版本 `0.1.0-alpha.1`、2026-09-20 合并的 PR #89。矩阵中的版本证据只记录形成、接入 target runtime 或后续收口该能力的 PR 编号；当前仓库没有对应 release tag。状态含义：
+当前实现基线为插件版本 `0.1.0-alpha.1`、PR #93 之后的本地代码提交 `082ea2c`。矩阵中的版本证据只记录形成、接入 target runtime 或后续收口该能力的 PR 编号；尚未进入 PR 的纯重构不改变功能覆盖结论，当前仓库没有对应 release tag。状态含义：
 
 - `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
@@ -41,11 +41,13 @@
 - command 边界覆盖协议校验、caller ownership、权限、expected version、request idempotency、原子 commit、终态拒写与 storage recovery。
 - `RECOVERY_UNAVAILABLE` identity effect 保持 pending retry；进入终态的并发路径不会激活新身份，并清理已创建但未激活的 Session。
 - target runtime 不依赖 legacy Domain、protocol 或 runtime surface；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
+- TypeScript 领域、Repository、Runtime 和 Tool 符号使用无版本后缀的当前名称；持久化记录仍保留 `formatVersion`，但 codec 只接受当前 schema，不提供 legacy 识别、转换、双写或回写。
 
 ## Executed Validation
 
 | 日期       | 版本/环境                                                     | 方法                                                                                                                                                  | 结果                                                                                                                                                                                                                                                                        |
 | ---------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-21 | `082ea2c`，本地 plugin workspace                              | `pnpm typecheck`；`pnpm lint`；`pnpm format:check`；`pnpm test`；`node .github/scripts/check-doc-links.mjs`                                           | PASS：无版本后缀命名重构后 Host/Client/remote-test 类型检查、lint、格式和文档链接通过；83 个测试文件、686 个测试通过。该验证证明重命名未改变自动化可观察行为，不构成新的真实 DSH 冒烟证据。                                                                                  |
 | 2026-09-21 | `c178bb8`，DSH `0.1.2-rc.1`                                   | `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop CONVIVIUM_SMOKE_RECORD_DIR="$PWD/dsh-workspace/smoke-records" pnpm --dir plugin smoke:profile --json` | PASS（247.5s，Restore PASS）：四个 Manager `roundGoal` 轮次、8 份 Evidence、4 个完整 Reviewer batch、4 次 publication、archive 与 SQLite cold reopen 全部通过；第三、第四轮覆盖超过单 commit record 上限后以分页 checkpoint 原子发布并成功恢复。                            |
 | 2026-09-21 | 同上                                                          | `CONVIVIUM_SMOKE_SCENARIO=identity-admission pnpm --dir plugin smoke:profile --json`                                                                  | PASS（8.6s，Restore PASS）：真实 DSH Host 完成 Catalog、原生 Skill、独立 child Session 准入与清理。                                                                                                                                                                         |
 | 2026-09-21 | `c178bb8`                                                     | focused Domain/Repository/dispatcher/outbox/role/smoke contracts；`pnpm --dir plugin run typecheck:host`；改动文件 ESLint                             | PASS：10 files / 76 tests；覆盖持久 claim、timeout release、迟到 Review 拒绝、跨 dispatcher 去重、attempt-limit-independent expiry recovery、超大原子 command 的 checkpoint/cold reopen/receipt replay；Host typecheck 通过，lint 0 errors（5 个既有复杂度/长度 warning）。 |
@@ -67,7 +69,7 @@
 
 - Browser 人工交互、性能与并发压力、长期运行及跨 Host；
 - 发布流程、生产外部网络、远端文件系统；
-- 旧 snapshot migration、跨版本 compatibility；
+- 开发期旧 snapshot migration、未来版本 compatibility；
 
 ## Closure
 

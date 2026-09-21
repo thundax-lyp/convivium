@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文只记录现有旧实现的一位 Manager、八位 Participant（含 Scribe）、共享 convivium Preset 和九个原生 Skills 的诊断部署流程。当前正式目标已经删除 `meeting_scribe` 并完全禁用 `web_research_analyst`，要求一位 Manager、六个非 Manager 角色身份和七个 Skills；因此本流程不得作为当前角色契约的发布验收。迁移缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
+本文记录当前一位 Manager、一个专职 Evidence Reviewer、五个 Contributor、共享 `convivium` Preset 和七个原生 Skills 的人工部署与核对流程。资源中不包含 `meeting_scribe` 或 `web_research_analyst`。当前自动冒烟只覆盖 identity admission 和 business loop；本文的完整角色能力人工核对不得冒充自动 smoke 证据。覆盖缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，资源结构见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
@@ -11,9 +11,9 @@
 ## Preconditions
 
 - 本地 Node/pnpm 满足 plugin/package.json，DSH 固定 0.1.2-rc.1。
-- 发行包已经包含 meeting-roles/definitions.json、共享 Preset、九个 Skills、显式部署 patch，并通过完整 verify 和真实 Loader 验收。
+- 发行包已经包含 `meeting-roles/definitions.json`、共享 Preset、七个 Skills 和显式部署 patch。
 - DSH web profile 提供 spawn continuable provider、模型默认路由、DeepSeek search 与 http fetch；本流程不新增 Provider 或绕过 Sandbox/Approval。
-- 凭据沿 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 的 dev.env 规则，仅包含 DEEPSEEK_API_KEY，不能写进包、patch、终端输出或结果文件。缺少凭据时停止，不假称研究能力可用。
+- 凭据沿 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 的 `dev.env` 规则：`DEEPSEEK_API_KEY` 必须存在且非空，其他本地条目允许存在；凭据不能写进包、patch、终端输出或结果文件。缺少凭据时停止，不假称研究能力可用。
 - 以下目录 dsh-workspace/meeting-roles-deployment 必须不存在；已存在时停止，不覆盖或自动清空。
 
 ## Prepare
@@ -68,33 +68,25 @@
 )
 ```
 
-在本地页面新建 Captain Session，**显式选择 convivium Preset**。Host Settings 的默认选择可能优先于 patch 的 default，不能仅凭默认值推断已经选择成功。选择定义时 Manager 为 convivium.meeting_manager；八位 Participant 分别使用其余八个 Definition ID，名单见 Interface。不需要为每位角色另装 Preset、改写 JSON 或部署第二个 package。
+在本地页面新建 Captain Session，**显式选择 `convivium` Preset**。Host Settings 的默认选择可能优先于 patch 的 default，不能仅凭默认值推断已经选择成功。Meeting 由该 Captain Session 的 `convivium_create_meeting` tool 创建；创建请求精确选择 `convivium.meeting_manager`、`convivium.verification_reviewer` 和五个 Contributor Definition，名单与版本以同一 tarball 的 `meeting-roles/definitions.json` 为准。Remote/Meetings view 不提供替代创建入口。不需要为每位角色另装 Preset、改写 JSON 或部署第二个 package。
 
 `CONVIVIUM_MEETING_ROLES_ROOT` 是非敏感 Host 部署变量，仅定位同 tarball 的固定资产；不能使用 patch 表达式的 baseUrl 推导该位置。变量缺失时 Loader 必须失败。
 
 模型默认值在 DSH 配置/Settings 中管理。必要角色差异通过额外 Host 控制 patch 的 convivium.config.agentModelOverrides 提供，key 为 Definition ID，value 只含 provider/model/reasoningEffort；该控制 patch 在角色部署 patch 后加载。Cordis 整体替换 config，必须同时保留 provider: spawn、maxParticipants: 8 和部署 patch 中的完整 agentDefinitions 读取表达式，再加入 agentModelOverrides，不能只写模型 map。这里的值必须来自宿主已配置、支持的真实模型路由，不提供猜测的模型 ID，不编辑 Definition/Skill 或 credentials 来实现覆盖。
 
-## Assert Legacy Resources
+## Assert Current Resources
 
-仅诊断现有旧资源时须同时观察：
+必须同时观察：
 
-- Loader 挂载 convivium，启用的原生工具、Skill provider 和 compaction row 没有缺失依赖；九个 required Skill 都可被准确父 scope 读取。
-- 同一会议创建一位 Manager、八位 Participant，九个独立 continuable Session；不是九条静态目录记录。
+- Loader 挂载 `convivium`，启用的原生工具、Skill provider 和 compaction row 没有缺失依赖；七个 required Skill 都可被准确父 scope 读取。
+- 同一会议创建一位 Manager、一个专职 Evidence Reviewer 和五个 Contributor，共七个独立 continuable Session；不是七条静态目录记录。
 - 每个 child 原生 Session 中出现 skill tool/call 和成功 tool/result，正文包含其方法步骤。只有目录发现或服务 get 成功不算加载。
-- GitHub/arXiv/Web 三类研究角色的真实 search 返回对应域的非空来源，fetch 返回成功 HTTP 与非空正文；缺 Provider 或凭据是失败。
-- Manager/Scribe 的越权会议写入被真实工具执行层拒绝，Meeting 事实不变；自动探针各执行一次越权会议工具和 web_search，均须返回 DSH UNKNOWN_TOOL，skill 仍可见；shell/fs 的上限由发布定义的原生 allowlist 表达，本探针不直接执行它们；不将该过滤等同于 OS Sandbox。
+- GitHub/arXiv 两类研究角色的真实 search 返回对应域的非空来源，fetch 返回成功 HTTP 与非空正文；缺 Provider 或凭据是失败。
+- Manager 和 Evidence Reviewer 的越权会议写入被真实工具执行层拒绝，Meeting 事实不变；tool filter 不等同于 OS Sandbox。
+- Evidence Reviewer 为 claim 中每个 immutable version 只创建一个 one-shot worker，worker 没有 Meeting command authority；只有完整结果集可以提交 batch。
 - 不同角色的模型覆盖保持差异，父 Session 未被更改，冷恢复保留原 descriptor；配置变化不重配旧角色。
 
-自动验收入口为：
-
-```sh
-env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
-```
-
-前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。自动探针的装配、超时、回调、权限断言与抓取开关统一见 [Smoke Operations 九角色部署场景](./HOW-TO-DSH-SMOKE.md#九角色部署场景)，本节不重复维护实现流程。
-
-当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；九角色通过也不能证明七个启用角色目标已实现，任何历史授权不自动适用于新的验收。
+当前 `smoke:profile` 不提供 `meeting-roles` 或 `role-composition` selector；不得执行历史命令或把旧结果当作当前七身份验收。自动入口和已验证边界以 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 与 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 
 ## Restore And Failure Handling
 
@@ -106,6 +98,6 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 
 ## Evidence And Not Covered
 
-执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)，并更新对应功能点。本轮尚无当前角色契约的运行验收记录。
+执行后将日期、版本、artifact 边界、命令、七身份结果、权限拒绝、恢复和 Restore 写入 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)，并更新对应功能点。本轮尚无当前角色契约的完整人工运行验收记录。
 
-长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；默认完整验收仍须验证九角色部署、研究搜索与抓取。
+长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；完整人工验收仍须覆盖七身份部署、GitHub/arXiv 搜索与抓取。

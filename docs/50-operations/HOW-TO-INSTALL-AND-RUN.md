@@ -58,13 +58,13 @@ DEEPSEEK_API_KEY=
 
 该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，设置同一持久 `DSH_HOME` 和角色资源根，再启动固定版本的 DSH Web。
 
-DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium` Preset。进入 `Meetings` view 后即可创建和控制会议。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
+DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium` Preset。Meeting 只由该 Captain Session 的 `convivium_create_meeting` tool 创建；创建成功后进入 `Meetings` view 查看和执行已提供的本地控制。Remote/Meetings view 不提供创建入口。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
 
 ## Assert
 
 - Host 只监听 `127.0.0.1:31828`，Browser 可以打开 DSH UI。
 - 新 Captain 明确使用 `convivium` Preset，`Meetings` view 可见。
-- 创建会议时 Manager 和 Participant Definition 可用；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
+- 通过 Captain tool 创建会议时，Manager、Evidence Reviewer 和五个 Contributor Definition 可用；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
 - 重启同一命令后仍使用相同 `DSH_HOME`、workspace 和 SQLite 文件，已提交会议可以恢复。
 
 ## Stop, Upgrade, And Failure Handling

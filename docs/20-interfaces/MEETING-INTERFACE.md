@@ -4,7 +4,7 @@
 
 本文是 Meeting 的唯一跨边界类型契约。它定义写命令、读投影、提交记录、Remote 刷新和 Markdown 输入；领域字段与不变量以 [Domain Design](../30-designs/DOMAIN-DESIGN.md) 为准，转换顺序以 [Meeting Design](../30-designs/MEETING-DESIGN.md) 为准。
 
-DSH/Remote transport 提供可信 caller binding；Meeting Runtime 是唯一业务写入者；Repository 原子保存 Runtime 交付的提交包；projection 只读已提交状态。请求体不得包含 actorId、roles、Session ID、ownership、baseline、authority、当前时间或任何可由 Runtime 推导的字段。V1 的 `meetingId` 在当前 Convivium Host/profile Storage Domain 内全局唯一，是 Meeting、catalog、receipt、outbox、Session ownership 与恢复的唯一 Meeting namespace；协议和持久化 port 均不存在 `teamId`。未来多 Team 不是 V1 的兼容扩展，必须以新契约定义 authority、隔离与迁移。
+DSH/Remote transport 提供可信 caller binding；Meeting Runtime 是唯一业务写入者；Repository 原子保存 Runtime 交付的提交包；projection 只读已提交状态。请求体不得包含 actorId、roles、Session ID、ownership、baseline、authority、当前时间或任何可由 Runtime 推导的字段。当前契约的 `meetingId` 在 Convivium Host/profile Storage Domain 内全局唯一，是 Meeting、catalog、receipt、outbox、Session ownership 与恢复的唯一 Meeting namespace；协议和持久化 port 均不存在 `teamId`。未来多 Team 不是当前契约的兼容扩展，必须以新契约定义 authority、隔离与迁移。
 
 ## Wire Conventions
 
@@ -537,7 +537,7 @@ interface RecordArchiveSessionResult {
 }
 ```
 
-`RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；V1 不通过这些 action 从 `converging` 重新打开 Meeting。
+`RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
 local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, accept/reject Risk, or abort a Round using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles opportunity/hand dispositions and recommends; it does not receive evidence drafts, submit evidence for the author or review evidence content. A contributor may submit own evidence/proposal/position/candidate/task result；唯一专职 reviewer 只读取待审证据并提交 review batch。Runtime rejects role-confused actions.
 
@@ -549,7 +549,7 @@ Any authorized Meeting identity may use `record_question` and `record_issue`. On
 
 A DecisionCandidate is accepted only when it names the current ProposalRevision and its evidence/positions are visible, valid and meeting-local. Each Candidate may be used by at most one Decision and each ProposalRevision may have at most one accepted Decision. Decide accepts exactly one unused Candidate and rejects a second accepted Decision on the same revision. Supersede requires replacementCandidateId naming an unused Candidate on the same proposal's current revision and atomically accepts it, creates its Decision and marks the old accepted Decision superseded; revoke must not contain replacementCandidateId. Candidate reject/revoke does not exist. Risk accept/reject only accepts an exact `status=open` Issue and checks its riskLevel against acceptableRiskLevel, every hard constraint named by that Issue's `affectedConstraintIds`, lifecycle, non-empty rationale and meeting-local evidence; `resolved|deferred|out_of_scope` is rejected. Accept requires those constraints to be satisfied and updates only that Issue to accepted_risk and non-blocking. Reject is not limited by acceptableRiskLevel and keeps the Issue open and blocking.
 
-RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is contributor-only: the caller must be an existing `MeetingIdentity` whose roles include `contributor`; a Captain qualifies only when the same identity also has that role, while manager-only, evidence-reviewer-only and local-controller callers are rejected. When `taskId` is present, it must name the caller's completed Task with active authorization and a nonempty result. The action creates an immutable declaration but never changes output, criterion, Agenda, Question, Issue, lifecycle or completion status. V1 的 `RecordCompletionFact` 没有 `declarationId`，因此不消费、匹配、替代或删除 CompletionDeclaration；它独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
+RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is contributor-only: the caller must be an existing `MeetingIdentity` whose roles include `contributor`; a Captain qualifies only when the same identity also has that role, while manager-only, evidence-reviewer-only and local-controller callers are rejected. When `taskId` is present, it must name the caller's completed Task with active authorization and a nonempty result. The action creates an immutable declaration but never changes output, criterion, Agenda, Question, Issue, lifecycle or completion status. 当前契约的 `RecordCompletionFact` 没有 `declarationId`，因此不消费、匹配、替代或删除 CompletionDeclaration；它独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
 
 `pendingDecisionCandidates` contains current-revision candidates without any Decision only while lifecycle is `running|paused`; `paused` preserves resumable work but does not permit acceptance. It is empty for `preparing|converging|ending|terminal|archiving|archived`. Caller filtering remains Captain/local-only.
 
@@ -629,8 +629,8 @@ IDs and identityKey values supplied during creation must be locally unique and a
 
 ```ts
 type MeetingCommandResult =
-  MeetingCommandAcceptedV1 | MeetingCommandRejectedV1;
-interface MeetingCommandAcceptedV1 {
+  MeetingCommandAccepted | MeetingCommandRejected;
+interface MeetingCommandAccepted {
   kind: "accepted";
   meetingId: OpaqueId;
   committedVersion: number;
@@ -656,11 +656,11 @@ interface MeetingCommandAcceptedV1 {
     failureCode?: RoleError["code"];
   };
 }
-interface MeetingCommandRejectedV1 {
+interface MeetingCommandRejected {
   kind: "rejected";
-  error: MeetingErrorV1;
+  error: MeetingError;
 }
-interface MeetingErrorV1 {
+interface MeetingError {
   code:
     | "INVALID_ARGUMENT"
     | "MEETING_NOT_FOUND"
@@ -832,8 +832,8 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     }
     interface CommittedFactViewBase { factId: OpaqueId; actorId: OpaqueId; occurredAt: EpochMs; relatedIds: OpaqueId[] }
     type CommittedFactView =
-      | (CommittedFactViewBase & { kind: "resolve_question"; payload: Extract<CommittedFactPayloadV1, { kind: "question_disposition" }> })
-      | (CommittedFactViewBase & { kind: "dispose_issue"; payload: Extract<CommittedFactPayloadV1, { kind: "issue_disposition" }> });
+      | (CommittedFactViewBase & { kind: "resolve_question"; payload: Extract<CommittedFactPayload, { kind: "question_disposition" }> })
+      | (CommittedFactViewBase & { kind: "dispose_issue"; payload: Extract<CommittedFactPayload, { kind: "issue_disposition" }> });
     interface UnclosedContributionView { contributionId: OpaqueId; contributorIdentityId: OpaqueId; agendaId: OpaqueId; status: ContributionView["status"]; exitReason?: string }
     interface ArchiveMaterialView { id: OpaqueId; kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact"; title: string; sourceObjectIds: OpaqueId[] }
     interface ContinuationProvenanceView { sourceArchiveId: OpaqueId; selectedMaterialIds: OpaqueId[]; materials: ContinuationMaterialView[] }
@@ -859,7 +859,7 @@ evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Public
 ArchiveView 仅从完整 ArchivePackage 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message、accepted_decision 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|proposalRevisionId|evidenceIds|positionIds|outputId|criterionId|decisionIds` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和最终 Review 的内容 DTO，不保留旧 `reviewerId|id|versionId|baselinePublicationIds|baselineEvidenceIds` 引用。
 
 ```ts
-interface MarkdownProjectionInputV1 {
+interface MarkdownProjectionInput {
   meetingId: OpaqueId;
   committedVersion: number;
   publicPublications: PublicationView[];
@@ -877,15 +877,15 @@ Markdown 异步从已提交 snapshot 生成；生成、映射、写入、替换�
 ## Persistence And Effects
 
 ```ts
-interface MeetingCommitV1 {
+interface MeetingCommit {
   meetingId: OpaqueId;
   expectedVersion: number;
-  nextState: MeetingStateRecordV1;
-  receipt: ReceiptRecordV1;
+  nextState: MeetingStateRecord;
+  receipt: ReceiptRecord;
   facts: CommittedFactRecord[];
-  outbox: OutboxEffectRecordV1[];
+  outbox: OutboxEffectRecord[];
 }
-type MeetingStateRecordV1 = MeetingState; // exact lossless JSON codec of meeting/domain aggregate
+type MeetingStateRecord = MeetingState; // exact lossless JSON codec of meeting/domain aggregate
 interface CommittedFactRecord {
   factId: OpaqueId;
   kind: MeetingAction["kind"];
@@ -893,10 +893,10 @@ interface CommittedFactRecord {
   occurredAt: EpochMs;
   meetingVersion: number;
   relatedIds: OpaqueId[];
-  payload: CommittedFactPayloadV1;
-  resultingState: MeetingStateRecordV1;
+  payload: CommittedFactPayload;
+  resultingState: MeetingStateRecord;
 }
-type CommittedFactPayloadV1 =
+type CommittedFactPayload =
   | { kind: "references"; relatedIds: OpaqueId[] }
   | {
       kind: "question_disposition";
@@ -918,18 +918,18 @@ type CommittedFactPayloadV1 =
       rationale: string;
       evidenceIds: OpaqueId[];
     };
-interface ReceiptRecordV1 {
+interface ReceiptRecord {
   receiptId: OpaqueId;
   meetingId: OpaqueId;
   principalId: OpaqueId;
   requestId: OpaqueId;
   actionKind: MeetingAction["kind"];
   normalizedPayloadHash: string;
-  result: MeetingCommandAcceptedV1;
+  result: MeetingCommandAccepted;
   committedVersion: number;
   createdAt: EpochMs;
 }
-interface OutboxEffectRecordV1 {
+interface OutboxEffectRecord {
   id: OpaqueId;
   meetingId: OpaqueId;
   committedVersion: number;
@@ -941,14 +941,14 @@ interface OutboxEffectRecordV1 {
     | "markdown_projection"
     | "archive"
     | "identity_provision";
-  payload: OutboxPayloadV1;
+  payload: OutboxPayload;
   status: "pending" | "delivered" | "failed";
   attempts: number;
   createdAt: EpochMs;
   deliveredAt?: EpochMs;
   lastFailure?: string;
 }
-type OutboxPayloadV1 =
+type OutboxPayload =
   | { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
   | {
       kind: "session_mail";
@@ -956,7 +956,7 @@ type OutboxPayloadV1 =
       recipientId: OpaqueId;
       contextPublicationUpperBound: OpaqueId[];
     }
-  | AgentNoticePayloadV1
+  | AgentNoticePayload
   | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
   | {
       kind: "markdown_projection";
@@ -969,40 +969,40 @@ type OutboxPayloadV1 =
       recommendationId: OpaqueId;
       admissionId: OpaqueId;
     };
-interface AgentNoticeBaseV1 {
+interface AgentNoticeBase {
   kind: "agent_notice";
   meetingId: OpaqueId;
   recipientId: OpaqueId;
   agendaId: OpaqueId;
 }
-type AgentNoticePayloadV1 =
-  | (AgentNoticeBaseV1 & { noticeKind: "meeting_started" })
-  | (AgentNoticeBaseV1 & {
+type AgentNoticePayload =
+  | (AgentNoticeBase & { noticeKind: "meeting_started" })
+  | (AgentNoticeBase & {
       noticeKind: "transcript_update";
       publicMessageId: OpaqueId;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "opportunity_request";
       requestId: OpaqueId;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "opportunity_disposition";
       requestId: OpaqueId;
       disposition: "rejected" | "deferred";
       reason: string;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "hand_request";
       requestKind: "initial";
       roundId: OpaqueId;
       contributorId: OpaqueId;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "hand_request";
       requestKind: "supplement";
       contributionId: OpaqueId;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "hand_disposition";
       requestKind: "initial";
       roundId: OpaqueId;
@@ -1011,7 +1011,7 @@ type AgentNoticePayloadV1 =
       reason: string;
       contributionId: OpaqueId;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "hand_disposition";
       requestKind: "initial";
       roundId: OpaqueId;
@@ -1019,21 +1019,21 @@ type AgentNoticePayloadV1 =
       disposition: "rejected" | "deferred";
       reason: string;
     })
-  | (AgentNoticeBaseV1 & {
+  | (AgentNoticeBase & {
       noticeKind: "hand_disposition";
       requestKind: "supplement";
       contributionId: OpaqueId;
       disposition: "accepted" | "rejected" | "deferred";
       reason: string;
     })
-  | (AgentNoticeBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId });
+  | (AgentNoticeBase & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecord` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackage` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
+`MeetingStateRecord` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecord` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackage` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 
 ## Compatibility And Acceptance
 
-V1 不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。本轮 `MeetingAction`、`MeetingView` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。V1 首次发布后，可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
+当前契约不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。`MeetingAction`、`MeetingView` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。首次发布后可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
 
 1. TypeScript 实现可从本文声明每个 command、result、error 和 port，而无需 untyped 业务 payload。
 2. 每个 action 具有唯一 discriminant、确定字段、角色边界、原子成功结果和拒绝条件。
