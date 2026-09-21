@@ -1,10 +1,17 @@
 import { createServer } from "node:net";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     completeMeetingBusinessLoopResult,
     validateScenarioResult
 } from "../../scripts/smoke-profile/result.mjs";
-import { assertPortReleased, selectScenarios } from "../../scripts/smoke-profile/index.mjs";
+import {
+    assertPortReleased,
+    selectScenarios,
+    writeScenarioRecord
+} from "../../scripts/smoke-profile/index.mjs";
 
 const hotResult = {
     ok: true,
@@ -99,5 +106,31 @@ describe("Meeting business-loop smoke result", () => {
         setTimeout(() => server.close(), 50);
 
         await expect(assertPortReleased(address.port)).resolves.toBeUndefined();
+    });
+
+    it("records a redacted summary as a JSON object", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-smoke-record-test-"));
+        try {
+            await writeScenarioRecord(
+                root,
+                {
+                    ok: true,
+                    scenario: "identity-admission",
+                    probe: { secret: "smoke-secret" },
+                    bootLogs: {}
+                },
+                "smoke-secret"
+            );
+
+            const text = await readFile(join(root, "summary.json"), "utf8");
+            expect(JSON.parse(text)).toMatchObject({
+                ok: true,
+                scenario: "identity-admission",
+                probe: { secret: "[REDACTED]" },
+                recordScope: { source: "target-runtime-smoke" }
+            });
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
     });
 });

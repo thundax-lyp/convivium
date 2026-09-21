@@ -143,7 +143,7 @@ async function copyRecordedText(source, destination, deepSeekApiKey) {
     await writeFile(destination, redact(content, deepSeekApiKey), "utf8");
 }
 
-async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
+export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
     if (recordRoot === undefined) return;
     const files = [
         [result.dumpConfig, "dump-config.yml"],
@@ -179,7 +179,7 @@ async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
     };
     await writeFile(
         join(recordRoot, "summary.json"),
-        JSON.stringify(redact(JSON.stringify(summary, null, 2), deepSeekApiKey) + "\n"),
+        redact(JSON.stringify(summary, null, 2), deepSeekApiKey) + "\n",
         "utf8"
     );
 }
