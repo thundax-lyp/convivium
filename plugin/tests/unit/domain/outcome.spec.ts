@@ -151,6 +151,7 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 createdAt: 0
             }
         ],
+        reviewClaims: [],
         reviewDeliveries: [
             {
                 id: "delivery",

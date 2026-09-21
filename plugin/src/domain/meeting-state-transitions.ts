@@ -4,6 +4,7 @@ import type {
     MeetingState,
     OpaqueId,
     RiskLevel,
+    RoundGoalV1,
     TargetDomainFactPayloadV1
 } from "./meeting-state.js";
 export type { TargetDomainFactPayloadV1 } from "./meeting-state.js";
@@ -83,6 +84,7 @@ export type TargetMeetingActionV1 =
           kind: "plan_next_step";
           agendaId: OpaqueId;
           planKind: ManagerPlanV1["kind"];
+          roundGoal?: RoundGoalV1;
           rationale: string;
           blockingReason?: string;
       };
@@ -236,6 +238,13 @@ const planNextStepSchema = z
             "raise_agenda_candidate",
             "wait_for_required_identity"
         ]),
+        roundGoal: z
+            .object({
+                question: z.string().refine((value) => value.trim().length > 0),
+                evidenceGap: z.string().refine((value) => value.trim().length > 0),
+                expectedOutput: z.string().refine((value) => value.trim().length > 0)
+            })
+            .optional(),
         rationale: z.string().refine((value) => value.trim().length > 0),
         blockingReason: z
             .string()
@@ -245,6 +254,8 @@ const planNextStepSchema = z
     .superRefine((value, ctx) => {
         if (!optionalDefined(value, "blockingReason"))
             ctx.addIssue({ code: "custom", path: ["blockingReason"] });
+        if ((value.planKind === "open_round") !== (value.roundGoal !== undefined))
+            ctx.addIssue({ code: "custom", path: ["roundGoal"] });
     });
 
 export function transitionMeetingStateV1(
@@ -620,6 +631,7 @@ export function transitionMeetingStateV1(
                 agendaId: action.agendaId,
                 managerId: actor.id,
                 kind: action.planKind,
+                ...(action.roundGoal === undefined ? {} : { roundGoal: action.roundGoal }),
                 rationale: action.rationale,
                 ...(action.blockingReason === undefined
                     ? {}

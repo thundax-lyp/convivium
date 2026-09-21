@@ -17,7 +17,24 @@ export interface SubmitReviewBatchItemV1 {
 }
 export interface SubmitReviewBatchInputV1 {
     reviewerId: OpaqueId;
+    roundId: OpaqueId;
+    claimId: OpaqueId;
     reviews: readonly SubmitReviewBatchItemV1[];
+    now: number;
+}
+export interface ClaimReviewBatchInputV1 {
+    claimId: OpaqueId;
+    sourceEffectId: OpaqueId;
+    reviewerId: OpaqueId;
+    roundId: OpaqueId;
+    versionIds: readonly OpaqueId[];
+    now: number;
+    expiresAt: number;
+}
+export interface ReleaseReviewBatchClaimInputV1 {
+    claimId: OpaqueId;
+    roundId: OpaqueId;
+    reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
     now: number;
 }
 type ReviewDimensionsInputV1 = SubmitReviewBatchItemV1["dimensions"];
@@ -56,11 +73,89 @@ function validDimensions(
     );
 }
 
+export function claimReviewBatchV1(
+    state: MeetingState,
+    input: ClaimReviewBatchInputV1
+): MeetingTransitionResultV1 {
+    if (
+        !input.claimId.trim() ||
+        !input.sourceEffectId.trim() ||
+        !input.reviewerId.trim() ||
+        !input.roundId.trim() ||
+        input.versionIds.length === 0 ||
+        new Set(input.versionIds).size !== input.versionIds.length ||
+        !valid(input.now) ||
+        !Number.isSafeInteger(input.expiresAt) ||
+        input.expiresAt <= input.now
+    )
+        return reject(state, "INVALID_ARGUMENT", "invalid review claim input");
+    if (state.lifecycle.status !== "running")
+        return reject(state, "INVALID_STATE", "meeting is not running");
+    const round = state.rounds.find((candidate) => candidate.id === input.roundId);
+    if (!round || round.status !== "open")
+        return reject(state, "INVALID_STATE", "round is not open");
+    const activeClaims = state.reviewClaims.filter((claim) => claim.expiresAt > input.now);
+    if (activeClaims.some((claim) => claim.roundId === input.roundId))
+        return reject(state, "REVIEWER_CONFLICT", "round already has an active review claim");
+    if (activeClaims.some((claim) => claim.id === input.claimId))
+        return reject(state, "INVALID_ARGUMENT", "review claim id already exists");
+    const reviewer = state.identities.find((identity) => identity.id === input.reviewerId);
+    if (
+        input.reviewerId !== state.evidenceReviewerId ||
+        reviewer?.roles.length !== 1 ||
+        reviewer.roles[0] !== "evidence_reviewer"
+    )
+        return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
+    const pending = input.versionIds.every((versionId) => {
+        const pkg = state.evidencePackages.find(
+            (candidate) => candidate.currentVersionId === versionId
+        );
+        return (
+            pkg?.roundId === input.roundId &&
+            state.registrations.some(
+                (registration) =>
+                    registration.versionId === versionId && registration.status === "complete"
+            ) &&
+            !state.reviews.some((review) => review.versionId === versionId)
+        );
+    });
+    if (!pending)
+        return reject(state, "REVIEWER_CONFLICT", "review claim versions are unavailable");
+    return {
+        kind: "accepted",
+        state: {
+            ...state,
+            version: state.version + 1,
+            updatedAt: input.now,
+            reviewClaims: [
+                ...activeClaims,
+                {
+                    id: input.claimId,
+                    sourceEffectId: input.sourceEffectId,
+                    roundId: input.roundId,
+                    reviewerId: input.reviewerId,
+                    versionIds: input.versionIds,
+                    claimedAt: input.now,
+                    expiresAt: input.expiresAt
+                }
+            ]
+        },
+        relatedIds: [input.claimId, ...input.versionIds],
+        effectRequests: []
+    };
+}
+
 export function submitReviewBatchV1(
     state: MeetingState,
     input: SubmitReviewBatchInputV1
 ): MeetingTransitionResultV1 {
-    if (!input.reviewerId.trim() || !valid(input.now) || input.reviews.length === 0)
+    if (
+        !input.reviewerId.trim() ||
+        !input.roundId.trim() ||
+        !input.claimId.trim() ||
+        !valid(input.now) ||
+        input.reviews.length === 0
+    )
         return reject(state, "INVALID_ARGUMENT", "invalid review batch input");
     const reviewer = state.identities.find((candidate) => candidate.id === input.reviewerId);
     if (
@@ -70,6 +165,19 @@ export function submitReviewBatchV1(
         reviewer.roles[0] !== "evidence_reviewer"
     )
         return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
+    const claim = state.reviewClaims.find(
+        (candidate) =>
+            candidate.id === input.claimId &&
+            candidate.roundId === input.roundId &&
+            candidate.reviewerId === input.reviewerId &&
+            candidate.expiresAt > input.now
+    );
+    if (
+        !claim ||
+        new Set(claim.versionIds).size !== input.reviews.length ||
+        input.reviews.some((review) => !claim.versionIds.includes(review.versionId))
+    )
+        return reject(state, "REVIEWER_CONFLICT", "review batch claim is invalid");
     const reviewIds = new Set<string>();
     const versionIds = new Set<string>();
     const pending: EvidenceReviewV1[] = [];
@@ -97,6 +205,7 @@ export function submitReviewBatchV1(
             version === undefined ||
             pkg.currentVersionId !== item.versionId ||
             round === undefined ||
+            round.id !== input.roundId ||
             !state.registrations.some(
                 (registration) =>
                     registration.versionId === item.versionId && registration.status === "complete"
@@ -126,7 +235,8 @@ export function submitReviewBatchV1(
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
-            reviews: [...state.reviews, ...pending]
+            reviews: [...state.reviews, ...pending],
+            reviewClaims: state.reviewClaims.filter((candidate) => candidate.id !== claim.id)
         },
         relatedIds: pending.flatMap((review) => [review.id, review.versionId]),
         effectRequests: pending.map((review, index) => ({
@@ -134,6 +244,34 @@ export function submitReviewBatchV1(
             reviewId: review.id,
             authorId: authors[index]
         }))
+    };
+}
+
+export function releaseReviewBatchClaimV1(
+    state: MeetingState,
+    input: ReleaseReviewBatchClaimInputV1
+): MeetingTransitionResultV1 {
+    if (
+        !input.claimId.trim() ||
+        !input.roundId.trim() ||
+        !["turn_timed_out", "turn_interrupted", "dispatch_failed"].includes(input.reason) ||
+        !valid(input.now)
+    )
+        return reject(state, "INVALID_ARGUMENT", "invalid review claim release");
+    const claim = state.reviewClaims.find(
+        (candidate) => candidate.id === input.claimId && candidate.roundId === input.roundId
+    );
+    if (!claim) return reject(state, "NOT_FOUND", "review claim not found", input.claimId);
+    return {
+        kind: "accepted",
+        state: {
+            ...state,
+            version: state.version + 1,
+            updatedAt: input.now,
+            reviewClaims: state.reviewClaims.filter((candidate) => candidate.id !== claim.id)
+        },
+        relatedIds: [claim.id, claim.roundId, ...claim.versionIds],
+        effectRequests: []
     };
 }
 

@@ -7,6 +7,7 @@ import {
     DisposeHandRaiseActionV1Schema,
     MeetingCommandV1Schema,
     OpenRoundActionV1Schema,
+    SubmitManagerPlanActionV1Schema,
     PublishRoundActionV1Schema,
     RaiseHandActionV1Schema,
     RecommendIdentityActionV1Schema,
@@ -132,6 +133,11 @@ export function registerMeetingToolsV1(
             schema: CreateMeetingActionV1Schema
         },
         { name: "convivium_open_round", kind: "open_round", schema: OpenRoundActionV1Schema },
+        {
+            name: "convivium_submit_manager_plan",
+            kind: "submit_manager_plan",
+            schema: SubmitManagerPlanActionV1Schema
+        },
         {
             name: "convivium_dispose_hand_raise",
             kind: "dispose_hand_raise",

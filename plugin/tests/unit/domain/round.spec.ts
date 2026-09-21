@@ -1,7 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { requestEvidenceOpportunityV1 } from "@/domain/transitions/opportunity.js";
-import { abortRoundV1, isRoundClosableV1, openRoundV1 } from "@/domain/transitions/round.js";
+import {
+    abortRoundV1,
+    isRoundClosableV1,
+    openRoundV1 as openRoundTransition
+} from "@/domain/transitions/round.js";
+
+const openRoundV1 = (state: Parameters<typeof openRoundTransition>[0], input: any) => {
+    if (state.managerPlans.some((plan) => plan.id === "plan-v1"))
+        return openRoundTransition(state, { ...input, planId: "plan-v1" });
+    return openRoundTransition(
+        {
+            ...state,
+            managerPlans: [
+                ...state.managerPlans,
+                {
+                    id: "plan-v1",
+                    agendaId: input.agendaId,
+                    managerId: input.managerId,
+                    kind: "open_round",
+                    roundGoal: {
+                        question: "q",
+                        evidenceGap: "gap",
+                        expectedOutput: "output"
+                    },
+                    rationale: "plan",
+                    createdAt: 0,
+                    status: "active"
+                }
+            ]
+        },
+        { ...input, planId: "plan-v1" }
+    );
+};
 
 describe("round transitions", () => {
     it("opens with all current publications as baseline and transfers queued requests to hands", () => {
@@ -41,6 +73,8 @@ describe("round transitions", () => {
             {
                 id: "round-v1",
                 agendaId: "agenda-v1",
+                planId: "plan-v1",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
                 publicBaselinePublicationIds: ["publication-1"],
                 openedAt: 20,
                 status: "open",

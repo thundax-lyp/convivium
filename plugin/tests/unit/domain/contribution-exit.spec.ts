@@ -130,6 +130,7 @@ describe("contribution exit", () => {
                     createdAt: 5
                 }
             ],
+            reviewClaims: [],
             reviewDeliveries: [
                 {
                     id: "delivery-v1",

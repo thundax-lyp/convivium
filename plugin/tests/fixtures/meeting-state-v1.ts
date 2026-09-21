@@ -60,6 +60,7 @@ export function makeRunningMeetingStateV1(): MeetingState {
         evidencePackages: [],
         registrations: [],
         reviews: [],
+        reviewClaims: [],
         reviewDeliveries: [],
         publications: [],
         messages: [],

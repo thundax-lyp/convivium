@@ -214,6 +214,9 @@ const managerPlanSchema = z.object({
     agendaId: opaqueIdSchema,
     managerId: opaqueIdSchema,
     basedOnPublicationId: opaqueIdSchema.optional(),
+    roundGoal: z
+        .object({ question: textSchema, evidenceGap: textSchema, expectedOutput: textSchema })
+        .optional(),
     kind: z.enum([
         "open_round",
         "continue_agenda",
@@ -256,6 +259,11 @@ const roundSchema = z
     .object({
         id: opaqueIdSchema,
         agendaId: opaqueIdSchema,
+        roundGoal: z.object({
+            question: textSchema,
+            evidenceGap: textSchema,
+            expectedOutput: textSchema
+        }),
         publicBaselinePublicationIds: uniqueIdArraySchema,
         openedAt: epochSchema,
         status: z.enum(["open", "published", "aborted"]),
@@ -399,6 +407,17 @@ const evidenceReviewSchema = z.object({
     }),
     createdAt: epochSchema
 });
+const reviewClaimSchema = z
+    .object({
+        id: opaqueIdSchema,
+        sourceEffectId: opaqueIdSchema,
+        roundId: opaqueIdSchema,
+        reviewerId: opaqueIdSchema,
+        versionIds: uniqueIdArraySchema.refine((ids) => ids.length > 0),
+        claimedAt: epochSchema,
+        expiresAt: epochSchema
+    })
+    .refine((claim) => claim.expiresAt > claim.claimedAt, { path: ["expiresAt"] });
 const reviewDeliverySchema = z
     .object({
         id: opaqueIdSchema,
@@ -753,6 +772,7 @@ const meetingStateSchema = withDefinedOptionals(
         evidencePackages: uniqueEntityArray(evidencePackageSchema),
         registrations: uniqueEntityArray(registrationSchema),
         reviews: uniqueEntityArray(evidenceReviewSchema),
+        reviewClaims: uniqueEntityArray(reviewClaimSchema),
         reviewDeliveries: uniqueEntityArray(reviewDeliverySchema),
         publications: uniqueEntityArray(publicationSchema),
         messages: uniqueEntityArray(formalMessageSchema),
@@ -1032,6 +1052,31 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.reviewerId`);
         const owner = versionOwnerById.get(r.versionId);
         if (owner?.authorId === r.reviewerId) return fail(`${path}.reviewerId`);
+    }
+    const claimedRoundIds = new Set<string>();
+    for (let i = 0; i < parsedState.reviewClaims.length; i++) {
+        const claim = parsedState.reviewClaims[i];
+        const path = `$.reviewClaims[${i}]`;
+        if (claimedRoundIds.has(claim.roundId)) return fail(`${path}.roundId`);
+        claimedRoundIds.add(claim.roundId);
+        const round = roundById.get(claim.roundId);
+        if (!round || round.status !== "open") return fail(`${path}.roundId`);
+        if (claim.reviewerId !== parsedState.evidenceReviewerId) return fail(`${path}.reviewerId`);
+        for (let j = 0; j < claim.versionIds.length; j++) {
+            const versionId = claim.versionIds[j];
+            const owner = versionOwnerById.get(versionId);
+            if (
+                !owner ||
+                owner.roundId !== claim.roundId ||
+                owner.currentVersionId !== versionId ||
+                !registrations.some(
+                    (registration) =>
+                        registration.versionId === versionId && registration.status === "complete"
+                ) ||
+                reviews.some((review) => review.versionId === versionId)
+            )
+                return fail(`${path}.versionIds[${j}]`);
+        }
     }
     for (let i = 0; i < contributions.length; i++) {
         const hand = (contributions[i] as RecordValue).supplementHand as RecordValue | undefined;

@@ -54,6 +54,7 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
         evidencePackages: [],
         registrations: [],
         reviews: [],
+        reviewClaims: [],
         reviewDeliveries: [],
         publications: [],
         messages: [],

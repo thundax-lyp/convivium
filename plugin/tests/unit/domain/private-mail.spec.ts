@@ -60,6 +60,7 @@ function state(): MeetingState {
         evidencePackages: [],
         registrations: [],
         reviews: [],
+        reviewClaims: [],
         reviewDeliveries: [],
         publications: [
             {

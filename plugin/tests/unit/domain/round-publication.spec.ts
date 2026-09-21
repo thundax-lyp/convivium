@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { openRoundV1 } from "@/domain/transitions/round.js";
+import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
+
+const openRoundV1 = (state: Parameters<typeof openRoundTransition>[0], input: any) =>
+    openRoundTransition(
+        {
+            ...state,
+            managerPlans: [
+                ...state.managerPlans,
+                {
+                    id: "plan-v1",
+                    agendaId: input.agendaId,
+                    managerId: input.managerId,
+                    kind: "open_round",
+                    roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                    rationale: "plan",
+                    createdAt: 0,
+                    status: "active"
+                }
+            ]
+        },
+        { ...input, planId: "plan-v1" }
+    );
 import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
 
 describe("round publication", () => {

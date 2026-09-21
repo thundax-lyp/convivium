@@ -62,15 +62,17 @@
 1. 每场会议恰有一个专职 `evidence_reviewer` 身份；它不能兼任 Captain、Manager 或 Contributor。审核人对每份已登记证据包的当前版本，结合 ER-FR-1 的固定公开基线评价内容。审核人不能否认会议已登记该证据，但可以质疑原始来源的真实性、观察可靠性、资料独立性、适用范围及具体观点的推断关系。
 2. 审核分别记录四维评分和逐项理由，不以一个加总分或人数投票代替判断：
 
-   | 维度 | 判断对象 |
-   | --- | --- |
-   | 来源 | 原始出处能否追溯，固定版本能否定位，转载及共同数据依赖是否说明。 |
-   | 可信度 | 观察或材料内容的可靠性、可核对性，以及与截至上一轮公开证据的相容或冲突。 |
-   | 完整性 | 回答该问题所需的资料、方法、条件、上下文和已知限制是否足以审查。 |
+   | 维度       | 判断对象                                                                                           |
+   | ---------- | -------------------------------------------------------------------------------------------------- |
+   | 来源       | 原始出处能否追溯，固定版本能否定位，转载及共同数据依赖是否说明。                                   |
+   | 可信度     | 观察或材料内容的可靠性、可核对性，以及与截至上一轮公开证据的相容或冲突。                           |
+   | 完整性     | 回答该问题所需的资料、方法、条件、上下文和已知限制是否足以审查。                                   |
    | 观点支撑度 | 指定资料的指定部分对某个具体观点是直接支持、部分支持、不支持，还是无法判断；所需推断假设是否成立。 |
 
 3. 每维使用 0～3 级：0 表示有明确重大缺口或反证，1 表示明显不足，2 表示足以有限判断但有已说明限制，3 表示依据充分且可核对；证据不足以给出数值时另记“无法判断”，不把它当作 0。每项评分须保留审核范围、理由和影响判断的上一轮依据。评分是审核意见，不是 Manager 接纳、观点接受或会议目标完成事实。
-4. 审核人可一次读取任意非空待审集合，由其 coordinator Session 使用 DSH 原生 worker sessions 并发处理。每个 worker 只取得一份确切 EvidenceVersion 与该 Round 的固定公开 baseline，不是 MeetingIdentity、不能写 Meeting。审核人可把已完成的多个独立 Review 作为一个原子批次提交；失败或未完成的项不进入该批次并继续保持待审。V1 不持久化 ReviewBatch、claim、租约或 worker 内部过程。
+4. Runtime 在唤醒审核人前，必须为同一 Round 的确切待审 EvidenceVersion 集合原子创建一个持久 `ReviewBatchClaim`；每轮至多一个未过期 claim。claim 固化 `claimId`、`roundId`、唯一审核人、`versionIds`、`claimedAt` 与 `expiresAt`，但不持久化 worker 内部过程。审核人的 coordinator Session 使用 DSH 原生 worker sessions 并发处理；每个 worker 只取得 claim 中一份确切 EvidenceVersion 与该 Round 的固定公开 baseline，不是 MeetingIdentity、不能写 Meeting。`SubmitReviewBatch` 必须携带并精确匹配未过期 claim 及其全部 versionIds，成功时原子写入全部 Review 并移除 claim。重复 effect 在有效 claim 存在时不得再次唤醒审核人；Reviewer turn 超时、中断或投递失败时，Runtime 必须原子撤销该 turn 的确切 claim，撤销后不再接受该旧 turn 的 Review，仍待审版本可由后续 effect 立即重新认领。若 Runtime 未能观察到 turn 结束（例如进程崩溃），则保留 claim 到 `expiresAt` 后再重新认领。Reviewer 或任一 worker 未完成时不得提交部分结果。Meeting 冷恢复后必须从持久 claim 与最终 Review 判定等待、重试或重新认领，不依赖进程内锁。
+
+5. claim 还必须绑定创建它的 `sourceEffectId`。同一 version 的其它重复 effect 在有效 claim 存在时直接去重完成；原 effect 的崩溃重投不得被误判为已完成，而应保持等待，直至显式撤销、Review 成功或 claim 到期后重新认领。
 
 ### ER-FR-6：审核意见、两次补充与响应
 

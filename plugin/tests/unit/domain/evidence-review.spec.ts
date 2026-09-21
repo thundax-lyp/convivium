@@ -1,22 +1,48 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { openRoundV1 } from "@/domain/transitions/round.js";
+import { abortRoundV1, openRoundV1 } from "@/domain/transitions/round.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
 import { submitEvidenceV1 } from "@/domain/transitions/format-evidence.js";
 import {
+    claimReviewBatchV1,
     recordReviewDeliveryV1,
+    releaseReviewBatchClaimV1,
     submitReviewBatchV1
 } from "@/domain/transitions/evidence-review.js";
 import { isRoundClosableV1 } from "@/domain/transitions/round.js";
 import { publishRoundV1 } from "@/domain/transitions/round-publication.js";
 import { closeContributionV1 } from "@/domain/transitions/contribution-exit.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
+import {
+    decodeMeetingStateV1,
+    encodeMeetingStateV1
+} from "@/repository/domain/meeting-state-codec.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();
+    state = {
+        ...state,
+        managerPlans: [
+            {
+                id: "plan-v1",
+                agendaId: "agenda-v1",
+                managerId: "manager-v1",
+                kind: "open_round",
+                roundGoal: {
+                    question: "核验证据",
+                    evidenceGap: "缺少审核",
+                    expectedOutput: "审核结果"
+                },
+                rationale: "测试开轮",
+                createdAt: 0,
+                status: "active"
+            }
+        ]
+    };
     const open = openRoundV1(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
+        planId: "plan-v1",
         managerId: "manager-v1",
         now: 1
     });
@@ -124,62 +150,214 @@ function twoEvidenceState() {
     };
 }
 
+function submitClaimedReview(
+    state: ReturnType<typeof evidenceState>,
+    reviews: Parameters<typeof submitReviewBatchV1>[1]["reviews"],
+    reviewerId = "reviewer-v1",
+    now = 6
+) {
+    const claim = claimReviewBatchV1(state, {
+        claimId: "review-claim-v1",
+        sourceEffectId: "review-effect-v1",
+        reviewerId: "reviewer-v1",
+        roundId: "round-v1",
+        versionIds: reviews.map((review) => review.versionId),
+        now: 5,
+        expiresAt: 100
+    });
+    if (claim.kind !== "accepted") throw new Error("claim");
+    return submitReviewBatchV1(claim.state, {
+        claimId: "review-claim-v1",
+        reviewerId,
+        roundId: "round-v1",
+        reviews,
+        now
+    });
+}
+
 describe("evidence review and delivery", () => {
     it("submits multiple reviews atomically with one state version increment", () => {
         const state = twoEvidenceState();
-        const result = submitReviewBatchV1(state, {
-            reviewerId: "reviewer-v1",
-            reviews: [
-                { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" },
-                { reviewId: "review-v2", versionId: "version-v2", dimensions, scope: "本轮" }
-            ],
-            now: 6
-        });
+        const result = submitClaimedReview(state, [
+            { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" },
+            { reviewId: "review-v2", versionId: "version-v2", dimensions, scope: "本轮" }
+        ]);
         expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
-        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.version).toBe(state.version + 2);
+        expect(result.state.reviewClaims).toEqual([]);
         expect(result.state.reviews.map((review) => review.id)).toEqual(["review-v1", "review-v2"]);
         expect(result.effectRequests).toHaveLength(2);
     });
 
-    it("rejects a partially invalid batch without writing any review", () => {
+    it("rejects a batch that does not exactly match its claim", () => {
         const state = twoEvidenceState();
-        const result = submitReviewBatchV1(state, {
+        const claim = claimReviewBatchV1(state, {
+            claimId: "review-claim-v1",
+            sourceEffectId: "review-effect-v1",
             reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1", "version-v2"],
+            now: 5,
+            expiresAt: 100
+        });
+        if (claim.kind !== "accepted") throw new Error("claim");
+        const result = submitReviewBatchV1(claim.state, {
+            claimId: "review-claim-v1",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
             reviews: [
                 { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" },
                 { reviewId: "review-v2", versionId: "missing", dimensions, scope: "本轮" }
             ],
             now: 6
         });
-        expect(result).toMatchObject({ kind: "rejected", error: { code: "INVALID_ARGUMENT" } });
-        expect(result.state).toBe(state);
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
+        expect(result.state).toBe(claim.state);
+    });
+
+    it("blocks a second claim until the first expires, then replaces it", () => {
+        const state = evidenceState();
+        const first = claimReviewBatchV1(state, {
+            claimId: "claim-first",
+            sourceEffectId: "review-effect-first",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 5,
+            expiresAt: 10
+        });
+        if (first.kind !== "accepted") throw new Error("first claim");
+        const conflict = claimReviewBatchV1(first.state, {
+            claimId: "claim-conflict",
+            sourceEffectId: "review-effect-conflict",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 9,
+            expiresAt: 20
+        });
+        expect(conflict).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
+        const replaced = claimReviewBatchV1(first.state, {
+            claimId: "claim-replacement",
+            sourceEffectId: "review-effect-replacement",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 10,
+            expiresAt: 20
+        });
+        expect(replaced.kind === "accepted" && replaced.state.reviewClaims).toEqual([
+            expect.objectContaining({ id: "claim-replacement" })
+        ]);
+    });
+
+    it("preserves an active claim across state encoding and cold recovery", () => {
+        const claim = claimReviewBatchV1(evidenceState(), {
+            claimId: "review-claim-v1",
+            sourceEffectId: "review-effect-v1",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 5,
+            expiresAt: 100
+        });
+        if (claim.kind !== "accepted") throw new Error("claim");
+
+        const recovered = decodeMeetingStateV1(encodeMeetingStateV1(claim.state));
+
+        expect(recovered.reviewClaims).toEqual(claim.state.reviewClaims);
+        expect(validateMeetingStateV1(recovered)).toMatchObject({ kind: "valid" });
+    });
+
+    it("rejects a late review after the timed-out turn releases its exact claim", () => {
+        const state = evidenceState();
+        const claim = claimReviewBatchV1(state, {
+            claimId: "review-claim-v1",
+            sourceEffectId: "review-effect-v1",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 5,
+            expiresAt: 100
+        });
+        if (claim.kind !== "accepted") throw new Error("claim");
+        const released = releaseReviewBatchClaimV1(claim.state, {
+            claimId: "review-claim-v1",
+            roundId: "round-v1",
+            reason: "turn_timed_out",
+            now: 6
+        });
+        if (released.kind !== "accepted") throw new Error("release");
+
+        expect(released.state.reviewClaims).toEqual([]);
+        expect(
+            submitReviewBatchV1(released.state, {
+                claimId: "review-claim-v1",
+                reviewerId: "reviewer-v1",
+                roundId: "round-v1",
+                reviews: [
+                    {
+                        reviewId: "late-review",
+                        versionId: "version-v1",
+                        dimensions,
+                        scope: "本轮"
+                    }
+                ],
+                now: 7
+            })
+        ).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
+        expect(
+            releaseReviewBatchClaimV1(claim.state, {
+                claimId: "different-claim",
+                roundId: "round-v1",
+                reason: "turn_timed_out",
+                now: 6
+            })
+        ).toMatchObject({ kind: "rejected", error: { code: "NOT_FOUND" } });
+    });
+
+    it("removes the round claim when an exceptional abort closes the round", () => {
+        const claim = claimReviewBatchV1(evidenceState(), {
+            claimId: "review-claim-v1",
+            sourceEffectId: "review-effect-v1",
+            reviewerId: "reviewer-v1",
+            roundId: "round-v1",
+            versionIds: ["version-v1"],
+            now: 5,
+            expiresAt: 100
+        });
+        if (claim.kind !== "accepted") throw new Error("claim");
+
+        const aborted = abortRoundV1(claim.state, {
+            roundId: "round-v1",
+            actor: { kind: "local_controller", id: "runtime-v1" },
+            reason: "审核无法恢复",
+            now: 6
+        });
+
+        expect(aborted.kind).toBe("accepted");
+        expect(aborted.kind === "accepted" && aborted.state.reviewClaims).toEqual([]);
     });
 
     it("rejects a non-unique reviewer identity", () => {
-        const result = submitReviewBatchV1(evidenceState(), {
-            reviewerId: "manager-v1",
-            reviews: [
-                { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" }
-            ],
-            now: 6
-        });
+        const result = submitClaimedReview(
+            evidenceState(),
+            [{ reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" }],
+            "manager-v1"
+        );
         expect(result).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
     });
 
     it("submits one review for the current version and requests delivery", () => {
-        const result = submitReviewBatchV1(evidenceState(), {
-            reviewerId: "reviewer-v1",
-            reviews: [
-                {
-                    versionId: "version-v1",
-                    reviewId: "review-v1",
-                    dimensions,
-                    scope: "本轮"
-                }
-            ],
-            now: 6
-        });
+        const result = submitClaimedReview(evidenceState(), [
+            {
+                versionId: "version-v1",
+                reviewId: "review-v1",
+                dimensions,
+                scope: "本轮"
+            }
+        ]);
         expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
         expect(result.state.reviews[0].baselinePublicationIds).toEqual([]);
@@ -188,18 +366,14 @@ describe("evidence review and delivery", () => {
         ]);
     });
     it("requires a reason for failed delivery and permits one sent delivery", () => {
-        const reviewed = submitReviewBatchV1(evidenceState(), {
-            reviewerId: "reviewer-v1",
-            reviews: [
-                {
-                    versionId: "version-v1",
-                    reviewId: "review-v1",
-                    dimensions,
-                    scope: "本轮"
-                }
-            ],
-            now: 6
-        });
+        const reviewed = submitClaimedReview(evidenceState(), [
+            {
+                versionId: "version-v1",
+                reviewId: "review-v1",
+                dimensions,
+                scope: "本轮"
+            }
+        ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
         const failed = recordReviewDeliveryV1(reviewed.state, {
             reviewId: "review-v1",
@@ -223,18 +397,14 @@ describe("evidence review and delivery", () => {
     });
 
     it("preserves a withdrawn Contribution when a pending review delivery is sent", () => {
-        const reviewed = submitReviewBatchV1(evidenceState(), {
-            reviewerId: "reviewer-v1",
-            reviews: [
-                {
-                    versionId: "version-v1",
-                    reviewId: "review-v1",
-                    dimensions,
-                    scope: "本轮"
-                }
-            ],
-            now: 6
-        });
+        const reviewed = submitClaimedReview(evidenceState(), [
+            {
+                versionId: "version-v1",
+                reviewId: "review-v1",
+                dimensions,
+                scope: "本轮"
+            }
+        ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
         const withdrawn = closeContributionV1(reviewed.state, {
             contributionId: "contribution-v1",
@@ -261,18 +431,14 @@ describe("evidence review and delivery", () => {
     });
 
     it("publishes reviewed evidence after its review is delivered", () => {
-        const reviewed = submitReviewBatchV1(evidenceState(), {
-            reviewerId: "reviewer-v1",
-            reviews: [
-                {
-                    versionId: "version-v1",
-                    reviewId: "review-v1",
-                    dimensions,
-                    scope: "本轮"
-                }
-            ],
-            now: 6
-        });
+        const reviewed = submitClaimedReview(evidenceState(), [
+            {
+                versionId: "version-v1",
+                reviewId: "review-v1",
+                dimensions,
+                scope: "本轮"
+            }
+        ]);
         if (reviewed.kind !== "accepted") throw new Error("review");
         const delivered = recordReviewDeliveryV1(reviewed.state, {
             reviewId: "review-v1",
