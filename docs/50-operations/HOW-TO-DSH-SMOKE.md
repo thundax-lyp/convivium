@@ -34,6 +34,21 @@ pnpm --dir plugin smoke:profile --json
 
 business-loop 运行中应观察 Evidence、review batch、publish、archive 与 cold reopen 的进展，而不只看 Agent idle。正常超时、断言失败或 Restore 失败均为 FAIL。受控退出应由 wrapper 清理隔离 profile；若中断导致其残留，先核对 stdout 给出的精确临时路径与进程状态，再以可恢复方式隔离该单个目录，绝不清理用户常用 profile 或凭据。复验必须新建隔离 profile，不把失败轮的内容补填到通过轮。
 
+## 复盘记录
+
+默认冒烟仍会删除隔离 profile。需要保留一次可复盘的运行记录时，先创建一个专用的空目录，并显式提供该目录：
+
+```sh
+mkdir -p dsh-workspace/smoke-records
+CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
+  CONVIVIUM_SMOKE_RECORD_DIR="$PWD/dsh-workspace/smoke-records" \
+  pnpm --dir plugin smoke:profile --json
+```
+
+wrapper 会在该目录内创建唯一的 `convivium-smoke-record-*` 子目录。其 `summary.json` 记录最终 probe 结论和边界；`dump-config.yml`、initial/cold-reopen Host stdout/stderr，以及 initial Agent 收件提示保留在同一目录。它们用于复盘 target-runtime 的命令、状态和模型可见输入，不是 arXiv 或 vLLM 源码调研证据。`meeting-business-loop` 的四轮“文献、源码、最小实现、继续／停止”均在同一已授权 Agenda 内；Manager 通过每轮 `open_round` 的 `roundGoal` 指明问题、证据缺口和预期产出，既不创建 Agenda candidate，也不代替 Captain 对宏观 Agenda 作正式处置。真实外部检索仍不在当前 profile 的已验证能力内。
+
+记录不会复制 SQLite 数据库、workspace、profile 或 `dev.env`。写入前会替换 `DEEPSEEK_API_KEY` 的精确值；记录仍可能含会议主题、fixture 文本与 Agent 收件消息，应只保存在受控的本机目录，复盘结束后按本地数据规则处理。
+
 ## 替换前人工真实模型验证（历史入口）
 
 以下人工步骤记录替换前组合，缺少当前 SQLite provider 接线，不作为当前首次发布或 SQLite 验收入口。当前验证使用下文“标准入口”和“新 SQLite profile”；不对已有 profile 自动应用替换。

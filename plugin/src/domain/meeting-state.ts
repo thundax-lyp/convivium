@@ -143,6 +143,8 @@ export interface IssueV1 {
 export interface RoundV1 {
     id: OpaqueId;
     agendaId: OpaqueId;
+    planId: OpaqueId;
+    roundGoal: RoundGoalV1;
     publicBaselinePublicationIds: readonly OpaqueId[];
     openedAt: EpochMs;
     status: "open" | "published" | "aborted";
@@ -151,6 +153,12 @@ export interface RoundV1 {
     publicationId?: OpaqueId;
     abortReason?: string;
     abortedAt?: EpochMs;
+}
+
+export interface RoundGoalV1 {
+    question: string;
+    evidenceGap: string;
+    expectedOutput: string;
 }
 
 export interface HandRaiseV1 {
@@ -290,6 +298,16 @@ export interface EvidenceReviewV1 {
     createdAt: EpochMs;
 }
 
+export interface ReviewBatchClaimV1 {
+    id: OpaqueId;
+    sourceEffectId: OpaqueId;
+    roundId: OpaqueId;
+    reviewerId: OpaqueId;
+    versionIds: readonly OpaqueId[];
+    claimedAt: EpochMs;
+    expiresAt: EpochMs;
+}
+
 export interface ReviewDeliveryV1 {
     id: OpaqueId;
     reviewId: OpaqueId;
@@ -425,6 +443,7 @@ export interface ManagerPlanV1 {
     agendaId: OpaqueId;
     managerId: OpaqueId;
     basedOnPublicationId?: OpaqueId;
+    roundGoal?: RoundGoalV1;
     kind:
         | "open_round"
         | "continue_agenda"
@@ -605,6 +624,7 @@ export interface MeetingState {
     evidencePackages: readonly EvidencePackageV1[];
     registrations: readonly RegistrationV1[];
     reviews: readonly EvidenceReviewV1[];
+    reviewClaims: readonly ReviewBatchClaimV1[];
     reviewDeliveries: readonly ReviewDeliveryV1[];
     publications: readonly PublicationV1[];
     messages: readonly FormalMessageV1[];

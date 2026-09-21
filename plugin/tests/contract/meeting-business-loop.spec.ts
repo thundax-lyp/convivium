@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import {
     MeetingActionV1Schema,
     ListMeetingsRequestV1Schema,
@@ -87,7 +87,7 @@ describe("target Meeting business-loop protocol", () => {
             },
             { kind: "recommend_identity", ...identity },
             { kind: "record_identity_admission_result", recommendationId: "recommendation-1" },
-            { kind: "open_round", agendaId: "agenda-1" },
+            { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" },
             { kind: "raise_hand", roundId: "round-1", purpose: "purpose" },
             {
                 kind: "dispose_hand_raise",
@@ -104,7 +104,21 @@ describe("target Meeting business-loop protocol", () => {
                 reason: "withdraw"
             },
             {
+                kind: "claim_review_batch",
+                sourceEffectId: "review-effect-1",
+                roundId: "round-1",
+                versionIds: ["version-1"]
+            },
+            {
+                kind: "release_review_batch_claim",
+                roundId: "round-1",
+                claimId: "review-claim-1",
+                reason: "turn_timed_out"
+            },
+            {
                 kind: "submit_review_batch",
+                roundId: "round-1",
+                claimId: "review-claim-1",
                 reviews: [
                     {
                         versionId: "version-1",
@@ -140,7 +154,7 @@ describe("target Meeting business-loop protocol", () => {
                 status: "closed"
             }
         ];
-        expect(actions).toHaveLength(14);
+        expect(actions).toHaveLength(16);
         for (const value of actions) {
             const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
             expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);
@@ -166,6 +180,8 @@ describe("target Meeting business-loop protocol", () => {
         expect(
             MeetingActionV1Schema.safeParse({
                 kind: "submit_review_batch",
+                roundId: "round-1",
+                claimId: "review-claim-1",
                 reviews: [
                     {
                         versionId: "version-1",

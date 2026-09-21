@@ -5,8 +5,9 @@ import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
+import { MAX_COMMIT_VALUE_BYTES } from "@/repository/domain/projection.js";
 
 const authorization = { callerBinding: "runtime", capabilityId: "runtime" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -14,9 +15,10 @@ const codec = { encode: encodeMeetingStateV1, decode: decodeMeetingStateV1 };
 
 async function fixture() {
     const meeting = createFakeMeetingDomain();
+    const catalog = createFakeCatalogDomain();
     const state = makeRunningMeetingStateV1();
     const repository = await DomainMeetingRepository.open<MeetingState>({
-        catalogDomain: createFakeCatalogDomain(),
+        catalogDomain: catalog,
         meetingDomain: meeting,
         meetingId: state.id,
         authorizationValidator: allow,
@@ -32,7 +34,7 @@ async function fixture() {
     };
     await repository.create(create);
     await repository.completeCreate(create);
-    return { meeting, repository, state };
+    return { catalog, meeting, repository, state };
 }
 
 function command(
@@ -72,6 +74,75 @@ function command(
 }
 
 describe("target repository facts contract", () => {
+    it("atomically checkpoints a command whose patch exceeds one commit value", async () => {
+        const { catalog, meeting, repository, state } = await fixture();
+        const statement = "review-result-".repeat(
+            Math.ceil((MAX_COMMIT_VALUE_BYTES * 2) / "review-result-".length)
+        );
+
+        const committed = await repository.execute({
+            requestId: "large-review-batch",
+            requestHash: "large-review-batch-hash",
+            commandKind: "submit_review_batch",
+            authorization,
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: {
+                    ...snapshot.state,
+                    objective: { ...snapshot.state.objective, statement }
+                },
+                result: { accepted: true },
+                events: [{ type: "review.batch.submitted", payload: { count: 2 } }],
+                outbox: []
+            })
+        });
+
+        expect(committed.meetingVersion).toBe(1);
+        const reopened = await DomainMeetingRepository.open<MeetingState>({
+            catalogDomain: catalog,
+            meetingDomain: meeting,
+            meetingId: state.id,
+            authorizationValidator: allow,
+            codec,
+            now: () => 11
+        });
+        expect((await reopened.read()).state.objective.statement).toBe(statement);
+        expect(
+            await reopened.replayReceipt({
+                requestId: "large-review-batch",
+                requestHash: "large-review-batch-hash",
+                commandKind: "submit_review_batch",
+                authorization
+            })
+        ).toMatchObject({ meetingVersion: 1, result: { accepted: true } });
+        await reopened.close();
+        await repository.close();
+    });
+
+    it("commits a locally guarded review after unrelated Meeting state advances", async () => {
+        const { repository, state } = await fixture();
+        await repository.execute(command(state, 0, "unrelated-state-change", ["fact-unrelated"]));
+        const committed = await repository.execute({
+            requestId: "review-immutable-version",
+            requestHash: "review-immutable-version-hash",
+            commandKind: "submit_review_batch",
+            authorization,
+            transition: (snapshot) => ({
+                state: {
+                    ...snapshot.state,
+                    version: snapshot.version + 1,
+                    updatedAt: snapshot.updatedAt + 1
+                },
+                result: { accepted: true },
+                events: [{ type: "message.added", payload: { review: "immutable-version" } }],
+                outbox: []
+            })
+        });
+
+        expect(committed.meetingVersion).toBe(2);
+        await repository.close();
+    });
+
     it("orders facts by meetingVersion and factId", async () => {
         const { repository, state } = await fixture();
         await repository.execute(command(state, 0, "command-1", ["fact-b", "fact-a"]));

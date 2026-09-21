@@ -64,7 +64,7 @@ export interface RepositoryCommand<T, TState = JsonObject> {
     commandKind: string;
     authorization: CommandAuthorization;
     requestHash: string;
-    expectedMeetingVersion: number;
+    expectedMeetingVersion?: number;
     allowNoop?: boolean;
     facts?: readonly CommittedFactRecordV1<TState>[];
     archiveSessionResult?: {

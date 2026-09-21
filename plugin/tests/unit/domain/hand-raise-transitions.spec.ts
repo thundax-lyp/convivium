@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
-import { openRoundV1 } from "@/domain/transitions/round.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+import { openRoundV1 as openRoundTransition } from "@/domain/transitions/round.js";
+
+type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
+
+const openRoundV1 = (
+    state: Parameters<typeof openRoundTransition>[0],
+    input: OpenRoundFixtureInput
+) =>
+    openRoundTransition(
+        {
+            ...state,
+            managerPlans: [
+                ...state.managerPlans,
+                {
+                    id: "plan-v1",
+                    agendaId: input.agendaId,
+                    managerId: input.managerId,
+                    kind: "open_round",
+                    roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                    rationale: "plan",
+                    createdAt: 0,
+                    status: "active"
+                }
+            ]
+        },
+        { ...input, planId: "plan-v1" }
+    );
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-validation.js";
 
@@ -10,11 +36,25 @@ function openState() {
         {
             id: "round-0",
             agendaId: "agenda-v1",
+            planId: "plan-0",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "published",
             contributionIds: [],
             publicationId: "publication-0"
+        }
+    ];
+    state.managerPlans = [
+        {
+            id: "plan-0",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            kind: "open_round",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            rationale: "plan",
+            createdAt: 0,
+            status: "completed"
         }
     ];
     state.publications = [

@@ -23,35 +23,35 @@ Domain 接受完整的当前 MeetingState 与已认证 actor、时间和命令�
 
 `MeetingState` 是唯一聚合根，字段固定为：
 
-| 字段 | 类型/约束 |
-| --- | --- |
-| `id` | 非空 opaque Meeting ID |
-| `version` | 从 1 开始的正整数；每次成功转换加一 |
-| `createdAt` / `updatedAt` | 有限非负时间戳 |
-| `continuation?` | 新 Meeting 由归档续会时的 ContinuationProvenance，否则不存在 |
-| `objective` | `ObjectiveContract` |
-| `lifecycle` | `MeetingLifecycle` |
-| `identities` | 按 identityId 唯一的 `MeetingIdentity[]` |
-| `evidenceReviewerId` | 指向本 Meeting 唯一专职 evidence_reviewer identity |
-| `identityRecommendations` | 按 recommendationId 唯一的 `IdentityRecommendation[]`；包含 Manager 决定与非可调度 provisioning intent |
-| `agenda` | 按 agendaId 唯一的 `AgendaItem[]` |
-| `agendaCandidates` | 按 candidateId 唯一的 `AgendaCandidate[]` |
-| `rounds` | 按 roundId 唯一的 `Round[]` |
-| `opportunityRequests` | 仅含无 open Round 时的未处置 `EvidenceOpportunityRequest[]`；按 requestId 和 `(agendaId, contributorId)` 唯一 |
-| `pendingHandRaises` | 仅含未处置的 `PendingHandRaise[]`；按 `(roundId, contributorId)` 唯一 |
-| `contributions` | 按 contributionId 唯一的 `Contribution[]` |
-| `completionDeclarations` | 按 declarationId 唯一的不可变 CompletionDeclaration 数组 |
-| `evidencePackages` | 按 packageId 唯一的 `EvidencePackage[]` |
-| `registrations` / `reviews` / `reviewDeliveries` | 按各自 ID 唯一的事实数组 |
-| `publications` / `messages` | 按 publicationId/messageId 唯一，发布序号严格递增 |
-| `proposals` / `positions` / `decisionCandidates` / `decisions` | 不可变历史数组 |
-| `questions` / `issues` / `riskDispositions` | 按 ID 唯一的当前及历史事实 |
-| `tasks` | 按 taskId 唯一的 `MeetingTask[]` |
-| `managerPlans` | 按 planId 唯一的 ManagerPlan 数组；每个 Agenda 至多一个 active |
-| `privateMails` | 按 mailId 唯一的 PrivateMail 数组 |
-| `completionFacts` | 按 factId 唯一的不可变事实 |
-| `limits` | `MeetingLimits` |
-| `termination?` / `archive?` | 仅终态或归档阶段存在 |
+| 字段                                                              | 类型/约束                                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `id`                                                              | 非空 opaque Meeting ID                                                                                        |
+| `version`                                                         | 从 1 开始的正整数；每次成功转换加一                                                                           |
+| `createdAt` / `updatedAt`                                         | 有限非负时间戳                                                                                                |
+| `continuation?`                                                   | 新 Meeting 由归档续会时的 ContinuationProvenance，否则不存在                                                  |
+| `objective`                                                       | `ObjectiveContract`                                                                                           |
+| `lifecycle`                                                       | `MeetingLifecycle`                                                                                            |
+| `identities`                                                      | 按 identityId 唯一的 `MeetingIdentity[]`                                                                      |
+| `evidenceReviewerId`                                              | 指向本 Meeting 唯一专职 evidence_reviewer identity                                                            |
+| `identityRecommendations`                                         | 按 recommendationId 唯一的 `IdentityRecommendation[]`；包含 Manager 决定与非可调度 provisioning intent        |
+| `agenda`                                                          | 按 agendaId 唯一的 `AgendaItem[]`                                                                             |
+| `agendaCandidates`                                                | 按 candidateId 唯一的 `AgendaCandidate[]`                                                                     |
+| `rounds`                                                          | 按 roundId 唯一的 `Round[]`                                                                                   |
+| `opportunityRequests`                                             | 仅含无 open Round 时的未处置 `EvidenceOpportunityRequest[]`；按 requestId 和 `(agendaId, contributorId)` 唯一 |
+| `pendingHandRaises`                                               | 仅含未处置的 `PendingHandRaise[]`；按 `(roundId, contributorId)` 唯一                                         |
+| `contributions`                                                   | 按 contributionId 唯一的 `Contribution[]`                                                                     |
+| `completionDeclarations`                                          | 按 declarationId 唯一的不可变 CompletionDeclaration 数组                                                      |
+| `evidencePackages`                                                | 按 packageId 唯一的 `EvidencePackage[]`                                                                       |
+| `registrations` / `reviews` / `reviewClaims` / `reviewDeliveries` | 按各自 ID 唯一的事实或处理中认领数组                                                                          |
+| `publications` / `messages`                                       | 按 publicationId/messageId 唯一，发布序号严格递增                                                             |
+| `proposals` / `positions` / `decisionCandidates` / `decisions`    | 不可变历史数组                                                                                                |
+| `questions` / `issues` / `riskDispositions`                       | 按 ID 唯一的当前及历史事实                                                                                    |
+| `tasks`                                                           | 按 taskId 唯一的 `MeetingTask[]`                                                                              |
+| `managerPlans`                                                    | 按 planId 唯一的 ManagerPlan 数组；每个 Agenda 至多一个 active                                                |
+| `privateMails`                                                    | 按 mailId 唯一的 PrivateMail 数组                                                                             |
+| `completionFacts`                                                 | 按 factId 唯一的不可变事实                                                                                    |
+| `limits`                                                          | `MeetingLimits`                                                                                               |
+| `termination?` / `archive?`                                       | 仅终态或归档阶段存在                                                                                          |
 
 所有数组始终存在。MeetingState 内带明确目标实体种类的跨对象引用必须指向本 Meeting 中该种类已存在对象，不能因另一种类的同字符串 ID 通过；非法 typed FK 使整个命令拒绝。指向当前聚合之外、但仍由受控边界持有的旧 Archive/素材、DSH Definition、授权记录、local controller 或 committed fact 的 ID，以及不带 target kind 的 message/mail `relatedIds[]`，在纯 snapshot validator 中只检验非空 ID/数组结构；其存在性、可见性和归属由创建/接线/恢复切片验证，不能称当前 Domain validator 已证明。Domain 不为缺失字段补默认值。
 
@@ -85,7 +85,7 @@ local controller 不是 `captain` 的别名；`manager` 不能创建 Position、
 
 ## Round, Contribution And Evidence
 
-`Round` 必含 `id`、`agendaId`、`publicBaselinePublicationIds`、`openedAt`、`status`、`contributionIds`、`deadlineAt?`、`publicationId?`、`abortReason?`、`abortedAt?`。status 为 `open|published|aborted`。baseline 必须恰等于创建时全部 Publication ID；published 后不可变。只有 aborted 同时具有非空 abortReason 和 abortedAt，open/published 均不得具有这两个字段。
+`Round` 必含 `id`、`agendaId`、`planId`、`roundGoal`、`publicBaselinePublicationIds`、`openedAt`、`status`、`contributionIds`、`deadlineAt?`、`publicationId?`、`abortReason?`、`abortedAt?`。Manager 先提交 active `ManagerPlan(kind=open_round)`，其中 `roundGoal` 包含 `question`、`evidenceGap` 与 `expectedOutput` 三个非空字段；`open_round(planId)` 只接受该 active plan，原子复制目标、固定 baseline 并将 plan 标为 completed。它只细化已授权 Agenda，不创建 Agenda candidate，也不改变 Captain 对宏观 Agenda 的处置权。status 为 `open|published|aborted`。baseline 必须恰等于创建时全部 Publication ID；published 后不可变。只有 aborted 同时具有非空 abortReason 和 abortedAt，open/published 均不得具有这两个字段。
 
 `EvidenceOpportunityRequest` 必含 `id`、`agendaId`、`contributorId`、`purpose`、`requestedAt`；只在 running Meeting 没有 open Round 时创建，指向 active Agenda，同一身份/议题至多一条 pending request。它不授予 Contribution。Manager `open_round` 原子把该 Agenda 的请求转为本轮 `PendingHandRaise`，申请原记录随即移除；Manager `dispose_evidence_opportunity` 可拒绝/暂缓并移除，须将理由通知本人。跨 Agenda、重复、已有未结束贡献或任务均拒绝。
 
@@ -99,7 +99,7 @@ local controller 不是 `captain` 的别名；`manager` 不能创建 Position、
 
 `EvidenceReview` 必含 `id`、`versionId`、`reviewerId`、`baselinePublicationIds`、`scope`、`dimensions`、`createdAt`。reviewerId 必须等于 Meeting.evidenceReviewerId。dimensions 的 source/credibility/completeness/support 每项均为 `{score:0|1|2|3|unable_to_assess, scope, reason, baselineEvidenceIds[]}`；引用上一轮证据时，ID 必属于所属 Round baseline 的已公开最终版本。baseline 必须等于所属 Round baseline。`ReviewDelivery` 必含 `id`、`reviewId`、`authorId`、`status`、`sentAt?`、`failedAt?`、`failureReason?`；failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`，sent 必有 `sentAt` 且无失败字段。同一 review 可有多次 failed 尝试，但最多一次 sent，仅 `sent` 可开启一分钟期限。Manager只读取状态，作者读取自身 delivery，reviewer 读取全部 delivery；其他未授权身份不得读取未公开 Review 的投递信息。
 
-Reviewer coordinator 可以选取任意非空待审集合，使用 DSH 原生 worker sessions 并发计算，再一次原子提交多个独立 Review。worker 不是 MeetingIdentity，不进入 MeetingState；V1 不持久化 batch、claim、lease 或内部结果。批次内 versionId 唯一且均为当前 complete version，每版至多一个最终 Review；任一包含项失效则整批拒绝，未完成项不进入请求。正常 Round 收口还要求每份最终当前 Review 至少有一次 sent ReviewDelivery；只有 failed 的审核不得被当作已向作者送达。
+`ReviewBatchClaim` 必含 `id`、`roundId`、`reviewerId`、唯一非空 `versionIds`、`claimedAt`、`expiresAt`。它只引用同一 open Round 中 current、complete、尚无最终 Review 的版本；reviewerId 必须是唯一专职审核人；同一 Round 至多一个未过期 claim。Runtime 使用 Meeting version CAS 创建 claim 后才唤醒 reviewer coordinator。coordinator 使用 DSH 原生 worker sessions 并发计算 claim 中全部 version，再携带 claimId 一次原子提交全部独立 Review；worker 不是 MeetingIdentity，不进入 MeetingState，内部过程不持久化。提交不使用全局 Meeting version，而是在事务内精确匹配未过期 claim 的 round、reviewer 和完整 version 集合，并再次验证每项仍为 current complete version 且尚无最终 Review；成功追加 Review 和 delivery effects 并移除 claim。任一 worker 未完成、包含项失效、缺失或多余均整批拒绝，不形成部分 Review。有效 claim 阻止重复 effect 再次调度；已被该 claim 覆盖的重复 effect 直接去重完成，不形成持续重试写竞争。Reviewer turn 超时、中断或投递失败时，Runtime 以精确 claimId 原子移除 claim；移除后旧 turn 的迟到提交拒绝，仍待审版本可立即重新认领。若进程崩溃而未观察到 turn 结束，则 claim 过期后创建新 claim 时移除过期记录。冷恢复只依赖持久 claim 与 Review。同一 submit requestId 重放复用 receipt。正常 Round 收口还要求每份最终当前 Review 至少有一次 sent ReviewDelivery；只有 failed 的审核不得被当作已向作者送达。`abort_round` 移除该 Round 的 claim，但保留已存在的 Evidence、Review 与 ReviewDelivery 审计事实。
 
 每次成功的 `raise_supplement_hand` 都把非空 purpose 同时写入 Contribution.response 作为明确继续事实；补充版登记时清除此旧响应。计数低于二且 current version 不在审核中时，Manager accepted 保留 hand，允许作者直接提交准备公开的新版本；rejected 移除 hand 并把 Contribution 置 `supplement_rejected`，普通 deferred 只移除 hand、不退出。current version 正在审核时只能 deferred 且不退出。count=2 的第三次举手仍为 pending，Manager 只可 rejected/deferred，并将 Contribution 置 `supplement_rejected`。已明确继续但没有待 Manager 处置的 pending hand、到 currentVersion.submittedAt + taskDeadlineMs 与 Round/适用 Task deadline 的最早值仍未推进时，可以以“继续申请未完成” timed_out；有 pending hand 不因作者沉默超时。只有当前最终 Review 已 sent 才能按无响应的 sentAt+60000 标记静默超时。
 
@@ -125,13 +125,15 @@ Position 与 DecisionCandidate 只引用各 proposal 的 current revision，Cand
 
 Task extension: MeetingTask also requires authorizationId, authorizationStatus, attempt, reassignedFromTaskId optional, startedAt optional, completedAt optional. authorizationStatus is active, revoked, or expired. Reassign atomically revokes the old authorization and creates a new task/authorization; a revoked task can never claim, complete, or project a result. Task creation requires the caller's active contribution/task authorization and matching agenda/context. An assignee cannot hold a claimed mail and a nonterminal formal Contribution simultaneously.
 
-ManagerPlan requires id, agendaId, managerId, basedOnPublicationId optional, kind, rationale, blockingReason optional, createdAt, and status. kind is open_round, continue_agenda, stop_agenda, raise_agenda_candidate, or wait_for_required_identity. status is active, superseded, or completed. Manager creates a plan only when no Round is open; the plan does not alter Agenda, Round, Participant, or authority. Captain candidate disposition and Manager open-round execution remain separate transitions.
+ManagerPlan requires id, agendaId, managerId, basedOnPublicationId optional, kind, rationale, blockingReason optional, createdAt, and status; `kind=open_round` additionally requires roundGoal. kind is open_round, continue_agenda, stop_agenda, raise_agenda_candidate, or wait_for_required_identity. status is active, superseded, or completed. Manager creates a plan only when no Round is open. `open_round` consumes the exact active open-round plan; other plan kinds remain a persisted Manager decision and do not alter Agenda, Participant, or authority. Captain candidate disposition remains separate.
 
 PrivateMail requires id, senderId, recipientId, agendaId optional, body, relatedIds, sendContextPublicationUpperBound, processingContextPublicationUpperBound optional, status, deadlineAt, createdAt, processingStartedAt optional, completedAt optional, failureReason optional. status is queued, processing, completed, timed_out, or cancelled. `senderId` and `recipientId` are distinct existing Meeting identities. `relatedIds` is a nonempty, duplicate-free array whose elements resolve only to a published `Publication.id` or `FormalMessage.id`. `sendContextPublicationUpperBound` equals the complete Publication ID prefix visible at send; `processingContextPublicationUpperBound`, when present, is a complete later-or-equal Publication prefix and begins with the exact send prefix. `deadlineAt=createdAt+limits.taskDeadlineMs` and both operands/result are nonnegative safe integers.
 
 `queued` has none of `processingContextPublicationUpperBound|processingStartedAt|completedAt|failureReason`; `processing` has both processing fields and neither terminal field; `completed` has both processing fields plus `completedAt` and no `failureReason`; `timed_out|cancelled` has `completedAt` and nonempty `failureReason`, and retains both processing fields together only if processing had started. `processingStartedAt` is at least `createdAt` and strictly before `deadlineAt`; `completedAt` is at least `createdAt`, is at least `processingStartedAt` when processing began, is strictly before `deadlineAt` for `completed`, and is at least `deadlineAt` for `timed_out`. At most one processing mail may target an identity, and no processing mail recipient may own a nonterminal Contribution. Start and Contribution acceptance enforce that invariant in both directions. Completion, timeout and cancellation never create FormalMessage, Decision, CompletionFact or MeetingTask and never modify either context prefix or deadline.
 
 Publication.exitReasons 与所属 Round.contributionIds 等长且同顺序；每个已接纳 Contribution 的终态必须有非空 exitReason，始终未形成合法登记而退出者的原因也保留，但不制造 finalVersionId 或 FormalMessage。
+
+`ReviewBatchClaim.sourceEffectId` 绑定实际创建 claim 的 outbox effect。其它覆盖 version 的 effect 可安全去重完成；同一 source effect 的崩溃重投保持 retryable，不能在 claim 到期前误记为 delivered。
 
 ## Derived Rules
 

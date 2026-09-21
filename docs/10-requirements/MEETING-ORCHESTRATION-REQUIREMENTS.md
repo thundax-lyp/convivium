@@ -55,7 +55,7 @@
 ### MO-FR-3：并行贡献与有序发布
 
 1. 不同 Participant 可以在同一会议议题下拥有并行的有效贡献授权，独立准备和提交；不得以全会议单一发言权或固定发言次序限制各自工作。轮次公开基线及轮内权限仅由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 与 [ER-FR-4](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-4要素确认登记与轮内可见性) 定义。
-2. Manager 围绕待解决问题、证据缺口和路径修订规划议题；贡献者如何举手、Manager 如何接纳或拒绝以及轮次何时收口，仅由 [ER-FR-2](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-2举手与-manager-安排) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
+2. Manager 围绕待解决问题、证据缺口和路径修订规划议题；每次 `open_round` 必须将本轮具体问题、证据缺口和预期产出作为持久化的 `roundGoal` 提交。它只细化已授权 Agenda，不创建、提升、替换或处置 Agenda candidate；贡献者如何举手、Manager 如何接纳或拒绝以及轮次何时收口，仅由 [ER-FR-2](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-2举手与-manager-安排) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
 3. 每个 Participant 同时最多处理一项发言任务，待审及退回修改仍属于该任务；其他 Participant 的任务可以独立推进。
 4. 会议的公开内容必须具有稳定、可追溯的版本与发布顺序，后续贡献者能取得已公开的相关内容；固定审核基线、同轮隔离和更新重审仅由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 与 [ER-FR-6](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-6审核意见两次补充与响应) 定义。
 5. 参与者必须能够回应、质疑、补证、修正、支持或总结已公开内容。待审内容不作为其他参会者的公共讨论依据，授权核验访问遵循专项需求。

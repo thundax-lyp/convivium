@@ -86,6 +86,8 @@ export const ContributionViewV1Schema = z.object({
 export const RoundViewV1Schema = z.object({
     id,
     agendaId: id,
+    planId: id,
+    roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }),
     status: z.enum(["open", "published", "aborted"]),
     baselinePublicationIds: z.array(id),
     openedAt: epoch,
@@ -435,6 +437,7 @@ export const ManagerPlanViewV1Schema = z.object({
     agendaId: id,
     managerId: id,
     basedOnPublicationId: id.optional(),
+    roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }).optional(),
     kind: z.enum([
         "open_round",
         "continue_agenda",
@@ -566,6 +569,7 @@ export const ManagerCatalogViewV1Schema = z.object({
 });
 export const AllowedControlV1Schema = z.enum([
     "create_meeting",
+    "submit_manager_plan",
     "open_round",
     "raise_hand",
     "dispose_hand_raise",

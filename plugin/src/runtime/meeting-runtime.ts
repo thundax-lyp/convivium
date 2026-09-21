@@ -113,6 +113,7 @@ function targetCreateState(
         evidencePackages: [],
         registrations: [],
         reviews: [],
+        reviewClaims: [],
         reviewDeliveries: [],
         publications: [],
         messages: [],

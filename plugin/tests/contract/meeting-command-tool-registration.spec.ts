@@ -49,6 +49,7 @@ describe("target Meeting tool registration", () => {
         expect(definitions.map(({ name }) => name)).toEqual([
             "convivium_create_meeting",
             "convivium_open_round",
+            "convivium_submit_manager_plan",
             "convivium_dispose_hand_raise",
             "convivium_publish_round",
             "convivium_raise_hand",
@@ -65,7 +66,7 @@ describe("target Meeting tool registration", () => {
                     meetingId: "meeting-1",
                     expectedMeetingVersion: 1,
                     requestId: "request-1",
-                    action: { kind: "open_round", agendaId: "agenda-1" }
+                    action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
                 }
             },
             {
@@ -74,7 +75,9 @@ describe("target Meeting tool registration", () => {
             } as ToolRunContext
         );
         expect(execute).toHaveBeenCalledWith(
-            expect.objectContaining({ action: { kind: "open_round", agendaId: "agenda-1" } }),
+            expect.objectContaining({
+                action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
+            }),
             expect.objectContaining({
                 caller: {
                     channel: "dsh_tool",

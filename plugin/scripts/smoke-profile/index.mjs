@@ -123,6 +123,67 @@ async function pathExists(path) {
     }
 }
 
+async function createRecordRoot(recordDirectory) {
+    if (recordDirectory === undefined || recordDirectory === "") return undefined;
+    const resolved = resolve(recordDirectory);
+    const details = await stat(resolved).catch(() => undefined);
+    if (!details?.isDirectory()) {
+        throw new Error("CONVIVIUM_SMOKE_RECORD_DIR must name an existing directory.");
+    }
+    return mkdtemp(join(resolved, "convivium-smoke-record-"));
+}
+
+function redact(text, deepSeekApiKey) {
+    return deepSeekApiKey === "" ? text : text.split(deepSeekApiKey).join("[REDACTED]");
+}
+
+async function copyRecordedText(source, destination, deepSeekApiKey) {
+    const content = await readFile(source, "utf8");
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, redact(content, deepSeekApiKey), "utf8");
+}
+
+export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
+    if (recordRoot === undefined) return;
+    const files = [
+        [result.dumpConfig, "dump-config.yml"],
+        ...(result.scenario === "meeting-business-loop"
+            ? [
+                  [result.bootLogs.initial.stdoutPath, "initial/boot.stdout.log"],
+                  [result.bootLogs.initial.stderrPath, "initial/boot.stderr.log"],
+                  [result.bootLogs.coldReopen.stdoutPath, "cold-reopen/boot.stdout.log"],
+                  [result.bootLogs.coldReopen.stderrPath, "cold-reopen/boot.stderr.log"],
+                  [result.agentPrompts, "initial/agent-prompts.json"]
+              ]
+            : [
+                  [result.bootLogs.stdoutPath, "boot.stdout.log"],
+                  [result.bootLogs.stderrPath, "boot.stderr.log"],
+                  [result.agentPrompts, "agent-prompts.json"]
+              ])
+    ];
+    for (const [source, relativePath] of files) {
+        if (source !== undefined && (await pathExists(source))) {
+            await copyRecordedText(source, join(recordRoot, relativePath), deepSeekApiKey);
+        }
+    }
+    const summary = {
+        ...result,
+        dumpConfig: "dump-config.yml",
+        bootLogs: undefined,
+        agentPrompts: undefined,
+        recordScope: {
+            source: "target-runtime-smoke",
+            secretRedaction: "DEEPSEEK_API_KEY values are replaced",
+            externalResearch: "not performed; fixture evidence only"
+        }
+    };
+    await writeFile(
+        join(recordRoot, "summary.json"),
+        redact(JSON.stringify(summary, null, 2), deepSeekApiKey) + "\n",
+        "utf8"
+    );
+}
+
 async function allocatePort() {
     const server = createServer();
     await new Promise((resolveListen, rejectListen) => {
@@ -426,7 +487,7 @@ async function restore(root = tempRoot) {
     }
 }
 
-async function runScenario(scenario, artifact, deepSeekApiKey) {
+async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
     const workspaceDir = join(tempRoot, "workspace");
@@ -434,6 +495,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     const probeDir = join(tempRoot, "probe");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
     const resultPath = join(tempRoot, "smoke-result.json");
+    const agentPromptsPath = join(tempRoot, "agent-prompts.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
@@ -456,6 +518,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
+        CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH: agentPromptsPath,
         CONVIVIUM_SMOKE_SCENARIO: scenario
     });
     const port = await allocatePort();
@@ -527,8 +590,10 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
         bootLogs:
             scenario === "meeting-business-loop"
                 ? { initial: bootLogs, coldReopen: finalBootLogs }
-                : finalBootLogs
+                : finalBootLogs,
+        agentPrompts: agentPromptsPath
     };
+    await writeScenarioRecord(recordRoot, result, deepSeekApiKey);
     return result;
 }
 
@@ -558,6 +623,7 @@ async function main() {
     validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
     validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
     const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
+    const recordRoot = await createRecordRoot(process.env.CONVIVIUM_SMOKE_RECORD_DIR);
     const buildRoot = await mkdtemp(tempPrefix);
     const started = Date.now();
     try {
@@ -566,7 +632,12 @@ async function main() {
             const start = Date.now();
             let result;
             try {
-                result = await runScenario(scenario, artifact, deepSeekApiKey);
+                result = await runScenario(
+                    scenario,
+                    artifact,
+                    deepSeekApiKey,
+                    recordRoot === undefined ? undefined : join(recordRoot, scenario)
+                );
             } catch (error) {
                 throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
             } finally {

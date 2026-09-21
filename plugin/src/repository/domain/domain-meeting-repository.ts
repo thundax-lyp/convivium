@@ -139,7 +139,10 @@ export class DomainMeetingRepository<TState = JsonObject>
                     eventSeqs: [...existing.eventSeqs]
                 };
             }
-            if (snapshot.version !== command.expectedMeetingVersion)
+            if (
+                command.expectedMeetingVersion !== undefined &&
+                snapshot.version !== command.expectedMeetingVersion
+            )
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,

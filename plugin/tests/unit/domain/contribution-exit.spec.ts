@@ -1,14 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { openRoundV1 } from "@/domain/transitions/round.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise.js";
 import { closeContributionV1 } from "@/domain/transitions/contribution-exit.js";
 import { isRoundClosableV1 } from "@/domain/transitions/round.js";
 
 function stateWithContribution() {
-    const open = openRoundV1(makeRunningMeetingStateV1(), {
+    const state = makeRunningMeetingStateV1();
+    state.managerPlans = [
+        {
+            id: "plan-v1",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            kind: "open_round",
+            roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+            rationale: "plan",
+            createdAt: 0,
+            status: "active"
+        }
+    ];
+    const open = openRoundV1(state, {
         roundId: "round-v1",
         agendaId: "agenda-v1",
+        planId: "plan-v1",
         managerId: "manager-v1",
         now: 1
     });
@@ -130,6 +144,7 @@ describe("contribution exit", () => {
                     createdAt: 5
                 }
             ],
+            reviewClaims: [],
             reviewDeliveries: [
                 {
                     id: "delivery-v1",

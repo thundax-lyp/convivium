@@ -18,16 +18,16 @@ V1 运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边�
 
 ## Implementation Modules And Ports
 
-| 模块 | 输入 | 输出 | 不变量 |
-| --- | --- | --- | --- |
-| plugin/bootstrap | Host lifecycle/capability registry | 一个已注册 Runtime、tool、Remote factory | capability preflight 失败时不注册可写入口 |
-| dsh/role-catalog | Host Config | versioned safe Catalog snapshot | 不返回完整配置或可执行资源 |
-| dsh/definition-resolver | exact Definition id/version | immutable Definition | 不以显示名、当前默认版本或文件路径回退 |
-| dsh/preflight | Definition、MeetingId、受限资源引用 | PreparedDescriptor 或 typed RoleError | 不创建 Session、不写 Meeting |
-| dsh/session-owner | PreparedDescriptor、admissionId、identity fact | durable ownership/Session control result | ownership 一对一绑定 Meeting、identity、descriptor、Definition |
-| runtime/meeting-service | caller binding、MeetingCommand | committed command result | 只调用 Meeting Design 的 command pipeline |
-| remote/loopback | typed request、local binding | typed result/refresh notice | 不持有业务状态或绕过 Runtime |
-| client/projection | committed caller-filtered view | UI state | 不推导 authority 或领域状态 |
+| 模块                    | 输入                                           | 输出                                     | 不变量                                                         |
+| ----------------------- | ---------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------- |
+| plugin/bootstrap        | Host lifecycle/capability registry             | 一个已注册 Runtime、tool、Remote factory | capability preflight 失败时不注册可写入口                      |
+| dsh/role-catalog        | Host Config                                    | versioned safe Catalog snapshot          | 不返回完整配置或可执行资源                                     |
+| dsh/definition-resolver | exact Definition id/version                    | immutable Definition                     | 不以显示名、当前默认版本或文件路径回退                         |
+| dsh/preflight           | Definition、MeetingId、受限资源引用            | PreparedDescriptor 或 typed RoleError    | 不创建 Session、不写 Meeting                                   |
+| dsh/session-owner       | PreparedDescriptor、admissionId、identity fact | durable ownership/Session control result | ownership 一对一绑定 Meeting、identity、descriptor、Definition |
+| runtime/meeting-service | caller binding、MeetingCommand                 | committed command result                 | 只调用 Meeting Design 的 command pipeline                      |
+| remote/loopback         | typed request、local binding                   | typed result/refresh notice              | 不持有业务状态或绕过 Runtime                                   |
+| client/projection       | committed caller-filtered view                 | UI state                                 | 不推导 authority 或领域状态                                    |
 
 Host adapter 必须把 DSH 的具体 API 收敛在 role-catalog、preflight 和 session-owner 后面；Meeting Domain、application、Remote DTO 和 Client 都不能引用 DSH 实现类型。每个 port 的返回值只可为 Interface 所定义的成功值或稳定 error，不能以异常文本作为控制分支。
 
@@ -45,7 +45,7 @@ Convivium 只限制自身会议操作的调用权限和模型可见的会议上�
 
 角色 Definition 只声明 DSH 已公开且经过预检的能力。预检在创建第一个会议专用 Session 前完成；缺少必需能力时拒绝创建，不通过临时修改 Prompt、权限或资源来降级。已创建身份的运行配置由 DSH 拥有，角色资源变更只影响新的 MeetingIdentity。
 
-每场 Meeting 的唯一专职 evidence reviewer 使用一个 meeting-owned coordinator Session。Runtime 向其提供 caller-filtered 待审集合；coordinator 可以使用 DSH 原生 subagents/worker sessions 并发分析，每个 worker 只取得一份确切 EvidenceVersion 与固定 baseline。worker 不是 MeetingIdentity、没有 Meeting command authority，结果回到 coordinator 后由 `submit_review_batch` 原子提交；V1 不持久化 ReviewBatch、claim、lease 或 worker 状态。Reviewer Definition 使用专用 Preset/Skills，并可引用 Host-approved 材料读取、代码核验、Web/GitHub/arXiv 查询和运行验证能力；具体工具由版本化 Definition 与 Host 配置拥有，Convivium 不以“工具最多”授予权限。Review delivery 的 sent/failed 尝试进入 caller-filtered read model，使 Manager 看状态、作者看自身 delivery、reviewer 看全部 delivery；其他身份不能借投递状态获知未公开 Review。
+每场 Meeting 的唯一专职 evidence reviewer 使用一个 meeting-owned coordinator Session。Runtime 在投递 review effect 前通过 application 原子创建持久 `ReviewBatchClaim`，固定 Round、reviewer、确切 versionIds、sourceEffectId 与 expiry；只有认领成功才向 coordinator 提供该待审集合。coordinator 使用 DSH 原生 subagents/worker sessions 并发分析，每个 worker 只取得一份确切 EvidenceVersion 与固定 baseline。worker 不是 MeetingIdentity、没有 Meeting command authority，全部结果回到 coordinator 后携带 claimId 由 `submit_review_batch` 原子提交并移除 claim；不持久化 worker 内部状态。有效 claim 阻止不同 dispatcher 实例重复唤醒：其它 effect 去重完成，原始 source effect 的崩溃重投保持 retryable。若 coordinator turn 超时、中断或投递失败，dispatcher 通过 Runtime-only command 精确撤销该 claim，使迟到提交失效并允许立即重新认领；进程崩溃等未观察到的结束仍由 expiry 兜底。冷恢复从 MeetingState 的 claim 与最终 Review 恢复调度。Reviewer Definition 使用专用 Preset/Skills，并可引用 Host-approved 材料读取、代码核验、Web/GitHub/arXiv 查询和运行验证能力；具体工具由版本化 Definition 与 Host 配置拥有，Convivium 不以“工具最多”授予权限。Review delivery 的 sent/failed 尝试进入 caller-filtered read model，使 Manager 看状态、作者看自身 delivery、reviewer 看全部 delivery；其他身份不能借投递状态获知未公开 Review。
 
 ### Catalog and Definition conversion
 

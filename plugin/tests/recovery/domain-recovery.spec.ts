@@ -9,7 +9,7 @@ import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
 const codec = { encode: encodeMeetingStateV1, decode: decodeMeetingStateV1 };

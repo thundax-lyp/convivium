@@ -86,7 +86,13 @@ function allowedControls(state: MeetingState, caller: MeetingProjectionCallerV1)
         return ["end_meeting"] as const;
     }
     if (hasRole(caller, "manager"))
-        return ["open_round", "dispose_hand_raise", "publish_round", "recommend_identity"] as const;
+        return [
+            "submit_manager_plan",
+            "open_round",
+            "dispose_hand_raise",
+            "publish_round",
+            "recommend_identity"
+        ] as const;
     if (hasRole(caller, "evidence_reviewer")) return ["submit_review_batch"] as const;
     if (hasRole(caller, "contributor")) return ["raise_hand", "submit_evidence"] as const;
     return [];
@@ -191,6 +197,8 @@ export function projectMeetingViewV1(
         rounds: state.rounds.map((round) => ({
             id: round.id,
             agendaId: round.agendaId,
+            planId: round.planId,
+            roundGoal: copy(round.roundGoal),
             status: round.status,
             baselinePublicationIds: [...round.publicBaselinePublicationIds],
             openedAt: round.openedAt,

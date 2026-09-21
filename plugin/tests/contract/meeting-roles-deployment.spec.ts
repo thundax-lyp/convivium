@@ -40,10 +40,11 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.2.0",
+        definitionVersion: "1.3.0",
         toolFilter: {
             allow: [
                 "skill",
+                "convivium_submit_manager_plan",
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
                 "convivium_publish_round",
@@ -54,7 +55,7 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.2",
+        definitionVersion: "1.2.3",
         toolFilter: {
             allow: ["skill", "subagent", "convivium_submit_review_batch"]
         }
@@ -73,13 +74,18 @@ it("publishes only the current contribution tools for Manager", () => {
         (path) => readFileSync(new URL(path, roleSkills), "utf8")
     );
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
-    expect(currentGuidance[0]).toContain("convivium_contribution");
+    expect(currentGuidance[0]).toContain("convivium_submit_manager_plan");
+    expect(currentGuidance[0]).toContain("convivium_open_round");
+    expect(currentGuidance[0].indexOf("convivium_submit_manager_plan")).toBeLessThan(
+        currentGuidance[0].indexOf("convivium_open_round")
+    );
     expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
     expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
     expect(currentGuidance[1]).toContain("每个 pending item 只创建一个");
-    expect(currentGuidance[1]).toContain("省略失败、取消或不可规范化项");
+    expect(currentGuidance[1]).toContain("完整覆盖全部 pending item");
+    expect(currentGuidance[1]).toContain("任一 worker 失败、取消或不可规范化时不提交");
     expect(currentGuidance[1]).toContain("只调用一次");
 });
 

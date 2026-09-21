@@ -20,6 +20,7 @@ const fields = [
     "evidencePackages",
     "registrations",
     "reviews",
+    "reviewClaims",
     "reviewDeliveries",
     "publications",
     "messages",

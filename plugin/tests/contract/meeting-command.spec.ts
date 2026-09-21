@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import type { MeetingState } from "@/domain/index.js";
 import {
     MeetingCommandResultV1Schema,
@@ -75,6 +75,58 @@ describe("target Meeting command core", () => {
                 action
             }).success
         ).toBe(true);
+    });
+
+    it("scopes reviewer concurrency to immutable evidence versions, not the Meeting version", () => {
+        const review = {
+            protocolVersion: 1,
+            meetingId: "meeting-v1",
+            requestId: "review-1",
+            action: {
+                kind: "submit_review_batch",
+                roundId: "round-v1",
+                claimId: "review-claim-v1",
+                reviews: [
+                    {
+                        versionId: "evidence-version-v1",
+                        scope: "核验来源与论证",
+                        dimensions: {
+                            source: {
+                                score: 2,
+                                scope: "来源",
+                                reason: "可追溯",
+                                baselineEvidenceIds: []
+                            },
+                            credibility: {
+                                score: 2,
+                                scope: "可信度",
+                                reason: "方法明确",
+                                baselineEvidenceIds: []
+                            },
+                            completeness: {
+                                score: 2,
+                                scope: "完整性",
+                                reason: "覆盖范围",
+                                baselineEvidenceIds: []
+                            },
+                            support: {
+                                score: 2,
+                                scope: "支持度",
+                                reason: "直接支持",
+                                baselineEvidenceIds: []
+                            }
+                        }
+                    }
+                ]
+            }
+        };
+        expect(MeetingCommandV1Schema.safeParse(review).success).toBe(true);
+        expect(
+            MeetingCommandV1Schema.safeParse({
+                ...review,
+                action: { kind: "open_round", agendaId: "agenda-v1", planId: "plan-v1" }
+            }).success
+        ).toBe(false);
     });
 
     it("enforces review delivery result invariants", () => {
@@ -242,6 +294,73 @@ describe("target Meeting command core", () => {
         ).resolves.toMatchObject({
             kind: "rejected",
             error: { code: "IDEMPOTENCY_CONFLICT" }
+        });
+    });
+
+    it("preserves a rejected domain transition instead of reporting storage failure", async () => {
+        const state = makeRunningMeetingStateV1();
+        const repository = {
+            execute: async (command: RepositoryCommand<unknown, MeetingState>) => {
+                const transition = command.transition({
+                    meetingId: state.id,
+                    version: state.version,
+                    state,
+                    createdAt: state.createdAt,
+                    updatedAt: state.updatedAt
+                });
+                return {
+                    requestId: command.requestId,
+                    meetingId: state.id,
+                    meetingVersion: state.version + 1,
+                    result: transition.result,
+                    eventSeqs: []
+                };
+            }
+        } as unknown as MeetingRepositoryPort<MeetingState>;
+        const caller = {
+            channel: "dsh_tool" as const,
+            principalId: "manager-session",
+            sessionBindingId: "ownership-v1"
+        };
+        const app = createMeetingCommandApplicationV1({
+            creation: { create: vi.fn() },
+            registry: {
+                openMeeting: vi.fn(async () => repository)
+            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            ids: { nextId: (kind) => `${kind}-1` },
+            clock: { now: () => 10 },
+            resolveCallerScope: async () => ({
+                caller,
+                meetingId: state.id,
+                identityId: "manager-v1",
+                role: "manager" as const,
+                ownership: {
+                    id: "ownership-v1",
+                    meetingId: state.id,
+                    identityId: "manager-v1",
+                    parentSessionId: "captain-session",
+                    sessionId: "manager-session",
+                    lifecycleStatus: "active",
+                    capabilityStatus: "active"
+                }
+            })
+        });
+
+        await expect(
+            app.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: state.id,
+                    expectedMeetingVersion: state.version,
+                    requestId: "open-without-plan",
+                    action: { kind: "open_round", agendaId: "agenda-v1", planId: "missing-plan" }
+                },
+                { caller },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED", message: "active open-round plan is required" }
         });
     });
 

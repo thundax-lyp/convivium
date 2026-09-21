@@ -1,11 +1,13 @@
 import {
     closeContributionV1,
+    claimReviewBatchV1,
     completeMeetingArchiveV1,
     disposeHandRaiseV1,
     endMeetingV1,
     openRoundV1,
     publishRoundV1,
     raiseHandV1,
+    releaseReviewBatchClaimV1,
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,
     recordReviewDeliveryV1,
@@ -137,13 +139,21 @@ function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerSc
         return scope.role === "local";
     if (
         action === "record_review_delivery" ||
+        action === "claim_review_batch" ||
+        action === "release_review_batch_claim" ||
         action === "start_archive" ||
         action === "record_archive_session_result" ||
         action === "record_identity_admission_result"
     )
         return scope.role === "runtime";
     if (
-        ["open_round", "dispose_hand_raise", "publish_round", "recommend_identity"].includes(action)
+        [
+            "submit_manager_plan",
+            "open_round",
+            "dispose_hand_raise",
+            "publish_round",
+            "recommend_identity"
+        ].includes(action)
     )
         return scope.role === "manager";
     if (action === "submit_review_batch") return scope.role === "evidence_reviewer";
@@ -218,6 +228,8 @@ function outbox(
 }
 
 function mapRepositoryError(error: unknown): MeetingCommandResultV1 {
+    if (error instanceof TransitionRejected)
+        return rejected(error.code, error.message, error.targetKind, error.targetId);
     if (!(error instanceof RepositoryError))
         return rejected("STORAGE_UNAVAILABLE", "Meeting storage is unavailable");
     const code = (() => {
@@ -290,6 +302,8 @@ export function createMeetingCommandApplicationV1(
             if (
                 [
                     "record_review_delivery",
+                    "claim_review_batch",
+                    "release_review_batch_claim",
                     "start_archive",
                     "record_archive_session_result",
                     "record_identity_admission_result"
@@ -397,10 +411,41 @@ export function createMeetingCommandApplicationV1(
                         const action = command.action;
                         const actorId = scope.identityId ?? scope.caller.principalId;
                         switch (action.kind) {
+                            case "submit_manager_plan": {
+                                const result = transitionMeetingStateV1(
+                                    snapshot.state,
+                                    {
+                                        kind: "plan_next_step",
+                                        agendaId: action.agendaId,
+                                        planKind: action.planKind,
+                                        ...(action.roundGoal === undefined
+                                            ? {}
+                                            : { roundGoal: action.roundGoal }),
+                                        rationale: action.rationale,
+                                        ...(action.blockingReason === undefined
+                                            ? {}
+                                            : { blockingReason: action.blockingReason })
+                                    },
+                                    { kind: "identity", id: actorId },
+                                    now,
+                                    factId,
+                                    generated("manager_plan")
+                                );
+                                if (result.kind === "rejected")
+                                    throw new TransitionRejected(result.code, result.code);
+                                transition = {
+                                    kind: "accepted",
+                                    state: result.state,
+                                    relatedIds: result.facts[0].relatedIds,
+                                    effectRequests: []
+                                };
+                                break;
+                            }
                             case "open_round":
                                 transition = openRoundV1(snapshot.state, {
                                     roundId: generated("round"),
                                     agendaId: action.agendaId,
+                                    planId: action.planId,
                                     managerId: actorId,
                                     now,
                                     ...(action.deadlineAt === undefined
@@ -455,10 +500,31 @@ export function createMeetingCommandApplicationV1(
                             case "submit_review_batch":
                                 transition = submitReviewBatchV1(snapshot.state, {
                                     reviewerId: actorId,
+                                    roundId: action.roundId,
+                                    claimId: action.claimId,
                                     reviews: action.reviews.map((review) => ({
                                         ...review,
                                         reviewId: generated("review")
                                     })),
+                                    now
+                                });
+                                break;
+                            case "claim_review_batch":
+                                transition = claimReviewBatchV1(snapshot.state, {
+                                    claimId: generated("review_claim"),
+                                    sourceEffectId: action.sourceEffectId,
+                                    reviewerId: snapshot.state.evidenceReviewerId,
+                                    roundId: action.roundId,
+                                    versionIds: action.versionIds,
+                                    now,
+                                    expiresAt: now + snapshot.state.limits.reviewDeadlineMs
+                                });
+                                break;
+                            case "release_review_batch_claim":
+                                transition = releaseReviewBatchClaimV1(snapshot.state, {
+                                    claimId: action.claimId,
+                                    roundId: action.roundId,
+                                    reason: action.reason,
                                     now
                                 });
                                 break;

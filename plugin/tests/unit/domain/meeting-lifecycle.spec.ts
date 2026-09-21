@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { createMeetingV1 } from "@/domain/transitions/meeting-create.js";
 import { endMeetingV1 } from "@/domain/transitions/meeting-end.js";
 import {

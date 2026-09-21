@@ -21,8 +21,12 @@ export {
     type SubmitEvidenceInputV1
 } from "./format-evidence.js";
 export {
+    claimReviewBatchV1,
+    releaseReviewBatchClaimV1,
     submitReviewBatchV1,
     recordReviewDeliveryV1,
+    type ClaimReviewBatchInputV1,
+    type ReleaseReviewBatchClaimInputV1,
     type SubmitReviewBatchInputV1,
     type SubmitReviewBatchItemV1
 } from "./evidence-review.js";

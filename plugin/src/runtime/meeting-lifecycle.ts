@@ -354,7 +354,9 @@ export async function activateTargetMeetingApplicationV1(
         });
         const review = createEvidenceReviewDispatcherV1({
             sessions: ctx.subagents,
-            repository
+            repository,
+            application,
+            clock: { now: Date.now }
         });
         const reviewDelivery = createReviewDeliveryDispatcherV1({
             sessions: ctx.subagents,

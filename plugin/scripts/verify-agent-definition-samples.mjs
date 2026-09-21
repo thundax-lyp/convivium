@@ -100,6 +100,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         role === "meeting_manager"
                             ? [
                                   "skill",
+                                  "convivium_submit_manager_plan",
                                   "convivium_open_round",
                                   "convivium_dispose_hand_raise",
                                   "convivium_publish_round",
@@ -116,9 +117,9 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
                             (role === "meeting_manager"
-                                ? "1.2.0"
+                                ? "1.3.0"
                                 : role === "verification_reviewer"
-                                  ? "1.2.2"
+                                  ? "1.2.3"
                                   : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||

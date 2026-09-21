@@ -4,6 +4,7 @@ import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from
 type OpenRoundInput = {
     roundId: OpaqueId;
     agendaId: OpaqueId;
+    planId: OpaqueId;
     managerId: OpaqueId;
     now: number;
     deadlineAt?: number;
@@ -29,6 +30,8 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     if (
         input.roundId.trim().length === 0 ||
         input.agendaId.trim().length === 0 ||
+        input.planId === undefined ||
+        input.planId.trim().length === 0 ||
         input.managerId.trim().length === 0 ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
@@ -46,6 +49,15 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     const agenda = state.agenda.find((item) => item.id === input.agendaId);
     if (!agenda) return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
     if (agenda.status !== "active") return rejected(state, "INVALID_STATE", "agenda is not active");
+    const plan = state.managerPlans.find(
+        (candidate) =>
+            candidate.id === input.planId &&
+            candidate.agendaId === input.agendaId &&
+            candidate.status === "active" &&
+            candidate.kind === "open_round"
+    );
+    if (!plan?.roundGoal)
+        return rejected(state, "PRECONDITION_FAILED", "active open-round plan is required");
     const manager = state.identities.find((identity) => identity.id === input.managerId);
     if (!manager || !manager.roles.includes("manager"))
         return rejected(state, "UNAUTHORIZED", "identity is not a manager", input.managerId);
@@ -64,6 +76,8 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     const round: RoundV1 = {
         id: input.roundId,
         agendaId: input.agendaId,
+        planId: input.planId,
+        roundGoal: plan.roundGoal,
         publicBaselinePublicationIds: state.publications.map((publication) => publication.id),
         openedAt: input.now,
         status: "open",
@@ -84,6 +98,9 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
         version: state.version + 1,
         updatedAt: input.now,
         rounds: [...state.rounds, round],
+        managerPlans: state.managerPlans.map((candidate) =>
+            candidate.id === plan.id ? { ...candidate, status: "completed" as const } : candidate
+        ),
         opportunityRequests: state.opportunityRequests.filter(
             (request) => request.agendaId !== input.agendaId
         ),
@@ -145,6 +162,7 @@ export function abortRoundV1(
                     : candidate
             ),
             pendingHandRaises: state.pendingHandRaises.filter((hand) => hand.roundId !== round.id),
+            reviewClaims: state.reviewClaims.filter((claim) => claim.roundId !== round.id),
             contributions: state.contributions.map((contribution) =>
                 abortedContributionIds.includes(contribution.id)
                     ? {
