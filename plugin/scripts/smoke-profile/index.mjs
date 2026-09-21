@@ -143,7 +143,7 @@ async function copyRecordedText(source, destination, deepSeekApiKey) {
     await writeFile(destination, redact(content, deepSeekApiKey), "utf8");
 }
 
-export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
+export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
     if (recordRoot === undefined) return;
     const files = [
         [result.dumpConfig, "dump-config.yml"],
@@ -166,6 +166,11 @@ export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
             await copyRecordedText(source, join(recordRoot, relativePath), deepSeekApiKey);
         }
     }
+}
+
+export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
+    if (recordRoot === undefined) return;
+    await mkdir(recordRoot, { recursive: true });
     const summary = {
         ...result,
         dumpConfig: "dump-config.yml",
@@ -593,7 +598,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
                 : finalBootLogs,
         agentPrompts: agentPromptsPath
     };
-    await writeScenarioRecord(recordRoot, result, deepSeekApiKey);
+    await stageScenarioRecord(recordRoot, result, deepSeekApiKey);
     return result;
 }
 
@@ -644,6 +649,11 @@ async function main() {
                 await restore();
                 tempRoot = undefined;
             }
+            await writeScenarioRecord(
+                recordRoot === undefined ? undefined : join(recordRoot, scenario),
+                result,
+                deepSeekApiKey
+            );
             if (args.includes("--json"))
                 console.log(
                     JSON.stringify({ ...result, restore: "PASS", durationMs: Date.now() - start })
