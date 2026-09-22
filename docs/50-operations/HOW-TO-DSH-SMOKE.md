@@ -17,7 +17,7 @@ Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
 - pnpm 可以取得或已缓存 `@deepseek-ai/dsh@0.1.2-rc.1`。
 - 仓库根目录存在不入 Git 的 `dev.env`，其中 `DEEPSEEK_API_KEY` 存在且去除空白后非空。文件可以包含其他本地条目；冒烟脚本只读取该 key。
-- 不使用开发者常用的 DSH profile。脚本为每个场景创建独立临时 `DSH_HOME`、workspace、profile、SQLite 文件和端口。
+- 不使用开发者常用的 DSH profile。脚本为每个场景创建独立临时 `DSH_HOME`、workspace、profile 和端口；默认也创建临时 SQLite，只有下述显式持久存储入口例外。
 
 `DEEPSEEK_API_KEY` 只注入真实 DSH Host。脚本从传给构建、打包、插件安装和 `dump-config` 的环境中删除该变量，不得把值写入输出、临时 profile、记录或构建产物。`identity-admission` 不调用远程 LLM；只有 `meeting-business-loop` 的 Reviewer worker 成功才能证明本次 LLM 链路可用。
 
@@ -45,6 +45,20 @@ pnpm --dir plugin smoke:profile --json
 
 - `CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS`：等待 Host 或 probe 结果，默认 600000 ms。
 - `CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS`：构建、安装和配置命令，默认 120000 ms。
+
+### 显式保留 business-loop Meeting
+
+只有用户明确授权把 smoke Meeting 写入持久存储时，才设置 `CONVIVIUM_SMOKE_STORAGE_PATH`。该值必须是已存在普通文件的绝对路径，并且只能与精确的 `meeting-business-loop` selector 同时使用；默认双场景、`--all`、`identity-admission`、相对路径、目录和不存在的路径都会在构建或 Host 启动前失败。
+
+运行前必须停止所有使用同一 SQLite 的 Host。以下示例把完整会议及 archive 保留在正式 SQLite 中：
+
+```sh
+CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
+CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storage.sqlite" \
+  pnpm --dir plugin smoke:profile --json
+```
+
+该模式仍隔离并清理 smoke 专用的 `DSH_HOME`、workspace、profile、probe、日志和端口，但不会删除、截断、复制或恢复显式 SQLite。成功 JSON 包含 `storagePersistence: "PRESERVED"`；`restore: "PASS"` 仅表示临时 smoke 资源已清理，不表示外部 SQLite 恢复到运行前状态。运行后的 Meeting 应保留，失败后也不得自动删除或直接编辑其数据。
 
 ## Assertions
 

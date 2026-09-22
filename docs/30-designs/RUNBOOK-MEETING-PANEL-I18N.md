@@ -250,44 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T8C：允许 business-loop smoke 保留正式 SQLite
-
-前置状态：T8B PASS；用户明确要求本次 smoke 不使用会被清理的临时存储，而写入正式持久 SQLite；`dsh-workspace/convivium-user/convivium-storage.sqlite` 已存在。
-
-允许修改：
-
-- `plugin/scripts/smoke-profile/index.mjs`
-- 新增 `plugin/tests/contract/smoke-profile-persistent-storage.spec.ts`
-- `docs/50-operations/HOW-TO-DSH-SMOKE.md`
-- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8C
-
-禁止修改：Meeting production、probe command chain、角色定义、result validator、安装器、其他 tests、requirements、interfaces、其他 designs 和 readiness。
-
-执行：
-
-1. 新增可选环境变量 `CONVIVIUM_SMOKE_STORAGE_PATH`；未设置时保持现有临时 SQLite 与 Restore 行为完全不变。
-2. 设置时必须是已存在普通文件的绝对路径，并且 selector 必须精确为 `meeting-business-loop`；默认双场景、`--all` 或 `identity-admission` 必须在 build/Host 启动前失败。
-3. `writeSmokePatch` 只把 SQLite provider 的 `path` 改为该显式路径；临时 DSH profile、probe、日志和进程仍按现有 Restore 清理，不删除、截断、复制或恢复外部 SQLite。
-4. 成功 JSON 增加 `storagePersistence: "PRESERVED"`；普通临时模式不增加该字段。
-5. contract test 覆盖 selector 限制、相对/不存在/非文件路径拒绝、patch 使用显式 SQLite、普通模式仍使用临时 SQLite。
-6. Smoke Operations 记录该入口只用于用户明确授权的持久 business-loop，运行前必须停止使用同一 SQLite 的 Host，运行后会议保留；不得把 `restore=PASS` 描述为恢复外部 SQLite。
-7. 运行 focused test、完整 contract tests 和文档检查；全部通过后删除本 T8C，并把实现、测试、operations 与步骤删除放入同一提交。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run tests/contract/smoke-profile-persistent-storage.spec.ts
-pnpm --dir=plugin exec vitest run --project contract
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：四条命令退出码均为 0；持久路径仅能用于单独 business-loop，默认临时 smoke 行为不变，外部 SQLite 不进入 Restore 删除集合。
-
-STOP：实现必须复用正在运行的 SQLite、改变 probe/Meeting 语义、允许相对或新建路径、或可能删除外部存储；报告具体依赖，不扩大修复。
-
-失败恢复：无外部运行副作用；保留 T8C，不提交失败实现。
-
 ### T9：完整验证、readiness 收口与 RUNBOOK 删除准备
 
 前置状态：T8C PASS；实现范围与本 RUNBOOK 双向追踪无缺口；正式 SQLite 当前 meeting catalog 为空，DSH Host 正监听 `127.0.0.1:31828`。
