@@ -32,7 +32,7 @@ export function renderMeetingPanelLayout(
         createElement(
             Button,
             { type: "button", variant: "outline", size: "sm", onClick: ctx.requestRefresh },
-            t("action.refresh")
+            t("panel.actions.refresh")
         ),
         ctx.detail?.controls.includes("pause_meeting")
             ? createElement(
@@ -44,7 +44,7 @@ export function renderMeetingPanelLayout(
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.pauseMeeting()
                   },
-                  t("action.pause")
+                  t("panel.actions.pause")
               )
             : null,
         ctx.detail?.controls.includes("resume_meeting")
@@ -57,7 +57,7 @@ export function renderMeetingPanelLayout(
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.resumeMeeting()
                   },
-                  t("action.resume")
+                  t("panel.actions.resume")
               )
             : null,
         ctx.detail?.controls.includes("end_meeting")
@@ -70,13 +70,13 @@ export function renderMeetingPanelLayout(
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.endMeeting()
                   },
-                  t("action.end")
+                  t("panel.actions.end")
               )
             : null,
         ctx.listError === undefined ? null : createElement("p", { role: "alert" }, ctx.listError),
         createElement(
             "ul",
-            { "aria-label": t("list.aria") },
+            { "aria-label": t("panel.list.aria") },
             ctx.meetings.map((meeting) =>
                 createElement(
                     "li",
@@ -95,16 +95,16 @@ export function renderMeetingPanelLayout(
             )
         ),
         selected === undefined
-            ? createElement("p", null, t("selection.prompt"))
+            ? createElement("p", null, t("panel.selection.prompt"))
             : ctx.detail === undefined
               ? createElement(
                     "p",
                     null,
-                    ctx.detailCached ? t("detail.loading") : t("detail.unavailable")
+                    ctx.detailCached ? t("panel.detail.loading") : t("panel.detail.unavailable")
                 )
               : createElement(
                     "article",
-                    { "aria-label": t("detail.aria", { id: selected.meetingId }) },
+                    { "aria-label": t("panel.detail.aria", { id: selected.meetingId }) },
                     ctx.detailError === undefined
                         ? null
                         : createElement("p", { role: "alert" }, ctx.detailError),

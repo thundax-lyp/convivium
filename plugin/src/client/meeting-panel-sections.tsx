@@ -4,26 +4,26 @@ import type { MeetingLocaleKey, MeetingTranslate } from "./locales.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 const lifecycleKeys: Record<MeetingView["lifecycle"]["status"], MeetingLocaleKey> = {
-    preparing: "lifecycle.preparing",
-    running: "lifecycle.running",
-    paused: "lifecycle.paused",
-    converging: "lifecycle.converging",
-    ending: "lifecycle.ending",
-    terminal: "lifecycle.terminal",
-    archiving: "lifecycle.archiving",
-    archived: "lifecycle.archived"
+    preparing: "enum.lifecycle.preparing",
+    running: "enum.lifecycle.running",
+    paused: "enum.lifecycle.paused",
+    converging: "enum.lifecycle.converging",
+    ending: "enum.lifecycle.ending",
+    terminal: "enum.lifecycle.terminal",
+    archiving: "enum.lifecycle.archiving",
+    archived: "enum.lifecycle.archived"
 };
 
 const roundStatusKeys: Record<MeetingView["rounds"][number]["status"], MeetingLocaleKey> = {
-    open: "round.open",
-    published: "round.published",
-    aborted: "round.aborted"
+    open: "enum.round.open",
+    published: "enum.round.published",
+    aborted: "enum.round.aborted"
 };
 
 const archiveStatusKeys: Record<NonNullable<MeetingView["archive"]>["status"], MeetingLocaleKey> = {
-    pending: "archive.pending",
-    complete: "archive.complete",
-    failed: "archive.failed"
+    pending: "enum.archive.pending",
+    complete: "enum.archive.complete",
+    failed: "enum.archive.failed"
 };
 
 export function lifecycleLabel(
@@ -53,7 +53,7 @@ function section(label: string, content: ReactElement): ReactElement {
 
 function list(values: readonly string[], t: MeetingTranslate): ReactElement {
     return values.length === 0
-        ? createElement("p", null, t("value.none"))
+        ? createElement("p", null, t("common.none"))
         : createElement(
               "ul",
               null,
@@ -71,18 +71,18 @@ export function renderObservabilitySections(
         "div",
         null,
         section(
-            t("section.summary"),
+            t("panel.summary.title"),
             createElement(
                 "dl",
                 null,
-                row(t("field.version"), String(view.version)),
-                row(t("field.lifecycle"), lifecycleLabel(view.lifecycle.status, t)),
-                row(t("field.objective"), view.objective.statement),
-                row(t("field.activeAgenda"), activeAgenda?.title ?? t("value.none"))
+                row(t("panel.summary.version"), String(view.version)),
+                row(t("panel.summary.lifecycle"), lifecycleLabel(view.lifecycle.status, t)),
+                row(t("panel.summary.objective"), view.objective.statement),
+                row(t("panel.summary.activeAgenda"), activeAgenda?.title ?? t("common.none"))
             )
         ),
         section(
-            t("section.rounds"),
+            t("panel.rounds.title"),
             createElement(
                 "ul",
                 null,
@@ -90,7 +90,7 @@ export function renderObservabilitySections(
                     createElement(
                         "li",
                         { key: round.id },
-                        t("round.summary", {
+                        t("panel.rounds.summary", {
                             id: round.id,
                             status: t(roundStatusKeys[round.status]),
                             count: round.contributions.length
@@ -100,42 +100,48 @@ export function renderObservabilitySections(
             )
         ),
         section(
-            t("section.evidenceReviews"),
+            t("panel.evidenceReviews.title"),
             createElement(
                 "dl",
                 null,
-                row(t("field.visibleEvidencePackages"), String(view.evidencePackages.length)),
-                row(t("field.visibleEvidenceReviews"), String(view.evidenceReviews.length)),
-                row(t("field.publications"), String(view.publications.length))
+                row(
+                    t("panel.evidenceReviews.visiblePackages"),
+                    String(view.evidencePackages.length)
+                ),
+                row(t("panel.evidenceReviews.visibleReviews"), String(view.evidenceReviews.length)),
+                row(t("panel.evidenceReviews.publications"), String(view.publications.length))
             )
         ),
         section(
-            t("section.formalMessages"),
+            t("panel.formalMessages.title"),
             list(
                 view.messages.map((message) => message.body),
                 t
             )
         ),
         section(
-            t("section.outcomes"),
+            t("panel.outcomes.title"),
             createElement(
                 "dl",
                 null,
-                row(t("field.decisions"), String(view.outcomes.decisions.length)),
-                row(t("field.completionFacts"), String(view.outcomes.completionFacts.length)),
-                row(t("field.issues"), String(view.issues.length))
+                row(t("panel.outcomes.decisions"), String(view.outcomes.decisions.length)),
+                row(
+                    t("panel.outcomes.completionFacts"),
+                    String(view.outcomes.completionFacts.length)
+                ),
+                row(t("panel.outcomes.issues"), String(view.issues.length))
             )
         ),
         view.archive === undefined
             ? null
             : section(
-                  t("section.archive"),
+                  t("panel.archive.title"),
                   createElement(
                       "dl",
                       null,
-                      row(t("field.archiveStatus"), t(archiveStatusKeys[view.archive.status])),
-                      row(t("field.archiveVersion"), String(view.archive.publicSnapshotVersion)),
-                      row(t("field.archiveMessages"), String(view.archive.messages.length))
+                      row(t("panel.archive.status"), t(archiveStatusKeys[view.archive.status])),
+                      row(t("panel.archive.version"), String(view.archive.publicSnapshotVersion)),
+                      row(t("panel.archive.messages"), String(view.archive.messages.length))
                   )
               )
     );

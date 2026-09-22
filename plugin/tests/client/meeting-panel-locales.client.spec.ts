@@ -176,7 +176,7 @@ describe("Meeting panel localized presentation", () => {
         if (authoredMessage !== undefined) expect(screen.getByText(authoredMessage)).toBeTruthy();
     });
 
-    it("shows localized protocol and unavailable errors", async () => {
+    it("retranslates mounted errors without refreshing meeting data", async () => {
         const protocolApi = {
             list: vi.fn(async () => {
                 throw new ProtocolFailure({
@@ -189,7 +189,7 @@ describe("Meeting panel localized presentation", () => {
             }),
             subscribeRefresh: vi.fn(inertStream)
         } as unknown as MeetingClient;
-        const { unmount } = render(
+        const { rerender, unmount } = render(
             createElement(ConviviumMeetingPanel, {
                 api: protocolApi,
                 t: meetingTranslator("zh")
@@ -197,6 +197,14 @@ describe("Meeting panel localized presentation", () => {
         );
         expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
         expect(screen.queryByText("stale server detail")).toBeNull();
+        rerender(
+            createElement(ConviviumMeetingPanel, {
+                api: protocolApi,
+                t: meetingTranslator("en")
+            })
+        );
+        expect(screen.getByRole("alert").textContent).toBe("Meeting request failed (CONFLICT).");
+        expect(protocolApi.list).toHaveBeenCalledOnce();
         unmount();
 
         const unavailableApi = {
@@ -205,12 +213,20 @@ describe("Meeting panel localized presentation", () => {
             }),
             subscribeRefresh: vi.fn(inertStream)
         } as unknown as MeetingClient;
-        render(
+        const unavailable = render(
             createElement(ConviviumMeetingPanel, {
                 api: unavailableApi,
                 t: meetingTranslator("zh")
             })
         );
         expect((await screen.findByRole("alert")).textContent).toBe("会议数据不可用。");
+        unavailable.rerender(
+            createElement(ConviviumMeetingPanel, {
+                api: unavailableApi,
+                t: meetingTranslator("en")
+            })
+        );
+        expect(screen.getByRole("alert").textContent).toBe("Meeting data is unavailable.");
+        expect(unavailableApi.list).toHaveBeenCalledOnce();
     });
 });

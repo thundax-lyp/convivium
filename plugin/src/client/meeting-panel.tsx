@@ -4,10 +4,19 @@ import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 
-function failureMessage(error: unknown, t: MeetingTranslate): string {
+type MeetingPanelFailure =
+    { readonly kind: "protocol"; readonly code: string } | { readonly kind: "unavailable" };
+
+function classifyFailure(error: unknown): MeetingPanelFailure {
     return error instanceof ProtocolFailure
-        ? t("error.protocol", { code: error.protocolError.code })
-        : t("error.unavailable");
+        ? { kind: "protocol", code: error.protocolError.code }
+        : { kind: "unavailable" };
+}
+
+function failureMessage(failure: MeetingPanelFailure, t: MeetingTranslate): string {
+    return failure.kind === "protocol"
+        ? t("panel.error.protocol", { code: failure.code })
+        : t("panel.error.unavailable");
 }
 
 export function ConviviumMeetingPanel({
@@ -22,8 +31,8 @@ export function ConviviumMeetingPanel({
     const [detail, setDetail] = useState<MeetingView>();
     const [listCached, setListCached] = useState(false);
     const [detailCached, setDetailCached] = useState(false);
-    const [listError, setListError] = useState<string>();
-    const [detailError, setDetailError] = useState<string>();
+    const [listFailure, setListFailure] = useState<MeetingPanelFailure>();
+    const [detailFailure, setDetailFailure] = useState<MeetingPanelFailure>();
     const [writePending, setWritePending] = useState(false);
     const selectedRef = useRef<string>();
 
@@ -32,12 +41,12 @@ export function ConviviumMeetingPanel({
             const result = await api.list();
             setMeetings(result.meetings);
             setListCached(false);
-            setListError(undefined);
+            setListFailure(undefined);
         } catch (error) {
             setListCached(true);
-            setListError(failureMessage(error, t));
+            setListFailure(classifyFailure(error));
         }
-    }, [api, t]);
+    }, [api]);
 
     const loadDetail = useCallback(
         async (meetingId: string) => {
@@ -46,14 +55,14 @@ export function ConviviumMeetingPanel({
                 if (selectedRef.current !== meetingId) return;
                 setDetail(result);
                 setDetailCached(false);
-                setDetailError(undefined);
+                setDetailFailure(undefined);
             } catch (error) {
                 if (selectedRef.current !== meetingId) return;
                 setDetailCached(true);
-                setDetailError(failureMessage(error, t));
+                setDetailFailure(classifyFailure(error));
             }
         },
-        [api, t]
+        [api]
     );
 
     const refresh = useCallback(() => {
@@ -119,17 +128,17 @@ export function ConviviumMeetingPanel({
         };
         setWritePending(true);
         setDetailCached(true);
-        setDetailError(undefined);
+        setDetailFailure(undefined);
         try {
             await api.control(command);
             await loadDetail(meetingId);
             await loadList();
         } catch (error) {
-            setDetailError(failureMessage(error, t));
+            setDetailFailure(classifyFailure(error));
         } finally {
             setWritePending(false);
         }
-    }, [api, detail, loadDetail, loadList, t, writePending]);
+    }, [api, detail, loadDetail, loadList, writePending]);
 
     const changePause = useCallback(
         async (kind: "pause_meeting" | "resume_meeting") => {
@@ -138,7 +147,7 @@ export function ConviviumMeetingPanel({
             if (current === undefined || meetingId === undefined || writePending) return;
             setWritePending(true);
             setDetailCached(true);
-            setDetailError(undefined);
+            setDetailFailure(undefined);
             try {
                 await api.control({
                     protocolVersion: 1,
@@ -156,12 +165,12 @@ export function ConviviumMeetingPanel({
                 await loadDetail(meetingId);
                 await loadList();
             } catch (error) {
-                setDetailError(failureMessage(error, t));
+                setDetailFailure(classifyFailure(error));
             } finally {
                 setWritePending(false);
             }
         },
-        [api, detail, loadDetail, loadList, t, writePending]
+        [api, detail, loadDetail, loadList, writePending]
     );
 
     return renderMeetingPanelLayout(
@@ -171,8 +180,8 @@ export function ConviviumMeetingPanel({
             detail,
             listCached,
             detailCached,
-            listError,
-            detailError,
+            listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
+            detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,
             requestRefresh: refresh,
             selectMeeting,

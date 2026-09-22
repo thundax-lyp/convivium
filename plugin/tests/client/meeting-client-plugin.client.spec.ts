@@ -6,7 +6,7 @@ import { apply, inject } from "@/client/index.js";
 const NS = "convivium.meeting";
 
 describe("Meeting client locale integration", () => {
-    it("registers owned dictionaries and gives the conversation view a locale seat", async () => {
+    it("registers locale-owned view copy and hands cleanup to the plugin lifecycle", async () => {
         let active: "zh" | "en" = "en";
         let dictionaries: Record<"zh" | "en", Record<string, string>> | undefined;
         let registration:
@@ -15,8 +15,13 @@ describe("Meeting client locale integration", () => {
                   component: (props: { t: (key: string) => string }) => ReactElement;
               }
             | undefined;
-        const disposeDictionary = vi.fn();
-        const disposeSlot = vi.fn();
+        const lifecycleEffects: Array<() => void> = [];
+        const disposeDictionary = vi.fn(() => {
+            dictionaries = undefined;
+        });
+        const disposeSlot = vi.fn(() => {
+            registration = undefined;
+        });
         const translate = (key: string) => dictionaries?.[active][key] ?? key;
         const fakeContext = {
             remote: { $mount: vi.fn(async () => {}), conviviumMeetings: {} },
@@ -33,13 +38,21 @@ describe("Meeting client locale integration", () => {
                     return translate;
                 })
             },
-            effect: vi.fn((factory: () => () => void) => factory()),
+            effect: vi.fn((factory: () => () => void) => {
+                const dispose = factory();
+                lifecycleEffects.push(dispose);
+                return dispose;
+            }),
             inject: vi.fn(
                 (_services: readonly string[], callback: (ctx: typeof fakeContext) => void) =>
                     callback(fakeContext)
             ),
             slots: {
-                inject: vi.fn((_name: string, callback: () => void) => callback()),
+                inject: vi.fn((_name: string, callback: () => () => void) => {
+                    const dispose = callback();
+                    lifecycleEffects.push(dispose);
+                    return dispose;
+                }),
                 register: vi.fn(
                     (
                         options: Record<string, unknown>,
@@ -73,8 +86,9 @@ describe("Meeting client locale integration", () => {
         const element = registration?.component({ t: seat });
         expect(element?.props.t).toBe(seat);
 
-        disposeDictionary();
-        disposeSlot();
+        for (const dispose of lifecycleEffects.reverse()) dispose();
+        expect(registration).toBeUndefined();
+        expect(translate("tab.meetings")).toBe("tab.meetings");
         expect(disposeDictionary).toHaveBeenCalledOnce();
         expect(disposeSlot).toHaveBeenCalledOnce();
     });
