@@ -250,35 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T4：先写 locale 注册与切换行为测试并观察 RED
-
-前置状态：T3 PASS。
-
-允许修改：
-
-- 新增 `plugin/tests/client/meeting-client-plugin.client.spec.ts`
-
-禁止修改：production、package manifest、其他测试和文档。
-
-执行：
-
-1. 使用真实 `Context` 与 `LocaleRuntime` 验证计划中的 `convivium.meeting` dictionaries 经 `register`/`bind` 后，`setLocale("zh")` 和 `setLocale("en")` 分别产生固定的 `会议` 与 `Meetings`，并在 dispose 后释放注册。
-2. 使用最小 fake `remote`/`slots` context 调用现有 `apply`，记录 `conversation.view` options 和 component；断言 plugin 依赖 `locale`、注册同一 namespace、slot 声明该 namespace、label thunk 随 locale 改变。
-3. 断言 fake slot component 接收 locale seat，而不是捕获 registration-time component translator。
-4. 运行指定测试，保留失败输出；预期失败必须来自当前未注册 namespace、硬编码 label 或未声明 locale，不得来自 fixture/类型构造错误。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client tests/client/meeting-client-plugin.client.spec.ts
-```
-
-PASS：本步骤的 PASS 是命令非零退出，且至少一条行为断言明确显示当前 label 为 `Meetings` 或 locale registration/seat 缺失；测试文件可被 Vitest 收集，没有 import、syntax、fake context 自身错误。
-
-STOP：测试直接通过、没有被收集，或只因新 API/import 不存在而失败；修正测试入口或断言，但不得修改 production。
-
-失败恢复：测试文件保留作为下一步回归保护；不得把 RED 记入 readiness 的通过证据。
-
 ### T5：实现 namespace、package composition 与 slot locale seat
 
 前置状态：T4 已观察到目标 RED。
