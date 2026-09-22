@@ -250,40 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T6：先写 Meeting Panel 本地化行为测试并观察 RED
-
-前置状态：T5 PASS；Panel production 仍保留原英文渲染。
-
-允许修改：
-
-- 新增 `plugin/tests/client/meeting-panel-locales.client.spec.ts`
-- 新增 `plugin/tests/client/meeting-panel-locale-fixtures.ts`
-- `plugin/tests/client/meeting-panel.client.spec.ts`
-- `plugin/tests/client/meeting-panel-lifecycle.client.spec.ts`
-- `plugin/tests/client/meeting-panel-local-controls.client.spec.ts`
-
-禁止修改：production、其他测试和文档。
-
-执行：
-
-1. fixture 只负责从 production `zh`/`en` dictionary 生成 typed translator 并替换 `{param}`；不得在 fixture 复制翻译文案。
-2. 新 spec 使用 literal oracle 分别断言中文和英文的 panel title、buttons、ARIA、empty/loading、summary fields、lifecycle、round/archive labels、Protocol error code shell 和 unknown error shell。
-3. 使用包含中文 objective 与 FormalMessage body 的既有 projection fixture，断言两种 locale 下内容完全不变。
-4. 修改现有 component tests 使其显式传入 English translator；控制测试继续断言原有 command payload，包括 English `reason`，证明 presentation locale 不改变 command。
-5. 运行 locale spec；预期失败必须来自 hardcoded copy/raw enum/旧 component signature，不得来自 fixture 自身。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client tests/client/meeting-panel-locales.client.spec.ts tests/client/meeting-panel.client.spec.ts tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-local-controls.client.spec.ts
-```
-
-PASS：本步骤的 PASS 是命令非零退出，且失败断言至少识别一个中文期望实际得到英文或 raw enum；tests 均被收集，没有 import、syntax 或 async cleanup 错误。
-
-STOP：测试直接通过、只检查 production dictionary 自身、或要求修改业务内容/command payload；报告不一致的验收决定。
-
-失败恢复：保留行为测试；不得改变既有 fixture 的领域数据来迁就翻译。
-
 ### T7：本地化 Panel shell、错误与控制
 
 前置状态：T6 已观察目标 RED。

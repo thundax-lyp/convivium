@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting-client.js";
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
+import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
 
 afterEach(cleanup);
 beforeEach(() => vi.stubGlobal("crypto", { randomUUID: () => "request-local" }));
@@ -24,7 +25,7 @@ describe("Meeting panel local controls", () => {
             control: vi.fn(async () => ({ kind: "accepted" as const })),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api }));
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
@@ -56,7 +57,7 @@ describe("Meeting panel local controls", () => {
             })),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api }));
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         const end = await screen.findByRole("button", { name: "End meeting" });
         fireEvent.click(end);

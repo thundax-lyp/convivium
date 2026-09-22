@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting-client.js";
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
+import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
 
 afterEach(cleanup);
 
@@ -28,7 +29,7 @@ function clientFixture() {
 describe("Meeting panel lifecycle", () => {
     it("loads the list and reads the selected projection", async () => {
         const { api, summary } = clientFixture();
-        render(createElement(ConviviumMeetingPanel, { api }));
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         const item = await screen.findByRole("button", { name: /核对议题 A/ });
         fireEvent.click(item);
         await waitFor(() =>
