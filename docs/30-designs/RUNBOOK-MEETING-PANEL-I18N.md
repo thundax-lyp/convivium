@@ -250,29 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T3：建立 Client baseline
-
-前置状态：T2 PASS；工作树除 T1–T2 文档 diff 和本 RUNBOOK 外无其他改动。
-
-允许修改：无。
-
-禁止修改：全部文件。
-
-执行：运行现有 Client tests 与 Client typecheck，证明 RED 之前的基线可用。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client
-pnpm --dir=plugin typecheck:client
-```
-
-PASS：两条命令退出码均为 0；现有 Client suites 全部通过。
-
-STOP：任一命令失败；报告失败 suite、首个错误和完整复现命令，不以本任务修改既有测试或配置。
-
-失败恢复：只读步骤，无恢复动作。
-
 ### T4：先写 locale 注册与切换行为测试并观察 RED
 
 前置状态：T3 PASS。
