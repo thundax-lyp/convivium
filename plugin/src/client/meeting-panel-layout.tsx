@@ -108,7 +108,7 @@ export function renderMeetingPanelLayout(
                     ctx.detailError === undefined
                         ? null
                         : createElement("p", { role: "alert" }, ctx.detailError),
-                    renderObservabilitySections(ctx.detail)
+                    renderObservabilitySections(ctx.detail, t)
                 )
     );
 }

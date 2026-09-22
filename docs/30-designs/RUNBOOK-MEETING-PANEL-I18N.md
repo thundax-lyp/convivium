@@ -250,41 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T8：本地化 observability sections 与 enum labels
-
-前置状态：T7 PASS；locale spec 只剩 sections/status 目标失败。
-
-允许修改：
-
-- `plugin/src/client/meeting-panel-sections.tsx`
-- `plugin/src/client/meeting-panel-layout.tsx`，仅允许把现有调用改为 `renderObservabilitySections(ctx.detail, t)`，不得改变其他 layout 行为
-- `plugin/tests/client/meeting-panel-locales.client.spec.ts`，仅允许修正 React 查询，不得改变 literal oracle
-- `plugin/tests/client/meeting-panel.client.spec.ts`，仅允许接入 translator 和保持原 projection boundary 断言
-
-禁止修改：Domain、Protocol、projection、layout、client transport、其他 tests 和文档。
-
-执行：
-
-1. 复用 T7 已新增的 `lifecycleLabel(status, t)`；不得建立第二份 lifecycle mapping。
-2. 在同文件为 `RoundView["status"]` 和 `ArchiveView["status"]` 建立 private exhaustive map；不得使用 default branch 返回 raw enum。
-3. `row`、`section`、`list` 接收已翻译 label/value；`list` 空值使用 `t("value.none")`。
-4. `renderObservabilitySections(viewInput, t)` 只翻译 6.3 列出的 copy 和 enum labels；objective statement、active Agenda title、message body 保持原值。
-5. 在 `meeting-panel-layout.tsx` 只把现有调用改为 `renderObservabilitySections(ctx.detail, t)`，使真实 Panel 继续传递 slot locale seat。
-6. 运行所有 Client tests 和 Client typecheck。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client
-pnpm --dir=plugin typecheck:client
-```
-
-PASS：两条命令退出码均为 0；中英文 literal assertions、内容不变、error code、command payload 和 projection boundary 均通过；TypeScript 对全部 dictionary key 与 enum map 完整性通过。
-
-STOP：必须显示 raw enum、增加未列出的文案 key、翻译业务内容或使用非穷尽 cast；报告具体类型或断言。
-
-失败恢复：无外部副作用；不得放宽 `MeetingLocaleKey` 或 enum 类型。
-
 ### T9：完整验证、readiness 收口与 RUNBOOK 删除准备
 
 前置状态：T8 PASS；实现范围与本 RUNBOOK 双向追踪无缺口。
