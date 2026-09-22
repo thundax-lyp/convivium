@@ -232,6 +232,17 @@ MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-ow
 7. 解析 workspace、映射、写入、替换、清理或日志失败不得回滚或阻塞 Meeting commit，不得写领域 event、receipt、outbox、MeetingState 或 Meeting version，也不得影响 pause、resume、end/archive、Session revoke、interrupt、drain 或 Runtime dispose。
 8. 该能力不得增加 durable queue、重试 timer、跨进程锁、HTTP route、Tool、Client UI、Agent API、配置 fallback 或通用 projection framework。
 
+### MO-FR-16：Meeting Panel 国际化
+
+1. Convivium 不提供独立语言设置；Meeting Panel 必须跟随 DSH 当前 locale，并使用 DSH 的 locale preference、运行时切换和 English fallback。
+2. 当前范围必须为 DSH 内置的 `zh`、`en` 提供完整且 key 集合一致的 Convivium 词典。`conversation.view` 标签、Meeting Panel 自有标题、按钮、ARIA 文案、空状态、加载状态、客户端错误提示、字段名、section 名和枚举展示标签必须通过该词典本地化。
+3. DSH 运行时切换 locale 后，已挂载的 view 标签和 Meeting Panel 必须无需 Host 重启、plugin 重装、slot 重新注册或页面刷新即可更新。
+4. objective、Agenda 标题、FormalMessage 正文、identity displayName 及其他用户或 Agent 产生的内容必须保持原文，不得作为 translation key 或被本地化改写。
+5. Domain/Protocol enum 值、错误码、command action、command reason 和其他持久事实必须保持原值；UI 只能把已知 enum 映射为本地化展示 label。
+6. `ProtocolFailure` 的 UI 提示必须使用本地化固定句式并保留稳定 `code`，不得直接展示可能未本地化的 `protocolError.message`；非协议异常显示本地化的会议数据不可用提示。错误对象和 Remote 契约不得因此改变。
+7. 当前 Meeting Panel 不展示日期或时间字段，本项不新增字段或日期格式化行为。Timeline Panel、Meeting Panel 视觉重构、第三种语言和新的数据结构不属于本项范围。
+8. 完成验收必须在隔离的真实 DSH Web profile 中实际执行中文 → English → 中文切换，证明同一已挂载页面即时更新；Browser 自动化可以保持未覆盖，但必须在 readiness 中明确记录。
+
 ## Collaborative Problem Solving
 
 会议沿“明确目标 → 建立候选路径 → 找出关键未知 → 搜集证据 → 分析与比较 → 修订路径 → 形成一致性方案”推进；新证据可使路径返回前序步骤。Manager 组织求解路径、拆解复杂目标、识别证据缺口和整合阶段成果；为子议题说明问题、范围、预期成果、完成条件与依赖。独立问题可并行准备，有依赖的子议题逐步推进。Manager 只在证据轮次收口后决定继续、停止当前议题或下一个议题及理由，也可将“质疑某份证据”列为下一议题；在已授权议题内安排下一步，新增 Agenda candidate 的正式处置仍由 Captain 完成。改变用户目标或重大范围须由作为本地用户的召集人确认，召集人不因此取得 Captain 专属协议权限。Manager 不得把未解决关键分歧宣布为已解决。
@@ -354,6 +365,9 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 46. Developer Markdown 删除或人工修改不触发 repository 修复；后续新 commit 可以完整覆盖 `current.md`，但 Runtime 不保证文件必然存在。
 47. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
 48. 本地用户的五种操作产生独立 local 审计事实，满足与 Captain 相同的领域校验；Session tool 不因本地入口而扩大权限。风险完成重算满足条件时进入 converging，不自动 end/archive。
+49. DSH 选择 `zh` 或 `en` 时，`conversation.view` 标签和全部 Meeting Panel 自有文案使用对应语言；在同一已挂载页面按中文 → English → 中文切换时，无需 Host 重启、plugin 重装、slot 重新注册或页面刷新即可即时更新。
+50. Meeting Panel 本地化不改写 objective、Agenda 标题、FormalMessage 正文、identity displayName 等用户或 Agent 内容，也不改变 command、Protocol、Domain、Storage 或权限语义；已知 enum 只在 UI 映射为本地化展示 label。
+51. 中文界面的 `ProtocolFailure` 提示使用本地化固定句式并保留稳定 error code，不直接显示未本地化的 server message；非协议异常显示本地化的会议数据不可用提示。
 
 ## Related Documents
 

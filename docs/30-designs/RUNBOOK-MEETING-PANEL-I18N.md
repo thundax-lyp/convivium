@@ -250,38 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T1：提升已确认的 i18n 产品行为
-
-前置状态：本文状态为 `Executable`；用户已确认第 3 节十项口径且没有保留问题。
-
-允许修改：
-
-- `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
-
-禁止修改：其他 requirements、interfaces、代码、测试和 readiness。
-
-执行：
-
-1. 在 `MO-FR-15` 后新增 `MO-FR-16：Meeting Panel 国际化`，逐条写入第 3 节第 1–8 项；第 9 项写入该 requirement 的 Non-goals 语义，第 10 项写入验收证据要求。
-2. 在 Acceptance Criteria 末尾顺序新增三项：
-   - DSH 选择 `zh`/`en` 时，view 标签和全部 client-owned Meeting Panel 文案使用对应语言，并且运行时切换无需重启；
-   - 用户/Agent 内容和 command/Protocol/Domain 值保持原样，已知 enum 只在 UI 映射展示 label；
-   - 中文 Protocol error UI 保留稳定 error code 且不显示未本地化 server message，未知异常显示本地化 unavailable 提示。
-3. 不修改 Acceptance Criteria 29 的 list/read 边界。
-
-验证：
-
-```bash
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：两条命令退出码均为 0；新增 requirement 同时包含 Scope、Non-goals 和三条可观察验收条件，且没有实现类名或未确认语言。
-
-STOP：正式文档中出现与第 3 节十项已确认口径冲突的 requirement；报告冲突段落，不自行选择。
-
-失败恢复：仅保留清晰的需求 diff；链接检查失败时修复本步骤新增的真实坏链接，不能修改检查器或既有无关文档。
-
 ### T2：固定 DSH Client locale 设计责任
 
 前置状态：T1 PASS。
