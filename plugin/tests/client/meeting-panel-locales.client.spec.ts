@@ -140,7 +140,7 @@ describe("Meeting panel localized presentation", () => {
         const { view } = meetingProjectionFixture();
         const authoredObjective = view.objective.statement;
         const authoredAgenda = view.agenda.find((item) => item.status === "active")?.title;
-        const authoredMessage = view.messages.at(0)?.body;
+        const authoredMessage = "Agent-authored conclusion remains unchanged.";
         const archive = {
             status: "complete",
             publicSnapshotVersion: 7,
@@ -151,7 +151,24 @@ describe("Meeting panel localized presentation", () => {
             status: "open",
             contributions: []
         } as unknown as MeetingView["rounds"][number];
-        const archivedView = { ...view, archive, rounds: [round] };
+        const archivedView = {
+            ...view,
+            archive,
+            rounds: [round],
+            messages: [
+                {
+                    id: "message-1",
+                    seq: 1,
+                    actorId: "contributor-v1",
+                    agendaId: "agenda-v1",
+                    kind: "statement",
+                    body: authoredMessage,
+                    publicationId: "publication-1",
+                    relatedIds: [],
+                    createdAt: 1
+                }
+            ]
+        };
 
         const { rerender } = render(
             renderObservabilitySections(archivedView, meetingTranslator("zh"))
@@ -163,7 +180,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByText("已完成")).toBeTruthy();
         expect(screen.getByText(authoredObjective)).toBeTruthy();
         if (authoredAgenda !== undefined) expect(screen.getByText(authoredAgenda)).toBeTruthy();
-        if (authoredMessage !== undefined) expect(screen.getByText(authoredMessage)).toBeTruthy();
+        expect(screen.getByText(authoredMessage)).toBeTruthy();
 
         rerender(renderObservabilitySections(archivedView, meetingTranslator("en")));
         expect(screen.getByLabelText("Meeting summary")).toBeTruthy();
@@ -173,7 +190,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByText("Complete")).toBeTruthy();
         expect(screen.getByText(authoredObjective)).toBeTruthy();
         if (authoredAgenda !== undefined) expect(screen.getByText(authoredAgenda)).toBeTruthy();
-        if (authoredMessage !== undefined) expect(screen.getByText(authoredMessage)).toBeTruthy();
+        expect(screen.getByText(authoredMessage)).toBeTruthy();
     });
 
     it("retranslates mounted errors without refreshing meeting data", async () => {

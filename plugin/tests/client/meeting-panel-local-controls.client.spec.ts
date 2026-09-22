@@ -10,8 +10,28 @@ afterEach(cleanup);
 beforeEach(() => vi.stubGlobal("crypto", { randomUUID: () => "request-local" }));
 
 describe("Meeting panel local controls", () => {
-    it("uses the current projection version and rereads after pause_meeting", async () => {
+    it.each([
+        {
+            label: "Pause meeting",
+            kind: "pause_meeting" as const,
+            reason: "Paused from Meeting panel.",
+            status: "running" as const,
+            controls: ["pause_meeting", "end_meeting"] as const
+        },
+        {
+            label: "Resume meeting",
+            kind: "resume_meeting" as const,
+            reason: "Resumed from Meeting panel.",
+            status: "paused" as const,
+            controls: ["resume_meeting", "end_meeting"] as const
+        }
+    ])("uses the current projection version and rereads after $kind", async (scenario) => {
         const { summary, view } = meetingProjectionFixture();
+        const currentView = {
+            ...view,
+            lifecycle: { ...view.lifecycle, status: scenario.status },
+            controls: [...scenario.controls]
+        };
         const stream = {
             async *[Symbol.asyncIterator]() {
                 await new Promise<void>(() => {});
@@ -21,20 +41,20 @@ describe("Meeting panel local controls", () => {
         };
         const api = {
             list: vi.fn(async () => ({ meetings: [summary] })),
-            read: vi.fn(async () => view),
+            read: vi.fn(async () => currentView),
             control: vi.fn(async () => ({ kind: "accepted" as const })),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
         render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-        fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
+        fireEvent.click(await screen.findByRole("button", { name: scenario.label }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
         expect(api.control).toHaveBeenCalledWith({
             protocolVersion: 1,
             meetingId: summary.meetingId,
-            expectedMeetingVersion: view.version,
+            expectedMeetingVersion: currentView.version,
             requestId: "request-local",
-            action: { kind: "pause_meeting", reason: "Paused from Meeting panel." }
+            action: { kind: scenario.kind, reason: scenario.reason }
         });
         await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
     });

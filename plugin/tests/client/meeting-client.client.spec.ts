@@ -4,6 +4,20 @@ import { createMeetingClient, ProtocolFailure } from "@/client/meeting-client.js
 
 describe("MeetingClient target transport", () => {
     it("exposes the four target transport methods", async () => {
+        const refreshSource = {
+            async *[Symbol.asyncIterator]() {
+                yield { kind: "refresh", meetingId: "meeting-1", committedVersion: 2 };
+            }
+        };
+        const refreshStream = { dispose: vi.fn(async () => {}) };
+        type StreamOptions = {
+            name: string;
+            open(signal: AbortSignal): unknown;
+            ended(): Error;
+            carrierFailed(): void;
+        };
+        const $stream = vi.fn((_options: StreamOptions) => refreshStream);
+        const subscribeRefresh = vi.fn(() => refreshSource);
         const remote = {
             conviviumMeetings: {
                 list: vi.fn(async () => ({ ok: true, value: { meetings: [] } })),
@@ -12,9 +26,9 @@ describe("MeetingClient target transport", () => {
                     ok: true,
                     value: { kind: "rejected", error: { code: "UNAUTHORIZED", message: "no" } }
                 })),
-                subscribeRefresh: vi.fn()
+                subscribeRefresh
             },
-            $stream: vi.fn(),
+            $stream,
             $host: { home: undefined, isLoopback: true }
         } as unknown as ClientRemote;
         const client = createMeetingClient(remote);
@@ -29,6 +43,18 @@ describe("MeetingClient target transport", () => {
                 action: { kind: "open_round", agendaId: "agenda-1" }
             })
         ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
+
+        const onUnavailable = vi.fn();
+        expect(client.subscribeRefresh(onUnavailable)).toBe(refreshStream);
+        expect($stream).toHaveBeenCalledOnce();
+        const options = $stream.mock.calls[0]?.[0];
+        expect(options?.name).toBe("convivium-meetings-refresh");
+        const signal = new AbortController().signal;
+        expect(options?.open(signal)).toBe(refreshSource);
+        expect(subscribeRefresh).toHaveBeenCalledWith(signal);
+        expect(options?.ended().message).toBe("Meeting refresh stream ended.");
+        options?.carrierFailed();
+        expect(onUnavailable).toHaveBeenCalledOnce();
     });
 
     it("maps carrier invalid-request failures and forwards read input", async () => {
