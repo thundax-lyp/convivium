@@ -16,6 +16,22 @@
 
 ## 专题证据
 
+### 跨专题术语与边界
+
+对应 [terminology.md](../references/terminology.md)。
+
+本专题只汇总其他专题已经核对的术语边界，用于消歧和阅读路由，不新增能力契约。每个术语的接口、生命周期、状态归属和完成语义仍由表中链接的专题拥有；维护时先更新所属专题，再同步本表。
+
+**规则与验证工具**
+
+- `packages/AGENTS.md`
+
+**文档参考**
+
+- `docs/glossary.md`
+- `docs/architecture.md`
+- `docs/capability-seams.md`
+
 ### 需求澄清流程
 
 对应 [requirements-discovery.md](../references/requirements-discovery.md)。

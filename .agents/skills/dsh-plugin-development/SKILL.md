@@ -22,6 +22,15 @@ description: 为基于 DeepSeek Harness 的应用与 Cordis 插件澄清需求�
 
 读取目标仓库及目标路径的贡献规则。使用具体 DSH 契约前，核对目标依赖版本与本 Skill 基线；实现前检查所属包和最接近的现有实现。版本不匹配时说明限制，不套用本版本代码骨架，也不自行升级项目。未选版本的需求或设计任务仍可整理场景与候选方案，但将具体能力标为待核对。
 
+任务需要判断下列术语的定义、区别、owner、生命周期或完成语义时，读取[术语与边界](references/terminology.md)，再转入表中链接的专题：
+
+- 应用与 Agent 组合：Profile、bundle、Agent Preset、Persona；
+- 插件与生命周期：Cordis Context、Service Definition、Provider、Consumer、scope、fiber、Cordis effect；
+- 状态与完成：Session event、Storage Domain、Session projection、cache、input acceptance、Agent completion、business completion；
+- 交互与远程边界：Tool、Human command、UserQuestions、Approval、authorization/credential、Subagent、continuable child、Workflow、Agent Teams、Remote method/stream/event。
+
+术语只作为普通参数名、类型名或已明确专题内的实现细节出现时，不额外读取术语表。术语表只用于消歧和路由；完整契约仍由对应专题拥有。
+
 先看所选专题的适用范围、阅读导航和条件补读，再读取相关完整契约。失败、取消、权限、持久化、恢复和清理规则随契约一起读取。只补充当前任务需要的依赖；已读且未变的资料不重复加载，不沿全部链接递归阅读。设计任务需要具体契约时才查开发路由。
 
 ## 实现约束
