@@ -1,7 +1,8 @@
 import { createElement, type ReactElement } from "react";
 import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
-import { renderObservabilitySections } from "./meeting-panel-sections.js";
+import type { MeetingTranslate } from "./locales.js";
+import { lifecycleLabel, renderObservabilitySections } from "./meeting-panel-sections.js";
 
 export interface MeetingPanelLayoutProps {
     meetings: readonly MeetingSummary[];
@@ -19,16 +20,19 @@ export interface MeetingPanelLayoutProps {
     endMeeting(): Promise<void>;
 }
 
-export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactElement {
+export function renderMeetingPanelLayout(
+    ctx: MeetingPanelLayoutProps,
+    t: MeetingTranslate
+): ReactElement {
     const selected = ctx.meetings.find((item) => item.meetingId === ctx.selectedId);
     return createElement(
         "section",
-        { "data-testid": "convivium-meeting-panel", "aria-label": "Convivium meetings" },
-        createElement("h2", null, "Meetings"),
+        { "data-testid": "convivium-meeting-panel", "aria-label": t("panel.aria") },
+        createElement("h2", null, t("panel.title")),
         createElement(
             Button,
             { type: "button", variant: "outline", size: "sm", onClick: ctx.requestRefresh },
-            "Refresh"
+            t("panel.actions.refresh")
         ),
         ctx.detail?.controls.includes("pause_meeting")
             ? createElement(
@@ -40,7 +44,7 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.pauseMeeting()
                   },
-                  "Pause meeting"
+                  t("panel.actions.pause")
               )
             : null,
         ctx.detail?.controls.includes("resume_meeting")
@@ -53,7 +57,7 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.resumeMeeting()
                   },
-                  "Resume meeting"
+                  t("panel.actions.resume")
               )
             : null,
         ctx.detail?.controls.includes("end_meeting")
@@ -66,13 +70,13 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
                       disabled: ctx.writePending || ctx.detailCached,
                       onClick: () => void ctx.endMeeting()
                   },
-                  "End meeting"
+                  t("panel.actions.end")
               )
             : null,
         ctx.listError === undefined ? null : createElement("p", { role: "alert" }, ctx.listError),
         createElement(
             "ul",
-            { "aria-label": "Meeting list" },
+            { "aria-label": t("panel.list.aria") },
             ctx.meetings.map((meeting) =>
                 createElement(
                     "li",
@@ -85,22 +89,28 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
                             size: "sm",
                             onClick: () => ctx.selectMeeting(meeting.meetingId)
                         },
-                        `${meeting.objective} (${meeting.lifecycle})`
+                        `${meeting.objective} (${lifecycleLabel(meeting.lifecycle, t)})`
                     )
                 )
             )
         ),
         selected === undefined
-            ? createElement("p", null, "Select a meeting.")
+            ? createElement("p", null, t("panel.selection.prompt"))
             : ctx.detail === undefined
-              ? createElement("p", null, ctx.detailCached ? "Loading meeting." : "No detail.")
+              ? ctx.detailError === undefined
+                  ? createElement(
+                        "p",
+                        null,
+                        ctx.detailCached ? t("panel.detail.loading") : t("panel.detail.unavailable")
+                    )
+                  : createElement("p", { role: "alert" }, ctx.detailError)
               : createElement(
                     "article",
-                    { "aria-label": `Meeting ${selected.meetingId}` },
+                    { "aria-label": t("panel.detail.aria", { id: selected.meetingId }) },
                     ctx.detailError === undefined
                         ? null
                         : createElement("p", { role: "alert" }, ctx.detailError),
-                    renderObservabilitySections(ctx.detail)
+                    renderObservabilitySections(ctx.detail, t)
                 )
     );
 }

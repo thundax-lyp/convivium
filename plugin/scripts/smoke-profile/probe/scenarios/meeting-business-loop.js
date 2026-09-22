@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
     objective:
-        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。",
-    title: "vLLM FP8 KV Cache 量化的优先级与最小实现",
+        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。",
+    title: "Agent 长任务中的可控发散",
     question:
-        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。"
+        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。"
 };
 
 export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
@@ -18,23 +18,23 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
     {
         id: "literature",
-        sourceScope: "arxiv-fixture",
-        question: "哪些 arXiv 结论需要被验证，FP8 KV Cache 的收益和质量风险分别是什么？"
+        sourceScope: "agent-research-fixture",
+        question: "Agent 长任务中的目标漂移与探索发散分别由什么机制触发，有哪些可观察信号？"
     },
     {
         id: "source",
-        sourceScope: "vllm-source-fixture",
-        question: "vLLM 当前源码中的 KV Cache 路径、配置与 kernel 边界在哪里？"
+        sourceScope: "agent-runtime-fixture",
+        question: "Agent runtime 中目标、计划、checkpoint 与上下文压缩的控制边界在哪里？"
     },
     {
         id: "implementation",
-        sourceScope: "design-fixture",
-        question: "在不改变已有格式兼容边界的前提下，可合并的最小 FP8 实现是什么？"
+        sourceScope: "control-design-fixture",
+        question: "实现目标锚定、漂移检测与纠偏闭环的最小机制是什么？"
     },
     {
         id: "decision",
-        sourceScope: "benchmark-fixture",
-        question: "哪些基准、质量阈值和失败信号应决定继续或停止？"
+        sourceScope: "evaluation-fixture",
+        question: "哪些指标和阈值能同时衡量发散价值与目标一致性，并决定继续或停止？"
     }
 ];
 
@@ -594,26 +594,139 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 ),
             `evidence reviews were not delivered for ${roundPlan.id}: ${JSON.stringify({ version: reviewDelivered?.version, reviews: reviewDelivered?.evidenceReviews?.map((review) => review.versionId), deliveries: reviewDelivered?.reviewDeliveries })}`
         );
-        const liveManager = await runtime.waitForAgent(ctx, manager.id);
+        if (roundPlan.id === "decision") {
+            const lateContributorId = identities["contributor-e"];
+            let lateHandReady = false;
+            for (let attempt = 0; attempt < 10 && !lateHandReady; attempt += 1) {
+                const current = await read();
+                lateHandReady = current.rounds
+                    .find((round) => round.id === roundId)
+                    ?.pendingHandRaises?.some((hand) => hand.contributorId === lateContributorId);
+                if (lateHandReady) break;
+                const contributor = await runtime.waitForAgent(ctx, agents["contributor-e"].id);
+                const lateRaise = await callTargetToolResult(
+                    ctx,
+                    contributor,
+                    "convivium_raise_hand",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: current.version,
+                        requestId: `loop-late-hand-${attempt}`,
+                        action: {
+                            kind: "raise_hand",
+                            roundId,
+                            purpose: "submit valid late arXiv evidence for smoke disposition"
+                        }
+                    },
+                    nextCall()
+                );
+                if (lateRaise.isError) {
+                    throw new Error(`late hand failed: ${lateRaise.error?.message}`);
+                }
+                if (lateRaise.value?.kind === "accepted") {
+                    lateHandReady = true;
+                    break;
+                }
+                if (
+                    lateRaise.value?.kind === "rejected" &&
+                    ["CONFLICT", "PRECONDITION_FAILED"].includes(lateRaise.value.error?.code)
+                ) {
+                    continue;
+                }
+                throw new Error(`late hand rejected: ${JSON.stringify(lateRaise.value)}`);
+            }
+            assert(lateHandReady, "decision round did not receive a valid late hand raise");
+        }
         let published;
-        try {
-            published = await callTargetTool(
+        let publicationView = reviewDelivered;
+        const deferredHandRaiseContributorIds = [];
+        for (let attempt = 0; attempt < 30 && published === undefined; attempt += 1) {
+            publicationView = await read();
+            const pendingHand = publicationView.rounds.find((round) => round.id === roundId)
+                ?.pendingHandRaises?.[0];
+            if (pendingHand !== undefined) {
+                manager = await runtime.waitForAgent(ctx, manager.id);
+                const disposition = await callTargetToolResult(
+                    ctx,
+                    manager,
+                    "convivium_dispose_hand_raise",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: publicationView.version,
+                        requestId: `loop-defer-${roundPlan.id}-${attempt}-${pendingHand.contributorId}`,
+                        action: {
+                            kind: "dispose_hand_raise",
+                            roundId,
+                            contributorId: pendingHand.contributorId,
+                            disposition: "deferred",
+                            reason: `fixed smoke evidence for ${roundPlan.id} is already under review`
+                        }
+                    },
+                    nextCall()
+                );
+                if (disposition.isError) {
+                    throw new Error(
+                        `defer pending hand failed for ${roundPlan.id}: ${disposition.error?.message}`
+                    );
+                }
+                if (disposition.value?.kind === "accepted") {
+                    deferredHandRaiseContributorIds.push(pendingHand.contributorId);
+                    continue;
+                }
+                if (
+                    disposition.value?.kind === "rejected" &&
+                    ["CONFLICT", "NOT_FOUND"].includes(disposition.value.error?.code)
+                ) {
+                    continue;
+                }
+                throw new Error(
+                    `defer pending hand rejected for ${roundPlan.id}: ${JSON.stringify(disposition.value)}`
+                );
+            }
+            manager = await runtime.waitForAgent(ctx, manager.id);
+            const publication = await callTargetToolResult(
                 ctx,
-                liveManager,
+                manager,
                 "convivium_publish_round",
                 {
                     protocolVersion: 1,
                     meetingId,
-                    expectedMeetingVersion: reviewDelivered.version,
-                    requestId: `loop-publish-${roundPlan.id}`,
+                    expectedMeetingVersion: publicationView.version,
+                    requestId: `loop-publish-${roundPlan.id}-${attempt}`,
                     action: { kind: "publish_round", roundId }
                 },
                 nextCall()
             );
-        } catch (error) {
+            if (publication.isError) {
+                throw new Error(
+                    `publish failed for ${roundPlan.id}: ${publication.error?.message}`
+                );
+            }
+            if (publication.value?.kind === "accepted") {
+                published = publication.value;
+                break;
+            }
+            if (
+                publication.value?.kind === "rejected" &&
+                ["CONFLICT", "ROUND_NOT_CLOSABLE"].includes(publication.value.error?.code)
+            ) {
+                await new Promise((resolve) => setTimeout(resolve, 200));
+                continue;
+            }
             throw new Error(
-                `publish failed for ${roundPlan.id}: ${error.message}; state=${JSON.stringify({ version: reviewDelivered.version, round: reviewDelivered.rounds.find((round) => round.id === roundId), contributions: reviewDelivered.contributions, reviews: reviewDelivered.reviews, reviewDeliveries: reviewDelivered.reviewDeliveries })}`,
-                { cause: error }
+                `publish rejected for ${roundPlan.id}: ${JSON.stringify(publication.value)}`
+            );
+        }
+        assert(
+            published !== undefined,
+            `publish did not settle for ${roundPlan.id}; state=${JSON.stringify({ version: publicationView.version, round: publicationView.rounds.find((round) => round.id === roundId), contributions: publicationView.contributions, reviews: publicationView.reviews, reviewDeliveries: publicationView.reviewDeliveries })}`
+        );
+        if (roundPlan.id === "decision") {
+            assert(
+                deferredHandRaiseContributorIds.includes(identities["contributor-e"]),
+                "decision round did not defer the valid late hand raise"
             );
         }
         version = published.committedVersion;
@@ -627,6 +740,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             roundId,
             evidenceVersionIds: versionIds,
             publicationId: publication.id,
+            deferredHandRaiseContributorIds,
             reviewIds: reviewedView.evidenceReviews
                 .filter((review) => versionIds.includes(review.versionId))
                 .map((review) => review.id)

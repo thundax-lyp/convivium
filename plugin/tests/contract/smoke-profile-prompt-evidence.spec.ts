@@ -7,22 +7,25 @@ import {
 } from "../../scripts/smoke-profile/probe/scenarios/meeting-business-loop.js";
 
 describe("Meeting business-loop smoke prompt evidence", () => {
-    it("uses the agreed vLLM KV Cache quantization research topic", () => {
+    it("uses the agreed controllable-divergence research topic", () => {
         expect(MEETING_BUSINESS_LOOP_TOPIC).toEqual({
             objective:
-                "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。",
-            title: "vLLM FP8 KV Cache 量化的优先级与最小实现",
+                "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。",
+            title: "Agent 长任务中的可控发散",
             question:
-                "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。"
+                "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。"
         });
     });
 
     it("predeclares four fixture-only research stages without claiming Manager agenda splitting", () => {
         expect(MEETING_BUSINESS_LOOP_ROUNDS).toEqual([
-            expect.objectContaining({ id: "literature", sourceScope: "arxiv-fixture" }),
-            expect.objectContaining({ id: "source", sourceScope: "vllm-source-fixture" }),
-            expect.objectContaining({ id: "implementation", sourceScope: "design-fixture" }),
-            expect.objectContaining({ id: "decision", sourceScope: "benchmark-fixture" })
+            expect.objectContaining({ id: "literature", sourceScope: "agent-research-fixture" }),
+            expect.objectContaining({ id: "source", sourceScope: "agent-runtime-fixture" }),
+            expect.objectContaining({
+                id: "implementation",
+                sourceScope: "control-design-fixture"
+            }),
+            expect.objectContaining({ id: "decision", sourceScope: "evaluation-fixture" })
         ]);
         expect(MEETING_BUSINESS_LOOP_ROUNDS).toHaveLength(4);
     });

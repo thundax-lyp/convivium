@@ -1,6 +1,37 @@
 import { createElement, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
+import type { MeetingLocaleKey, MeetingTranslate } from "./locales.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
+
+const lifecycleKeys: Record<MeetingView["lifecycle"]["status"], MeetingLocaleKey> = {
+    preparing: "enum.lifecycle.preparing",
+    running: "enum.lifecycle.running",
+    paused: "enum.lifecycle.paused",
+    converging: "enum.lifecycle.converging",
+    ending: "enum.lifecycle.ending",
+    terminal: "enum.lifecycle.terminal",
+    archiving: "enum.lifecycle.archiving",
+    archived: "enum.lifecycle.archived"
+};
+
+const roundStatusKeys: Record<MeetingView["rounds"][number]["status"], MeetingLocaleKey> = {
+    open: "enum.round.open",
+    published: "enum.round.published",
+    aborted: "enum.round.aborted"
+};
+
+const archiveStatusKeys: Record<NonNullable<MeetingView["archive"]>["status"], MeetingLocaleKey> = {
+    pending: "enum.archive.pending",
+    complete: "enum.archive.complete",
+    failed: "enum.archive.failed"
+};
+
+export function lifecycleLabel(
+    status: MeetingView["lifecycle"]["status"],
+    t: MeetingTranslate
+): string {
+    return t(lifecycleKeys[status]);
+}
 
 function row(label: string, value: string): ReactElement {
     return createElement(
@@ -20,9 +51,9 @@ function section(label: string, content: ReactElement): ReactElement {
     );
 }
 
-function list(values: readonly string[]): ReactElement {
+function list(values: readonly string[], t: MeetingTranslate): ReactElement {
     return values.length === 0
-        ? createElement("p", null, "None")
+        ? createElement("p", null, t("common.none"))
         : createElement(
               "ul",
               null,
@@ -30,25 +61,28 @@ function list(values: readonly string[]): ReactElement {
           );
 }
 
-export function renderObservabilitySections(viewInput: MeetingView): ReactElement {
+export function renderObservabilitySections(
+    viewInput: MeetingView,
+    t: MeetingTranslate
+): ReactElement {
     const view = mapMeetingPanelView(viewInput);
     const activeAgenda = view.agenda.find((item) => item.status === "active");
     return createElement(
         "div",
         null,
         section(
-            "Meeting summary",
+            t("panel.summary.title"),
             createElement(
                 "dl",
                 null,
-                row("Meeting version", String(view.version)),
-                row("Lifecycle", view.lifecycle.status),
-                row("Objective", view.objective.statement),
-                row("Active agenda", activeAgenda?.title ?? "None")
+                row(t("panel.summary.version"), String(view.version)),
+                row(t("panel.summary.lifecycle"), lifecycleLabel(view.lifecycle.status, t)),
+                row(t("panel.summary.objective"), view.objective.statement),
+                row(t("panel.summary.activeAgenda"), activeAgenda?.title ?? t("common.none"))
             )
         ),
         section(
-            "Rounds",
+            t("panel.rounds.title"),
             createElement(
                 "ul",
                 null,
@@ -56,42 +90,58 @@ export function renderObservabilitySections(viewInput: MeetingView): ReactElemen
                     createElement(
                         "li",
                         { key: round.id },
-                        `${round.id}: ${round.status} (${round.contributions.length} contributions)`
+                        t("panel.rounds.summary", {
+                            id: round.id,
+                            status: t(roundStatusKeys[round.status]),
+                            count: round.contributions.length
+                        })
                     )
                 )
             )
         ),
         section(
-            "Evidence and reviews",
+            t("panel.evidenceReviews.title"),
             createElement(
                 "dl",
                 null,
-                row("Visible evidence packages", String(view.evidencePackages.length)),
-                row("Visible evidence reviews", String(view.evidenceReviews.length)),
-                row("Publications", String(view.publications.length))
+                row(
+                    t("panel.evidenceReviews.visiblePackages"),
+                    String(view.evidencePackages.length)
+                ),
+                row(t("panel.evidenceReviews.visibleReviews"), String(view.evidenceReviews.length)),
+                row(t("panel.evidenceReviews.publications"), String(view.publications.length))
             )
         ),
-        section("Formal messages", list(view.messages.map((message) => message.body))),
         section(
-            "Outcomes",
+            t("panel.formalMessages.title"),
+            list(
+                view.messages.map((message) => message.body),
+                t
+            )
+        ),
+        section(
+            t("panel.outcomes.title"),
             createElement(
                 "dl",
                 null,
-                row("Decisions", String(view.outcomes.decisions.length)),
-                row("Completion facts", String(view.outcomes.completionFacts.length)),
-                row("Issues", String(view.issues.length))
+                row(t("panel.outcomes.decisions"), String(view.outcomes.decisions.length)),
+                row(
+                    t("panel.outcomes.completionFacts"),
+                    String(view.outcomes.completionFacts.length)
+                ),
+                row(t("panel.outcomes.issues"), String(view.issues.length))
             )
         ),
         view.archive === undefined
             ? null
             : section(
-                  "Archive",
+                  t("panel.archive.title"),
                   createElement(
                       "dl",
                       null,
-                      row("Archive status", view.archive.status),
-                      row("Archive version", String(view.archive.publicSnapshotVersion)),
-                      row("Archive messages", String(view.archive.messages.length))
+                      row(t("panel.archive.status"), t(archiveStatusKeys[view.archive.status])),
+                      row(t("panel.archive.version"), String(view.archive.publicSnapshotVersion)),
+                      row(t("panel.archive.messages"), String(view.archive.messages.length))
                   )
               )
     );

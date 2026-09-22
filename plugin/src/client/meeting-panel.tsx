@@ -1,20 +1,38 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingCommand, MeetingSummary, MeetingView } from "@/protocol/index.js";
+import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 
-function failureMessage(error: unknown): string {
-    return error instanceof ProtocolFailure ? error.message : "Meeting data is unavailable.";
+type MeetingPanelFailure =
+    { readonly kind: "protocol"; readonly code: string } | { readonly kind: "unavailable" };
+
+function classifyFailure(error: unknown): MeetingPanelFailure {
+    return error instanceof ProtocolFailure
+        ? { kind: "protocol", code: error.protocolError.code }
+        : { kind: "unavailable" };
 }
 
-export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
+function failureMessage(failure: MeetingPanelFailure, t: MeetingTranslate): string {
+    return failure.kind === "protocol"
+        ? t("panel.error.protocol", { code: failure.code })
+        : t("panel.error.unavailable");
+}
+
+export function ConviviumMeetingPanel({
+    api,
+    t
+}: {
+    api: MeetingClient;
+    t: MeetingTranslate;
+}): ReactElement {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const [selectedId, setSelectedId] = useState<string>();
     const [detail, setDetail] = useState<MeetingView>();
     const [listCached, setListCached] = useState(false);
     const [detailCached, setDetailCached] = useState(false);
-    const [listError, setListError] = useState<string>();
-    const [detailError, setDetailError] = useState<string>();
+    const [listFailure, setListFailure] = useState<MeetingPanelFailure>();
+    const [detailFailure, setDetailFailure] = useState<MeetingPanelFailure>();
     const [writePending, setWritePending] = useState(false);
     const selectedRef = useRef<string>();
 
@@ -23,10 +41,10 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             const result = await api.list();
             setMeetings(result.meetings);
             setListCached(false);
-            setListError(undefined);
+            setListFailure(undefined);
         } catch (error) {
             setListCached(true);
-            setListError(failureMessage(error));
+            setListFailure(classifyFailure(error));
         }
     }, [api]);
 
@@ -37,11 +55,11 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                 if (selectedRef.current !== meetingId) return;
                 setDetail(result);
                 setDetailCached(false);
-                setDetailError(undefined);
+                setDetailFailure(undefined);
             } catch (error) {
                 if (selectedRef.current !== meetingId) return;
                 setDetailCached(true);
-                setDetailError(failureMessage(error));
+                setDetailFailure(classifyFailure(error));
             }
         },
         [api]
@@ -110,13 +128,13 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         };
         setWritePending(true);
         setDetailCached(true);
-        setDetailError(undefined);
+        setDetailFailure(undefined);
         try {
             await api.control(command);
             await loadDetail(meetingId);
             await loadList();
         } catch (error) {
-            setDetailError(failureMessage(error));
+            setDetailFailure(classifyFailure(error));
         } finally {
             setWritePending(false);
         }
@@ -129,7 +147,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             if (current === undefined || meetingId === undefined || writePending) return;
             setWritePending(true);
             setDetailCached(true);
-            setDetailError(undefined);
+            setDetailFailure(undefined);
             try {
                 await api.control({
                     protocolVersion: 1,
@@ -147,7 +165,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                 await loadDetail(meetingId);
                 await loadList();
             } catch (error) {
-                setDetailError(failureMessage(error));
+                setDetailFailure(classifyFailure(error));
             } finally {
                 setWritePending(false);
             }
@@ -155,19 +173,22 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         [api, detail, loadDetail, loadList, writePending]
     );
 
-    return renderMeetingPanelLayout({
-        meetings,
-        selectedId,
-        detail,
-        listCached,
-        detailCached,
-        listError,
-        detailError,
-        writePending,
-        requestRefresh: refresh,
-        selectMeeting,
-        pauseMeeting: () => changePause("pause_meeting"),
-        resumeMeeting: () => changePause("resume_meeting"),
-        endMeeting
-    });
+    return renderMeetingPanelLayout(
+        {
+            meetings,
+            selectedId,
+            detail,
+            listCached,
+            detailCached,
+            listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
+            detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
+            writePending,
+            requestRefresh: refresh,
+            selectMeeting,
+            pauseMeeting: () => changePause("pause_meeting"),
+            resumeMeeting: () => changePause("resume_meeting"),
+            endMeeting
+        },
+        t
+    );
 }

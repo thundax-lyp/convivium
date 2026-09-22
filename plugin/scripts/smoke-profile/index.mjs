@@ -3,7 +3,7 @@ import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
 import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
@@ -45,6 +45,23 @@ export function selectScenarios(args, scenario, browserMode) {
         : args.includes("--all")
           ? [...SMOKE_SCENARIOS]
           : [...CORE_SCENARIOS];
+}
+
+export async function resolveSmokeStoragePath(value, scenarios) {
+    if (value === undefined || value === "") return undefined;
+    if (scenarios.length !== 1 || scenarios[0] !== "meeting-business-loop") {
+        throw new Error(
+            "CONVIVIUM_SMOKE_STORAGE_PATH requires the meeting-business-loop selector."
+        );
+    }
+    if (!isAbsolute(value)) {
+        throw new Error("CONVIVIUM_SMOKE_STORAGE_PATH must be an absolute path.");
+    }
+    const details = await stat(value).catch(() => undefined);
+    if (!details?.isFile()) {
+        throw new Error("CONVIVIUM_SMOKE_STORAGE_PATH must name an existing file.");
+    }
+    return resolve(value);
 }
 
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
@@ -245,7 +262,7 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-export async function writeSmokePatch(path, _scenario) {
+export async function writeSmokePatch(path, _scenario, storagePath) {
     const targetDefinitions = JSON.parse(
         await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
     ).definitions;
@@ -262,7 +279,7 @@ export async function writeSmokePatch(path, _scenario) {
         "    - id: convivium-smoke-storage-sqlite",
         "      name: '@deepseek-ai/dsh-storage-sqlite'",
         "      config:",
-        `        path: ${JSON.stringify(join(dirname(path), "convivium-storage.sqlite"))}`,
+        `        path: ${JSON.stringify(storagePath ?? join(dirname(path), "convivium-storage.sqlite"))}`,
         "        journalMode: wal",
         "- id: storage-domain",
         "  config:",
@@ -338,7 +355,7 @@ async function installProbe(env, probeDir) {
     await runCommand(dsh.command, dsh.args, { env });
 }
 
-async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
+async function dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath) {
     const dsh = dshCommand([
         PROFILE,
         ...(roleAssetRoot ? ["--patch", join(roleAssetRoot, "cordis.patch.yml")] : []),
@@ -353,7 +370,7 @@ async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
         CONVIVIUM_PACKAGE,
         "@deepseek-ai/dsh-storage-sqlite",
         "convivium-smoke-storage-sqlite",
-        "convivium-storage.sqlite",
+        storagePath ?? "convivium-storage.sqlite",
         "@deepseek-ai/dsh-subagent-spawn-in-process",
         PROVIDER
     ]) {
@@ -492,7 +509,7 @@ async function restore(root = tempRoot) {
     }
 }
 
-async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
+async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, storagePath) {
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
     const workspaceDir = join(tempRoot, "workspace");
@@ -504,7 +521,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
-    await writeSmokePatch(patchPath, scenario);
+    await writeSmokePatch(patchPath, scenario, storagePath);
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
@@ -530,7 +547,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
     activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
-    const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot);
+    const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let finalPort = port;
@@ -596,7 +613,8 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot) {
             scenario === "meeting-business-loop"
                 ? { initial: bootLogs, coldReopen: finalBootLogs }
                 : finalBootLogs,
-        agentPrompts: agentPromptsPath
+        agentPrompts: agentPromptsPath,
+        ...(storagePath === undefined ? {} : { storagePersistence: "PRESERVED" })
     };
     await stageScenarioRecord(recordRoot, result, deepSeekApiKey);
     return result;
@@ -625,6 +643,10 @@ export async function assertPortReleased(port) {
 async function main() {
     const args = process.argv.slice(2);
     const scenarios = selectScenarios(args, process.env.CONVIVIUM_SMOKE_SCENARIO, BROWSER_MODE);
+    const storagePath = await resolveSmokeStoragePath(
+        process.env.CONVIVIUM_SMOKE_STORAGE_PATH,
+        scenarios
+    );
     validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
     validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
     const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
@@ -641,7 +663,8 @@ async function main() {
                     scenario,
                     artifact,
                     deepSeekApiKey,
-                    recordRoot === undefined ? undefined : join(recordRoot, scenario)
+                    recordRoot === undefined ? undefined : join(recordRoot, scenario),
+                    storagePath
                 );
             } catch (error) {
                 throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
