@@ -250,60 +250,134 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
+### T8B：把 business-loop smoke 改为可控发散议题
+
+前置状态：T8A PASS；用户明确指定议题为 Agent 执行长任务时，在保证一定发散性的前提下保证任务目标不漂移，即“可控的发散”。
+
+允许修改：
+
+- `plugin/tests/contract/smoke-profile-prompt-evidence.spec.ts`
+- `plugin/scripts/smoke-profile/probe/scenarios/meeting-business-loop.js`
+- `docs/50-operations/HOW-TO-DSH-SMOKE.md`
+- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8B
+
+禁止修改：Meeting production、角色定义、reviewer prompt、result validator、其他 tests、requirements、interfaces、其他 designs 和 readiness。
+
+执行：
+
+1. 先把 contract test 的 literal oracle 改为：`Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。`；标题固定为 `Agent 长任务中的可控发散`。
+2. 四轮 id 保持 `literature`、`source`、`implementation`、`decision`；问题分别固定为目标漂移与探索发散的机制/信号、Agent runtime 中目标/计划/checkpoint 的控制边界、最小目标锚定/漂移检测/纠偏机制、衡量发散价值与目标一致性的阈值。sourceScope 依次改为 `agent-research-fixture`、`agent-runtime-fixture`、`control-design-fixture`、`evaluation-fixture`。
+3. 运行 prompt contract test 并观察 RED；失败只能来自 production topic/rounds 仍为旧 literal。
+4. 按同一 literals 修改 `MEETING_BUSINESS_LOOP_TOPIC` 和 `MEETING_BUSINESS_LOOP_ROUNDS`，不改变 limits、会议命令链、fixture Evidence、结果结构或校验器。
+5. 同步 Smoke Operations 的场景议题与四轮说明，继续明确只使用确定性 fixture、不构成 Agent 长任务控制机制的研究结论。
+6. 运行 focused test、完整 contract tests 和 `git diff --check`；全部通过后删除本 T8B，并把测试、probe、operations 与步骤删除放入同一提交。
+
+验证：
+
+```bash
+pnpm --dir=plugin exec vitest run tests/contract/smoke-profile-prompt-evidence.spec.ts
+pnpm --dir=plugin exec vitest run --project contract
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+
+PASS：四条命令退出码均为 0；literal oracle 与 probe 只表达用户指定的“可控发散”，四轮 id 和其他 smoke contract 不变。
+
+STOP：需要改变 Meeting command chain、角色 prompt、result schema/validator、limits 或真实外部检索；报告具体依赖，不扩大修复。
+
+失败恢复：无持久运行副作用；保留 T8B，不提交失败实现。
+
+### T8C：允许 business-loop smoke 保留正式 SQLite
+
+前置状态：T8B PASS；用户明确要求本次 smoke 不使用会被清理的临时存储，而写入正式持久 SQLite；`dsh-workspace/convivium-user/convivium-storage.sqlite` 已存在。
+
+允许修改：
+
+- `plugin/scripts/smoke-profile/index.mjs`
+- 新增 `plugin/tests/contract/smoke-profile-persistent-storage.spec.ts`
+- `docs/50-operations/HOW-TO-DSH-SMOKE.md`
+- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8C
+
+禁止修改：Meeting production、probe command chain、角色定义、result validator、安装器、其他 tests、requirements、interfaces、其他 designs 和 readiness。
+
+执行：
+
+1. 新增可选环境变量 `CONVIVIUM_SMOKE_STORAGE_PATH`；未设置时保持现有临时 SQLite 与 Restore 行为完全不变。
+2. 设置时必须是已存在普通文件的绝对路径，并且 selector 必须精确为 `meeting-business-loop`；默认双场景、`--all` 或 `identity-admission` 必须在 build/Host 启动前失败。
+3. `writeSmokePatch` 只把 SQLite provider 的 `path` 改为该显式路径；临时 DSH profile、probe、日志和进程仍按现有 Restore 清理，不删除、截断、复制或恢复外部 SQLite。
+4. 成功 JSON 增加 `storagePersistence: "PRESERVED"`；普通临时模式不增加该字段。
+5. contract test 覆盖 selector 限制、相对/不存在/非文件路径拒绝、patch 使用显式 SQLite、普通模式仍使用临时 SQLite。
+6. Smoke Operations 记录该入口只用于用户明确授权的持久 business-loop，运行前必须停止使用同一 SQLite 的 Host，运行后会议保留；不得把 `restore=PASS` 描述为恢复外部 SQLite。
+7. 运行 focused test、完整 contract tests 和文档检查；全部通过后删除本 T8C，并把实现、测试、operations 与步骤删除放入同一提交。
+
+验证：
+
+```bash
+pnpm --dir=plugin exec vitest run tests/contract/smoke-profile-persistent-storage.spec.ts
+pnpm --dir=plugin exec vitest run --project contract
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+
+PASS：四条命令退出码均为 0；持久路径仅能用于单独 business-loop，默认临时 smoke 行为不变，外部 SQLite 不进入 Restore 删除集合。
+
+STOP：实现必须复用正在运行的 SQLite、改变 probe/Meeting 语义、允许相对或新建路径、或可能删除外部存储；报告具体依赖，不扩大修复。
+
+失败恢复：无外部运行副作用；保留 T8C，不提交失败实现。
+
 ### T9：完整验证、readiness 收口与 RUNBOOK 删除准备
 
-前置状态：T8A PASS；实现范围与本 RUNBOOK 双向追踪无缺口。
+前置状态：T8C PASS；实现范围与本 RUNBOOK 双向追踪无缺口；正式 SQLite 当前 meeting catalog 为空，DSH Host 正监听 `127.0.0.1:31828`。
 
 允许修改：
 
 - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
 - 本 RUNBOOK；只有全部完成条件满足后才允许执行删除步骤
-- 临时创建并在 PASS 前删除 `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation`；该路径在本步骤开始时必须不存在
+- `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-user/convivium-storage.sqlite`；只允许通过 smoke Meeting command chain 新增并保留一场已归档会议，不得直接编辑 SQLite
+- `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-user/dsh-home/profiles/web`；只允许用当前分支 tarball 更新 `@convivium/dsh-plugin`
 
 禁止修改：production、tests、requirements、interfaces、其他 designs 和 operations。
 
 执行：
 
 1. 运行固定完整自动化验证集合。
-2. 确认 `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation` 不存在；存在时 STOP，不删除或复用。
-3. 从仓库根执行 `./scripts/install-from-source.sh --workspace /Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation`，只把当前分支 artifact 安装到该隔离 workspace。
-4. 在专用前台终端执行 `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation/convivium-user/start.sh`，等待 Host 明确报告监听 `127.0.0.1:31828`；启动失败时 STOP。
-5. 在 Browser 打开 `http://127.0.0.1:31828`，进入任一 Session，使 `conversation.view` 标签可见；不得创建会议、调用模型或改动既有 profile。
-6. 在 DSH `Settings → General` 选择中文，保持同一页面已挂载，观察标签为“会议”，Panel 标题为“会议”，按钮为“刷新”，空状态为“请选择一个会议。”。
-7. 不刷新页面，在同一设置位置选择 English，观察同一标签和 Panel 分别变为 `Meetings`、`Meetings`、`Refresh`、`Select a meeting.`。
-8. 再切回中文，确认无需 Host 重启、plugin 重装或页面刷新即可恢复中文；记录这三次观察为 Web UI 人工证据。任一文案未切换或必须刷新时 STOP。
-9. 在 Host 终端发送一次 `Ctrl-C`，等待进程退出；执行 `lsof -nP -iTCP:31828 -sTCP:LISTEN`，命令必须无输出且退出码非 0。
-10. 仅在第 9 项成立后删除任务创建的精确目录 `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation`，随后确认该路径不存在；不得删除 `dsh-workspace/convivium-user` 或任何其他 profile。
-11. 在 readiness 的实现矩阵增加 Meeting Panel i18n 行，记录日期、分支/基线、实际命令、自动化 PASS 断言和第 6–8 项人工观察；不得写未运行的检查。
-12. 明确保留 `Browser 自动化 smoke` 为 `Not Covered`；不得把人工观察描述为自动化证据。真实 profile smoke 只证明 Loader/Host/runtime 组合，人工 Web UI 检查证明语言切换。
-13. 核对 Scope 每项均有测试/实现/证据，Non-goals 未进入 diff。
-14. 执行关闭前文档迁移检查：长期产品行为已在 requirement、稳定接线已在 design、验证事实已在 readiness；interfaces/operations 无变化。
-15. 使用 `rg` 查找本 RUNBOOK 文件名和标题引用；没有其他临时引用后，删除本 RUNBOOK。
+2. 读取正式 SQLite 的 meeting catalog 行数作为基线；不得删除、迁移或直接写库。
+3. 向当前占用 `31828` 的正式 Host 发送一次 `SIGINT` 并等待退出；`lsof -nP -iTCP:31828 -sTCP:LISTEN` 必须无输出，否则 STOP。
+4. 设置 `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop` 和正式 SQLite 绝对路径运行 smoke；只接受 `ok: true`、hot result、cold reopen、`storagePersistence: "PRESERVED"` 与临时 profile Restore 全部 PASS。
+5. smoke 后读取 catalog，必须只比基线新增一条；该 Meeting lifecycle 为 `archived` 且 archive 为 `complete`，不得清理该行或 SQLite/WAL/SHM。
+6. 在临时 artifact 目录打包当前分支，并用正式 `DSH_HOME` 执行 `dsh plugin --profile web add <artifact>`；回读正式 profile manifest，必须包含 locale、renderer、conversation 三项 client injection。只删除本次临时 artifact 目录。
+7. 在专用前台终端启动 `/Volumes/storage/workspace/convivium/dsh-workspace/convivium-user/start.sh`，等待 Host 明确监听 `127.0.0.1:31828`。
+8. 在 Browser 打开 `http://127.0.0.1:31828`，进入任一 Session，使 `conversation.view` 标签和本次已归档 Meeting 可见；不得再创建会议或调用模型。
+9. 在 DSH `Settings → General` 选择中文，保持同一页面已挂载，观察标签/Panel 标题/按钮为“会议”/“会议”/“刷新”，且已归档 Meeting 可打开。
+10. 不刷新页面切换 English，观察同一标签/Panel 标题/按钮为 `Meetings`/`Meetings`/`Refresh`，本次 Meeting 业务内容不变。
+11. 再切回中文，确认无需 Host 重启、plugin 重装或页面刷新即可恢复中文；记录三次观察及持久 Meeting 为 Web UI 人工证据。
+12. 保持正式 Host 运行，供后续 Web UI 调试；不得删除 `dsh-workspace/convivium-user`、正式 SQLite 或已归档 Meeting。
+13. 在 readiness 增加 Meeting Panel i18n 行，记录日期、分支/基线、实际命令、自动化 PASS、持久 smoke/cold reopen 和第 9–11 项人工观察；不得写未运行的检查。
+14. 明确保留 `Browser 自动化 smoke` 为 `Not Covered`；人工观察不得描述为自动化证据。
+15. 核对 Scope、Non-goals 与文档迁移，使用 `rg` 查找 RUNBOOK 引用；无临时引用后删除本 RUNBOOK。
 16. 删除后再次运行 doc links 和 `git diff --check`；失败则恢复 RUNBOOK 并 STOP。
 
 验证：
 
 ```bash
 pnpm --dir=plugin verify
-pnpm --dir=plugin smoke:profile --json
-test ! -e /Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation
-./scripts/install-from-source.sh --workspace /Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation
-# 在专用前台终端启动：
-/Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation/convivium-user/start.sh
-# 完成人工切换并 Ctrl-C 停止 Host 后：
+CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
+CONVIVIUM_SMOKE_STORAGE_PATH=/Volumes/storage/workspace/convivium/dsh-workspace/convivium-user/convivium-storage.sqlite \
+  pnpm --dir=plugin smoke:profile --json
+# 正式 Host 停止阶段：
 ! lsof -nP -iTCP:31828 -sTCP:LISTEN
-rm -rf -- /Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation
-test ! -e /Volumes/storage/workspace/convivium/dsh-workspace/convivium-i18n-validation
+# 安装当前 tarball 后，在专用前台终端启动：
+/Volumes/storage/workspace/convivium/dsh-workspace/convivium-user/start.sh
 node .github/scripts/check-doc-links.mjs
 git diff --check
 git status --short
 ```
 
-PASS：`verify`、smoke、隔离安装、清理、文档和 diff 命令均满足上述退出码要求；smoke JSON 的全部场景和 Restore 为 `PASS`；中文 → English → 中文在同一已挂载页面即时切换且出现第 6–8 项固定文案；端口释放、隔离 workspace 已删除；`git status --short` 只包含本任务已列出的 requirements/design/readiness、Client production/tests 和 `plugin/package.json`，不含 RUNBOOK 或无关文件。
+PASS：`verify`、持久 business-loop smoke、cold reopen、临时 profile Restore、当前 artifact 安装、正式 Host 启动、文档和 diff 均通过；catalog 只新增一场 `archived`/`complete` Meeting；中文 → English → 中文在同一已挂载页面即时切换，业务内容不变；正式 Host 保持运行且 RUNBOOK 已删除。
 
-STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离路径预先存在、Host/Browser 无法启动、固定文案未即时切换、端口未释放、隔离 workspace 未删除、出现无关 diff、Browser 自动化被写成 PASS，或删除后链接/diff 检查失败。报告复现命令和输出；不得缩减 `verify`、跳过 smoke/人工 Web UI 检查或清理用户 profile。
+STOP：任一验证失败、正式 SQLite 不存在/被并发占用、Host 无法优雅停止或重启、catalog 增量不是一条、Meeting 未归档、artifact 安装不含三项 injection、固定文案未即时切换、业务内容变化、出现无关 diff、Browser 自动化被写成 PASS，或删除后检查失败。报告复现命令和输出；不得删除或回滚正式 SQLite/Meeting。
 
-失败恢复：smoke 按 `HOW-TO-DSH-SMOKE.md` 只清理脚本创建的精确临时根；不得操作日常 `DSH_HOME`。RUNBOOK 删除后检查失败时必须用 `apply_patch` 恢复本文件。
+失败恢复：wrapper 只清理临时 profile；正式 SQLite 永不进入 Restore。smoke 已写入但后续失败时保留该 Meeting 和数据库并报告状态，不重跑造成第二条记录。RUNBOOK 删除后检查失败时用 `apply_patch` 恢复本文件。
 
 ## 9. 验证矩阵
 
@@ -321,8 +395,8 @@ STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离
 | projection 权限边界 | `meeting-panel.client.spec.ts`、`meeting-panel-visibility.client.spec.ts` | 不新增隐藏字段或领域推导 |
 | Client 回归 | 全部 client project tests | 全部通过 |
 | 包组合与公开契约 | `verify:contract`、`verify` | locale injection、build、package contract 全部通过 |
-| 真实 DSH Loader/Host/runtime | `smoke:profile --json` | 全场景及 Restore PASS |
-| Browser 实际切换 | T9 隔离 DSH Web profile 人工检查 | 同一已挂载页面按中文 → English → 中文即时切换固定文案，无需刷新或重启 |
+| 真实 DSH Loader/Host/runtime | 持久 SQLite `meeting-business-loop` smoke | hot、cold reopen、临时 profile Restore PASS，归档 Meeting 保留在正式 SQLite |
+| Browser 实际切换 | T9 正式 DSH Web profile 人工检查 | 同一已挂载页面按中文 → English → 中文即时切换，已归档 Meeting 可见，无需刷新或重启 |
 | Browser 自动化 | `Not Covered` | target runtime 尚无 Browser smoke；readiness 必须保留缺口 |
 | 数据/事务/恢复/权限新行为 | `Not Applicable` | 本任务没有此类变更；全量 verify 只承担回归证据 |
 
@@ -331,12 +405,12 @@ STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离
 只有同时满足以下条件，任务才完成：
 
 1. RUNBOOK 状态为 `Executable`，正式 requirement 与用户确认完全一致。
-2. T1–T9（含 T8A）按顺序 PASS，没有未解决 STOP。
+2. T1–T9（含 T8A、T8B、T8C）按顺序 PASS，没有未解决 STOP。
 3. `convivium.meeting` 只有一个 owner，balanced `zh`/`en` dictionaries 通过 typecheck。
 4. label 和已挂载 Panel 的运行时 locale 切换由自动化行为测试覆盖。
 5. 当前 Meeting Panel 的全部 client-owned visible copy 与枚举展示 label 已本地化。
 6. 用户/Agent 内容、commands、Protocol、Remote、Domain、Storage 和权限行为没有改变。
-7. 固定完整验证、真实 profile smoke 和隔离 Web UI 人工切换检查实际通过，Browser 自动化缺口如实记录。
+7. 固定完整验证、正式 SQLite smoke 和正式 Web UI 人工切换检查实际通过，Browser 自动化缺口如实记录。
 8. 长期行为已迁移到 requirements，稳定接线已迁移到 design，实际证据已迁移到 readiness。
 9. RUNBOOK 没有剩余引用，删除后 doc links 与 `git diff --check` 仍通过。
 
@@ -346,8 +420,8 @@ STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离
 
 - Required Structure：已覆盖状态、契约、目标、断点、Scope/Non-goals、真相源、结构、调用链、文件/symbol、不变量、步骤、验证、收口。
 - Decision Completeness：实现方案、namespace、key set、文案、错误策略、文件、symbol、命令和 PASS/STOP 已固定。
-- 双向追踪：每个 Scope 项均进入 T1–T9（含 T8A）和验证矩阵；步骤未引入 Non-goals。
+- 双向追踪：每个 Scope 项均进入 T1–T9（含 T8A、T8B、T8C）和验证矩阵；步骤未引入 Non-goals。
 - 路径与 symbol：当前路径和现有 symbol 已核对；新增路径与 symbol 只有一个指定位置。
 - 产品决定：第 3 节十项口径已由用户于 2026-09-22 确认；T1 已获得将其提升为正式 requirement 的依据。
-- 外部验证：隔离 workspace、启动、三次语言观察、停止、端口断言和精确清理路径均已固定；Browser 自动化明确为 `Not Covered`。
+- 外部验证：正式 SQLite、Host 停止/重启、持久 Meeting、三次语言观察和临时 artifact 清理边界均已固定；Browser 自动化明确为 `Not Covered`。
 - 审计结论：`Executable`。执行者无需选择产品、架构、接口、翻译范围、错误策略或验证豁免。
