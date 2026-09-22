@@ -594,26 +594,139 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 ),
             `evidence reviews were not delivered for ${roundPlan.id}: ${JSON.stringify({ version: reviewDelivered?.version, reviews: reviewDelivered?.evidenceReviews?.map((review) => review.versionId), deliveries: reviewDelivered?.reviewDeliveries })}`
         );
-        const liveManager = await runtime.waitForAgent(ctx, manager.id);
+        if (roundPlan.id === "decision") {
+            const lateContributorId = identities["contributor-e"];
+            let lateHandReady = false;
+            for (let attempt = 0; attempt < 10 && !lateHandReady; attempt += 1) {
+                const current = await read();
+                lateHandReady = current.rounds
+                    .find((round) => round.id === roundId)
+                    ?.pendingHandRaises?.some((hand) => hand.contributorId === lateContributorId);
+                if (lateHandReady) break;
+                const contributor = await runtime.waitForAgent(ctx, agents["contributor-e"].id);
+                const lateRaise = await callTargetToolResult(
+                    ctx,
+                    contributor,
+                    "convivium_raise_hand",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: current.version,
+                        requestId: `loop-late-hand-${attempt}`,
+                        action: {
+                            kind: "raise_hand",
+                            roundId,
+                            purpose: "submit valid late arXiv evidence for smoke disposition"
+                        }
+                    },
+                    nextCall()
+                );
+                if (lateRaise.isError) {
+                    throw new Error(`late hand failed: ${lateRaise.error?.message}`);
+                }
+                if (lateRaise.value?.kind === "accepted") {
+                    lateHandReady = true;
+                    break;
+                }
+                if (
+                    lateRaise.value?.kind === "rejected" &&
+                    ["CONFLICT", "PRECONDITION_FAILED"].includes(lateRaise.value.error?.code)
+                ) {
+                    continue;
+                }
+                throw new Error(`late hand rejected: ${JSON.stringify(lateRaise.value)}`);
+            }
+            assert(lateHandReady, "decision round did not receive a valid late hand raise");
+        }
         let published;
-        try {
-            published = await callTargetTool(
+        let publicationView = reviewDelivered;
+        const deferredHandRaiseContributorIds = [];
+        for (let attempt = 0; attempt < 30 && published === undefined; attempt += 1) {
+            publicationView = await read();
+            const pendingHand = publicationView.rounds.find((round) => round.id === roundId)
+                ?.pendingHandRaises?.[0];
+            if (pendingHand !== undefined) {
+                manager = await runtime.waitForAgent(ctx, manager.id);
+                const disposition = await callTargetToolResult(
+                    ctx,
+                    manager,
+                    "convivium_dispose_hand_raise",
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: publicationView.version,
+                        requestId: `loop-defer-${roundPlan.id}-${attempt}-${pendingHand.contributorId}`,
+                        action: {
+                            kind: "dispose_hand_raise",
+                            roundId,
+                            contributorId: pendingHand.contributorId,
+                            disposition: "deferred",
+                            reason: `fixed smoke evidence for ${roundPlan.id} is already under review`
+                        }
+                    },
+                    nextCall()
+                );
+                if (disposition.isError) {
+                    throw new Error(
+                        `defer pending hand failed for ${roundPlan.id}: ${disposition.error?.message}`
+                    );
+                }
+                if (disposition.value?.kind === "accepted") {
+                    deferredHandRaiseContributorIds.push(pendingHand.contributorId);
+                    continue;
+                }
+                if (
+                    disposition.value?.kind === "rejected" &&
+                    ["CONFLICT", "NOT_FOUND"].includes(disposition.value.error?.code)
+                ) {
+                    continue;
+                }
+                throw new Error(
+                    `defer pending hand rejected for ${roundPlan.id}: ${JSON.stringify(disposition.value)}`
+                );
+            }
+            manager = await runtime.waitForAgent(ctx, manager.id);
+            const publication = await callTargetToolResult(
                 ctx,
-                liveManager,
+                manager,
                 "convivium_publish_round",
                 {
                     protocolVersion: 1,
                     meetingId,
-                    expectedMeetingVersion: reviewDelivered.version,
-                    requestId: `loop-publish-${roundPlan.id}`,
+                    expectedMeetingVersion: publicationView.version,
+                    requestId: `loop-publish-${roundPlan.id}-${attempt}`,
                     action: { kind: "publish_round", roundId }
                 },
                 nextCall()
             );
-        } catch (error) {
+            if (publication.isError) {
+                throw new Error(
+                    `publish failed for ${roundPlan.id}: ${publication.error?.message}`
+                );
+            }
+            if (publication.value?.kind === "accepted") {
+                published = publication.value;
+                break;
+            }
+            if (
+                publication.value?.kind === "rejected" &&
+                ["CONFLICT", "ROUND_NOT_CLOSABLE"].includes(publication.value.error?.code)
+            ) {
+                await new Promise((resolve) => setTimeout(resolve, 200));
+                continue;
+            }
             throw new Error(
-                `publish failed for ${roundPlan.id}: ${error.message}; state=${JSON.stringify({ version: reviewDelivered.version, round: reviewDelivered.rounds.find((round) => round.id === roundId), contributions: reviewDelivered.contributions, reviews: reviewDelivered.reviews, reviewDeliveries: reviewDelivered.reviewDeliveries })}`,
-                { cause: error }
+                `publish rejected for ${roundPlan.id}: ${JSON.stringify(publication.value)}`
+            );
+        }
+        assert(
+            published !== undefined,
+            `publish did not settle for ${roundPlan.id}; state=${JSON.stringify({ version: publicationView.version, round: publicationView.rounds.find((round) => round.id === roundId), contributions: publicationView.contributions, reviews: publicationView.reviews, reviewDeliveries: publicationView.reviewDeliveries })}`
+        );
+        if (roundPlan.id === "decision") {
+            assert(
+                deferredHandRaiseContributorIds.includes(identities["contributor-e"]),
+                "decision round did not defer the valid late hand raise"
             );
         }
         version = published.committedVersion;
@@ -627,6 +740,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             roundId,
             evidenceVersionIds: versionIds,
             publicationId: publication.id,
+            deferredHandRaiseContributorIds,
             reviewIds: reviewedView.evidenceReviews
                 .filter((review) => versionIds.includes(review.versionId))
                 .map((review) => review.id)

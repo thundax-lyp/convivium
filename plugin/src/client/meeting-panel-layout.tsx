@@ -97,11 +97,13 @@ export function renderMeetingPanelLayout(
         selected === undefined
             ? createElement("p", null, t("panel.selection.prompt"))
             : ctx.detail === undefined
-              ? createElement(
-                    "p",
-                    null,
-                    ctx.detailCached ? t("panel.detail.loading") : t("panel.detail.unavailable")
-                )
+              ? ctx.detailError === undefined
+                  ? createElement(
+                        "p",
+                        null,
+                        ctx.detailCached ? t("panel.detail.loading") : t("panel.detail.unavailable")
+                    )
+                  : createElement("p", { role: "alert" }, ctx.detailError)
               : createElement(
                     "article",
                     { "aria-label": t("panel.detail.aria", { id: selected.meetingId }) },

@@ -355,7 +355,7 @@ async function installProbe(env, probeDir) {
     await runCommand(dsh.command, dsh.args, { env });
 }
 
-async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
+async function dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath) {
     const dsh = dshCommand([
         PROFILE,
         ...(roleAssetRoot ? ["--patch", join(roleAssetRoot, "cordis.patch.yml")] : []),
@@ -370,7 +370,7 @@ async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
         CONVIVIUM_PACKAGE,
         "@deepseek-ai/dsh-storage-sqlite",
         "convivium-smoke-storage-sqlite",
-        "convivium-storage.sqlite",
+        storagePath ?? "convivium-storage.sqlite",
         "@deepseek-ai/dsh-subagent-spawn-in-process",
         PROVIDER
     ]) {
@@ -547,7 +547,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
     activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
-    const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot);
+    const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let finalPort = port;

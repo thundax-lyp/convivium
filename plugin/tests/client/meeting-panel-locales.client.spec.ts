@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.js";
@@ -245,5 +245,30 @@ describe("Meeting panel localized presentation", () => {
         );
         expect(screen.getByRole("alert").textContent).toBe("Meeting data is unavailable.");
         expect(unavailableApi.list).toHaveBeenCalledOnce();
+    });
+
+    it("shows the first detail-read failure instead of remaining in loading state", async () => {
+        const { summary } = meetingProjectionFixture();
+        const api = {
+            list: vi.fn(async () => ({ meetings: [summary] })),
+            read: vi.fn(async () => {
+                throw new ProtocolFailure({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "CONFLICT",
+                    message: "stale detail",
+                    retryable: false
+                });
+            }),
+            subscribeRefresh: vi.fn(inertStream)
+        } as unknown as MeetingClient;
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("zh") }));
+
+        fireEvent.click(
+            await screen.findByRole("button", { name: `${summary.objective} (进行中)` })
+        );
+
+        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
+        expect(screen.queryByText("正在加载会议。")).toBeNull();
     });
 });
