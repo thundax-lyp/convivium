@@ -73,6 +73,8 @@ Identity admission 的 durable ownership 先处于 provisioning 且不授予 Mee
 
 面板和自然语言入口调用同一暂停、恢复、结束、贡献撤销/重新分配、决策和风险控制规则。活动会议显示暂停，暂停会议显示继续，并展示原因和 actor；强制结束、审核豁免、风险接受和部分完成也必须显示原因。Captain/local 专属决策和风险处置投影只能给相应调用者；普通 Participant 不能由 UI 字段或 Remote 输入绕过该边界。
 
+Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale，Panel body 通过 slot locale seat 取得 typed translator，使已挂载页面随 locale revision 更新而不重新注册 slot。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
+
 ## State And Failure Handling
 
 DSH 接受输入、Session 投递成功、Agent 执行完成和 Meeting 事实提交是不同结果。恢复只重建可证实归属、仍允许继续的 Session/工作；缺失或损坏 ownership 时明确报告，不能以当前角色定义替换历史身份。Agent 内部工具失败不自动使 Meeting 失败。

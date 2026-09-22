@@ -250,35 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T2：固定 DSH Client locale 设计责任
-
-前置状态：T1 PASS。
-
-允许修改：
-
-- `docs/30-designs/DSH-PLUGIN-DESIGN.md`
-
-禁止修改：requirements、interfaces、代码、测试和 readiness。
-
-执行：
-
-1. 在 `Local Client And Remote Boundary` 增加一段，固定 namespace 为 `convivium.meeting`，owner 为 Convivium Client plugin，公开依赖为 DSH locale service。
-2. 写明只注册 balanced `zh`/`en`、跟随 DSH preference/English fallback、不提供独立设置、slot label 使用 thunk、slot body 使用 locale seat。
-3. 写明翻译只属于 presentation，Meeting projection、业务内容、command reason、Remote/Protocol/Storage 不改变。
-
-验证：
-
-```bash
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：两条命令退出码均为 0；设计段落只描述上述 owner、依赖与边界，没有新增 Settings、Provider、持久状态或第三方语言设计。
-
-STOP：设计必须修改接口、数据或领域事实才能表达；报告所需扩张并停止。
-
-失败恢复：无外部副作用；只修复本步骤引入的文档问题。
-
 ### T3：建立 Client baseline
 
 前置状态：T2 PASS；工作树除 T1–T2 文档 diff 和本 RUNBOOK 外无其他改动。
