@@ -250,43 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T8B：把 business-loop smoke 改为可控发散议题
-
-前置状态：T8A PASS；用户明确指定议题为 Agent 执行长任务时，在保证一定发散性的前提下保证任务目标不漂移，即“可控的发散”。
-
-允许修改：
-
-- `plugin/tests/contract/smoke-profile-prompt-evidence.spec.ts`
-- `plugin/scripts/smoke-profile/probe/scenarios/meeting-business-loop.js`
-- `docs/50-operations/HOW-TO-DSH-SMOKE.md`
-- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8B
-
-禁止修改：Meeting production、角色定义、reviewer prompt、result validator、其他 tests、requirements、interfaces、其他 designs 和 readiness。
-
-执行：
-
-1. 先把 contract test 的 literal oracle 改为：`Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。`；标题固定为 `Agent 长任务中的可控发散`。
-2. 四轮 id 保持 `literature`、`source`、`implementation`、`decision`；问题分别固定为目标漂移与探索发散的机制/信号、Agent runtime 中目标/计划/checkpoint 的控制边界、最小目标锚定/漂移检测/纠偏机制、衡量发散价值与目标一致性的阈值。sourceScope 依次改为 `agent-research-fixture`、`agent-runtime-fixture`、`control-design-fixture`、`evaluation-fixture`。
-3. 运行 prompt contract test 并观察 RED；失败只能来自 production topic/rounds 仍为旧 literal。
-4. 按同一 literals 修改 `MEETING_BUSINESS_LOOP_TOPIC` 和 `MEETING_BUSINESS_LOOP_ROUNDS`，不改变 limits、会议命令链、fixture Evidence、结果结构或校验器。
-5. 同步 Smoke Operations 的场景议题与四轮说明，继续明确只使用确定性 fixture、不构成 Agent 长任务控制机制的研究结论。
-6. 运行 focused test、完整 contract tests 和 `git diff --check`；全部通过后删除本 T8B，并把测试、probe、operations 与步骤删除放入同一提交。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run tests/contract/smoke-profile-prompt-evidence.spec.ts
-pnpm --dir=plugin exec vitest run --project contract
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：四条命令退出码均为 0；literal oracle 与 probe 只表达用户指定的“可控发散”，四轮 id 和其他 smoke contract 不变。
-
-STOP：需要改变 Meeting command chain、角色 prompt、result schema/validator、limits 或真实外部检索；报告具体依赖，不扩大修复。
-
-失败恢复：无持久运行副作用；保留 T8B，不提交失败实现。
-
 ### T8C：允许 business-loop smoke 保留正式 SQLite
 
 前置状态：T8B PASS；用户明确要求本次 smoke 不使用会被清理的临时存储，而写入正式持久 SQLite；`dsh-workspace/convivium-user/convivium-storage.sqlite` 已存在。

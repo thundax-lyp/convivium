@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
     objective:
-        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。",
-    title: "vLLM FP8 KV Cache 量化的优先级与最小实现",
+        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。",
+    title: "Agent 长任务中的可控发散",
     question:
-        "是否应在 vLLM 中优先实现 FP8 KV Cache 量化？请基于 arXiv 论文和 vLLM 当前源码，给出可合并的最小实现方案、预期收益、主要质量风险，以及明确的继续／停止条件。"
+        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。"
 };
 
 export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
@@ -18,23 +18,23 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
     {
         id: "literature",
-        sourceScope: "arxiv-fixture",
-        question: "哪些 arXiv 结论需要被验证，FP8 KV Cache 的收益和质量风险分别是什么？"
+        sourceScope: "agent-research-fixture",
+        question: "Agent 长任务中的目标漂移与探索发散分别由什么机制触发，有哪些可观察信号？"
     },
     {
         id: "source",
-        sourceScope: "vllm-source-fixture",
-        question: "vLLM 当前源码中的 KV Cache 路径、配置与 kernel 边界在哪里？"
+        sourceScope: "agent-runtime-fixture",
+        question: "Agent runtime 中目标、计划、checkpoint 与上下文压缩的控制边界在哪里？"
     },
     {
         id: "implementation",
-        sourceScope: "design-fixture",
-        question: "在不改变已有格式兼容边界的前提下，可合并的最小 FP8 实现是什么？"
+        sourceScope: "control-design-fixture",
+        question: "实现目标锚定、漂移检测与纠偏闭环的最小机制是什么？"
     },
     {
         id: "decision",
-        sourceScope: "benchmark-fixture",
-        question: "哪些基准、质量阈值和失败信号应决定继续或停止？"
+        sourceScope: "evaluation-fixture",
+        question: "哪些指标和阈值能同时衡量发散价值与目标一致性，并决定继续或停止？"
     }
 ];
 

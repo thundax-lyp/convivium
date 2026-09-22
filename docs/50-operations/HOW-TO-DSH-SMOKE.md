@@ -62,14 +62,14 @@ pnpm --dir plugin smoke:profile --json
 
 ### meeting-business-loop
 
-场景议题为是否应在 vLLM 中优先实现 FP8 KV Cache 量化。外部材料使用确定性 fixture，不执行真实 arXiv、GitHub 或 Web 检索，因此运行结果不是该学术／代码议题的研究结论。
+场景议题为 Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，即实现“可控的发散”。外部材料使用确定性 fixture，不执行真实论文、代码仓库或 Web 检索，因此运行结果不是 Agent 长任务控制机制的研究结论。
 
 同一已授权 Agenda 依次完成四个 Manager `roundGoal`：
 
-1. 文献收益与质量风险；
-2. vLLM 源码路径与 kernel 边界；
-3. 可合并的最小实现；
-4. 继续／停止条件。
+1. 目标漂移与探索发散的机制和可观察信号；
+2. Agent runtime 中目标、计划、checkpoint 与上下文压缩的控制边界；
+3. 目标锚定、漂移检测与纠偏闭环的最小机制；
+4. 同时衡量发散价值与目标一致性的继续／停止条件。
 
 每轮必须登记两份 Evidence，Reviewer coordinator 为每份当前 version 启动一个 one-shot worker，收齐两个 Review 后携带 `claimId` 原子提交 batch，再发布 Round。最终结果必须满足：
 
