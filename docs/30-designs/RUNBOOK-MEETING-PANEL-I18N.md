@@ -250,41 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T7：本地化 Panel shell、错误与控制
-
-前置状态：T6 已观察目标 RED。
-
-允许修改：
-
-- `plugin/src/client/meeting-panel.tsx`
-- `plugin/src/client/meeting-panel-layout.tsx`
-- `plugin/src/client/meeting-panel-sections.tsx`，仅允许新增并导出 `lifecycleLabel` 及其 exhaustive lifecycle key map；其他 section 文案和 round/archive mapping 留在 T8
-- `plugin/tests/client/meeting-panel-locales.client.spec.ts`，仅允许修正与实际 React 可访问名称结构不一致的查询，不得改变 literal oracle
-
-禁止修改：除上述 `lifecycleLabel` 外的 sections 行为、meeting client、Protocol、projection、其他 tests 和文档。
-
-执行：
-
-1. `ConviviumMeetingPanel` 开始读取 T5 已声明的 `t: MeetingTranslate` prop，并传给 `renderMeetingPanelLayout`。
-2. `failureMessage(error, t)` 对 `ProtocolFailure` 返回 `t("error.protocol", { code: error.protocolError.code })`，其他异常返回 `t("error.unavailable")`；不得修改或匹配 server message。
-3. 在 `meeting-panel-sections.tsx` 新增并导出 `lifecycleLabel(status, t)`，使用 `Record<MeetingView["lifecycle"]["status"], MeetingLocaleKey>` exhaustive mapping；不得在 T7 翻译其他 section 文案或新增 round/archive mapping。
-4. `renderMeetingPanelLayout(ctx, t)` 翻译 panel/list/detail ARIA、title、四个按钮、选择/加载/无详情文本，并用 `lifecycleLabel` 翻译 list lifecycle。
-5. `meeting.objective`、`meeting.meetingId` 和所有 callbacks 保持原样。
-6. 运行 focused tests；sections 相关中文断言可继续失败，但 shell/control/error 断言必须通过。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-local-controls.client.spec.ts
-pnpm --dir=plugin exec vitest run --project client tests/client/meeting-panel-locales.client.spec.ts
-```
-
-PASS：前一条命令退出码为 0；后一条只允许因尚未实施的 section/field/status 断言失败，shell、control、error、业务内容不变断言均通过。
-
-STOP：控制 payload 变化、需要改 `meeting-client.ts`、或测试失败超出尚未实施的 sections；报告实际 diff。
-
-失败恢复：没有外部副作用；不要删除 T6 断言来取得 PASS。
-
 ### T8：本地化 observability sections 与 enum labels
 
 前置状态：T7 PASS；locale spec 只剩 sections/status 目标失败。

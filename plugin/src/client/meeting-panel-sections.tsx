@@ -1,6 +1,25 @@
 import { createElement, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
+import type { MeetingLocaleKey, MeetingTranslate } from "./locales.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
+
+const lifecycleKeys: Record<MeetingView["lifecycle"]["status"], MeetingLocaleKey> = {
+    preparing: "lifecycle.preparing",
+    running: "lifecycle.running",
+    paused: "lifecycle.paused",
+    converging: "lifecycle.converging",
+    ending: "lifecycle.ending",
+    terminal: "lifecycle.terminal",
+    archiving: "lifecycle.archiving",
+    archived: "lifecycle.archived"
+};
+
+export function lifecycleLabel(
+    status: MeetingView["lifecycle"]["status"],
+    t: MeetingTranslate
+): string {
+    return t(lifecycleKeys[status]);
+}
 
 function row(label: string, value: string): ReactElement {
     return createElement(
