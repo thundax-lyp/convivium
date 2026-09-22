@@ -250,43 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T5：实现 namespace、package composition 与 slot locale seat
-
-前置状态：T4 已观察到目标 RED。
-
-允许修改：
-
-- 新增 `plugin/src/client/locales.ts`
-- `plugin/src/client/index.tsx`
-- `plugin/src/client/meeting-panel.tsx`，仅允许在 props 类型中增加 `t: MeetingTranslate`；T5 不得使用该 prop 改变渲染或错误文案
-- `plugin/package.json`
-- `plugin/tests/client/meeting-client-plugin.client.spec.ts`，仅允许修正与真实公开类型签名不一致的 fixture typing，不得降低行为断言
-
-禁止修改：其他 production、tests、lockfile、Protocol、Remote 和文档。
-
-执行：
-
-1. 按 6.2 和 6.3 原样建立 namespace、types 和 balanced dictionaries。
-2. 在 `plugin/package.json` 的 `dsh.client.inject` 增加 `@deepseek-ai/dsh-client-locale`；在 `peerDependencies` 增加精确版本 `0.1.2-rc.1`，并在 `peerDependenciesMeta` 标记 optional。该包已存在于 `devDependencies`，不得改 lockfile。
-3. 把 `inject` 改为 `remote`、`locale`，并严格按 6.4 的六步顺序修改 `apply`。
-4. 在 `ConviviumMeetingPanel` props 类型中增加 required `t: MeetingTranslate`，但函数体仍只读取 `api`，不得在 T5 改变 Panel 文案或错误处理；该类型接缝只用于让 slot component 合法传入 locale seat。
-5. slot label 使用 `() => t("tab.meetings")`；slot options 声明 `locale: MEETING_LOCALE_NS`；component 使用框架传入的 `props.t`。
-6. 运行 T4 测试、Client typecheck 和 package contract 验证。
-
-验证：
-
-```bash
-pnpm --dir=plugin exec vitest run --project client tests/client/meeting-client-plugin.client.spec.ts
-pnpm --dir=plugin typecheck:client
-pnpm --dir=plugin verify:contract
-```
-
-PASS：三条命令退出码均为 0；测试观察到 label 在 `zh`/`en` 间切换、slot locale 为 `convivium.meeting`、dictionary disposer 被调用；typecheck 证明词典 key 平衡；contract 检查接受新增 client injection。
-
-STOP：必须改变 namespace、增加 runtime dependency、修改 lockfile、绕过 slot locale seat，或 contract 认为 package composition 非法；报告实际错误，不采用本地 fallback。
-
-失败恢复：Cordis/locale 测试创建的 context 必须在 `finally`/test cleanup 中 dispose；不得留下进程或外部文件。
-
 ### T6：先写 Meeting Panel 本地化行为测试并观察 RED
 
 前置状态：T5 PASS；Panel production 仍保留原英文渲染。

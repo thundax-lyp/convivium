@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingCommand, MeetingSummary, MeetingView } from "@/protocol/index.js";
+import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 
@@ -7,7 +8,12 @@ function failureMessage(error: unknown): string {
     return error instanceof ProtocolFailure ? error.message : "Meeting data is unavailable.";
 }
 
-export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
+export function ConviviumMeetingPanel({
+    api
+}: {
+    api: MeetingClient;
+    t: MeetingTranslate;
+}): ReactElement {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const [selectedId, setSelectedId] = useState<string>();
     const [detail, setDetail] = useState<MeetingView>();
