@@ -117,6 +117,7 @@ const result = {
         client?.platform === "web" &&
         JSON.stringify(client.inject) ===
             JSON.stringify([
+                "@deepseek-ai/dsh-client-locale",
                 "@deepseek-ai/dsh-client-ui-renderer",
                 "@deepseek-ai/dsh-client-ui-conversation"
             ]),

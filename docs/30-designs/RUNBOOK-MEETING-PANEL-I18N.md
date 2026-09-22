@@ -250,36 +250,6 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
-### T8A：同步 locale injection 的 package contract
-
-前置状态：T8 PASS；T9 首次运行 `pnpm --dir=plugin verify` 时，唯一失败项为 `verify:package` 的 `clientManifestIsComplete: false`；`plugin/package.json` 已按正式设计声明 locale injection，而验证器仍保留旧的两个 injection 预期。
-
-允许修改：
-
-- `plugin/scripts/verify-package.mjs`
-- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8A
-
-禁止修改：production、tests、package manifest、lockfile、requirements、interfaces、其他 designs、readiness 和 operations。
-
-执行：
-
-1. 在 `plugin/scripts/verify-package.mjs` 的 `clientManifestIsComplete` 预期数组首项增加 `@deepseek-ai/dsh-client-locale`，后续两项及其他 package contract 断言保持不变。
-2. 运行 package contract 验证，确认全部结果为 `true`，且命令退出码为 0。
-3. 删除本 T8A 步骤，并把验证器修改与步骤删除放入同一提交。
-
-验证：
-
-```bash
-pnpm --dir=plugin verify:package
-git diff --check
-```
-
-PASS：两条命令退出码均为 0；`clientManifestIsComplete` 与其余 package contract 字段全部为 `true`，`forbiddenPublishedPaths` 和 `missingArtifacts` 为空。
-
-STOP：除 locale injection 预期外仍有失败、必须改变 manifest 或放宽其他 package contract；报告完整 JSON，不继续 T9。
-
-失败恢复：无外部副作用；保留 RUNBOOK 中的 T8A，不提交失败实现。
-
 ### T9：完整验证、readiness 收口与 RUNBOOK 删除准备
 
 前置状态：T8A PASS；实现范围与本 RUNBOOK 双向追踪无缺口。
