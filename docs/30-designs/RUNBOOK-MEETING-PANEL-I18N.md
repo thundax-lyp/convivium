@@ -250,9 +250,39 @@ DSH 当前不提供 plural engine；`round.summary` 对 English 的 `count === 1
 
 ## 8. 机械执行步骤
 
+### T8A：同步 locale injection 的 package contract
+
+前置状态：T8 PASS；T9 首次运行 `pnpm --dir=plugin verify` 时，唯一失败项为 `verify:package` 的 `clientManifestIsComplete: false`；`plugin/package.json` 已按正式设计声明 locale injection，而验证器仍保留旧的两个 injection 预期。
+
+允许修改：
+
+- `plugin/scripts/verify-package.mjs`
+- 本 RUNBOOK；仅允许在本步骤 PASS 后删除 T8A
+
+禁止修改：production、tests、package manifest、lockfile、requirements、interfaces、其他 designs、readiness 和 operations。
+
+执行：
+
+1. 在 `plugin/scripts/verify-package.mjs` 的 `clientManifestIsComplete` 预期数组首项增加 `@deepseek-ai/dsh-client-locale`，后续两项及其他 package contract 断言保持不变。
+2. 运行 package contract 验证，确认全部结果为 `true`，且命令退出码为 0。
+3. 删除本 T8A 步骤，并把验证器修改与步骤删除放入同一提交。
+
+验证：
+
+```bash
+pnpm --dir=plugin verify:package
+git diff --check
+```
+
+PASS：两条命令退出码均为 0；`clientManifestIsComplete` 与其余 package contract 字段全部为 `true`，`forbiddenPublishedPaths` 和 `missingArtifacts` 为空。
+
+STOP：除 locale injection 预期外仍有失败、必须改变 manifest 或放宽其他 package contract；报告完整 JSON，不继续 T9。
+
+失败恢复：无外部副作用；保留 RUNBOOK 中的 T8A，不提交失败实现。
+
 ### T9：完整验证、readiness 收口与 RUNBOOK 删除准备
 
-前置状态：T8 PASS；实现范围与本 RUNBOOK 双向追踪无缺口。
+前置状态：T8A PASS；实现范围与本 RUNBOOK 双向追踪无缺口。
 
 允许修改：
 
@@ -331,7 +361,7 @@ STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离
 只有同时满足以下条件，任务才完成：
 
 1. RUNBOOK 状态为 `Executable`，正式 requirement 与用户确认完全一致。
-2. T1–T9 按顺序 PASS，没有未解决 STOP。
+2. T1–T9（含 T8A）按顺序 PASS，没有未解决 STOP。
 3. `convivium.meeting` 只有一个 owner，balanced `zh`/`en` dictionaries 通过 typecheck。
 4. label 和已挂载 Panel 的运行时 locale 切换由自动化行为测试覆盖。
 5. 当前 Meeting Panel 的全部 client-owned visible copy 与枚举展示 label 已本地化。
@@ -346,7 +376,7 @@ STOP：任一固定验证失败、smoke 缺凭据/超时/Restore 失败、隔离
 
 - Required Structure：已覆盖状态、契约、目标、断点、Scope/Non-goals、真相源、结构、调用链、文件/symbol、不变量、步骤、验证、收口。
 - Decision Completeness：实现方案、namespace、key set、文案、错误策略、文件、symbol、命令和 PASS/STOP 已固定。
-- 双向追踪：每个 Scope 项均进入 T1–T9 和验证矩阵；步骤未引入 Non-goals。
+- 双向追踪：每个 Scope 项均进入 T1–T9（含 T8A）和验证矩阵；步骤未引入 Non-goals。
 - 路径与 symbol：当前路径和现有 symbol 已核对；新增路径与 symbol 只有一个指定位置。
 - 产品决定：第 3 节十项口径已由用户于 2026-09-22 确认；T1 已获得将其提升为正式 requirement 的依据。
 - 外部验证：隔离 workspace、启动、三次语言观察、停止、端口断言和精确清理路径均已固定；Browser 自动化明确为 `Not Covered`。
