@@ -257,9 +257,13 @@ describe("Meeting panel refresh recovery", () => {
     it("keeps terminal stream failure disconnected after a successful focus reread", async () => {
         const fail = deferred<void>();
         const stream = {
-            async *[Symbol.asyncIterator]() {
-                await fail.promise;
-                throw new Error("terminal stream failure");
+            [Symbol.asyncIterator]() {
+                return {
+                    async next(): Promise<IteratorResult<{ accept(): void }>> {
+                        await fail.promise;
+                        throw new Error("terminal stream failure");
+                    }
+                };
             }
         };
         const fixture = recoveryFixture(stream);

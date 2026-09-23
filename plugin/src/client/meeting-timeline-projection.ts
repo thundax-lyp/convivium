@@ -1,4 +1,4 @@
-import type { MeetingView } from "@/protocol/meeting-view.js";
+import type { MeetingView } from "@/protocol/index.js";
 import type {
     TimelineFilterState,
     TimelineLane,
@@ -158,7 +158,7 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             status
         );
     }
-    if (!archived) {
+    function appendActiveNodes(): void {
         add(
             "lifecycle",
             view.meetingId,
@@ -279,8 +279,9 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
                 task.status
             );
         }
-    } else if (archive) {
-        for (const bundle of archive.evidenceBundles) {
+    }
+    function appendArchiveNodes(completeArchive: NonNullable<MeetingView["archive"]>): void {
+        for (const bundle of completeArchive.evidenceBundles) {
             add(
                 "evidence_version",
                 bundle.version.id,
@@ -300,11 +301,13 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
                 bundle.review.reviewerId
             );
         }
-        for (const revision of archive.proposalRevisions) actor("proposal_revision", revision);
-        for (const position of archive.positions) actor("position", position, position.stance);
-        for (const candidate of archive.decisionCandidates)
+        for (const revision of completeArchive.proposalRevisions)
+            actor("proposal_revision", revision);
+        for (const position of completeArchive.positions)
+            actor("position", position, position.stance);
+        for (const candidate of completeArchive.decisionCandidates)
             actor("decision_candidate", candidate, candidate.outcome);
-        for (const fact of archive.questionIssueDispositionFacts)
+        for (const fact of completeArchive.questionIssueDispositionFacts)
             add(
                 "disposition_fact",
                 fact.factId,
@@ -317,15 +320,17 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             );
         add(
             "archive",
-            archive.id,
+            completeArchive.id,
             "created",
-            archive.createdAt,
-            archive,
+            completeArchive.createdAt,
+            completeArchive,
             "system",
             undefined,
-            archive.status
+            completeArchive.status
         );
     }
+    if (archive) appendArchiveNodes(archive);
+    else appendActiveNodes();
     for (const publication of archive?.publications ?? view.publications)
         add("publication", publication.id, "published", publication.publishedAt, publication);
     for (const message of archive?.messages ?? view.messages)
@@ -388,15 +393,13 @@ export function filterTimelineNodes(
     );
 }
 
-export function resolveTimelineNodeContent(
+type TimelineArchive = NonNullable<MeetingView["archive"]>;
+
+function resolveEarlyContent(
     view: MeetingView,
-    node: TimelineNode
+    node: TimelineNode,
+    archive: TimelineArchive | undefined
 ): TimelineNodeContent | undefined {
-    const archive =
-        view.lifecycle.status === "archived" && view.archive?.status === "complete"
-            ? view.archive
-            : undefined;
-    if (view.lifecycle.status === "archived" && !archive) return undefined;
     const id = node.objectId;
     switch (node.objectKind) {
         case "lifecycle":
@@ -453,6 +456,17 @@ export function resolveTimelineNodeContent(
             const item = unique(archive?.messages ?? view.messages, (x) => x.id === id);
             return item && { title: item.kind, detail: item.body };
         }
+    }
+    return undefined;
+}
+
+function resolveMiddleContent(
+    view: MeetingView,
+    node: TimelineNode,
+    archive: TimelineArchive | undefined
+): TimelineNodeContent | undefined {
+    const id = node.objectId;
+    switch (node.objectKind) {
         case "identity_recommendation": {
             const item = archive
                 ? undefined
@@ -492,6 +506,17 @@ export function resolveTimelineNodeContent(
             );
             return item && { title: item.action, detail: item.rationale };
         }
+    }
+    return undefined;
+}
+
+function resolveLateContent(
+    view: MeetingView,
+    node: TimelineNode,
+    archive: TimelineArchive | undefined
+): TimelineNodeContent | undefined {
+    const id = node.objectId;
+    switch (node.objectKind) {
         case "disposition_fact": {
             const item = unique(
                 archive?.questionIssueDispositionFacts ?? [],
@@ -514,4 +539,21 @@ export function resolveTimelineNodeContent(
         case "archive":
             return archive?.id === id ? { title: archive.status, detail: archive.id } : undefined;
     }
+    return undefined;
+}
+
+export function resolveTimelineNodeContent(
+    view: MeetingView,
+    node: TimelineNode
+): TimelineNodeContent | undefined {
+    const archive =
+        view.lifecycle.status === "archived" && view.archive?.status === "complete"
+            ? view.archive
+            : undefined;
+    if (view.lifecycle.status === "archived" && !archive) return undefined;
+    return (
+        resolveEarlyContent(view, node, archive) ??
+        resolveMiddleContent(view, node, archive) ??
+        resolveLateContent(view, node, archive)
+    );
 }
