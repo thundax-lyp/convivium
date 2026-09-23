@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T5：实现 Navigator 响应式外壳
-
-前置状态：T4 PASS。
-允许修改：`plugin/src/client/meeting-panel-layout.tsx`、`plugin/src/client/meeting-panel.tsx` 仅 props/callback、`plugin/src/client/locales.ts`；新增 `plugin/tests/client/meeting-panel-navigator.client.spec.tsx`。
-禁止修改：Header/tabs/Overview/Timeline/command、CSS file。
-
-执行：先红测试宽屏 `nav+main`，窄屏打开按钮/drawer/Escape/遮罩/焦点返回，两种呈现共享同 ID。用 `matchMedia("(max-width: 760px)")` 监听 change 并 unmount 移除。宽屏 inline style 固定 `gridTemplateColumns:"minmax(220px, 280px) minmax(0, 1fr)"`、`gap:16`；窄屏 fixed drawer 宽 `min(86vw, 320px)`，`role=dialog aria-modal=true`。只用已有 primitives。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-navigator.client.spec.tsx tests/client/meeting-panel-locales.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，响应式/单一选择/焦点行为成立。STOP：必须增 CSS bundling/dependency。失败恢复：纯 DOM。
-
 ### T6：实现 Header 与 mode tabs
 
 前置状态：T5 PASS。
