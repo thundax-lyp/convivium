@@ -43,6 +43,7 @@ function layoutProps() {
             meetings: [summary],
             selectedId: summary.meetingId,
             detail: view,
+            listLoading: false,
             listCached: false,
             detailCached: false,
             writePending: false,
@@ -76,6 +77,45 @@ describe("Meeting navigator", () => {
         expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
         expect(screen.getByTestId("meeting-workspace")).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("shows loading before an empty meeting list is confirmed", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+        const rendered = render(
+            renderMeetingPanelLayout(
+                {
+                    ...props,
+                    meetings: [],
+                    selectedId: undefined,
+                    detail: undefined,
+                    listLoading: true
+                },
+                meetingTranslator("en")
+            )
+        );
+
+        expect(screen.getByText("Loading meetings.")).toBeTruthy();
+        expect(screen.queryByText("No meetings.")).toBeNull();
+
+        rendered.rerender(
+            renderMeetingPanelLayout(
+                {
+                    ...props,
+                    meetings: [],
+                    selectedId: undefined,
+                    detail: undefined,
+                    listLoading: false
+                },
+                meetingTranslator("en")
+            )
+        );
+        expect(screen.getByText("No meetings.")).toBeTruthy();
+        expect(screen.queryByText("Loading meetings.")).toBeNull();
     });
 
     it("uses the same Meeting selection in a narrow drawer and restores opener focus", () => {

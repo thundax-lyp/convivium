@@ -24,6 +24,7 @@ export interface MeetingPanelLayoutProps {
     meetings: readonly MeetingSummary[];
     selectedId?: string;
     detail?: MeetingReadResult;
+    listLoading: boolean;
     listCached: boolean;
     detailCached: boolean;
     listError?: string;
@@ -55,7 +56,11 @@ const renderNavigator = (
             <h3>{t("panel.navigator.title")}</h3>
             {ctx.listCached ? <p>{t("panel.navigator.stale")}</p> : null}
             {ctx.listError === undefined ? null : <p role="alert">{ctx.listError}</p>}
-            {ctx.meetings.length === 0 ? <p>{t("panel.navigator.empty")}</p> : null}
+            {ctx.meetings.length === 0 && ctx.listLoading ? (
+                <p>{t("panel.navigator.loading")}</p>
+            ) : ctx.meetings.length === 0 && ctx.listError === undefined ? (
+                <p>{t("panel.navigator.empty")}</p>
+            ) : null}
             <ul aria-label={t("panel.list.aria")}>
                 {ctx.meetings.map((meeting) => (
                     <li key={meeting.meetingId}>

@@ -279,6 +279,7 @@ export const ConviviumMeetingPanel = ({
             meetings,
             selectedId: workspace.selectedMeetingId,
             detail,
+            listLoading: freshness.list === "loading",
             listCached: freshness.list === "stale",
             detailCached: !controlsEnabled({
                 freshness,

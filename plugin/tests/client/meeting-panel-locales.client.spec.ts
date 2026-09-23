@@ -24,6 +24,7 @@ function emptyLayout(locale: "zh" | "en") {
     return renderMeetingPanelLayout(
         {
             meetings: [],
+            listLoading: false,
             listCached: false,
             detailCached: false,
             writePending: false,
@@ -66,6 +67,7 @@ describe("Meeting panel localized presentation", () => {
                     meetings: [summary],
                     selectedId: summary.meetingId,
                     detail: view,
+                    listLoading: false,
                     listCached: false,
                     detailCached: false,
                     writePending: false,
@@ -88,6 +90,7 @@ describe("Meeting panel localized presentation", () => {
                     meetings: [summary],
                     selectedId: summary.meetingId,
                     detail: { ...view, controls: ["resume_meeting"] },
+                    listLoading: false,
                     listCached: false,
                     detailCached: false,
                     writePending: false,
@@ -107,6 +110,7 @@ describe("Meeting panel localized presentation", () => {
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
+                    listLoading: false,
                     listCached: false,
                     detailCached: true,
                     writePending: false,
@@ -126,6 +130,7 @@ describe("Meeting panel localized presentation", () => {
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
+                    listLoading: false,
                     listCached: false,
                     detailCached: false,
                     writePending: false,

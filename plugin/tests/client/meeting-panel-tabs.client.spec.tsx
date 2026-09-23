@@ -17,6 +17,7 @@ function propsFixture(): MeetingPanelLayoutProps {
         meetings: [summary],
         selectedId: summary.meetingId,
         detail: view,
+        listLoading: false,
         listCached: false,
         detailCached: false,
         writePending: false,
