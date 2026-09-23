@@ -32,13 +32,14 @@ esac
 [ -f "$roles_root/cordis.patch.yml" ] || fail "installed meeting role resources are missing"
 [ -f "$install_root/storage.patch.yml" ] || fail "storage configuration is missing"
 [ -d "$workspace_root" ] || fail "DSH workspace is missing: $workspace_root"
+[ -d "$workspace_root/dsh-home" ] || fail "DSH_HOME is missing: $workspace_root/dsh-home"
 
 set -a
 . "$environment_file"
 set +a
 [ -n "${DEEPSEEK_API_KEY:-}" ] || fail "DEEPSEEK_API_KEY is empty in $environment_file"
 
-export DSH_HOME="$install_root/dsh-home"
+export DSH_HOME="$workspace_root/dsh-home"
 export CONVIVIUM_MEETING_ROLES_ROOT="$roles_root"
 cd "$workspace_root"
 exec pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" web \

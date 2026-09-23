@@ -9,8 +9,8 @@
 - Node.js 满足 `plugin/package.json` 的 engines 要求，pnpm 为 `10.7.0`。
 - DSH、Cordis 和 Host provider 使用项目固定的 `0.1.2-rc.1` / `4.0.2` 组合。
 - 源码命令从仓库根执行；使用 npm 包时，在一个由用户选择的空工作目录执行。
-- `dsh-workspace/convivium-user/` 是本流程唯一持久根，保存 profile、workspace、SQLite 和已解包发布物；不得指向现有 DSH profile 或其他项目目录。
-- 人工 Web 调试和验收使用 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收) 的固定隔离子工程，不覆盖本流程的日常持久根。
+- 从源码安装时，DSH 启动工作目录是仓库的 `dsh-workspace/`，`DSH_HOME` 固定为 `dsh-workspace/dsh-home/`；`dsh-workspace/convivium-user/` 是持久安装根，保存会议 SQLite 和已解包发布物。通过 npm 安装时，对应目录位于执行安装命令的目录下。人工 Web 调试使用同一 DSH 工作目录和 `DSH_HOME`，安装根另见下述入口；同一时间只运行一个使用该 `DSH_HOME` 的 Host。
+- 人工 Web 调试和验收使用 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收) 的固定安装根，不覆盖本流程的日常持久根。
 - DeepSeek 模型、search、fetch、Sandbox 和 Approval 仍由 DSH profile 管理。本文不写入凭据或绕过 Host 权限。
 
 ## Install
@@ -41,7 +41,7 @@ npm exec --yes --package @convivium/dsh-plugin@next -- \
     convivium-install --workspace /absolute/path/to/dsh-workspace
 ```
 
-安装入口创建并保护持久 `dsh-home`、workspace、SQLite patch、release 资源和 `dev.env`，并将实际版本写入 `release`。已有 release、artifact 和用户配置不会被覆盖。
+安装入口在 DSH workspace 下创建持久 `dsh-home`，在安装根创建 SQLite patch、release 资源和 `dev.env`，并将实际 release ID 写入 `release`。普通安装遇到同版本 release 或 artifact 已存在时停止，不覆盖；人工 Web 调试的源码刷新入口和保留数据规则见 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收)。
 
 首次新建的专用 `web` profile 使用 `dsh.profile.patchReload: startup`。当前固定的 DSH/Cordis 组合在 `live` 模式下可能因 HMR 接口不匹配而启动失败；`startup` 仍在每次启动时应用全部 patch，但修改 profile、home 或角色 patch 后必须重启 Host。已有 profile manifest 不由安装器改写；若它仍配置 `live` 并出现 `Cordis HMR service` 或 `hmr.registerConfig` 错误，停止启动并先核对该 profile 的 reload 策略，不覆盖或复制其他 profile。
 
@@ -59,7 +59,7 @@ DEEPSEEK_API_KEY=
 ./dsh-workspace/convivium-user/start.sh
 ```
 
-该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，设置同一持久 `DSH_HOME` 和角色资源根，再启动固定版本的 DSH Web。
+该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，将 `DSH_HOME` 设为该 workspace 下的 `dsh-home/`，设置角色资源根，再启动固定版本的 DSH Web。
 
 DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium` Preset。Meeting 只由该 Captain Session 的 `convivium_create_meeting` tool 创建；创建成功后进入 `Meetings` view 查看和执行已提供的本地控制。Remote/Meetings view 不提供创建入口。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
 

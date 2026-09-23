@@ -120,7 +120,7 @@ describe("user installation entrypoints", () => {
         expect(
             JSON.parse(
                 await readFile(
-                    join(installRoot, "dsh-home", "profiles", "web", "package.json"),
+                    join(root, "dsh-workspace", "dsh-home", "profiles", "web", "package.json"),
                     "utf8"
                 )
             ).dsh.profile.patchReload
@@ -136,8 +136,17 @@ describe("user installation entrypoints", () => {
 
     it("preserves an existing web profile reload setting", async () => {
         const { root, artifact, fakeBin, calls, installRoot } = await fixture();
-        const profileManifest = join(installRoot, "dsh-home", "profiles", "web", "package.json");
-        await mkdir(join(installRoot, "dsh-home", "profiles", "web"), { recursive: true });
+        const profileManifest = join(
+            root,
+            "dsh-workspace",
+            "dsh-home",
+            "profiles",
+            "web",
+            "package.json"
+        );
+        await mkdir(join(root, "dsh-workspace", "dsh-home", "profiles", "web"), {
+            recursive: true
+        });
         const existing = {
             name: "dsh-profile-web",
             dsh: { profile: { bundles: ["@deepseek-ai/dsh-base"], patchReload: "live" } }
@@ -185,10 +194,83 @@ describe("user installation entrypoints", () => {
 
         expect(result.status, result.stderr).toBe(0);
         const recordedCall = await readFile(calls, "utf8");
-        expect(recordedCall).toContain(`DSH_HOME=${join(installRoot, "dsh-home")}`);
+        expect(recordedCall).toContain(`DSH_HOME=${workspace}/dsh-home`);
         expect(recordedCall).toContain(`PWD=${workspace}`);
         expect(recordedCall).toContain(
             `--patch ${join(installRoot, "releases", "1.2.3", "package", "meeting-roles", "cordis.patch.yml")}`
         );
+    });
+
+    it("refreshes a development build with the same package version while retaining Meeting storage", async () => {
+        const { root, artifact, fakeBin, calls, installRoot } = await fixture();
+        const workspace = join(root, "dsh-workspace");
+        const env = {
+            ...process.env,
+            PATH: `${fakeBin}:${process.env.PATH}`,
+            CALLS_FILE: calls,
+            CONVIVIUM_INSTALL_ROOT: installRoot
+        };
+        const args = ["--artifact", artifact, "--workspace", workspace, "--dev-refresh"];
+        const first = spawnSync(installScript, args, { cwd: root, encoding: "utf8", env });
+        expect(first.status, first.stderr).toBe(0);
+        const firstRelease = (await readFile(join(installRoot, "release"), "utf8")).trim();
+        await writeFile(join(installRoot, "convivium-storage.sqlite"), "existing-meeting-data");
+        const sessionRecord = join(
+            workspace,
+            "dsh-home",
+            "sessions",
+            "existing-session.jsonl.zstd"
+        );
+        await mkdir(join(workspace, "dsh-home", "sessions"), { recursive: true });
+        await writeFile(sessionRecord, "existing-session-data");
+
+        await writeFile(
+            join(root, "artifact", "package", "meeting-roles", "cordis.patch.yml"),
+            "- id: updated-roles\n"
+        );
+        const packed = spawnSync("tar", [
+            "-czf",
+            artifact,
+            "-C",
+            join(root, "artifact"),
+            "package"
+        ]);
+        expect(packed.status, packed.stderr.toString()).toBe(0);
+        const second = spawnSync(installScript, args, { cwd: root, encoding: "utf8", env });
+        expect(second.status, second.stderr).toBe(0);
+        const secondRelease = (await readFile(join(installRoot, "release"), "utf8")).trim();
+
+        expect(firstRelease).not.toBe(secondRelease);
+        expect(await readFile(join(installRoot, "convivium-storage.sqlite"), "utf8")).toBe(
+            "existing-meeting-data"
+        );
+        expect(await readFile(sessionRecord, "utf8")).toBe("existing-session-data");
+        expect(
+            await readFile(
+                join(
+                    installRoot,
+                    "releases",
+                    firstRelease,
+                    "package",
+                    "meeting-roles",
+                    "cordis.patch.yml"
+                ),
+                "utf8"
+            )
+        ).toBe("- id: roles\n");
+        expect(
+            await readFile(
+                join(
+                    installRoot,
+                    "releases",
+                    secondRelease,
+                    "package",
+                    "meeting-roles",
+                    "cordis.patch.yml"
+                ),
+                "utf8"
+            )
+        ).toBe("- id: updated-roles\n");
+        expect(await readFile(calls, "utf8")).toContain(`DSH_HOME=${workspace}/dsh-home`);
     });
 });

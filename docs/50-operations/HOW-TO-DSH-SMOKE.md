@@ -13,24 +13,26 @@ Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会
 
 ## 人工 Web 调试与验收
 
-人工 Browser 调试不运行 `smoke:profile`，也不使用 `/tmp` 安装根。从仓库根为当前完整 `git HEAD` 使用固定路径 `dsh-workspace/web-ui/<git HEAD>/`；其中 `convivium-user/` 保存安装、`DSH_HOME`、SQLite 和对话，`workspace/` 是 DSH 工作区。同一 HEAD 重启时复用原安装，不重新安装或覆盖 release；源码修复形成新 HEAD 后使用新的对应子工程，旧子工程保留以便复盘。不同子工程的 Host 均使用 `127.0.0.1:31828`，启动前必须先停止占用该端口的旧 Host。
+人工 Browser 调试不运行 `smoke:profile`，也不使用 `/tmp` 安装根。DSH 启动工作目录固定为仓库 `dsh-workspace/`，`DSH_HOME` 固定为 `dsh-workspace/dsh-home/`，项目目录固定为 `dsh-workspace/projects/meetings-view/`，安装、会议 SQLite 和角色资源固定在 `dsh-workspace/web-ui/convivium-user/`。Session 与 Meeting 数据跨源码刷新和 Git HEAD 变化保留，不为连续调试重建会议。Host 使用 `127.0.0.1:31828`；刷新或重启前必须先停止占用该端口的 Host，且不得并行运行共享 `DSH_HOME` 的常规安装。
 
-首次安装从仓库根执行；目标已存在时停止并核对，不删除或覆盖：
+从仓库根执行；首次安装创建固定目录，后续源码刷新复用它们，只新增以构建物 SHA-256 标识的 release 和 artifact，不覆盖旧 release、Session 或会议 SQLite：
 
 ```sh
-web_ui_revision="$(git rev-parse HEAD)"
-web_ui_root="$PWD/dsh-workspace/web-ui/$web_ui_revision"
-test -z "$(git status --short)"
+web_ui_workspace="$PWD/dsh-workspace"
+web_ui_home="$web_ui_workspace/dsh-home"
+web_ui_root="$web_ui_workspace/web-ui/convivium-user"
+web_ui_project="$web_ui_workspace/projects/meetings-view"
 command -v lsof >/dev/null
 test -z "$(lsof -nP -iTCP:31828 -sTCP:LISTEN)"
-test ! -e "$web_ui_root"
-mkdir -p "$web_ui_root"
-chmod 700 "$web_ui_root"
-CONVIVIUM_INSTALL_ROOT="$web_ui_root/convivium-user" \
-  ./scripts/install-from-source.sh --workspace "$web_ui_root/workspace"
+test -d "$web_ui_workspace"
+test ! -L "$web_ui_workspace"
+mkdir -p "$web_ui_project"
+chmod 700 "$web_ui_project"
+CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
+  ./scripts/install-from-source.sh --workspace "$web_ui_workspace" --dev-refresh
 ```
 
-按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件。若复用仓库根的固定 `dev.env`，只在确认安装器新建的 `convivium-user/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；不得复制或回显 key。运行 `"$web_ui_root/convivium-user/start.sh"`，在真实 Captain Session 中建立人工 fixture；不能把仅保留 Meeting SQLite 的自动 smoke 结果当作同时保留了 DSH 对话。需要重启时从相同安装根再运行同一 `start.sh`。成功判据是重启后同一子工程能读回已提交的对话和会议；仅端口监听不算通过。启动或补读失败时保留整个子工程及 Host 错误，停止并诊断，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留子工程；删除须另行按精确路径确认，不由 smoke Restore 清理。
+按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再新建 Captain Session 建立人工 fixture；若无法选择该项目目录，停止并记录实际入口。已存在的 Captain Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
 
 ## Prerequisites
 
