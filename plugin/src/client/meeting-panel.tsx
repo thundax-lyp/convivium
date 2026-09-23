@@ -6,6 +6,7 @@ import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 import {
     INITIAL_FRESHNESS,
     INITIAL_WORKSPACE,
+    controlsEnabled,
     resetWorkspaceForMeeting,
     type MeetingsFreshnessState,
     type MeetingsWorkspaceState
@@ -41,43 +42,9 @@ export function ConviviumMeetingPanel({
     const [detailFailure, setDetailFailure] = useState<MeetingPanelFailure>();
     const [writePending, setWritePending] = useState(false);
     const selectedRef = useRef<string>();
-
-    const loadList = useCallback(async () => {
-        try {
-            const result = await api.list();
-            const selectedMeetingId = selectedRef.current;
-            setMeetings(result.meetings);
-            setListFailure(undefined);
-            if (
-                selectedMeetingId !== undefined &&
-                !result.meetings.some((meeting) => meeting.meetingId === selectedMeetingId)
-            ) {
-                selectedRef.current = undefined;
-                setWorkspace((current) => ({
-                    ...current,
-                    selectedMeetingId: undefined,
-                    focusTarget: undefined
-                }));
-                setDetail(undefined);
-                setDetailFailure(undefined);
-                setFreshness((current) => ({
-                    connection:
-                        current.connection === "connecting" ? "connected" : current.connection,
-                    list: "fresh",
-                    detail: "idle"
-                }));
-                return;
-            }
-            setFreshness((current) => ({
-                ...current,
-                connection: current.connection === "connecting" ? "connected" : current.connection,
-                list: "fresh"
-            }));
-        } catch (error) {
-            setListFailure(classifyFailure(error));
-            setFreshness((current) => ({ ...current, list: "stale" }));
-        }
-    }, [api]);
+    const refreshGenerationRef = useRef(0);
+    const connectionRef = useRef(INITIAL_FRESHNESS.connection);
+    const streamTerminalRef = useRef(false);
 
     const loadDetail = useCallback(
         async (meetingId: string) => {
@@ -96,45 +63,144 @@ export function ConviviumMeetingPanel({
         [api]
     );
 
+    const refreshAll = useCallback(
+        async ({ recovery }: { recovery: boolean }) => {
+            const generation = refreshGenerationRef.current + 1;
+            refreshGenerationRef.current = generation;
+            const capturedMeetingId = selectedRef.current;
+            setFreshness((current) => ({
+                ...current,
+                list: "loading",
+                detail: capturedMeetingId === undefined ? "idle" : "loading"
+            }));
+            const [listResult, detailResult] = await Promise.allSettled([
+                api.list(),
+                capturedMeetingId === undefined
+                    ? Promise.resolve(undefined)
+                    : api.read({ protocolVersion: 1, meetingId: capturedMeetingId })
+            ]);
+            if (
+                refreshGenerationRef.current !== generation ||
+                selectedRef.current !== capturedMeetingId
+            )
+                return;
+
+            const listSucceeded = listResult.status === "fulfilled";
+            const nextMeetings = listSucceeded ? listResult.value.meetings : undefined;
+            const selectedStillExists =
+                capturedMeetingId !== undefined &&
+                nextMeetings?.some((meeting) => meeting.meetingId === capturedMeetingId) !== false;
+            const detailSucceeded =
+                capturedMeetingId !== undefined &&
+                detailResult.status === "fulfilled" &&
+                detailResult.value !== undefined;
+
+            if (listSucceeded) {
+                setMeetings(listResult.value.meetings);
+                setListFailure(undefined);
+            } else setListFailure(classifyFailure(listResult.reason));
+
+            if (listSucceeded && capturedMeetingId !== undefined && !selectedStillExists) {
+                selectedRef.current = undefined;
+                setWorkspace((current) => ({
+                    ...current,
+                    selectedMeetingId: undefined,
+                    focusTarget: undefined
+                }));
+                setDetail(undefined);
+                setDetailFailure(undefined);
+            } else if (capturedMeetingId !== undefined) {
+                if (detailSucceeded) {
+                    setDetail(detailResult.value);
+                    setDetailFailure(undefined);
+                } else
+                    setDetailFailure(
+                        classifyFailure((detailResult as PromiseRejectedResult).reason)
+                    );
+            }
+
+            let connection = connectionRef.current;
+            if (recovery) {
+                const recovered =
+                    !streamTerminalRef.current &&
+                    listSucceeded &&
+                    (capturedMeetingId === undefined || !selectedStillExists || detailSucceeded);
+                connection = recovered ? "connected" : "disconnected";
+                connectionRef.current = connection;
+            }
+            setFreshness({
+                connection,
+                list: listSucceeded ? "fresh" : "stale",
+                detail:
+                    capturedMeetingId === undefined || (listSucceeded && !selectedStillExists)
+                        ? "idle"
+                        : detailSucceeded
+                          ? "fresh"
+                          : "stale"
+            });
+        },
+        [api]
+    );
+
     const refresh = useCallback(() => {
-        setFreshness((current) => ({
-            ...current,
-            list: "loading",
-            detail: selectedRef.current === undefined ? "idle" : "loading"
-        }));
-        void loadList();
-        if (selectedRef.current !== undefined) void loadDetail(selectedRef.current);
-    }, [loadDetail, loadList]);
+        const recovery = !streamTerminalRef.current && connectionRef.current !== "connected";
+        void refreshAll({ recovery });
+    }, [refreshAll]);
 
     useEffect(() => {
-        refresh();
-    }, [refresh]);
+        void refreshAll({ recovery: true });
+    }, [refreshAll]);
 
     useEffect(() => {
         let stopped = false;
-        const stream = api.subscribeRefresh(() => {
-            if (!stopped) refresh();
+        const markDisconnected = () => {
+            connectionRef.current = "disconnected";
+            setFreshness({
+                connection: "disconnected",
+                list: "stale",
+                detail: selectedRef.current === undefined ? "idle" : "stale"
+            });
+        };
+        const stream = api.subscribeRefresh({
+            carrierFailed: () => {
+                if (!stopped) markDisconnected();
+            },
+            generationReopened: () => {
+                if (!stopped && !streamTerminalRef.current) void refreshAll({ recovery: true });
+            }
         });
         void (async () => {
             try {
                 for await (const item of stream) {
                     if (stopped) break;
                     item.accept();
-                    refresh();
+                    void refreshAll({
+                        recovery: connectionRef.current !== "connected"
+                    });
                 }
             } catch {
-                if (!stopped) refresh();
+                if (!stopped) {
+                    streamTerminalRef.current = true;
+                    markDisconnected();
+                }
             }
         })();
         return () => {
             stopped = true;
             void stream.dispose();
         };
-    }, [api, refresh]);
+    }, [api, refreshAll]);
+
+    useEffect(() => {
+        const handleFocus = () => refresh();
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, [refresh]);
 
     const selectMeeting = useCallback(
         (meetingId: string) => {
             if (selectedRef.current === meetingId) return;
+            refreshGenerationRef.current += 1;
             selectedRef.current = meetingId;
             setWorkspace((current) =>
                 resetWorkspaceForMeeting(meetingId, current.viewportRevision)
@@ -171,14 +237,14 @@ export function ConviviumMeetingPanel({
         setDetailFailure(undefined);
         try {
             await api.control(command);
-            await loadDetail(meetingId);
-            await loadList();
+            await refreshAll({ recovery: false });
         } catch (error) {
             setDetailFailure(classifyFailure(error));
+            setFreshness((current) => ({ ...current, detail: "stale" }));
         } finally {
             setWritePending(false);
         }
-    }, [api, detail, loadDetail, loadList, writePending]);
+    }, [api, detail, refreshAll, writePending]);
 
     const changePause = useCallback(
         async (kind: "pause_meeting" | "resume_meeting") => {
@@ -202,15 +268,15 @@ export function ConviviumMeetingPanel({
                                 : "Resumed from Meeting panel."
                     }
                 });
-                await loadDetail(meetingId);
-                await loadList();
+                await refreshAll({ recovery: false });
             } catch (error) {
                 setDetailFailure(classifyFailure(error));
+                setFreshness((current) => ({ ...current, detail: "stale" }));
             } finally {
                 setWritePending(false);
             }
         },
-        [api, detail, loadDetail, loadList, writePending]
+        [api, detail, refreshAll, writePending]
     );
 
     return renderMeetingPanelLayout(
@@ -219,7 +285,11 @@ export function ConviviumMeetingPanel({
             selectedId: workspace.selectedMeetingId,
             detail,
             listCached: freshness.list === "stale",
-            detailCached: freshness.detail !== "fresh",
+            detailCached: !controlsEnabled({
+                freshness,
+                selectedMeetingId: workspace.selectedMeetingId,
+                writePending
+            }),
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,

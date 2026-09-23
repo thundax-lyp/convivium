@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T4：接入 refresh generation 与断线恢复
-
-前置状态：T3 PASS。
-允许修改：`plugin/src/client/meeting-client.ts` `MeetingRefreshCallbacks|MeetingClient|createMeetingClient.subscribeRefresh`、`plugin/tests/client/meeting-client.client.spec.ts`、`plugin/src/client/meeting-panel.tsx` `ConviviumMeetingPanel`；新增 `plugin/tests/client/meeting-panel-recovery.client.spec.ts`。
-禁止修改：layout、DSH `RemoteStream` 实现、Remote method/RefreshNotice、command payload、timer/polling。
-
-执行：先在 MeetingClient 测试第一次 open 不回调、`carrierFailed` 只报告失败、同一 logical stream 的第二次 open 调用一次 `generationReopened`；按上方签名实现 closure。再在 Panel 红测试 connected 时 refresh notice 的一次 `accept` + 一个 non-recovery generation、disconnected 时 notice 以 recovery generation 取代旧 generation、Browser `focus` 按当前 connection/terminal 状态选择 recovery 且 unmount 移除 listener、`carrierFailed` 立即 stale/disconnected、terminal failure 设置 terminal 后任何补读都不恢复 connected、`generationReopened` 启动 recovery、同 generation 的 list 与 captured detail 全成功前不恢复、list 缺 captured ID 时清选择并丢弃 detail、三种 recovery failure 组合、旧 generation 与切换选择后的 generation 整批丢弃。实现唯一 `refreshGenerationRef`、同步更新的 `connectionRef`、`streamTerminalRef` 和一个 `refreshAll({ recovery: boolean })`；每个 generation 只调用一次 list 与至多一次 captured detail，并用 `Promise.allSettled` 后统一提交。只消费既有 reconnecting stream，不新建 timer、polling 或第二 stream。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-client.client.spec.ts tests/client/meeting-panel-recovery.client.spec.ts tests/client/meeting-panel-lifecycle.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，reopened callback、generation barrier、stale、单 stream、完整恢复和旧结果丢弃成立。STOP：必须改 Gateway/Remote/RefreshNotice 契约、增轮询、第二 stream 或 command retry。失败恢复：纯 Client state；无外部副作用。
-
 ### T5：实现 Navigator 响应式外壳
 
 前置状态：T4 PASS。

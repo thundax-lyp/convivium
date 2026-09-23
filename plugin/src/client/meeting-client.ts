@@ -22,11 +22,16 @@ export class ProtocolFailure extends Error {
     }
 }
 
+export interface MeetingRefreshCallbacks {
+    carrierFailed(): void;
+    generationReopened(): void;
+}
+
 export interface MeetingClient {
     list(signal?: AbortSignal): Promise<MeetingListResult>;
     read(request: ReadMeetingRequest, signal?: AbortSignal): Promise<MeetingReadResult>;
     control(command: MeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
-    subscribeRefresh(onUnavailable: () => void): RemoteStream<RefreshNotice>;
+    subscribeRefresh(callbacks: MeetingRefreshCallbacks): RemoteStream<RefreshNotice>;
 }
 
 function protocolFailure(value: unknown): ProtocolFailure {
@@ -96,12 +101,18 @@ export function createMeetingClient(remote: ClientRemote): MeetingClient {
             unwrap(service.control(command, signal), (value) =>
                 MeetingCommandResultSchema.parse(value)
             ),
-        subscribeRefresh: (onUnavailable) =>
-            remote.$stream({
+        subscribeRefresh: (callbacks) => {
+            let opened = false;
+            return remote.$stream({
                 name: "convivium-meetings-refresh",
-                open: (signal) => service.subscribeRefresh(signal),
+                open: (signal) => {
+                    if (opened) callbacks.generationReopened();
+                    else opened = true;
+                    return service.subscribeRefresh(signal);
+                },
                 ended: () => new Error("Meeting refresh stream ended."),
-                carrierFailed: onUnavailable
-            })
+                carrierFailed: callbacks.carrierFailed
+            });
+        }
     };
 }
