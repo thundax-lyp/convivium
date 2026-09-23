@@ -14,6 +14,7 @@ import { MeetingPanelOverview } from "./meeting-panel-overview.js";
 import { MeetingPanelTimeline } from "./meeting-panel-timeline.js";
 import {
     INITIAL_TIMELINE_FILTERS,
+    type MeetingFocusTarget,
     type MeetingMode,
     type TimelineFilterState
 } from "./meeting-workspace-state.js";
@@ -32,6 +33,10 @@ export interface MeetingPanelLayoutProps {
     timelineFilters?: TimelineFilterState;
     viewportRevision?: number;
     onTimelineFiltersChange?(filters: TimelineFilterState): void;
+    focusTarget?: MeetingFocusTarget;
+    onFocusConsumed?(): void;
+    onLocateInTimeline?(target: MeetingFocusTarget): void;
+    onLocateInOverview?(target: MeetingFocusTarget): void;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
     pauseMeeting(): Promise<void>;
@@ -209,13 +214,22 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             "aria-label": t("panel.detail.aria", { id: selected.meetingId })
                         },
                         mode === "overview"
-                            ? createElement(MeetingPanelOverview, { detail: ctx.detail, t })
+                            ? createElement(MeetingPanelOverview, {
+                                  detail: ctx.detail,
+                                  t,
+                                  focusTarget: ctx.focusTarget,
+                                  onFocusConsumed: ctx.onFocusConsumed,
+                                  onLocateInTimeline: ctx.onLocateInTimeline
+                              })
                             : createElement(MeetingPanelTimeline, {
                                   detail: ctx.detail,
                                   filters: ctx.timelineFilters ?? INITIAL_TIMELINE_FILTERS,
                                   viewportRevision: ctx.viewportRevision ?? 0,
                                   t,
-                                  onFiltersChange: ctx.onTimelineFiltersChange ?? (() => undefined)
+                                  onFiltersChange: ctx.onTimelineFiltersChange ?? (() => undefined),
+                                  focusTarget: ctx.focusTarget,
+                                  onFocusConsumed: ctx.onFocusConsumed,
+                                  onLocateInOverview: ctx.onLocateInOverview
                               })
                     )
                 )

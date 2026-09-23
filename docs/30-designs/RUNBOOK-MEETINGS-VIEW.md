@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T12：实现键盘、焦点和跨模式定位
-
-前置状态：T11 PASS，Overview 和 Timeline 均已渲染且 T7 projection 可用。
-允许修改：`plugin/src/client/meeting-panel-timeline.tsx`、`plugin/src/client/meeting-panel-overview.tsx`、`plugin/src/client/meeting-panel-layout.tsx` 仅 final props 接线、`plugin/src/client/meeting-panel.tsx` 仅 focus/mode callbacks、`plugin/src/client/locales.ts`；新增 `plugin/tests/client/meeting-panel-timeline-focus.client.spec.tsx`。
-禁止修改：projection/filter 规则、Overview 内容分组、业务写入。
-
-执行：先红测试 roving tabindex（当前 node 为 `0`，其余为 `-1`），左右为同 lane 前后 node，上下为相邻未折叠 lane 中时间最近 node，无目标保持焦点；Overview 只对 `buildTimelineNodes(detail)` 中存在 objectKind/objectId 的对象显示 locate；Overview->Timeline 定位最晚 phase；Timeline->Overview；missing target 中性提示且不改 filters/Meeting；ARIA 包含 time/identity/type/status。实现最终 props 和 `findAdjacentTimelineKey`。定位先展开 lane，再 `scrollIntoView({block:"nearest",inline:"center"})` + `focus()`，成功/失败都调用 `onFocusConsumed()`。jsdom 仅可在当前 test file stub `scrollIntoView`。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-timeline-focus.client.spec.tsx tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-locales.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，键盘/焦点/双向定位/中性失败/ARIA 成立，Overview locate 复用 T7 projection，不复制映射。STOP：需改 projection 规则、DOM 时间顺序或跳过聚焦。失败恢复：纯 DOM/state。
-
 ### T13：执行自动验证
 
 前置状态：T0–T12 PASS，无 skipped/only tests。

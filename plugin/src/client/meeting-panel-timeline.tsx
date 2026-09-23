@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef, type ReactElement } from "react";
+import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
 import { zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
 import {
@@ -8,11 +8,21 @@ import {
     type TimelineNode
 } from "./meeting-timeline-projection.js";
 import type {
+    MeetingFocusTarget,
     TimelineFilterState,
     TimelineLane,
     TimelineObjectRef,
     TimelineZoom
 } from "./meeting-workspace-state.js";
+
+export type TimelineDirection = "up" | "down" | "left" | "right";
+
+export interface AdjacentTimelineInput {
+    nodes: readonly TimelineNode[];
+    currentKey: string;
+    direction: TimelineDirection;
+    collapsedLanes: readonly TimelineLane[];
+}
 
 export interface TimelineProps {
     detail: MeetingView;
@@ -20,6 +30,9 @@ export interface TimelineProps {
     viewportRevision: number;
     t: MeetingTranslate;
     onFiltersChange(filters: TimelineFilterState): void;
+    focusTarget?: MeetingFocusTarget;
+    onFocusConsumed?(): void;
+    onLocateInOverview?(target: MeetingFocusTarget): void;
 }
 
 export interface TimelineFiltersProps {
@@ -35,6 +48,40 @@ export interface TimelineViewportProps extends TimelineProps {
 
 const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
 const zoomLevels: readonly TimelineZoom[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
+export function findAdjacentTimelineKey({
+    nodes,
+    currentKey,
+    direction,
+    collapsedLanes
+}: AdjacentTimelineInput): string | undefined {
+    const visible = nodes.filter((node) => !collapsedLanes.includes(node.lane));
+    const current = visible.find((node) => node.key === currentKey);
+    if (!current) return undefined;
+    if (direction === "left" || direction === "right") {
+        const sameLane = visible.filter((node) => node.lane === current.lane);
+        const index = sameLane.findIndex((node) => node.key === currentKey);
+        return sameLane[index + (direction === "left" ? -1 : 1)]?.key;
+    }
+    const step = direction === "up" ? -1 : 1;
+    for (
+        let index = lanes.indexOf(current.lane) + step;
+        index >= 0 && index < lanes.length;
+        index += step
+    ) {
+        const lane = lanes[index]!;
+        if (collapsedLanes.includes(lane)) continue;
+        const candidates = visible.filter((node) => node.lane === lane);
+        candidates.sort(
+            (a, b) =>
+                Math.abs(a.time - current.time) - Math.abs(b.time - current.time) ||
+                a.time - b.time ||
+                a.key.localeCompare(b.key)
+        );
+        if (candidates.length > 0) return candidates[0]?.key;
+    }
+    return undefined;
+}
 
 function label(key: string, fallback: string, t: MeetingTranslate): string {
     const localeKey = key as MeetingLocaleKey;
@@ -182,13 +229,66 @@ export function TimelineViewport({
     filters,
     viewportRevision,
     t,
-    onFiltersChange
+    onFiltersChange,
+    focusTarget,
+    onFocusConsumed,
+    onLocateInOverview
 }: TimelineViewportProps): ReactElement {
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const latestRef = useRef<HTMLElement | null>(null);
+    const nodeRefs = useRef(new Map<string, HTMLElement>());
+    const [activeKey, setActiveKey] = useState(
+        nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key
+    );
+    const [focusMissing, setFocusMissing] = useState(false);
     useEffect(() => {
         if (viewportRef.current) viewportRef.current.scrollLeft = 0;
     }, [viewportRevision]);
+    useEffect(() => {
+        if (
+            activeKey &&
+            nodes.some(
+                (node) => node.key === activeKey && !filters.collapsedLanes.includes(node.lane)
+            )
+        )
+            return;
+        setActiveKey(nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key);
+    }, [nodes, filters.collapsedLanes, activeKey]);
+    useEffect(() => {
+        if (!focusTarget) return;
+        const matches =
+            focusTarget.meetingId === detail.meetingId
+                ? nodes.filter(
+                      (node) =>
+                          node.objectKind === focusTarget.objectKind &&
+                          node.objectId === focusTarget.objectId
+                  )
+                : [];
+        const target = matches.at(-1);
+        if (!target) {
+            setFocusMissing(true);
+            onFocusConsumed?.();
+            return;
+        }
+        if (filters.collapsedLanes.includes(target.lane)) {
+            onFiltersChange({
+                ...filters,
+                collapsedLanes: filters.collapsedLanes.filter((lane) => lane !== target.lane)
+            });
+            return;
+        }
+        const element = nodeRefs.current.get(target.key);
+        if (!element) {
+            setFocusMissing(true);
+            onFocusConsumed?.();
+            return;
+        }
+        setFocusMissing(false);
+        setActiveKey(target.key);
+        element.scrollIntoView?.({ block: "nearest", inline: "center" });
+        element.focus();
+        onFocusConsumed?.();
+    }, [focusTarget, nodes, filters, detail.meetingId, onFocusConsumed, onFiltersChange]);
     const zoomIndex = zoomLevels.indexOf(filters.zoom);
     const gap = 12 * filters.zoom;
     const minWidth = 160 + nodes.length * 220 + Math.max(nodes.length - 1, 0) * gap;
@@ -198,6 +298,7 @@ export function TimelineViewport({
     return createElement(
         "div",
         null,
+        focusMissing ? createElement("p", { role: "status" }, t("panel.state.focusMissing")) : null,
         createElement(
             "button",
             {
@@ -270,11 +371,44 @@ export function TimelineViewport({
                         "article",
                         {
                             key: node.key,
-                            ref: index === nodes.length - 1 ? latestRef : undefined,
+                            ref: (element: HTMLElement | null) => {
+                                if (element) nodeRefs.current.set(node.key, element);
+                                else nodeRefs.current.delete(node.key);
+                                if (index === nodes.length - 1) latestRef.current = element;
+                            },
                             "data-testid": "timeline-node",
                             "data-node-key": node.key,
                             hidden: collapsed.includes(node.lane),
-                            "aria-label": t("panel.timeline.aria.node"),
+                            tabIndex: activeKey === node.key ? 0 : -1,
+                            onFocus: () => setActiveKey(node.key),
+                            onKeyDown: (event: React.KeyboardEvent) => {
+                                const direction = {
+                                    ArrowUp: "up",
+                                    ArrowDown: "down",
+                                    ArrowLeft: "left",
+                                    ArrowRight: "right"
+                                }[event.key] as TimelineDirection | undefined;
+                                if (!direction) return;
+                                event.preventDefault();
+                                const next = findAdjacentTimelineKey({
+                                    nodes,
+                                    currentKey: node.key,
+                                    direction,
+                                    collapsedLanes: collapsed
+                                });
+                                if (next) nodeRefs.current.get(next)?.focus();
+                            },
+                            "aria-label": [
+                                t("panel.timeline.aria.node"),
+                                laneLabel,
+                                identity,
+                                label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t),
+                                label(`enum.timelinePhase.${node.phase}`, node.phase, t),
+                                new Date(node.time).toISOString(),
+                                node.status ?? ""
+                            ]
+                                .filter(Boolean)
+                                .join("; "),
                             style: {
                                 gridRow: lanes.indexOf(node.lane) + 1,
                                 gridColumn: index + 2,
@@ -302,6 +436,21 @@ export function TimelineViewport({
                             new Date(node.time).toISOString()
                         ),
                         node.status === undefined ? null : createElement("p", null, node.status),
+                        onLocateInOverview
+                            ? createElement(
+                                  "button",
+                                  {
+                                      type: "button",
+                                      onClick: () =>
+                                          onLocateInOverview({
+                                              meetingId: detail.meetingId,
+                                              objectKind: node.objectKind,
+                                              objectId: node.objectId
+                                          })
+                                  },
+                                  t("panel.mode.overview")
+                              )
+                            : null,
                         content === undefined
                             ? createElement("p", null, t("panel.state.focusMissing"))
                             : createElement(

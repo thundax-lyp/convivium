@@ -1,11 +1,19 @@
-import { createElement, type ReactElement } from "react";
+import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
 import { zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
+import { buildTimelineNodes } from "./meeting-timeline-projection.js";
+import type { MeetingFocusTarget } from "./meeting-workspace-state.js";
 
 export interface SectionProps {
     detail: MeetingView;
     t: MeetingTranslate;
+}
+
+export interface OverviewProps extends SectionProps {
+    focusTarget?: MeetingFocusTarget;
+    onFocusConsumed?(): void;
+    onLocateInTimeline?(target: MeetingFocusTarget): void;
 }
 
 function section(label: string, ...content: ReactElement[]): ReactElement {
@@ -289,7 +297,31 @@ export function OverviewTechnical({ detail, t }: SectionProps): ReactElement {
     );
 }
 
-export function MeetingPanelOverview(props: SectionProps): ReactElement {
+export function MeetingPanelOverview(props: OverviewProps): ReactElement {
+    const { detail, t, focusTarget, onFocusConsumed, onLocateInTimeline } = props;
+    const buttons = useRef(new Map<string, HTMLButtonElement>());
+    const [focusMissing, setFocusMissing] = useState(false);
+    const objects = [
+        ...new Map(
+            buildTimelineNodes(detail).map(
+                (node) => [`${node.objectKind}:${node.objectId}`, node] as const
+            )
+        ).values()
+    ];
+    useEffect(() => {
+        if (!focusTarget) return;
+        const button =
+            focusTarget.meetingId === detail.meetingId
+                ? buttons.current.get(`${focusTarget.objectKind}:${focusTarget.objectId}`)
+                : undefined;
+        if (!button) setFocusMissing(true);
+        else {
+            setFocusMissing(false);
+            button.scrollIntoView?.({ block: "nearest", inline: "center" });
+            button.focus();
+        }
+        onFocusConsumed?.();
+    }, [focusTarget, detail.meetingId, onFocusConsumed]);
     return createElement(
         "div",
         null,
@@ -301,6 +333,36 @@ export function MeetingPanelOverview(props: SectionProps): ReactElement {
         createElement(OverviewOpenItems, props),
         createElement(OverviewTranscript, props),
         createElement(OverviewEvidence, props),
-        createElement(OverviewTechnical, props)
+        createElement(OverviewTechnical, props),
+        focusMissing ? createElement("p", { role: "status" }, t("panel.state.focusMissing")) : null,
+        onLocateInTimeline
+            ? createElement(
+                  "nav",
+                  { "aria-label": t("panel.mode.timeline") },
+                  ...objects.map((node) => {
+                      const name = `${t("panel.mode.timeline")}: ${known("timelineKind", node.objectKind, t)} ${node.objectId}`;
+                      return createElement(
+                          "button",
+                          {
+                              key: `${node.objectKind}:${node.objectId}`,
+                              type: "button",
+                              "aria-label": name,
+                              ref: (element: HTMLButtonElement | null) => {
+                                  const key = `${node.objectKind}:${node.objectId}`;
+                                  if (element) buttons.current.set(key, element);
+                                  else buttons.current.delete(key);
+                              },
+                              onClick: () =>
+                                  onLocateInTimeline({
+                                      meetingId: detail.meetingId,
+                                      objectKind: node.objectKind,
+                                      objectId: node.objectId
+                                  })
+                          },
+                          name
+                      );
+                  })
+              )
+            : null
     );
 }

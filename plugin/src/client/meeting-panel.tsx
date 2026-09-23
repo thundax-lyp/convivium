@@ -296,6 +296,13 @@ export function ConviviumMeetingPanel({
             viewportRevision: workspace.viewportRevision,
             onTimelineFiltersChange: (timeline) =>
                 setWorkspace((current) => ({ ...current, timeline })),
+            focusTarget: workspace.focusTarget,
+            onFocusConsumed: () =>
+                setWorkspace((current) => ({ ...current, focusTarget: undefined })),
+            onLocateInTimeline: (focusTarget) =>
+                setWorkspace((current) => ({ ...current, activeMode: "timeline", focusTarget })),
+            onLocateInOverview: (focusTarget) =>
+                setWorkspace((current) => ({ ...current, activeMode: "overview", focusTarget })),
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,
