@@ -317,7 +317,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 fact.factId,
                 fact.kind,
                 fact.occurredAt,
-                fact,
+                fact.payload,
                 actorLane(view, fact.actorId),
                 fact.actorId,
                 fact.payload.newStatus

@@ -123,6 +123,13 @@ describe("Timeline projection", () => {
         expect(
             nodes.find(({ objectKind }) => objectKind === "risk_disposition")?.relatedObjects
         ).toContainEqual({ objectKind: "issue", objectId: "issue-1" });
+        const archiveNodes = buildTimelineNodes(archiveTimelineFixture("complete"));
+        expect(
+            archiveNodes.find(({ objectKind }) => objectKind === "disposition_fact")?.relatedObjects
+        ).toEqual([
+            { objectKind: "evidence_version", objectId: "version-1" },
+            { objectKind: "issue", objectId: "issue-1" }
+        ]);
         expect(
             filterTimelineNodes(nodes, {
                 ...INITIAL_TIMELINE_FILTERS,
