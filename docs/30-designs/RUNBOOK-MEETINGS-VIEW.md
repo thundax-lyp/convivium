@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T7：实现纯 Timeline projection
-
-前置状态：T6 PASS。
-允许修改：新增 `plugin/src/client/meeting-timeline-projection.ts`、`plugin/tests/client/meeting-timeline-fixtures.ts`、`plugin/tests/client/meeting-timeline-projection.client.spec.ts`。
-禁止修改：Schema、Domain/Remote/Runtime、React components。
-
-执行：先红测试映射表每行、active/archive 单一来源、非 complete archive 空结果、multi-phase、排序、lane、typed refs/裸 IDs、content resolver，再实现纯函数。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-timeline-projection.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，映射每行有断言，无混合/重复/推断。STOP：DTO 冲突或必须猜 actor/kind。失败恢复：纯函数。
-
 ### T8：实现 Overview 前三组
 
 前置状态：T7 PASS，Schema 与映射表一致。
