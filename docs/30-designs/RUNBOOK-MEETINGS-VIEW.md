@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T2：实现纯 Workspace/freshness 转换
-
-前置状态：T1 PASS。
-允许修改：新增 `plugin/src/client/meeting-workspace-state.ts`、`plugin/tests/client/meeting-workspace-state.client.spec.ts`。
-禁止修改：React components、Remote/Protocol。
-
-执行：先对上述初始值、reset、revision 递增、zoom union、`controlsEnabled` 真值表和转换表可纯验证部分写红测试，再按签名实现纯类型/函数。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-workspace-state.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，公式/重置无 React/I/O。STOP：必须增 store/URL/Remote state。失败恢复：纯函数。
-
 ### T3：接入 list、选择、详情读取与 last-good
 
 前置状态：T2 PASS，`MeetingClient` 签名未变。
