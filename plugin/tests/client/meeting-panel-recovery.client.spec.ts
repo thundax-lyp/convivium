@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient, MeetingRefreshCallbacks } from "@/client/meeting-client.js";
@@ -104,7 +104,11 @@ describe("Meeting panel refresh recovery", () => {
             await waitFor(() => expect(fixture.api.list).toHaveBeenCalledOnce());
             await waitFor(() => expect(fixture.api.read).toHaveBeenCalledOnce());
             expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
-            expect(screen.getByText(fixture.view.objective.statement)).toBeTruthy();
+            expect(
+                within(screen.getByRole("region", { name: "Objective" })).getByText(
+                    fixture.view.objective.statement
+                )
+            ).toBeTruthy();
         }
     );
 
@@ -146,7 +150,13 @@ describe("Meeting panel refresh recovery", () => {
         act(() => fixture.callbacks()?.carrierFailed());
         act(() => fixture.callbacks()?.generationReopened());
         act(() => fixture.callbacks()?.generationReopened());
-        expect(await screen.findByText("newest generation")).toBeTruthy();
+        await waitFor(() =>
+            expect(
+                within(screen.getByRole("region", { name: "Objective" })).getByText(
+                    "newest generation"
+                )
+            ).toBeTruthy()
+        );
 
         oldList.resolve({ meetings: [fixture.summary] });
         oldDetail.resolve({
@@ -154,7 +164,9 @@ describe("Meeting panel refresh recovery", () => {
             objective: { ...fixture.view.objective, statement: "obsolete generation" }
         });
         await act(async () => Promise.resolve());
-        expect(screen.getByText("newest generation")).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Objective" })).getByText("newest generation")
+        ).toBeTruthy();
         expect(screen.queryByText("obsolete generation")).toBeNull();
     });
 
@@ -208,14 +220,20 @@ describe("Meeting panel refresh recovery", () => {
         act(() => fixture.callbacks()?.carrierFailed());
         act(() => fixture.callbacks()?.generationReopened());
         fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
-        expect(await screen.findByText("Second detail")).toBeTruthy();
+        await waitFor(() =>
+            expect(
+                within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
+            ).toBeTruthy()
+        );
         recoveryList.resolve({ meetings: [fixture.summary] });
         recoveryDetail.resolve({
             ...fixture.view,
             objective: { ...fixture.view.objective, statement: "obsolete recovery" }
         });
         await act(async () => Promise.resolve());
-        expect(screen.getByText("Second detail")).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
+        ).toBeTruthy();
         expect(screen.queryByText("obsolete recovery")).toBeNull();
     });
 
