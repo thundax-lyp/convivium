@@ -12,7 +12,11 @@ import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { MeetingPanelOverview } from "./meeting-panel-overview.js";
 import { MeetingPanelTimeline } from "./meeting-panel-timeline.js";
-import { INITIAL_TIMELINE_FILTERS, type MeetingMode } from "./meeting-workspace-state.js";
+import {
+    INITIAL_TIMELINE_FILTERS,
+    type MeetingMode,
+    type TimelineFilterState
+} from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
     meetings: readonly MeetingSummary[];
@@ -25,6 +29,9 @@ export interface MeetingPanelLayoutProps {
     writePending: boolean;
     activeMode?: MeetingMode;
     setMode?(mode: MeetingMode): void;
+    timelineFilters?: TimelineFilterState;
+    viewportRevision?: number;
+    onTimelineFiltersChange?(filters: TimelineFilterState): void;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
     pauseMeeting(): Promise<void>;
@@ -205,10 +212,10 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             ? createElement(MeetingPanelOverview, { detail: ctx.detail, t })
                             : createElement(MeetingPanelTimeline, {
                                   detail: ctx.detail,
-                                  filters: INITIAL_TIMELINE_FILTERS,
-                                  viewportRevision: 0,
+                                  filters: ctx.timelineFilters ?? INITIAL_TIMELINE_FILTERS,
+                                  viewportRevision: ctx.viewportRevision ?? 0,
                                   t,
-                                  onFiltersChange: () => undefined
+                                  onFiltersChange: ctx.onTimelineFiltersChange ?? (() => undefined)
                               })
                     )
                 )
