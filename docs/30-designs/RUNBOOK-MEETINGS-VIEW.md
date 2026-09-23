@@ -266,7 +266,7 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ### T14：安装已验证构建物并准备验收 profile
 
-前置状态：T13 PASS；仓库根执行；人工操作者可以在不回显凭据的前提下填写新 profile 的 `dev.env` 并通过真实 Captain Session 建立 fixture。
+前置状态：T13 PASS；仓库根执行；仓库根 `dev.env` 已存在、权限为 `600`、`DEEPSEEK_API_KEY` 非空；人工操作者可以通过真实 Captain Session 建立 fixture。
 
 允许修改：无仓库文件；允许创建一个新的 `/tmp/convivium-meetings-view.*` DSH workspace 及其中的 profile/SQLite。禁止修改：现有 DSH profile、现有 release、仓库源码、测试和文档。
 
@@ -274,9 +274,22 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 1. 在同一 shell 运行 `meetings_view_root="$(mktemp -d /tmp/convivium-meetings-view.XXXXXX)"`、`meetings_view_workspace="$meetings_view_root/dsh-workspace"` 和 `meetings_view_install_root="$meetings_view_root/convivium-user"`，再运行 `CONVIVIUM_INSTALL_ROOT="$meetings_view_install_root" ./scripts/install-from-source.sh --workspace "$meetings_view_workspace"`；必须同时传入 install root 环境变量和独立 workspace，不得复用已有路径，因为相同版本 release 不允许覆盖。
 2. 记录 `git rev-parse HEAD`、`git status --short`、三个绝对路径，运行 `cat "$meetings_view_install_root/release"`、`test -x "$meetings_view_install_root/start.sh"`；再运行 `meetings_view_artifact="$(find "$meetings_view_install_root/artifacts" -maxdepth 1 -type f -name '*.tgz')"` 和 `shasum -a 256 "$meetings_view_artifact"`，该 hash 是 T15 验收构建物标识。
-3. 人工操作者只编辑新 profile 的 `dev.env` 填入真实 key，不在记录中输出 key；缺 key 时 STOP。
+3. 安装完成后运行下列命令；任何检查失败立即 STOP，不继续到 `rm`。命令只在子进程检查 key 是否非空，不复制或回显凭据；删除的对象必须是安装器新建的空占位文件，随后链接到固定凭据。不得在构建、打包或安装前导出 key。
+
+```bash
+set -eu
+meetings_view_repository_root="$(git rev-parse --show-toplevel)"
+test -f "$meetings_view_repository_root/dev.env"
+test ! -L "$meetings_view_repository_root/dev.env"
+test "$(stat -f %Lp "$meetings_view_repository_root/dev.env")" = "600"
+sh -c 'unset DEEPSEEK_API_KEY; . "$1"; test -n "${DEEPSEEK_API_KEY:-}"' sh "$meetings_view_repository_root/dev.env"
+test ! -L "$meetings_view_install_root/dev.env"
+test "$(cat "$meetings_view_install_root/dev.env")" = "DEEPSEEK_API_KEY="
+rm -- "$meetings_view_install_root/dev.env"
+ln -s "$meetings_view_repository_root/dev.env" "$meetings_view_install_root/dev.env"
+```
 4. 运行 `(cd "$meetings_view_install_root" && ./start.sh)`，在真实 DSH Web 新建 Captain Session 并选择 `convivium` Preset。通过 `convivium_create_meeting` 建立两个最小 fixture：A 的 objective 固定为 `[Meetings View Gate] Running` 且 lifecycle 为 `running`；B 的 objective 固定为 `[Meetings View Gate] Archive`，经正式 lifecycle control 进入 `archived` 且 `archive.status=complete`。记录两个 `meetingId`，T15 只按 ID 选择。不得复制 SQLite、调用内部 repository 或改 Domain 状态造 fixture。
-5. Ctrl+C 停止 Host，保留新 workspace，不删除 SQLite。
+5. Ctrl+C 停止 Host；保留临时 workspace/SQLite 到 T15 完成，之后由 T16 删除。
 
 验证：
 ```bash
@@ -286,8 +299,10 @@ test -n "$meetings_view_artifact"
 test -x "$meetings_view_install_root/start.sh"
 test -f "$meetings_view_install_root/release"
 test "$(find "$meetings_view_install_root/artifacts" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = "1"
+test -L "$meetings_view_install_root/dev.env"
+test "$(readlink "$meetings_view_install_root/dev.env")" = "$(git rev-parse --show-toplevel)/dev.env"
 ```
-PASS：六条命令退出 0，记录含 HEAD、工作树、release 和唯一 artifact hash，且记录唯一 fixture A/B `meetingId` 并人工确认 A=`running`、B=`archived/complete`。STOP：安装失败、目标路径预先存在、artifact 不是唯一文件、凭据/Provider/Preset 缺失、fixture 无法通过正式入口建立、fixture ID 不唯一或安装期间源码变化；保留命令、Host 输出和新路径，不改用旧 profile/smoke/复制 SQLite。失败恢复：只重跑同一新路径的安装失败恢复；若 release 已成功则创建另一个全新 root，不覆盖。
+PASS：八条命令退出 0，记录含 HEAD、工作树、release 和唯一 artifact hash，且记录唯一 fixture A/B `meetingId` 并人工确认 A=`running`、B=`archived/complete`。STOP：安装失败、目标路径预先存在、artifact 不是唯一文件、固定凭据不存在/权限不符/为空、安装器占位文件不是预期内容、Provider/Preset 缺失、fixture 无法通过正式入口建立、fixture ID 不唯一或安装期间源码变化；保留命令、Host 输出和新路径，不改用旧 profile/smoke/复制 SQLite 或复制 key。失败恢复：只重跑同一新路径的安装失败恢复；若 release 已成功则创建另一个全新 root，不覆盖。
 
 ### T15：真实 DSH Web 人工门禁与 readiness
 
@@ -304,18 +319,50 @@ PASS：六条命令退出 0，记录含 HEAD、工作树、release 和唯一 art
 5. fixture A 为 running 时在 Host 终端 Ctrl+C，保持 Browser 页面；确认 stale 且 pause/end 禁用。再从同一 install root 运行同一 `start.sh`；确认 reconnecting stream 自动重开、完整 list + fixture A detail 成功后 stale 消失且 pause/end 恢复。
 6. 选择 fixture B，验证 archive Timeline 只使用 complete archive；再回到 fixture A，记录当前 version 后执行 end。确认按钮在 pending 时禁用，accepted 后完整补读得到更大 version、lifecycle 属于 `ending|terminal|archiving|archived` 且不再显示 pause/resume/end；不要求跳过领域流程或固定 archive 完成时长。
 7. 在中文 -> English -> 中文间同页切换；确认无 Contribution/Decision/Risk 写按钮、独立 Timeline View 或裸-ID relation。
-8. Ctrl+C 停止 Host；不删除 profile/SQLite。只有清单全部 PASS 后才修改 readiness：在 Feature Coverage 新增或替换唯一 `MO-FR-17 | Meetings View 概览与时间线` 行，状态写 `已实现`，当前覆盖写 Navigator、共享 Header、七组 Overview、五泳道 Timeline、generation 恢复和 `zh/en`，缺口只保留 Browser 自动化/性能；在 Executed Validation 追加一行 T13 自动命令证据和一行 T14–T15 真实 Web 证据，后者必须包含日期、HEAD、`git status --short`、workspace/install root/release、artifact SHA-256、fixture A/B、断线重连及人工清单结果。不得改写既有历史证据。
+8. Ctrl+C 停止 Host；暂不删除 profile/SQLite，待 T16 收口。只有清单全部 PASS 后才修改 readiness：在 Feature Coverage 新增或替换唯一 `MO-FR-17 | Meetings View 概览与时间线` 行，状态写 `已实现`，当前覆盖写 Navigator、共享 Header、七组 Overview、五泳道 Timeline、generation 恢复和 `zh/en`，缺口只保留 Browser 自动化/性能；在 Executed Validation 追加一行 T13 自动命令证据和一行 T14–T15 真实 Web 证据，后者必须包含日期、HEAD、`git status --short`、workspace/install root/release、artifact SHA-256、fixture A/B、断线重连及人工清单结果，并注明临时环境待 T16 删除、固定 `dev.env` 未复制。不得改写既有历史证据。
 
 验证：
 ```bash
 node .github/scripts/check-doc-links.mjs
 git diff --check
 ```
-PASS：人工清单和两命令全部 PASS，readiness 证据完整。STOP：缺 profile/fixture/key，端口被占用，Host 失败，任一清单 FAIL，或人工未确认；保留精确 Host 输出和 profile。失败恢复：代码缺陷回对应 T1–T12；环境/fixture 缺陷回 T14；之后必须重跑 T13–T15。
+PASS：人工清单和两命令全部 PASS，readiness 证据完整。STOP：缺 profile/fixture/key，端口被占用，Host 失败，任一清单 FAIL，或人工未确认；保留精确 Host 输出和临时 profile 供失败诊断，不触碰仓库根 `dev.env`。失败恢复：代码缺陷回对应 T1–T12；环境/fixture 缺陷回 T14；之后必须重跑 T13–T15。
 
-### T16：收口并删除 RUNBOOK
+### T16：清理临时验收环境
 
-前置状态：T15 PASS，readiness 已包含 T13–T15 的真实证据。
+前置状态：T15 PASS；Host 已停止，readiness 已记录 T14–T15 证据，固定 `dev.env` 位于仓库根且未被复制。
+允许修改：只删除 T14 创建的 `/tmp/convivium-meetings-view.XXXXXX` 临时根及其中的 profile/SQLite，并修改 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 内 T14–T15 本次证据行的清理状态。禁止修改：仓库根 `dev.env`、日常 `dsh-workspace/`、其他临时根、其他仓库文件。
+
+执行：先从 T14 记录恢复 `meetings_view_root` 和 `meetings_view_install_root`；确认二者与记录的绝对路径完全一致，再运行下列命令。`lsof` 查到任何占用验收端口的进程时 STOP，不终止该进程。只递归删除这个经核对的临时根；`rm` 不跟随其中的符号链接。
+
+```bash
+set -eu
+case "$meetings_view_root" in /tmp/convivium-meetings-view.??????) ;; *) exit 1 ;; esac
+test -d "$meetings_view_root"
+test ! -L "$meetings_view_root"
+test "$meetings_view_install_root" = "$meetings_view_root/convivium-user"
+test -L "$meetings_view_install_root/dev.env"
+test "$(readlink "$meetings_view_install_root/dev.env")" = "$(git rev-parse --show-toplevel)/dev.env"
+test -f "$(git rev-parse --show-toplevel)/dev.env"
+command -v lsof >/dev/null
+test -z "$(lsof -nP -iTCP:31828 -sTCP:LISTEN)"
+rm -r -- "$meetings_view_root"
+```
+
+删除成功后，只将 T14–T15 本次证据行中的“临时环境待 T16 删除”更新为“T16 PASS，临时环境已删除；仓库根 `dev.env` 保留且未复制”，不改写其他证据。
+
+验证：
+```bash
+test ! -e "$meetings_view_root"
+test -f "$(git rev-parse --show-toplevel)/dev.env"
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+PASS：四条命令退出 0，固定 `dev.env` 仍存在，只有本次临时验收环境被删除，readiness 记录清理结果。STOP：路径、链接目标或 Host 状态无法核对，删除失败，固定 `dev.env` 不存在，或文档检查失败；保留实际路径和错误，不扩大删除范围。失败恢复：不自动清理其他路径；报告未删除的残留，由人工按精确路径处置。
+
+### T17：收口并删除 RUNBOOK
+
+前置状态：T16 PASS，readiness 已包含 T13–T15 的真实证据及临时环境清理说明。
 允许修改：删除 `docs/30-designs/RUNBOOK-MEETINGS-VIEW.md`。禁止修改：其他文件；若发现其他文件引用本 RUNBOOK，STOP，不自行判断其是否为临时引用。
 
 执行：先运行以下命令，退出码必须为 0；随后删除本 RUNBOOK，不保留 completed/archive 副本。
@@ -343,11 +390,11 @@ PASS：删除前引用检查只命中本文件，删除后三条命令退出 0�
 | Timeline | active 只顶层，archive 只 complete archive，multi-phase/order/lane 确定 | T7、T10 |
 | controls/a11y | typed filters，六档缩放，DOM order/keyboard/focus | T11–T12 + T15 |
 | i18n/time | 中英同构动态切换，原文，Host locale/timezone | client tests + T15 |
-| install/Web | T13 通过的工作树构建为唯一 artifact，并在真实持久 profile 验收 | T14–T15 |
+| install/Web | T13 通过的工作树构建为唯一 artifact，在隔离 profile 验证真实 Host 与重启恢复，凭据只读取固定 `dev.env`，验收后删除临时环境 | T14–T16 |
 
 Not Applicable：无新 command，因此无新 caller/stale-version/idempotency/rollback/outbox 语义；无数据库迁移、兼容读写、新 event/receipt/outbox；不改服务器容量/并发，不增压力测试；仅 `zh`/`en`。
 
-Scope 全部有代码/focused test/PASS，Non-goals 未引入，T13 自动验证、T14 安装、T15 人工门禁与 readiness 全部 PASS 后，才由 T16 删除本文。长期结论属于 requirements/interfaces/designs，验证证据属于 readiness。
+Scope 全部有代码/focused test/PASS，Non-goals 未引入，T13 自动验证、T14 安装、T15 人工门禁与 readiness、T16 临时环境清理全部 PASS 后，才由 T17 删除本文。长期结论属于 requirements/interfaces/designs，验证证据属于 readiness。
 
 ## Author Audit
 
