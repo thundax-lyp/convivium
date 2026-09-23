@@ -31,6 +31,14 @@ const values = (items: readonly ReactElement[], t: MeetingTranslate): ReactEleme
     return items.length === 0 ? <p>{t("common.none")}</p> : <ul>{items}</ul>;
 };
 
+const overviewKey = (kind: string, id: string): string => `${kind}:${id}`;
+
+const overviewItem = (kind: string, id: string, content: string): ReactElement => (
+    <li key={overviewKey(kind, id)} data-overview-key={overviewKey(kind, id)} tabIndex={-1}>
+        {content}
+    </li>
+);
+
 export const OverviewObjective = ({ detail, t }: SectionProps): ReactElement => {
     const objective =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -43,7 +51,9 @@ export const OverviewObjective = ({ detail, t }: SectionProps): ReactElement => 
     return section(
         t("panel.overview.objective"),
         <p>{objective.statement}</p>,
-        <Pill>{lifecycleLabel(detail.lifecycle.status, t)}</Pill>,
+        <span data-overview-key={overviewKey("lifecycle", detail.meetingId)} tabIndex={-1}>
+            <Pill>{lifecycleLabel(detail.lifecycle.status, t)}</Pill>
+        </span>,
         <p>{`${t("panel.summary.version")}: ${detail.version}`}</p>,
         values(
             agenda.map((item) => (
@@ -77,9 +87,11 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
     const items: ReactElement[] = [];
     for (const round of detail.rounds) {
         items.push(
-            <li
-                key={`round:${round.id}`}
-            >{`${round.roundGoal.question}: ${known("round", round.status, t)}`}</li>
+            overviewItem(
+                "round",
+                round.id,
+                `${round.roundGoal.question}: ${known("round", round.status, t)}`
+            )
         );
         for (const contribution of round.contributions)
             items.push(
@@ -89,22 +101,26 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
             );
     }
     for (const request of detail.opportunityRequests)
-        items.push(<li key={`request:${request.id}`}>{request.purpose}</li>);
+        items.push(overviewItem("opportunity_request", request.id, request.purpose));
     for (const plan of detail.managerPlans)
         items.push(
-            <li
-                key={`plan:${plan.id}`}
-            >{`${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`}</li>
+            overviewItem(
+                "manager_plan",
+                plan.id,
+                `${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`
+            )
         );
     for (const recommendation of detail.identityRecommendations ?? [])
         items.push(
-            <li
-                key={`recommendation:${recommendation.id}`}
-            >{`${recommendation.rationale}: ${known("recommendation", recommendation.status, t)}`}</li>
+            overviewItem(
+                "identity_recommendation",
+                recommendation.id,
+                `${recommendation.rationale}: ${known("recommendation", recommendation.status, t)}`
+            )
         );
     for (const task of detail.tasks)
         items.push(
-            <li key={`task:${task.id}`}>{`${task.title}: ${known("task", task.status, t)}`}</li>
+            overviewItem("task", task.id, `${task.title}: ${known("task", task.status, t)}`)
         );
     return section(t("panel.overview.progress"), values(items, t));
 };
@@ -122,21 +138,27 @@ export const OverviewOutcomes = ({ detail, t }: SectionProps): ReactElement => {
         t("panel.overview.outcomes"),
         values(
             [
-                ...candidates.map((item) => (
-                    <li
-                        key={`candidate:${item.id}`}
-                    >{`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`}</li>
-                )),
-                ...decisions.map((item) => (
-                    <li
-                        key={`decision:${item.id}`}
-                    >{`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`}</li>
-                )),
-                ...facts.map((item) => (
-                    <li
-                        key={`completion:${item.id}`}
-                    >{`${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`}</li>
-                ))
+                ...candidates.map((item) =>
+                    overviewItem(
+                        "decision_candidate",
+                        item.id,
+                        `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`
+                    )
+                ),
+                ...decisions.map((item) =>
+                    overviewItem(
+                        "decision",
+                        item.id,
+                        `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`
+                    )
+                ),
+                ...facts.map((item) =>
+                    overviewItem(
+                        "completion_fact",
+                        item.id,
+                        `${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`
+                    )
+                )
             ],
             t
         )
@@ -165,11 +187,13 @@ export const OverviewOpenItems = ({ detail, t }: SectionProps): ReactElement => 
                         key={`issue:${item.id}`}
                     >{`${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`}</li>
                 )),
-                ...risks.map((item) => (
-                    <li
-                        key={`risk:${item.id}`}
-                    >{`${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`}</li>
-                ))
+                ...risks.map((item) =>
+                    overviewItem(
+                        "risk_disposition",
+                        item.id,
+                        `${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`
+                    )
+                )
             ],
             t
         )
@@ -185,14 +209,16 @@ export const OverviewTranscript = ({ detail, t }: SectionProps): ReactElement =>
         t("panel.overview.transcript"),
         values(
             [
-                ...(archive?.publications ?? detail.publications).map((item) => (
-                    <li
-                        key={`publication:${item.id}`}
-                    >{`${item.id}: ${item.exitReasons.join("; ")}`}</li>
-                )),
-                ...(archive?.messages ?? detail.messages).map((item) => (
-                    <li key={`message:${item.id}`}>{`${item.kind}: ${item.body}`}</li>
-                ))
+                ...(archive?.publications ?? detail.publications).map((item) =>
+                    overviewItem(
+                        "publication",
+                        item.id,
+                        `${item.id}: ${item.exitReasons.join("; ")}`
+                    )
+                ),
+                ...(archive?.messages ?? detail.messages).map((item) =>
+                    overviewItem("formal_message", item.id, `${item.kind}: ${item.body}`)
+                )
             ],
             t
         )
@@ -214,20 +240,24 @@ export const OverviewEvidence = ({ detail, t }: SectionProps): ReactElement => {
         t("panel.overview.evidence"),
         values(
             [
-                ...versions.map((item) => (
-                    <li
-                        key={`version:${item.id}`}
-                    >{`${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`}</li>
-                )),
-                ...reviews.map((item) => (
-                    <li key={`review:${item.id}`}>{`${item.id}: ${item.scope}`}</li>
-                )),
+                ...versions.map((item) =>
+                    overviewItem(
+                        "evidence_version",
+                        item.id,
+                        `${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`
+                    )
+                ),
+                ...reviews.map((item) =>
+                    overviewItem("evidence_review", item.id, `${item.id}: ${item.scope}`)
+                ),
                 ...(!archive
-                    ? detail.reviewDeliveries.map((item) => (
-                          <li
-                              key={`delivery:${item.id}`}
-                          >{`${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`}</li>
-                      ))
+                    ? detail.reviewDeliveries.map((item) =>
+                          overviewItem(
+                              "review_delivery",
+                              item.id,
+                              `${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`
+                          )
+                      )
                     : [])
             ],
             t
@@ -244,14 +274,18 @@ export const OverviewTechnical = ({ detail, t }: SectionProps): ReactElement => 
         t("panel.overview.technical"),
         <p>{detail.meetingId}</p>,
         archive ? (
-            <p>{archive.id}</p>
+            <p data-overview-key={overviewKey("archive", archive.id)} tabIndex={-1}>
+                {archive.id}
+            </p>
         ) : (
             values(
-                detail.tasks.map((item) => (
-                    <li
-                        key={item.id}
-                    >{`${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`}</li>
-                )),
+                detail.tasks.map((item) =>
+                    overviewItem(
+                        "task",
+                        item.id,
+                        `${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`
+                    )
+                ),
                 t
             )
         )
@@ -260,31 +294,73 @@ export const OverviewTechnical = ({ detail, t }: SectionProps): ReactElement => 
 
 export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
     const { detail, t, focusTarget, onFocusConsumed, onLocateInTimeline } = props;
-    const buttons = useRef(new Map<string, HTMLButtonElement>());
+    const overview = useRef<HTMLDivElement>(null);
     const [focusMissing, setFocusMissing] = useState(false);
+    const archive =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
+            ? detail.archive
+            : undefined;
+    const displayed = new Set<string>([overviewKey("lifecycle", detail.meetingId)]);
+    const addDisplayed = (kind: string, items: readonly { id: string }[]) => {
+        for (const item of items) displayed.add(overviewKey(kind, item.id));
+    };
+    if (archive) displayed.add(overviewKey("archive", archive.id));
+    else {
+        addDisplayed("round", detail.rounds);
+        addDisplayed("opportunity_request", detail.opportunityRequests);
+        addDisplayed("manager_plan", detail.managerPlans);
+        addDisplayed("identity_recommendation", detail.identityRecommendations ?? []);
+        addDisplayed("task", detail.tasks);
+        addDisplayed("review_delivery", detail.reviewDeliveries);
+    }
+    addDisplayed(
+        "decision_candidate",
+        archive?.decisionCandidates ?? detail.outcomes.pendingDecisionCandidates ?? []
+    );
+    addDisplayed("decision", archive?.decisions ?? detail.outcomes.decisions);
+    addDisplayed("completion_fact", archive?.completionFacts ?? detail.outcomes.completionFacts);
+    addDisplayed("risk_disposition", archive?.riskDispositions ?? detail.outcomes.riskDispositions);
+    addDisplayed("publication", archive?.publications ?? detail.publications);
+    addDisplayed("formal_message", archive?.messages ?? detail.messages);
+    addDisplayed(
+        "evidence_version",
+        archive
+            ? archive.evidenceBundles.map(({ version }) => version)
+            : detail.evidencePackages.map(({ currentVersion }) => currentVersion)
+    );
+    addDisplayed(
+        "evidence_review",
+        archive ? archive.evidenceBundles.map(({ review }) => review) : detail.evidenceReviews
+    );
     const objects = [
         ...new Map(
-            buildTimelineNodes(detail).map(
-                (node) => [`${node.objectKind}:${node.objectId}`, node] as const
-            )
+            buildTimelineNodes(detail)
+                .filter((node) => displayed.has(overviewKey(node.objectKind, node.objectId)))
+                .map((node) => [`${node.objectKind}:${node.objectId}`, node] as const)
         ).values()
     ];
     useEffect(() => {
         if (!focusTarget) return;
-        const button =
+        const item =
             focusTarget.meetingId === detail.meetingId
-                ? buttons.current.get(`${focusTarget.objectKind}:${focusTarget.objectId}`)
+                ? Array.from(
+                      overview.current?.querySelectorAll<HTMLElement>("[data-overview-key]") ?? []
+                  ).find(
+                      (element) =>
+                          element.dataset.overviewKey ===
+                          overviewKey(focusTarget.objectKind, focusTarget.objectId)
+                  )
                 : undefined;
-        if (!button) setFocusMissing(true);
+        if (!item) setFocusMissing(true);
         else {
             setFocusMissing(false);
-            button.scrollIntoView?.({ block: "nearest", inline: "center" });
-            button.focus();
+            item.scrollIntoView?.({ block: "nearest", inline: "center" });
+            item.focus();
         }
         onFocusConsumed?.();
     }, [focusTarget, detail.meetingId, onFocusConsumed]);
     return (
-        <div>
+        <div ref={overview}>
             <OverviewObjective {...props} />
             {props.detail.lifecycle.status === "archived" ? null : <OverviewProgress {...props} />}
             <OverviewOutcomes {...props} />
@@ -302,11 +378,6 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
                                 key={`${node.objectKind}:${node.objectId}`}
                                 type="button"
                                 aria-label={name}
-                                ref={(element: HTMLButtonElement | null) => {
-                                    const key = `${node.objectKind}:${node.objectId}`;
-                                    if (element) buttons.current.set(key, element);
-                                    else buttons.current.delete(key);
-                                }}
                                 onClick={() =>
                                     onLocateInTimeline({
                                         meetingId: detail.meetingId,
