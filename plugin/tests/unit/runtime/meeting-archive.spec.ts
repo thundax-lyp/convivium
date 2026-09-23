@@ -148,10 +148,23 @@ describe("meeting archive dispatcher v1", () => {
                 })
             } as never,
             sessions: {
-                listChildren: async () => children(current) as never,
+                listChildren: async () =>
+                    [
+                        ...children(current),
+                        {
+                            kind: "child",
+                            id: "session:other-meeting",
+                            mode: "continuable",
+                            label: encodeMeetingIdentitySessionLabel({
+                                role: "participant",
+                                meetingId: "meeting-other",
+                                identityId: "identity-other"
+                            })
+                        }
+                    ] as never,
                 interrupt: (sessionId) => calls.push(`interrupt:${String(sessionId)}`),
-                drainContinuableDescendants: async (parents) =>
-                    calls.push(`drain:${parents.map((parent) => String(parent.id)).join(",")}`)
+                drainContinuableChildren: async (parent, childIds) =>
+                    calls.push(`drain:${String(parent.id)}:${childIds.map(String).join(",")}`)
             },
             application: { execute } as never
         });
@@ -164,7 +177,7 @@ describe("meeting archive dispatcher v1", () => {
 
         expect(state.lifecycle.status).toBe("archived");
         expect(calls).toEqual([
-            "drain:captain-1",
+            `drain:captain-1:${current.map((ownership) => ownership.sessionId).join(",")}`,
             ...current.map((ownership) => `commit:${ownership.sessionId}:closed`)
         ]);
         expect(execute).toHaveBeenCalledTimes(4);
@@ -173,7 +186,7 @@ describe("meeting archive dispatcher v1", () => {
         });
     });
 
-    it("fails closed before touching Sessions when the durable child set has an extra entry", async () => {
+    it("fails closed before touching Sessions when the Meeting child set has an extra entry", async () => {
         const state = archivingState();
         const current = ownerships(state);
         const interrupt = vi.fn();
@@ -193,11 +206,15 @@ describe("meeting archive dispatcher v1", () => {
                             kind: "child",
                             id: "foreign-session",
                             mode: "continuable",
-                            label: "foreign"
+                            label: encodeMeetingIdentitySessionLabel({
+                                role: "participant",
+                                meetingId: state.id,
+                                identityId: "foreign-identity"
+                            })
                         }
                     ] as never,
                 interrupt,
-                drainContinuableDescendants: vi.fn()
+                drainContinuableChildren: vi.fn()
             },
             application: { execute } as never
         });
@@ -263,7 +280,7 @@ describe("meeting archive dispatcher v1", () => {
             sessions: {
                 listChildren: async () => children(current) as never,
                 interrupt: vi.fn(),
-                drainContinuableDescendants: async () => {
+                drainContinuableChildren: async () => {
                     if (failDrain) {
                         failDrain = false;
                         throw new Error("private session transport detail");
