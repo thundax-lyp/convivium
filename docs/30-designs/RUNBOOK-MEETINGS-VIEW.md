@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T3：接入 list、选择、详情读取与 last-good
-
-前置状态：T2 PASS，`MeetingClient` 签名未变。
-允许修改：`plugin/src/client/meeting-panel.tsx` `ConviviumMeetingPanel`、`plugin/tests/client/meeting-panel-lifecycle.client.spec.ts`。
-禁止修改：layout、command payload、MeetingClient/RemoteStream 实现、断线恢复行为。
-
-执行：先红测试 mount 只 list 且不自动 read、重复选择 no-op、切 ID reset、迟到 success/failure 丢弃、non-recovery list 后 ID 消失清选择、detail 失败保留 ID/last-good。按转换表接线；只有 captured ID 仍当前时提交 read result。本步保留现有唯一 RemoteStream，但不新增 recovery generation 测试。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-lifecycle.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，list/selection/read/last-good 转换均有 API-call/DOM 断言。STOP：必须改 Gateway 契约、增轮询或第二 stream。失败恢复：纯 Client state。
-
 ### T4：接入 refresh generation 与断线恢复
 
 前置状态：T3 PASS。

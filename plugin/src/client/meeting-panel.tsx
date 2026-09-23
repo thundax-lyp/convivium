@@ -3,6 +3,13 @@ import type { MeetingCommand, MeetingSummary, MeetingView } from "@/protocol/ind
 import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
+import {
+    INITIAL_FRESHNESS,
+    INITIAL_WORKSPACE,
+    resetWorkspaceForMeeting,
+    type MeetingsFreshnessState,
+    type MeetingsWorkspaceState
+} from "./meeting-workspace-state.js";
 
 type MeetingPanelFailure =
     { readonly kind: "protocol"; readonly code: string } | { readonly kind: "unavailable" };
@@ -27,10 +34,9 @@ export function ConviviumMeetingPanel({
     t: MeetingTranslate;
 }): ReactElement {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
-    const [selectedId, setSelectedId] = useState<string>();
+    const [workspace, setWorkspace] = useState<MeetingsWorkspaceState>(INITIAL_WORKSPACE);
+    const [freshness, setFreshness] = useState<MeetingsFreshnessState>(INITIAL_FRESHNESS);
     const [detail, setDetail] = useState<MeetingView>();
-    const [listCached, setListCached] = useState(false);
-    const [detailCached, setDetailCached] = useState(false);
     const [listFailure, setListFailure] = useState<MeetingPanelFailure>();
     const [detailFailure, setDetailFailure] = useState<MeetingPanelFailure>();
     const [writePending, setWritePending] = useState(false);
@@ -39,12 +45,37 @@ export function ConviviumMeetingPanel({
     const loadList = useCallback(async () => {
         try {
             const result = await api.list();
+            const selectedMeetingId = selectedRef.current;
             setMeetings(result.meetings);
-            setListCached(false);
             setListFailure(undefined);
+            if (
+                selectedMeetingId !== undefined &&
+                !result.meetings.some((meeting) => meeting.meetingId === selectedMeetingId)
+            ) {
+                selectedRef.current = undefined;
+                setWorkspace((current) => ({
+                    ...current,
+                    selectedMeetingId: undefined,
+                    focusTarget: undefined
+                }));
+                setDetail(undefined);
+                setDetailFailure(undefined);
+                setFreshness((current) => ({
+                    connection:
+                        current.connection === "connecting" ? "connected" : current.connection,
+                    list: "fresh",
+                    detail: "idle"
+                }));
+                return;
+            }
+            setFreshness((current) => ({
+                ...current,
+                connection: current.connection === "connecting" ? "connected" : current.connection,
+                list: "fresh"
+            }));
         } catch (error) {
-            setListCached(true);
             setListFailure(classifyFailure(error));
+            setFreshness((current) => ({ ...current, list: "stale" }));
         }
     }, [api]);
 
@@ -54,18 +85,23 @@ export function ConviviumMeetingPanel({
                 const result = await api.read({ protocolVersion: 1, meetingId });
                 if (selectedRef.current !== meetingId) return;
                 setDetail(result);
-                setDetailCached(false);
                 setDetailFailure(undefined);
+                setFreshness((current) => ({ ...current, detail: "fresh" }));
             } catch (error) {
                 if (selectedRef.current !== meetingId) return;
-                setDetailCached(true);
                 setDetailFailure(classifyFailure(error));
+                setFreshness((current) => ({ ...current, detail: "stale" }));
             }
         },
         [api]
     );
 
     const refresh = useCallback(() => {
+        setFreshness((current) => ({
+            ...current,
+            list: "loading",
+            detail: selectedRef.current === undefined ? "idle" : "loading"
+        }));
         void loadList();
         if (selectedRef.current !== undefined) void loadDetail(selectedRef.current);
     }, [loadDetail, loadList]);
@@ -98,10 +134,14 @@ export function ConviviumMeetingPanel({
 
     const selectMeeting = useCallback(
         (meetingId: string) => {
+            if (selectedRef.current === meetingId) return;
             selectedRef.current = meetingId;
-            setSelectedId(meetingId);
+            setWorkspace((current) =>
+                resetWorkspaceForMeeting(meetingId, current.viewportRevision)
+            );
             setDetail(undefined);
-            setDetailCached(true);
+            setDetailFailure(undefined);
+            setFreshness((current) => ({ ...current, detail: "loading" }));
             void loadDetail(meetingId);
         },
         [loadDetail]
@@ -127,7 +167,7 @@ export function ConviviumMeetingPanel({
             }
         };
         setWritePending(true);
-        setDetailCached(true);
+        setFreshness((current) => ({ ...current, detail: "loading" }));
         setDetailFailure(undefined);
         try {
             await api.control(command);
@@ -146,7 +186,7 @@ export function ConviviumMeetingPanel({
             const meetingId = selectedRef.current;
             if (current === undefined || meetingId === undefined || writePending) return;
             setWritePending(true);
-            setDetailCached(true);
+            setFreshness((current) => ({ ...current, detail: "loading" }));
             setDetailFailure(undefined);
             try {
                 await api.control({
@@ -176,10 +216,10 @@ export function ConviviumMeetingPanel({
     return renderMeetingPanelLayout(
         {
             meetings,
-            selectedId,
+            selectedId: workspace.selectedMeetingId,
             detail,
-            listCached,
-            detailCached,
+            listCached: freshness.list === "stale",
+            detailCached: freshness.detail !== "fresh",
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,

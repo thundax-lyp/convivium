@@ -39,6 +39,7 @@ describe("Meeting panel lifecycle", () => {
             createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") })
         );
         const item = await screen.findByRole("button", { name: /核对议题 A/ });
+        expect(api.read).not.toHaveBeenCalled();
         fireEvent.click(item);
         await waitFor(() =>
             expect(api.read).toHaveBeenCalledWith({
@@ -47,6 +48,8 @@ describe("Meeting panel lifecycle", () => {
             })
         );
         expect(screen.getByLabelText("Meeting summary")).toBeTruthy();
+        fireEvent.click(item);
+        expect(api.read).toHaveBeenCalledOnce();
 
         releaseNotice();
         await waitFor(() => expect(acceptNotice).toHaveBeenCalledOnce());
@@ -55,5 +58,81 @@ describe("Meeting panel lifecycle", () => {
 
         unmount();
         expect(dispose).toHaveBeenCalledOnce();
+    });
+
+    it.each(["resolve", "reject"] as const)(
+        "discards a late %s from the previously selected Meeting",
+        async (settlement) => {
+            const { api, summary, view } = clientFixture();
+            const secondSummary = {
+                ...summary,
+                meetingId: "meeting-second",
+                objective: "Second objective"
+            };
+            const secondView = {
+                ...view,
+                meetingId: secondSummary.meetingId,
+                objective: { ...view.objective, statement: "Second detail" }
+            };
+            let resolveFirst = (_value: typeof view) => undefined;
+            let rejectFirst = (_error: Error) => undefined;
+            const firstRead = new Promise<typeof view>((resolve, reject) => {
+                resolveFirst = resolve;
+                rejectFirst = reject;
+            });
+            api.list = vi.fn(async () => ({ meetings: [summary, secondSummary] }));
+            api.read = vi.fn(({ meetingId }) =>
+                meetingId === summary.meetingId ? firstRead : Promise.resolve(secondView)
+            ) as never;
+            render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+
+            fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+            fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
+            expect(await screen.findByText("Second detail")).toBeTruthy();
+
+            if (settlement === "resolve") resolveFirst(view);
+            else rejectFirst(new Error("late failure"));
+            await waitFor(() => expect(screen.getByText("Second detail")).toBeTruthy());
+            expect(screen.queryByText(view.objective.statement)).toBeNull();
+            expect(screen.queryByRole("alert")).toBeNull();
+        }
+    );
+
+    it("clears the selection when a successful list no longer contains it", async () => {
+        const { api, summary, releaseNotice } = clientFixture();
+        api.list = vi
+            .fn()
+            .mockResolvedValueOnce({ meetings: [summary] })
+            .mockResolvedValueOnce({ meetings: [] })
+            .mockResolvedValueOnce({ meetings: [summary] });
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        expect(await screen.findByLabelText("Meeting summary")).toBeTruthy();
+
+        releaseNotice();
+
+        expect(await screen.findByText("Select a meeting.")).toBeTruthy();
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+        await waitFor(() => expect(api.list).toHaveBeenCalledTimes(3));
+        expect(screen.getByText("Select a meeting.")).toBeTruthy();
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+    });
+
+    it("keeps the selected Meeting and its last-good detail when rereading fails", async () => {
+        const { api, summary, view } = clientFixture();
+        api.read = vi
+            .fn()
+            .mockResolvedValueOnce(view)
+            .mockRejectedValueOnce(new Error("detail unavailable"));
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        expect(await screen.findByText(view.objective.statement)).toBeTruthy();
+
+        fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+        expect((await screen.findByRole("alert")).textContent).toBe("Meeting data is unavailable.");
+        expect(screen.getByText(view.objective.statement)).toBeTruthy();
+        expect(screen.getByLabelText(`Meeting ${summary.meetingId}`)).toBeTruthy();
     });
 });
