@@ -87,7 +87,7 @@ const relationFields: ReadonlyArray<readonly [string, string]> = [
     ["reassignedFromTaskId", "task"]
 ];
 
-function relatedObjects(source: object): TimelineObjectRef[] {
+const relatedObjects = (source: object): TimelineObjectRef[] => {
     const record = source as Record<string, unknown>;
     return relationFields.flatMap(([field, objectKind]) => {
         const value = record[field];
@@ -98,9 +98,9 @@ function relatedObjects(source: object): TimelineObjectRef[] {
                 .map((objectId) => ({ objectKind, objectId }));
         return [];
     });
-}
+};
 
-function actorLane(view: MeetingView, identityId: string): TimelineLane {
+const actorLane = (view: MeetingView, identityId: string): TimelineLane => {
     const identities =
         view.lifecycle.status === "archived"
             ? (view.archive?.identityProvenance.map(({ identityId: id, roles }) => ({
@@ -112,14 +112,14 @@ function actorLane(view: MeetingView, identityId: string): TimelineLane {
     if (identity?.roles.length !== 1) return "system";
     const role = identity.roles[0];
     return role === "evidence_reviewer" ? "reviewer" : (role ?? "system");
-}
+};
 
-export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
+export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] => {
     const archived = view.lifecycle.status === "archived";
     if (archived && view.archive?.status !== "complete") return [];
     const archive = archived ? view.archive : undefined;
     const nodes: TimelineNode[] = [];
-    function add(
+    const add = (
         kind: TimelineObjectKind,
         objectId: string,
         phase: string,
@@ -128,7 +128,7 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
         lane: TimelineLane = "system",
         identityId?: string,
         status?: string
-    ): void {
+    ): void => {
         if (time === undefined) return;
         nodes.push({
             key: `${kind}:${objectId}:${phase}`,
@@ -141,12 +141,16 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             ...(status === undefined ? {} : { status }),
             relatedObjects: relatedObjects(source)
         });
-    }
-    function actor(
+    };
+    const actor = (
         kind: TimelineObjectKind,
-        source: { id: string; actorId: string; createdAt: number },
+        source: {
+            id: string;
+            actorId: string;
+            createdAt: number;
+        },
         status?: string
-    ): void {
+    ): void => {
         add(
             kind,
             source.id,
@@ -157,8 +161,8 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             source.actorId,
             status
         );
-    }
-    function appendActiveNodes(): void {
+    };
+    const appendActiveNodes = (): void => {
         add(
             "lifecycle",
             view.meetingId,
@@ -279,8 +283,8 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
                 task.status
             );
         }
-    }
-    function appendArchiveNodes(completeArchive: NonNullable<MeetingView["archive"]>): void {
+    };
+    const appendArchiveNodes = (completeArchive: NonNullable<MeetingView["archive"]>): void => {
         for (const bundle of completeArchive.evidenceBundles) {
             add(
                 "evidence_version",
@@ -328,7 +332,7 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             undefined,
             completeArchive.status
         );
-    }
+    };
     if (archive) appendArchiveNodes(archive);
     else appendActiveNodes();
     for (const publication of archive?.publications ?? view.publications)
@@ -360,21 +364,21 @@ export function buildTimelineNodes(view: MeetingView): readonly TimelineNode[] {
             a.objectId.localeCompare(b.objectId) ||
             phaseOrder(a.phase) - phaseOrder(b.phase)
     );
-}
+};
 
-function phaseOrder(phase: string): number {
+const phaseOrder = (phase: string): number => {
     return phase === "opened" || phase === "started" ? 0 : 1;
-}
+};
 
-function unique<T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined {
+const unique = <T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined => {
     const matches = items.filter(predicate);
     return matches.length === 1 ? matches[0] : undefined;
-}
+};
 
-export function filterTimelineNodes(
+export const filterTimelineNodes = (
     nodes: readonly TimelineNode[],
     filters: TimelineFilterState
-): readonly TimelineNode[] {
+): readonly TimelineNode[] => {
     return nodes.filter(
         (node) =>
             (filters.identityIds.length === 0 ||
@@ -391,15 +395,15 @@ export function filterTimelineNodes(
                     )
                 ))
     );
-}
+};
 
 type TimelineArchive = NonNullable<MeetingView["archive"]>;
 
-function resolveEarlyContent(
+const resolveEarlyContent = (
     view: MeetingView,
     node: TimelineNode,
     archive: TimelineArchive | undefined
-): TimelineNodeContent | undefined {
+): TimelineNodeContent | undefined => {
     const id = node.objectId;
     switch (node.objectKind) {
         case "lifecycle":
@@ -458,13 +462,13 @@ function resolveEarlyContent(
         }
     }
     return undefined;
-}
+};
 
-function resolveMiddleContent(
+const resolveMiddleContent = (
     view: MeetingView,
     node: TimelineNode,
     archive: TimelineArchive | undefined
-): TimelineNodeContent | undefined {
+): TimelineNodeContent | undefined => {
     const id = node.objectId;
     switch (node.objectKind) {
         case "identity_recommendation": {
@@ -508,13 +512,13 @@ function resolveMiddleContent(
         }
     }
     return undefined;
-}
+};
 
-function resolveLateContent(
+const resolveLateContent = (
     view: MeetingView,
     node: TimelineNode,
     archive: TimelineArchive | undefined
-): TimelineNodeContent | undefined {
+): TimelineNodeContent | undefined => {
     const id = node.objectId;
     switch (node.objectKind) {
         case "disposition_fact": {
@@ -540,12 +544,12 @@ function resolveLateContent(
             return archive?.id === id ? { title: archive.status, detail: archive.id } : undefined;
     }
     return undefined;
-}
+};
 
-export function resolveTimelineNodeContent(
+export const resolveTimelineNodeContent = (
     view: MeetingView,
     node: TimelineNode
-): TimelineNodeContent | undefined {
+): TimelineNodeContent | undefined => {
     const archive =
         view.lifecycle.status === "archived" && view.archive?.status === "complete"
             ? view.archive
@@ -556,4 +560,4 @@ export function resolveTimelineNodeContent(
         resolveMiddleContent(view, node, archive) ??
         resolveLateContent(view, node, archive)
     );
-}
+};

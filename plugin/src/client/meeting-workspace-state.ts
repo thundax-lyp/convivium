@@ -1,7 +1,11 @@
 export type MeetingMode = "overview" | "timeline";
+
 export type TimelineLane = "captain" | "manager" | "contributor" | "reviewer" | "system";
+
 export type TimelineZoom = 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
+
 export type DataFreshness = "idle" | "loading" | "fresh" | "stale";
+
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 
 export interface TimelineObjectRef {
@@ -59,23 +63,23 @@ export const INITIAL_FRESHNESS: MeetingsFreshnessState = {
     detail: "idle"
 };
 
-export function resetWorkspaceForMeeting(
+export const resetWorkspaceForMeeting = (
     meetingId: string,
     previousRevision: number
-): MeetingsWorkspaceState {
+): MeetingsWorkspaceState => {
     return {
         selectedMeetingId: meetingId,
         activeMode: "overview",
         timeline: INITIAL_TIMELINE_FILTERS,
         viewportRevision: previousRevision + 1
     };
-}
+};
 
-export function controlsEnabled(input: {
+export const controlsEnabled = (input: {
     freshness: MeetingsFreshnessState;
     selectedMeetingId?: string;
     writePending: boolean;
-}): boolean {
+}): boolean => {
     return (
         input.freshness.connection === "connected" &&
         input.freshness.list === "fresh" &&
@@ -83,4 +87,4 @@ export function controlsEnabled(input: {
         input.selectedMeetingId !== undefined &&
         !input.writePending
     );
-}
+};

@@ -13,21 +13,27 @@ import {
 } from "./meeting-workspace-state.js";
 
 type MeetingPanelFailure =
-    { readonly kind: "protocol"; readonly code: string } | { readonly kind: "unavailable" };
+    | {
+          readonly kind: "protocol";
+          readonly code: string;
+      }
+    | {
+          readonly kind: "unavailable";
+      };
 
-function classifyFailure(error: unknown): MeetingPanelFailure {
+const classifyFailure = (error: unknown): MeetingPanelFailure => {
     return error instanceof ProtocolFailure
         ? { kind: "protocol", code: error.protocolError.code }
         : { kind: "unavailable" };
-}
+};
 
-function failureMessage(failure: MeetingPanelFailure, t: MeetingTranslate): string {
+const failureMessage = (failure: MeetingPanelFailure, t: MeetingTranslate): string => {
     return failure.kind === "protocol"
         ? t("panel.error.protocol", { code: failure.code })
         : t("panel.error.unavailable");
-}
+};
 
-export function ConviviumMeetingPanel({
+export const ConviviumMeetingPanel = ({
     api,
     t,
     locale
@@ -35,7 +41,7 @@ export function ConviviumMeetingPanel({
     api: MeetingClient;
     t: MeetingTranslate;
     locale?: string;
-}): ReactElement {
+}): ReactElement => {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const [workspace, setWorkspace] = useState<MeetingsWorkspaceState>(INITIAL_WORKSPACE);
     const [freshness, setFreshness] = useState<MeetingsFreshnessState>(INITIAL_FRESHNESS);
@@ -47,7 +53,6 @@ export function ConviviumMeetingPanel({
     const refreshGenerationRef = useRef(0);
     const connectionRef = useRef(INITIAL_FRESHNESS.connection);
     const streamTerminalRef = useRef(false);
-
     const loadDetail = useCallback(
         async (meetingId: string) => {
             try {
@@ -64,7 +69,6 @@ export function ConviviumMeetingPanel({
         },
         [api]
     );
-
     const refreshAll = useCallback(
         async ({ recovery }: { recovery: boolean }) => {
             const generation = refreshGenerationRef.current + 1;
@@ -86,7 +90,6 @@ export function ConviviumMeetingPanel({
                 selectedRef.current !== capturedMeetingId
             )
                 return;
-
             const listSucceeded = listResult.status === "fulfilled";
             const nextMeetings = listSucceeded ? listResult.value.meetings : undefined;
             const selectedStillExists =
@@ -96,12 +99,10 @@ export function ConviviumMeetingPanel({
                 capturedMeetingId !== undefined &&
                 detailResult.status === "fulfilled" &&
                 detailResult.value !== undefined;
-
             if (listSucceeded) {
                 setMeetings(listResult.value.meetings);
                 setListFailure(undefined);
             } else setListFailure(classifyFailure(listResult.reason));
-
             if (listSucceeded && capturedMeetingId !== undefined && !selectedStillExists) {
                 selectedRef.current = undefined;
                 setWorkspace((current) => ({
@@ -120,7 +121,6 @@ export function ConviviumMeetingPanel({
                         classifyFailure((detailResult as PromiseRejectedResult).reason)
                     );
             }
-
             let connection = connectionRef.current;
             if (recovery) {
                 const recovered =
@@ -143,16 +143,13 @@ export function ConviviumMeetingPanel({
         },
         [api]
     );
-
     const refresh = useCallback(() => {
         const recovery = !streamTerminalRef.current && connectionRef.current !== "connected";
         void refreshAll({ recovery });
     }, [refreshAll]);
-
     useEffect(() => {
         void refreshAll({ recovery: true });
     }, [refreshAll]);
-
     useEffect(() => {
         let stopped = false;
         const markDisconnected = () => {
@@ -192,13 +189,11 @@ export function ConviviumMeetingPanel({
             void stream.dispose();
         };
     }, [api, refreshAll]);
-
     useEffect(() => {
         const handleFocus = () => refresh();
         window.addEventListener("focus", handleFocus);
         return () => window.removeEventListener("focus", handleFocus);
     }, [refresh]);
-
     const selectMeeting = useCallback(
         (meetingId: string) => {
             if (selectedRef.current === meetingId) return;
@@ -214,7 +209,6 @@ export function ConviviumMeetingPanel({
         },
         [loadDetail]
     );
-
     const endMeeting = useCallback(async () => {
         const current = detail;
         const meetingId = selectedRef.current;
@@ -247,7 +241,6 @@ export function ConviviumMeetingPanel({
             setWritePending(false);
         }
     }, [api, detail, refreshAll, writePending]);
-
     const changePause = useCallback(
         async (kind: "pause_meeting" | "resume_meeting") => {
             const current = detail;
@@ -280,7 +273,6 @@ export function ConviviumMeetingPanel({
         },
         [api, detail, refreshAll, writePending]
     );
-
     return renderMeetingPanelLayout(
         {
             locale,
@@ -317,4 +309,4 @@ export function ConviviumMeetingPanel({
         },
         t
     );
-}
+};

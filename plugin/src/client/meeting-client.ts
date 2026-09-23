@@ -34,7 +34,7 @@ export interface MeetingClient {
     subscribeRefresh(callbacks: MeetingRefreshCallbacks): RemoteStream<RefreshNotice>;
 }
 
-function protocolFailure(value: unknown): ProtocolFailure {
+const protocolFailure = (value: unknown): ProtocolFailure => {
     const error = value as ProtocolError;
     if (error.code === "convivium/invalid-request")
         return new ProtocolFailure({
@@ -51,11 +51,17 @@ function protocolFailure(value: unknown): ProtocolFailure {
         message: error.message ?? "Meeting request failed.",
         retryable: error.retryable ?? false
     });
-}
+};
 
-function remoteFailure(error: unknown): never {
+const remoteFailure = (error: unknown): never => {
     if (typeof error === "object" && error !== null && "code" in error) {
-        const code = String((error as { code: string }).code);
+        const code = String(
+            (
+                error as {
+                    code: string;
+                }
+            ).code
+        );
         if (code === "convivium/invalid-request")
             throw new ProtocolFailure({
                 protocolVersion: 1,
@@ -66,12 +72,12 @@ function remoteFailure(error: unknown): never {
             });
     }
     throw error;
-}
+};
 
-async function unwrap<T>(
+const unwrap = async <T>(
     remote: Promise<RemoteResult<T>>,
     schema: (value: unknown) => T
-): Promise<T> {
+): Promise<T> => {
     let result: RemoteResult<T>;
     try {
         result = await remote;
@@ -84,9 +90,9 @@ async function unwrap<T>(
     } catch (error) {
         return remoteFailure(error);
     }
-}
+};
 
-export function createMeetingClient(remote: ClientRemote): MeetingClient {
+export const createMeetingClient = (remote: ClientRemote): MeetingClient => {
     const service = remote.conviviumMeetings;
     return {
         list: (signal) =>
@@ -115,4 +121,4 @@ export function createMeetingClient(remote: ClientRemote): MeetingClient {
             });
         }
     };
-}
+};

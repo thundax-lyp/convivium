@@ -1,4 +1,5 @@
-import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
+import * as React from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { knownEnum, zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
@@ -49,14 +50,15 @@ export interface TimelineViewportProps extends TimelineProps {
 }
 
 const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
+
 const zoomLevels: readonly TimelineZoom[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
-export function findAdjacentTimelineKey({
+export const findAdjacentTimelineKey = ({
     nodes,
     currentKey,
     direction,
     collapsedLanes
-}: AdjacentTimelineInput): string | undefined {
+}: AdjacentTimelineInput): string | undefined => {
     const visible = nodes.filter((node) => !collapsedLanes.includes(node.lane));
     const current = visible.find((node) => node.key === currentKey);
     if (!current) return undefined;
@@ -83,14 +85,14 @@ export function findAdjacentTimelineKey({
         if (candidates.length > 0) return candidates[0]?.key;
     }
     return undefined;
-}
+};
 
-function label(key: string, fallback: string, t: MeetingTranslate): string {
+const label = (key: string, fallback: string, t: MeetingTranslate): string => {
     const localeKey = key as MeetingLocaleKey;
     return Object.hasOwn(zh, localeKey) ? t(localeKey) : fallback;
-}
+};
 
-function statusLabel(node: TimelineNode, t: MeetingTranslate): string {
+const statusLabel = (node: TimelineNode, t: MeetingTranslate): string => {
     if (node.status === undefined) return "";
     const group: Partial<Record<TimelineNode["objectKind"], string>> = {
         lifecycle: "lifecycle",
@@ -114,9 +116,9 @@ function statusLabel(node: TimelineNode, t: MeetingTranslate): string {
                 : "issueStatus"
             : group[node.objectKind];
     return selectedGroup === undefined ? node.status : knownEnum(selectedGroup, node.status, t);
-}
+};
 
-function contentTitle(node: TimelineNode, title: string, t: MeetingTranslate): string {
+const contentTitle = (node: TimelineNode, title: string, t: MeetingTranslate): string => {
     const groups: Partial<Record<TimelineNode["objectKind"], string>> = {
         lifecycle: "lifecycle",
         review_delivery: "reviewDelivery",
@@ -131,53 +133,51 @@ function contentTitle(node: TimelineNode, title: string, t: MeetingTranslate): s
     if (node.objectKind === "disposition_fact") return knownEnum("timelinePhase", title, t);
     const group = groups[node.objectKind];
     return group === undefined ? title : knownEnum(group, title, t);
-}
+};
 
-function identityName(detail: MeetingView, node: TimelineNode): string {
+const identityName = (detail: MeetingView, node: TimelineNode): string => {
     if (!node.identityId) return "";
     const identity =
         detail.lifecycle.status === "archived"
             ? detail.archive?.identityProvenance.find((item) => item.identityId === node.identityId)
             : detail.identities.find((item) => item.id === node.identityId);
     return identity?.displayName ?? node.identityId;
-}
+};
 
-function toggle(values: readonly string[], value: string): string[] {
+const toggle = (values: readonly string[], value: string): string[] => {
     return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
-}
+};
 
-function filterGroup(
+const filterGroup = (
     title: string,
     values: readonly string[],
     selected: readonly string[],
     display: (value: string) => string,
     onToggle: (value: string) => void
-): ReactElement {
-    return createElement(
-        "fieldset",
-        null,
-        createElement("legend", null, title),
-        ...values.map((value) =>
-            createElement(
-                Pill,
-                {
-                    key: value,
-                    active: selected.includes(value),
-                    "aria-pressed": selected.includes(value),
-                    onClick: () => onToggle(value)
-                },
-                display(value)
-            )
-        )
+): ReactElement => {
+    return (
+        <fieldset>
+            <legend>{title}</legend>
+            {values.map((value) => (
+                <Pill
+                    key={value}
+                    active={selected.includes(value)}
+                    aria-pressed={selected.includes(value)}
+                    onClick={() => onToggle(value)}
+                >
+                    {display(value)}
+                </Pill>
+            ))}
+        </fieldset>
     );
-}
+};
 
-export function TimelineFilters({
+export const TimelineFilters = ({
     nodes,
     filters,
     t,
     onChange
-}: TimelineFiltersProps): ReactElement {
+}: TimelineFiltersProps): ReactElement => {
     const identities = [
         ...new Set(nodes.flatMap((node) => (node.identityId ? [node.identityId] : [])))
     ];
@@ -191,63 +191,60 @@ export function TimelineFilters({
         ).values()
     ];
     const refKey = (ref: TimelineObjectRef) => `${ref.objectKind}:${ref.objectId}`;
-    return createElement(
-        "div",
-        null,
-        filterGroup(
-            t("panel.timeline.filter.identity"),
-            identities,
-            filters.identityIds,
-            (id) => {
-                const lane = nodes.find((node) => node.identityId === id)?.lane ?? "system";
-                return `${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}: ${id}`;
-            },
-            (id) => onChange({ ...filters, identityIds: toggle(filters.identityIds, id) })
-        ),
-        filterGroup(
-            t("panel.timeline.filter.type"),
-            kinds,
-            filters.objectKinds,
-            (kind) => label(`enum.timelineKind.${kind}`, kind, t),
-            (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
-        ),
-        filterGroup(
-            t("panel.timeline.filter.status"),
-            statuses,
-            filters.statuses,
-            (status) =>
-                [
-                    ...new Set(
-                        nodes
-                            .filter((node) => node.status === status)
-                            .map((node) => statusLabel(node, t))
-                    )
-                ].join(" / "),
-            (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
-        ),
-        filterGroup(
-            t("panel.timeline.filter.related"),
-            refs.map(refKey),
-            filters.relatedObjects.map(refKey),
-            (key) => {
-                const ref = refs.find((item) => refKey(item) === key)!;
-                return `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)}: ${ref.objectId}`;
-            },
-            (key) => {
-                const keys = toggle(filters.relatedObjects.map(refKey), key);
-                onChange({
-                    ...filters,
-                    relatedObjects: refs.filter((ref) => keys.includes(refKey(ref)))
-                });
-            }
-        ),
-        createElement(
-            Button,
-            {
-                type: "button",
-                variant: "outline",
-                size: "sm",
-                onClick: () =>
+    return (
+        <div>
+            {filterGroup(
+                t("panel.timeline.filter.identity"),
+                identities,
+                filters.identityIds,
+                (id) => {
+                    const lane = nodes.find((node) => node.identityId === id)?.lane ?? "system";
+                    return `${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}: ${id}`;
+                },
+                (id) => onChange({ ...filters, identityIds: toggle(filters.identityIds, id) })
+            )}
+            {filterGroup(
+                t("panel.timeline.filter.type"),
+                kinds,
+                filters.objectKinds,
+                (kind) => label(`enum.timelineKind.${kind}`, kind, t),
+                (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
+            )}
+            {filterGroup(
+                t("panel.timeline.filter.status"),
+                statuses,
+                filters.statuses,
+                (status) =>
+                    [
+                        ...new Set(
+                            nodes
+                                .filter((node) => node.status === status)
+                                .map((node) => statusLabel(node, t))
+                        )
+                    ].join(" / "),
+                (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
+            )}
+            {filterGroup(
+                t("panel.timeline.filter.related"),
+                refs.map(refKey),
+                filters.relatedObjects.map(refKey),
+                (key) => {
+                    const ref = refs.find((item) => refKey(item) === key)!;
+                    return `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)}: ${ref.objectId}`;
+                },
+                (key) => {
+                    const keys = toggle(filters.relatedObjects.map(refKey), key);
+                    onChange({
+                        ...filters,
+                        relatedObjects: refs.filter((ref) => keys.includes(refKey(ref)))
+                    });
+                }
+            )}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
                     onChange({
                         ...filters,
                         identityIds: [],
@@ -255,29 +252,31 @@ export function TimelineFilters({
                         statuses: [],
                         relatedObjects: []
                     })
-            },
-            t("panel.timeline.filter.clear")
-        )
+                }
+            >
+                {t("panel.timeline.filter.clear")}
+            </Button>
+        </div>
     );
-}
+};
 
-export function MeetingPanelTimeline(props: TimelineProps): ReactElement {
+export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     const { detail, filters, t, onFiltersChange } = props;
     if (detail.lifecycle.status === "archived" && detail.archive?.status !== "complete")
-        return createElement("p", null, t("panel.state.archiveUnavailable"));
+        return <p>{t("panel.state.archiveUnavailable")}</p>;
     const allNodes = buildTimelineNodes(detail);
     const nodes = filterTimelineNodes(allNodes, filters);
-    return createElement(
-        "section",
-        { "aria-label": t("panel.timeline.title") },
-        createElement("p", null, t("panel.timeline.disclaimer")),
-        createElement(TimelineFilters, { nodes: allNodes, filters, t, onChange: onFiltersChange }),
-        nodes.length === 0 ? createElement("p", null, t("panel.timeline.empty")) : null,
-        createElement(TimelineViewport, { ...props, nodes })
+    return (
+        <section aria-label={t("panel.timeline.title")}>
+            <p>{t("panel.timeline.disclaimer")}</p>
+            <TimelineFilters nodes={allNodes} filters={filters} t={t} onChange={onFiltersChange} />
+            {nodes.length === 0 ? <p>{t("panel.timeline.empty")}</p> : null}
+            <TimelineViewport {...props} nodes={nodes} />
+        </section>
     );
-}
+};
 
-export function TimelineViewport({
+export const TimelineViewport = ({
     detail,
     nodes,
     filters,
@@ -288,7 +287,7 @@ export function TimelineViewport({
     focusTarget,
     onFocusConsumed,
     onLocateInOverview
-}: TimelineViewportProps): ReactElement {
+}: TimelineViewportProps): ReactElement => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const latestVisibleKey = nodes
         .filter((node) => !filters.collapsedLanes.includes(node.lane))
@@ -356,57 +355,47 @@ export function TimelineViewport({
     const changeZoom = (delta: number) =>
         onFiltersChange({ ...filters, zoom: zoomLevels[zoomIndex + delta]! });
     const collapsed = filters.collapsedLanes;
-    return createElement(
-        "div",
-        null,
-        focusMissing ? createElement("p", { role: "status" }, t("panel.state.focusMissing")) : null,
-        createElement(
-            Button,
-            {
-                type: "button",
-                variant: "outline",
-                size: "sm",
-                disabled: zoomIndex === zoomLevels.length - 1,
-                onClick: () => changeZoom(1)
-            },
-            t("panel.timeline.zoomIn")
-        ),
-        createElement(
-            Button,
-            {
-                type: "button",
-                variant: "outline",
-                size: "sm",
-                disabled: zoomIndex === 0,
-                onClick: () => changeZoom(-1)
-            },
-            t("panel.timeline.zoomOut")
-        ),
-        createElement(
-            Button,
-            {
-                type: "button",
-                variant: "outline",
-                size: "sm",
-                onClick: () =>
+    return (
+        <div>
+            {focusMissing ? <p role="status">{t("panel.state.focusMissing")}</p> : null}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={zoomIndex === zoomLevels.length - 1}
+                onClick={() => changeZoom(1)}
+            >
+                {t("panel.timeline.zoomIn")}
+            </Button>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={zoomIndex === 0}
+                onClick={() => changeZoom(-1)}
+            >
+                {t("panel.timeline.zoomOut")}
+            </Button>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
                     (latestVisibleKey === undefined
                         ? undefined
                         : nodeRefs.current.get(latestVisibleKey)
                     )?.scrollIntoView?.({ block: "nearest", inline: "end" })
-            },
-            t("panel.timeline.latest")
-        ),
-        createElement(
-            "div",
-            {
-                ref: viewportRef,
-                "aria-label": t("panel.timeline.aria.viewport"),
-                style: { overflowX: "auto", maxWidth: "100%" }
-            },
-            createElement(
-                "div",
-                {
-                    style: {
+                }
+            >
+                {t("panel.timeline.latest")}
+            </Button>
+            <div
+                ref={viewportRef}
+                aria-label={t("panel.timeline.aria.viewport")}
+                style={{ overflowX: "auto", maxWidth: "100%" }}
+            >
+                <div
+                    style={{
                         display: "grid",
                         gridTemplateColumns: `160px repeat(${nodes.length}, 220px)`,
                         gridTemplateRows: lanes
@@ -416,139 +405,130 @@ export function TimelineViewport({
                             .join(" "),
                         columnGap: gap,
                         minWidth
-                    }
-                },
-                ...lanes.map((lane, index) =>
-                    createElement(
-                        Button,
-                        {
-                            key: lane,
-                            type: "button",
-                            variant: "ghost",
-                            size: "sm",
-                            "aria-label": `${t(collapsed.includes(lane) ? "panel.timeline.expand" : "panel.timeline.collapse")} ${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}`,
-                            onClick: () =>
+                    }}
+                >
+                    {lanes.map((lane, index) => (
+                        <Button
+                            key={lane}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`${t(collapsed.includes(lane) ? "panel.timeline.expand" : "panel.timeline.collapse")} ${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}`}
+                            onClick={() =>
                                 onFiltersChange({
                                     ...filters,
                                     collapsedLanes: collapsed.includes(lane)
                                         ? collapsed.filter((value) => value !== lane)
                                         : [...collapsed, lane]
-                                }),
-                            style: { gridColumn: 1, gridRow: index + 1 }
-                        },
-                        t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)
-                    )
-                ),
-                ...nodes.map((node, index) => {
-                    const content = resolveTimelineNodeContent(detail, node);
-                    const laneLabel = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
-                    const identity = identityName(detail, node);
-                    return createElement(
-                        "article",
-                        {
-                            key: node.key,
-                            ref: (element: HTMLElement | null) => {
-                                if (element) nodeRefs.current.set(node.key, element);
-                                else nodeRefs.current.delete(node.key);
-                            },
-                            "data-testid": "timeline-node",
-                            "data-node-key": node.key,
-                            hidden: collapsed.includes(node.lane),
-                            tabIndex: activeKey === node.key ? 0 : -1,
-                            onFocus: () => setActiveKey(node.key),
-                            onKeyDown: (event: React.KeyboardEvent) => {
-                                const direction = {
-                                    ArrowUp: "up",
-                                    ArrowDown: "down",
-                                    ArrowLeft: "left",
-                                    ArrowRight: "right"
-                                }[event.key] as TimelineDirection | undefined;
-                                if (!direction) return;
-                                event.preventDefault();
-                                const next = findAdjacentTimelineKey({
-                                    nodes,
-                                    currentKey: node.key,
-                                    direction,
-                                    collapsedLanes: collapsed
-                                });
-                                if (next) nodeRefs.current.get(next)?.focus();
-                            },
-                            "aria-label": [
-                                t("panel.timeline.aria.node"),
-                                laneLabel,
-                                identity,
-                                label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t),
-                                label(`enum.timelinePhase.${node.phase}`, node.phase, t),
-                                dateFormatter.format(new Date(node.time)),
-                                statusLabel(node, t)
-                            ]
-                                .filter(Boolean)
-                                .join("; "),
-                            style: {
-                                gridRow: lanes.indexOf(node.lane) + 1,
-                                gridColumn: index + 2,
-                                minWidth: 220
+                                })
                             }
-                        },
-                        createElement(
-                            "p",
-                            null,
-                            identity ? `${laneLabel}: ${identity}` : laneLabel
-                        ),
-                        createElement(
-                            "p",
-                            null,
-                            label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)
-                        ),
-                        createElement(
-                            "p",
-                            null,
-                            label(`enum.timelinePhase.${node.phase}`, node.phase, t)
-                        ),
-                        createElement(
-                            "time",
-                            { dateTime: new Date(node.time).toISOString() },
-                            dateFormatter.format(new Date(node.time))
-                        ),
-                        node.status === undefined
-                            ? null
-                            : createElement("p", null, statusLabel(node, t)),
-                        onLocateInOverview
-                            ? createElement(
-                                  Button,
-                                  {
-                                      type: "button",
-                                      variant: "outline",
-                                      size: "sm",
-                                      onClick: () =>
-                                          onLocateInOverview({
-                                              meetingId: detail.meetingId,
-                                              objectKind: node.objectKind,
-                                              objectId: node.objectId
-                                          })
-                                  },
-                                  t("panel.mode.overview")
-                              )
-                            : null,
-                        content === undefined
-                            ? createElement("p", null, t("panel.state.focusMissing"))
-                            : createElement(
-                                  "div",
-                                  null,
-                                  createElement("p", null, contentTitle(node, content.title, t)),
-                                  content.detail === undefined
-                                      ? null
-                                      : createElement(
-                                            "p",
-                                            null,
-                                            node.objectKind === "identity_recommendation"
-                                                ? knownEnum("recommendation", content.detail, t)
-                                                : content.detail
-                                        )
-                              )
-                    );
-                })
-            )
-        )
+                            style={{ gridColumn: 1, gridRow: index + 1 }}
+                        >
+                            {t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}
+                        </Button>
+                    ))}
+                    {nodes.map((node, index) => {
+                        const content = resolveTimelineNodeContent(detail, node);
+                        const laneLabel = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
+                        const identity = identityName(detail, node);
+                        return (
+                            <article
+                                key={node.key}
+                                ref={(element: HTMLElement | null) => {
+                                    if (element) nodeRefs.current.set(node.key, element);
+                                    else nodeRefs.current.delete(node.key);
+                                }}
+                                data-testid="timeline-node"
+                                data-node-key={node.key}
+                                hidden={collapsed.includes(node.lane)}
+                                tabIndex={activeKey === node.key ? 0 : -1}
+                                onFocus={() => setActiveKey(node.key)}
+                                onKeyDown={(event: React.KeyboardEvent) => {
+                                    const direction = {
+                                        ArrowUp: "up",
+                                        ArrowDown: "down",
+                                        ArrowLeft: "left",
+                                        ArrowRight: "right"
+                                    }[event.key] as TimelineDirection | undefined;
+                                    if (!direction) return;
+                                    event.preventDefault();
+                                    const next = findAdjacentTimelineKey({
+                                        nodes,
+                                        currentKey: node.key,
+                                        direction,
+                                        collapsedLanes: collapsed
+                                    });
+                                    if (next) nodeRefs.current.get(next)?.focus();
+                                }}
+                                aria-label={[
+                                    t("panel.timeline.aria.node"),
+                                    laneLabel,
+                                    identity,
+                                    label(
+                                        `enum.timelineKind.${node.objectKind}`,
+                                        node.objectKind,
+                                        t
+                                    ),
+                                    label(`enum.timelinePhase.${node.phase}`, node.phase, t),
+                                    dateFormatter.format(new Date(node.time)),
+                                    statusLabel(node, t)
+                                ]
+                                    .filter(Boolean)
+                                    .join("; ")}
+                                style={{
+                                    gridRow: lanes.indexOf(node.lane) + 1,
+                                    gridColumn: index + 2,
+                                    minWidth: 220
+                                }}
+                            >
+                                <p>{identity ? `${laneLabel}: ${identity}` : laneLabel}</p>
+                                <p>
+                                    {label(
+                                        `enum.timelineKind.${node.objectKind}`,
+                                        node.objectKind,
+                                        t
+                                    )}
+                                </p>
+                                <p>{label(`enum.timelinePhase.${node.phase}`, node.phase, t)}</p>
+                                <time dateTime={new Date(node.time).toISOString()}>
+                                    {dateFormatter.format(new Date(node.time))}
+                                </time>
+                                {node.status === undefined ? null : <p>{statusLabel(node, t)}</p>}
+                                {onLocateInOverview ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            onLocateInOverview({
+                                                meetingId: detail.meetingId,
+                                                objectKind: node.objectKind,
+                                                objectId: node.objectId
+                                            })
+                                        }
+                                    >
+                                        {t("panel.mode.overview")}
+                                    </Button>
+                                ) : null}
+                                {content === undefined ? (
+                                    <p>{t("panel.state.focusMissing")}</p>
+                                ) : (
+                                    <div>
+                                        <p>{contentTitle(node, content.title, t)}</p>
+                                        {content.detail === undefined ? null : (
+                                            <p>
+                                                {node.objectKind === "identity_recommendation"
+                                                    ? knownEnum("recommendation", content.detail, t)
+                                                    : content.detail}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </article>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
     );
-}
+};

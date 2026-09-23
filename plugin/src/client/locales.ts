@@ -419,7 +419,6 @@ export const en: Record<MeetingLocaleKey, string> = {
     "enum.timelinePhase.resolve_question": "Resolve question",
     "enum.timelinePhase.dispose_issue": "Dispose issue"
 };
-
 declare module "@deepseek-ai/dsh-client-ui-slots" {
     interface LocaleNamespaceMap {
         "convivium.meeting": MeetingLocaleKey;
@@ -428,7 +427,7 @@ declare module "@deepseek-ai/dsh-client-ui-slots" {
 
 export type MeetingTranslate = TranslateNS<typeof MEETING_LOCALE_NS>;
 
-export function knownEnum(group: string, value: string, t: MeetingTranslate): string {
+export const knownEnum = (group: string, value: string, t: MeetingTranslate): string => {
     const key = `enum.${group}.${value}` as MeetingLocaleKey;
     return Object.hasOwn(zh, key) ? t(key) : value;
-}
+};
