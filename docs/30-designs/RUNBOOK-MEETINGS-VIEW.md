@@ -264,22 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T13：执行自动验证
-
-前置状态：T0–T12 PASS，无 skipped/only tests。
-允许修改：无。禁止修改：全部文件；不得放宽 lint/type/Schema/test 或增加 Non-goals。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client
-pnpm --dir plugin exec vitest run --project host tests/unit/runtime/meeting-lifecycle.spec.ts
-pnpm --dir plugin exec vitest run --project contract
-pnpm --dir plugin verify
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-PASS：全部退出 0，无新 warning/error；基线 source-map warning 记录但不单独判失败。STOP：任一非零或需越 Scope；记录失败后退出本步骤，回到最早相关 T1–T12 的允许边界修复，再从该步顺序重跑，禁止在 T13 内直接改文件。失败恢复：从最早失败步骤重跑后续门禁。
-
 ### T14：安装已验证构建物并准备验收 profile
 
 前置状态：T13 PASS；仓库根执行；人工操作者可以在不回显凭据的前提下填写新 profile 的 `dev.env` 并通过真实 Captain Session 建立 fixture。
