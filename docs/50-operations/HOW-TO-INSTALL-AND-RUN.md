@@ -43,7 +43,7 @@ npm exec --yes --package @convivium/dsh-plugin@next -- \
 
 安装入口在 DSH workspace 下创建持久 `dsh-home`，在安装根创建 SQLite patch、release 资源和 `dev.env`，并将实际 release ID 写入 `release`。普通安装遇到同版本 release 或 artifact 已存在时停止，不覆盖；人工 Web 调试的源码刷新入口和保留数据规则见 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收)。
 
-首次新建的专用 `web` profile 使用 `dsh.profile.patchReload: startup`。当前固定的 DSH/Cordis 组合在 `live` 模式下可能因 HMR 接口不匹配而启动失败；`startup` 仍在每次启动时应用全部 patch，但修改 profile、home 或角色 patch 后必须重启 Host。已有 profile manifest 不由安装器改写；若它仍配置 `live` 并出现 `Cordis HMR service` 或 `hmr.registerConfig` 错误，停止启动并先核对该 profile 的 reload 策略，不覆盖或复制其他 profile。
+首次新建的专用 `web` profile 使用 `dsh.profile.patchReload: startup`。当前固定的 DSH/Cordis 组合在 `live` 模式下可能因 HMR 接口不匹配而启动失败；`startup` 仍在每次启动时应用全部 patch，但修改 profile、home 或角色 patch 后必须重启 Host。安装器会在新建 profile 尚未完成配置时保留标记，重跑同一安装命令会继续完成 `startup` 设置；原有用户 profile 不由安装器改写。若原有 profile 仍配置 `live` 并出现 `Cordis HMR service` 或 `hmr.registerConfig` 错误，停止启动并先核对该 profile 的 reload 策略，不覆盖或复制其他 profile。
 
 在安装根的 `dev.env` 中填写真实 key；该文件只在不存在时生成，首次生成权限为 `600`。后续安装直接复用已有文件，不覆盖内容或修改权限：
 

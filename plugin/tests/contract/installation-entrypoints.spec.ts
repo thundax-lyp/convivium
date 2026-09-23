@@ -51,6 +51,10 @@ mkdir -p "$DSH_HOME/profiles/web"
 if [ ! -f "$DSH_HOME/profiles/web/package.json" ]; then
     printf '%s\\n' '{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"],"patchReload":"live"}}}' > "$DSH_HOME/profiles/web/package.json"
 fi
+if [ -n "$FAIL_FIRST_ADD_FILE" ] && [ ! -f "$FAIL_FIRST_ADD_FILE" ]; then
+    : > "$FAIL_FIRST_ADD_FILE"
+    exit 42
+fi
 `
     );
     return { root, artifact, fakeBin, calls, installRoot: join(root, "installation") };
@@ -165,6 +169,42 @@ describe("user installation entrypoints", () => {
 
         expect(result.status, result.stderr).toBe(0);
         expect(JSON.parse(await readFile(profileManifest, "utf8"))).toEqual(existing);
+    });
+
+    it("completes the new profile reload setting after a failed first add", async () => {
+        const { root, artifact, fakeBin, calls, installRoot } = await fixture();
+        const failFirstAddFile = join(root, "failed-first-add");
+        const env = {
+            ...process.env,
+            PATH: `${fakeBin}:${process.env.PATH}`,
+            CALLS_FILE: calls,
+            CONVIVIUM_INSTALL_ROOT: installRoot,
+            FAIL_FIRST_ADD_FILE: failFirstAddFile
+        };
+        const first = spawnSync(installScript, ["--artifact", artifact], {
+            cwd: root,
+            encoding: "utf8",
+            env
+        });
+        expect(first.status).not.toBe(0);
+
+        const retry = spawnSync(installScript, ["--artifact", artifact], {
+            cwd: root,
+            encoding: "utf8",
+            env
+        });
+        expect(retry.status, retry.stderr).toBe(0);
+        const profileManifest = join(
+            root,
+            "dsh-workspace",
+            "dsh-home",
+            "profiles",
+            "web",
+            "package.json"
+        );
+        expect(JSON.parse(await readFile(profileManifest, "utf8")).dsh.profile.patchReload).toBe(
+            "startup"
+        );
     });
 
     it("starts with the installed release, profile, workspace, and environment", async () => {

@@ -198,24 +198,25 @@ if [ ! -e "$install_root/dev.env" ]; then
 fi
 
 profile_manifest="$dsh_home/profiles/web/package.json"
-profile_existed=0
-if [ -e "$profile_manifest" ]; then
-    profile_existed=1
+profile_pending="$dsh_home/.convivium-web-profile-pending"
+if [ ! -e "$profile_manifest" ]; then
+    : >"$profile_pending"
 fi
 
 export DSH_HOME="$dsh_home"
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add "$installed_artifact"
-if [ "$profile_existed" -eq 0 ]; then
+if [ -e "$profile_pending" ]; then
     node - "$profile_manifest" <<'NODE'
 const fs = require("node:fs");
 const path = process.argv[2];
 const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
-if (manifest.name !== "dsh-profile-web" || manifest.dsh?.profile?.patchReload !== "live") {
-    throw new Error("new DSH web profile does not have the expected live reload default");
+if (manifest.name !== "dsh-profile-web" || !["live", "startup"].includes(manifest.dsh?.profile?.patchReload)) {
+    throw new Error("incomplete DSH web profile has an unexpected reload setting");
 }
 manifest.dsh.profile.patchReload = "startup";
 fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
+    rm -f "$profile_pending"
 fi
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add \
     "@deepseek-ai/dsh-storage-sqlite@$DSH_VERSION"
