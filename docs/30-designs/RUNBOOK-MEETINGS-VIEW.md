@@ -264,26 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T0：锁定工作树和基线
-
-前置状态：位于仓库根，本 RUNBOOK 存在。
-
-允许修改：无。禁止修改：全部文件。
-
-执行：确认当前分支、ancestor 和空工作树，再运行基线测试。
-
-验证：
-```bash
-test "$(git branch --show-current)" = "codex/web-ui-optimization"
-git merge-base --is-ancestor 417ad45 HEAD
-test -z "$(git status --porcelain)"
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-local-controls.client.spec.ts tests/client/meeting-panel-locales.client.spec.ts tests/client/meeting-panel-visibility.client.spec.ts
-pnpm --dir plugin exec vitest run --project host tests/unit/runtime/meeting-lifecycle.spec.ts
-```
-PASS：三项 Git 检查退出 0，9 client + 2 host tests PASS；已知 source-map warning 不单独判失败。
-
-STOP：分支错误、`417ad45` 不是 ancestor、工作树非空或任一测试失败；报告当前 branch、HEAD、`git status --short` 和测试输出，不清理工作树。失败恢复：本步只读，无副作用。
-
 ### T1：修复 list 完整性
 
 前置状态：T0 PASS。
