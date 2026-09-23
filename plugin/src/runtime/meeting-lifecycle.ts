@@ -431,7 +431,8 @@ export async function activateTargetMeetingApplication(
             for (const record of registry.listMeetings()) {
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const snapshot = (await repository.recover()).snapshot;
-                if (snapshot) meetings.push(projectMeetingSummary(snapshot));
+                if (!snapshot) throw new Error("Meeting is not ready.");
+                meetings.push(projectMeetingSummary(snapshot));
             }
             return { meetings };
         },

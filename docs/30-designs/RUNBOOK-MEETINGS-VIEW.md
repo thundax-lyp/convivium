@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T1：修复 list 完整性
-
-前置状态：T0 PASS。
-允许修改：`plugin/tests/unit/runtime/meeting-lifecycle.spec.ts`、`plugin/tests/contract/remote-boundary.spec.ts`、`plugin/src/runtime/meeting-lifecycle.ts` `runtime.list`。
-禁止修改：Summary Schema、repository/registry、Remote errors。
-
-执行：先红测试两 record 中一个缺 snapshot 时 list reject 且 Remote 为 `convivium/internal`；再将空 snapshot 改为 `throw new Error("Meeting is not ready.")`。不返回部分数组，不新增 `unavailableReason`。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project host tests/unit/runtime/meeting-lifecycle.spec.ts
-pnpm --dir plugin exec vitest run --project contract tests/contract/remote-boundary.spec.ts
-```
-PASS：退出 0，正常 list 完整，缺 snapshot 整体失败。STOP：必须改 Remote 契约或 repository 才能通过。失败恢复：无外部副作用，保留红测试证据。
-
 ### T2：实现纯 Workspace/freshness 转换
 
 前置状态：T1 PASS。

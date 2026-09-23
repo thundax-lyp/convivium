@@ -66,4 +66,20 @@ describe("target Remote boundary", () => {
         });
         await gateway.dispose();
     });
+
+    it("maps an incomplete Meeting list to convivium/internal", async () => {
+        const fixture = runtimeFixture();
+        fixture.runtime.list = async () => {
+            throw new Error("Meeting is not ready.");
+        };
+        const gateway = await createRemoteGateway(fixture.runtime);
+
+        try {
+            await expect(gateway.invoke("list", {})).rejects.toMatchObject({
+                code: "convivium/internal"
+            });
+        } finally {
+            await gateway.dispose();
+        }
+    });
 });
