@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
-import { zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
+import { knownEnum as known, type MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { buildTimelineNodes } from "./meeting-timeline-projection.js";
 import type { MeetingFocusTarget } from "./meeting-workspace-state.js";
@@ -31,11 +31,6 @@ function values(items: readonly ReactElement[], t: MeetingTranslate): ReactEleme
         : createElement("ul", null, ...items);
 }
 
-function known(group: string, value: string, t: MeetingTranslate): string {
-    const key = `enum.${group}.${value}` as MeetingLocaleKey;
-    return Object.hasOwn(zh, key) ? t(key) : value;
-}
-
 export function OverviewObjective({ detail, t }: SectionProps): ReactElement {
     const objective =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -62,23 +57,35 @@ export function OverviewObjective({ detail, t }: SectionProps): ReactElement {
         ),
         values(
             objective.requiredOutputs.map((item) =>
-                createElement("li", { key: item.id }, `${item.text}: ${item.status}`)
+                createElement(
+                    "li",
+                    { key: item.id },
+                    `${item.text}: ${known("objectiveStatus", item.status, t)}`
+                )
             ),
             t
         ),
         values(
             objective.acceptanceCriteria.map((item) =>
-                createElement("li", { key: item.id }, `${item.text}: ${item.status}`)
+                createElement(
+                    "li",
+                    { key: item.id },
+                    `${item.text}: ${known("objectiveStatus", item.status, t)}`
+                )
             ),
             t
         ),
         values(
             objective.hardConstraints.map((item) =>
-                createElement("li", { key: item.id }, `${item.text}: ${item.status}`)
+                createElement(
+                    "li",
+                    { key: item.id },
+                    `${item.text}: ${known("objectiveStatus", item.status, t)}`
+                )
             ),
             t
         ),
-        createElement("p", null, objective.acceptableRiskLevel)
+        createElement("p", null, known("riskLevel", objective.acceptableRiskLevel, t))
     );
 }
 
@@ -108,7 +115,7 @@ export function OverviewProgress({ detail, t }: SectionProps): ReactElement {
             createElement(
                 "li",
                 { key: `plan:${plan.id}` },
-                `${plan.kind}: ${plan.blockingReason ?? plan.rationale}`
+                `${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`
             )
         );
     for (const recommendation of detail.identityRecommendations ?? [])

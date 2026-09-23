@@ -26,6 +26,7 @@ describe("Meeting client locale integration", () => {
         const fakeContext = {
             remote: { $mount: vi.fn(async () => {}), conviviumMeetings: {} },
             locale: {
+                getLocale: () => ({ active }),
                 register: vi.fn(
                     (namespace: string, value: Record<"zh" | "en", Record<string, string>>) => {
                         expect(namespace).toBe(NS);
@@ -85,6 +86,7 @@ describe("Meeting client locale integration", () => {
         const seat = vi.fn(() => "seat-value");
         const element = registration?.component({ t: seat });
         expect(element?.props.t).toBe(seat);
+        expect(element?.props.locale).toBe("zh");
 
         for (const dispose of lifecycleEffects.reverse()) dispose();
         expect(registration).toBeUndefined();

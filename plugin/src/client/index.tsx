@@ -31,7 +31,12 @@ export async function apply(ctx: Context): Promise<void> {
                     order: 100,
                     locale: MEETING_LOCALE_NS
                 },
-                (props) => createElement(ConviviumMeetingPanel, { api, t: props.t })
+                (props) =>
+                    createElement(ConviviumMeetingPanel, {
+                        api,
+                        t: props.t,
+                        locale: ctx.locale.getLocale().active
+                    })
             )
         );
     });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting-workspace-state.js";
+import { findAdjacentTimelineKey } from "@/client/meeting-panel-timeline.js";
 import { MeetingViewSchema } from "@/protocol/meeting-view.js";
 import {
     buildTimelineNodes,
@@ -9,6 +10,26 @@ import {
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.js";
 
 describe("Timeline projection", () => {
+    it("moves between adjacent visible lanes by time", () => {
+        const nodes = buildTimelineNodes(activeTimelineFixture());
+        expect(
+            findAdjacentTimelineKey({
+                nodes,
+                currentKey: "hand_raise:round-1:contributor-v1:raised",
+                direction: "up",
+                collapsedLanes: []
+            })
+        ).toBe("formal_message:message-1:created");
+        expect(
+            findAdjacentTimelineKey({
+                nodes,
+                currentKey: "hand_raise:round-1:contributor-v1:raised",
+                direction: "up",
+                collapsedLanes: ["manager"]
+            })
+        ).toBe("decision_candidate:candidate-1:created");
+    });
+
     it("maps every active source with phases, lanes, status and stable chronological order", () => {
         const nodes = buildTimelineNodes(activeTimelineFixture());
         expect(nodes.map(({ key }) => key)).toEqual([

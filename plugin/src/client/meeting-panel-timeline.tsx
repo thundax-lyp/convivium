@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
-import { zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
+import { knownEnum, zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
 import {
     buildTimelineNodes,
     filterTimelineNodes,
@@ -28,6 +28,7 @@ export interface TimelineProps {
     detail: MeetingView;
     filters: TimelineFilterState;
     viewportRevision: number;
+    locale?: string;
     t: MeetingTranslate;
     onFiltersChange(filters: TimelineFilterState): void;
     focusTarget?: MeetingFocusTarget;
@@ -86,6 +87,49 @@ export function findAdjacentTimelineKey({
 function label(key: string, fallback: string, t: MeetingTranslate): string {
     const localeKey = key as MeetingLocaleKey;
     return Object.hasOwn(zh, localeKey) ? t(localeKey) : fallback;
+}
+
+function statusLabel(node: TimelineNode, t: MeetingTranslate): string {
+    if (node.status === undefined) return "";
+    const group: Partial<Record<TimelineNode["objectKind"], string>> = {
+        lifecycle: "lifecycle",
+        round: "round",
+        review_delivery: "reviewDelivery",
+        identity_recommendation: "recommendation",
+        position: "positionStance",
+        decision_candidate: "decisionOutcome",
+        decision: "decisionStatus",
+        completion_fact: "completionStatus",
+        risk_disposition: "riskAction",
+        manager_plan: "managerPlanStatus",
+        task: "task",
+        termination: "terminationOutcome",
+        archive: "archive"
+    };
+    const selectedGroup =
+        node.objectKind === "disposition_fact"
+            ? node.phase === "resolve_question"
+                ? "questionStatus"
+                : "issueStatus"
+            : group[node.objectKind];
+    return selectedGroup === undefined ? node.status : knownEnum(selectedGroup, node.status, t);
+}
+
+function contentTitle(node: TimelineNode, title: string, t: MeetingTranslate): string {
+    const groups: Partial<Record<TimelineNode["objectKind"], string>> = {
+        lifecycle: "lifecycle",
+        review_delivery: "reviewDelivery",
+        position: "positionStance",
+        decision_candidate: "decisionOutcome",
+        decision: "decisionOutcome",
+        risk_disposition: "riskAction",
+        manager_plan: "managerPlanKind",
+        termination: "terminationOutcome",
+        archive: "archive"
+    };
+    if (node.objectKind === "disposition_fact") return knownEnum("timelinePhase", title, t);
+    const group = groups[node.objectKind];
+    return group === undefined ? title : knownEnum(group, title, t);
 }
 
 function identityName(detail: MeetingView, node: TimelineNode): string {
@@ -170,7 +214,14 @@ export function TimelineFilters({
             t("panel.timeline.filter.status"),
             statuses,
             filters.statuses,
-            (status) => status.charAt(0).toUpperCase() + status.slice(1).replaceAll("_", " "),
+            (status) =>
+                [
+                    ...new Set(
+                        nodes
+                            .filter((node) => node.status === status)
+                            .map((node) => statusLabel(node, t))
+                    )
+                ].join(" / "),
             (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
         ),
         filterGroup(
@@ -228,6 +279,7 @@ export function TimelineViewport({
     nodes,
     filters,
     viewportRevision,
+    locale = navigator.language,
     t,
     onFiltersChange,
     focusTarget,
@@ -235,7 +287,13 @@ export function TimelineViewport({
     onLocateInOverview
 }: TimelineViewportProps): ReactElement {
     const viewportRef = useRef<HTMLDivElement | null>(null);
-    const latestRef = useRef<HTMLElement | null>(null);
+    const latestVisibleKey = nodes
+        .filter((node) => !filters.collapsedLanes.includes(node.lane))
+        .at(-1)?.key;
+    const dateFormatter = new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeStyle: "medium"
+    });
     const nodeRefs = useRef(new Map<string, HTMLElement>());
     const [activeKey, setActiveKey] = useState(
         nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key
@@ -318,7 +376,10 @@ export function TimelineViewport({
             {
                 type: "button",
                 onClick: () =>
-                    latestRef.current?.scrollIntoView?.({ block: "nearest", inline: "end" })
+                    (latestVisibleKey === undefined
+                        ? undefined
+                        : nodeRefs.current.get(latestVisibleKey)
+                    )?.scrollIntoView?.({ block: "nearest", inline: "end" })
             },
             t("panel.timeline.latest")
         ),
@@ -374,7 +435,6 @@ export function TimelineViewport({
                             ref: (element: HTMLElement | null) => {
                                 if (element) nodeRefs.current.set(node.key, element);
                                 else nodeRefs.current.delete(node.key);
-                                if (index === nodes.length - 1) latestRef.current = element;
                             },
                             "data-testid": "timeline-node",
                             "data-node-key": node.key,
@@ -404,8 +464,8 @@ export function TimelineViewport({
                                 identity,
                                 label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t),
                                 label(`enum.timelinePhase.${node.phase}`, node.phase, t),
-                                new Date(node.time).toISOString(),
-                                node.status ?? ""
+                                dateFormatter.format(new Date(node.time)),
+                                statusLabel(node, t)
                             ]
                                 .filter(Boolean)
                                 .join("; "),
@@ -433,9 +493,11 @@ export function TimelineViewport({
                         createElement(
                             "time",
                             { dateTime: new Date(node.time).toISOString() },
-                            new Date(node.time).toISOString()
+                            dateFormatter.format(new Date(node.time))
                         ),
-                        node.status === undefined ? null : createElement("p", null, node.status),
+                        node.status === undefined
+                            ? null
+                            : createElement("p", null, statusLabel(node, t)),
                         onLocateInOverview
                             ? createElement(
                                   "button",
@@ -456,10 +518,16 @@ export function TimelineViewport({
                             : createElement(
                                   "div",
                                   null,
-                                  createElement("p", null, content.title),
+                                  createElement("p", null, contentTitle(node, content.title, t)),
                                   content.detail === undefined
                                       ? null
-                                      : createElement("p", null, content.detail)
+                                      : createElement(
+                                            "p",
+                                            null,
+                                            node.objectKind === "identity_recommendation"
+                                                ? knownEnum("recommendation", content.detail, t)
+                                                : content.detail
+                                        )
                               )
                     );
                 })

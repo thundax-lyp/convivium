@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.js";
 import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.js";
+import { MeetingPanelOverview } from "@/client/meeting-panel-overview.js";
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
@@ -37,6 +38,19 @@ function emptyLayout(locale: "zh" | "en") {
 }
 
 describe("Meeting panel localized presentation", () => {
+    it("localizes known objective statuses and risk levels while preserving authored text", () => {
+        const { view } = meetingProjectionFixture();
+        const { rerender } = render(
+            createElement(MeetingPanelOverview, { detail: view, t: meetingTranslator("zh") })
+        );
+        expect(screen.getByText("形成公开证据: 待处理")).toBeTruthy();
+        expect(screen.getByText("低")).toBeTruthy();
+
+        rerender(createElement(MeetingPanelOverview, { detail: view, t: meetingTranslator("en") }));
+        expect(screen.getByText("形成公开证据: Pending")).toBeTruthy();
+        expect(screen.getByText("Low")).toBeTruthy();
+    });
+
     it("renders the panel shell in Chinese and English", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();

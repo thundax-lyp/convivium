@@ -29,10 +29,12 @@ function failureMessage(failure: MeetingPanelFailure, t: MeetingTranslate): stri
 
 export function ConviviumMeetingPanel({
     api,
-    t
+    t,
+    locale
 }: {
     api: MeetingClient;
     t: MeetingTranslate;
+    locale?: string;
 }): ReactElement {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const [workspace, setWorkspace] = useState<MeetingsWorkspaceState>(INITIAL_WORKSPACE);
@@ -281,6 +283,7 @@ export function ConviviumMeetingPanel({
 
     return renderMeetingPanelLayout(
         {
+            locale,
             meetings,
             selectedId: workspace.selectedMeetingId,
             detail,

@@ -20,6 +20,7 @@ import {
 } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
+    locale?: string;
     meetings: readonly MeetingSummary[];
     selectedId?: string;
     detail?: MeetingReadResult;
@@ -225,6 +226,7 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                                   detail: ctx.detail,
                                   filters: ctx.timelineFilters ?? INITIAL_TIMELINE_FILTERS,
                                   viewportRevision: ctx.viewportRevision ?? 0,
+                                  locale: ctx.locale,
                                   t,
                                   onFiltersChange: ctx.onTimelineFiltersChange ?? (() => undefined),
                                   focusTarget: ctx.focusTarget,
