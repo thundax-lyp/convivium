@@ -4,7 +4,7 @@
 
 - 状态：`Executable`
 - 建立日期：2026-09-23
-- 基线：执行分支 `codex/web-ui-optimization`，`4af843f` 必须是当前 `HEAD` 的 ancestor；执行开始时工作树必须干净。
+- 基线：执行分支 `codex/web-ui-optimization`，`417ad45` 必须是当前 `HEAD` 的 ancestor；执行开始时工作树必须干净。
 - 边界：在唯一 `convivium-meetings` View 内重构已有数据的展示，只保留已接通的 pause/resume/end 写入。
 
 执行者必须从 T0 开始按序执行，前一步 PASS 前不进入后一步。只修改每步“允许修改”列出的文件和 symbol。指定路径、symbol、Schema 或命令不存在，基线失败，需越出 Scope，或需放宽 Schema/类型/断言时必须 STOP。PASS 要求命令退出码为 0 且指定断言全部成立。STOP 报告必须包含最后 PASS 步骤、触发条件、文件/symbol、最小复现命令、实际输出和所需人工决定。保留用户已有改动；未获明确授权时不 commit、push、创建 PR 或合并。
@@ -275,14 +275,14 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 验证：
 ```bash
 test "$(git branch --show-current)" = "codex/web-ui-optimization"
-git merge-base --is-ancestor 4af843f HEAD
+git merge-base --is-ancestor 417ad45 HEAD
 test -z "$(git status --porcelain)"
 pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-local-controls.client.spec.ts tests/client/meeting-panel-locales.client.spec.ts tests/client/meeting-panel-visibility.client.spec.ts
 pnpm --dir plugin exec vitest run --project host tests/unit/runtime/meeting-lifecycle.spec.ts
 ```
 PASS：三项 Git 检查退出 0，9 client + 2 host tests PASS；已知 source-map warning 不单独判失败。
 
-STOP：分支错误、`4af843f` 不是 ancestor、工作树非空或任一测试失败；报告当前 branch、HEAD、`git status --short` 和测试输出，不清理工作树。失败恢复：本步只读，无副作用。
+STOP：分支错误、`417ad45` 不是 ancestor、工作树非空或任一测试失败；报告当前 branch、HEAD、`git status --short` 和测试输出，不清理工作树。失败恢复：本步只读，无副作用。
 
 ### T1：修复 list 完整性
 
