@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T6：实现 Header 与 mode tabs
-
-前置状态：T5 PASS。
-允许修改：`plugin/src/client/meeting-panel-layout.tsx`、`plugin/src/client/meeting-panel.tsx` 仅 props/callback、`plugin/src/client/locales.ts`、`plugin/tests/client/meeting-panel-local-controls.client.spec.ts`；新增 `plugin/tests/client/meeting-panel-tabs.client.spec.tsx`。
-禁止修改：Overview/Timeline content、command payload。
-
-执行：先红测试未选择无 Header/tabs/content；Header objective/lifecycle/version；仅 controls 允许的 pause/resume/end；`controlsEnabled=false` 全禁用；tablist/tab/tabpanel 左右键；切模式共享 detail。保留 command payload，接线 locale keys。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-tabs.client.spec.tsx tests/client/meeting-panel-local-controls.client.spec.ts tests/client/meeting-panel-locales.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，Header/tabs/controls 行为成立。STOP：需改 command/Protocol。失败恢复：纯 DOM/state。
-
 ### T7：实现纯 Timeline projection
 
 前置状态：T6 PASS。

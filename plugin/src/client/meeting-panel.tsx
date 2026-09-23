@@ -290,6 +290,8 @@ export function ConviviumMeetingPanel({
                 selectedMeetingId: workspace.selectedMeetingId,
                 writePending
             }),
+            activeMode: workspace.activeMode,
+            setMode: (activeMode) => setWorkspace((current) => ({ ...current, activeMode })),
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,

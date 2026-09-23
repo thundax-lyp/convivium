@@ -10,6 +10,7 @@ import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel, renderObservabilitySections } from "./meeting-panel-sections.js";
+import type { MeetingMode } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
     meetings: readonly MeetingSummary[];
@@ -20,6 +21,8 @@ export interface MeetingPanelLayoutProps {
     listError?: string;
     detailError?: string;
     writePending: boolean;
+    activeMode?: MeetingMode;
+    setMode?(mode: MeetingMode): void;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
     pauseMeeting(): Promise<void>;
@@ -64,6 +67,15 @@ function renderNavigator(
 
 function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): ReactElement {
     const selected = ctx.meetings.find((item) => item.meetingId === ctx.selectedId);
+    const mode = ctx.activeMode ?? "overview";
+    const selectMode = (next: MeetingMode) => ctx.setMode?.(next);
+    const moveMode = (event: React.KeyboardEvent, next: MeetingMode) => {
+        event.preventDefault();
+        selectMode(next);
+        const tablist = event.currentTarget.parentElement;
+        const target = tablist?.querySelector<HTMLButtonElement>(`#meeting-mode-${next}`);
+        target?.focus();
+    };
     return createElement(
         "main",
         { "data-testid": "meeting-workspace" },
@@ -72,45 +84,6 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
             { type: "button", variant: "outline", size: "sm", onClick: ctx.requestRefresh },
             t("panel.actions.refresh")
         ),
-        ctx.detail?.controls.includes("pause_meeting")
-            ? createElement(
-                  Button,
-                  {
-                      type: "button",
-                      variant: "primary",
-                      size: "sm",
-                      disabled: ctx.writePending || ctx.detailCached,
-                      onClick: () => void ctx.pauseMeeting()
-                  },
-                  t("panel.actions.pause")
-              )
-            : null,
-        ctx.detail?.controls.includes("resume_meeting")
-            ? createElement(
-                  Button,
-                  {
-                      type: "button",
-                      variant: "primary",
-                      size: "sm",
-                      disabled: ctx.writePending || ctx.detailCached,
-                      onClick: () => void ctx.resumeMeeting()
-                  },
-                  t("panel.actions.resume")
-              )
-            : null,
-        ctx.detail?.controls.includes("end_meeting")
-            ? createElement(
-                  Button,
-                  {
-                      type: "button",
-                      variant: "primary",
-                      size: "sm",
-                      disabled: ctx.writePending || ctx.detailCached,
-                      onClick: () => void ctx.endMeeting()
-                  },
-                  t("panel.actions.end")
-              )
-            : null,
         selected === undefined
             ? createElement("p", null, t("panel.selection.prompt"))
             : ctx.detail === undefined
@@ -122,12 +95,112 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                     )
                   : createElement("p", { role: "alert" }, ctx.detailError)
               : createElement(
-                    "article",
-                    { "aria-label": t("panel.detail.aria", { id: selected.meetingId }) },
+                    "div",
+                    null,
+                    createElement(
+                        "header",
+                        { "data-testid": "meeting-header" },
+                        createElement("h3", null, ctx.detail.objective.statement),
+                        createElement(
+                            "p",
+                            null,
+                            `${t("panel.header.status")}: ${lifecycleLabel(ctx.detail.lifecycle.status, t)}`
+                        ),
+                        createElement(
+                            "p",
+                            null,
+                            `${t("panel.header.version")}: ${ctx.detail.version}`
+                        ),
+                        ctx.detail.controls.includes("pause_meeting")
+                            ? createElement(
+                                  Button,
+                                  {
+                                      type: "button",
+                                      variant: "primary",
+                                      size: "sm",
+                                      disabled: ctx.writePending || ctx.detailCached,
+                                      onClick: () => void ctx.pauseMeeting()
+                                  },
+                                  t("panel.actions.pause")
+                              )
+                            : null,
+                        ctx.detail.controls.includes("resume_meeting")
+                            ? createElement(
+                                  Button,
+                                  {
+                                      type: "button",
+                                      variant: "primary",
+                                      size: "sm",
+                                      disabled: ctx.writePending || ctx.detailCached,
+                                      onClick: () => void ctx.resumeMeeting()
+                                  },
+                                  t("panel.actions.resume")
+                              )
+                            : null,
+                        ctx.detail.controls.includes("end_meeting")
+                            ? createElement(
+                                  Button,
+                                  {
+                                      type: "button",
+                                      variant: "primary",
+                                      size: "sm",
+                                      disabled: ctx.writePending || ctx.detailCached,
+                                      onClick: () => void ctx.endMeeting()
+                                  },
+                                  t("panel.actions.end")
+                              )
+                            : null
+                    ),
                     ctx.detailError === undefined
                         ? null
                         : createElement("p", { role: "alert" }, ctx.detailError),
-                    renderObservabilitySections(ctx.detail, t)
+                    createElement(
+                        "div",
+                        { role: "tablist" },
+                        createElement(
+                            Button,
+                            {
+                                id: "meeting-mode-overview",
+                                type: "button",
+                                role: "tab",
+                                "aria-selected": mode === "overview",
+                                tabIndex: mode === "overview" ? 0 : -1,
+                                variant: mode === "overview" ? "primary" : "outline",
+                                size: "sm",
+                                onClick: () => selectMode("overview"),
+                                onKeyDown: (event: React.KeyboardEvent) => {
+                                    if (event.key === "ArrowRight") moveMode(event, "timeline");
+                                }
+                            },
+                            t("panel.mode.overview")
+                        ),
+                        createElement(
+                            Button,
+                            {
+                                id: "meeting-mode-timeline",
+                                type: "button",
+                                role: "tab",
+                                "aria-selected": mode === "timeline",
+                                tabIndex: mode === "timeline" ? 0 : -1,
+                                variant: mode === "timeline" ? "primary" : "outline",
+                                size: "sm",
+                                onClick: () => selectMode("timeline"),
+                                onKeyDown: (event: React.KeyboardEvent) => {
+                                    if (event.key === "ArrowLeft") moveMode(event, "overview");
+                                }
+                            },
+                            t("panel.mode.timeline")
+                        )
+                    ),
+                    createElement(
+                        "article",
+                        {
+                            role: "tabpanel",
+                            "aria-labelledby": `meeting-mode-${mode}`,
+                            "aria-label": t("panel.detail.aria", { id: selected.meetingId })
+                        },
+                        mode === "overview" ? renderObservabilitySections(ctx.detail, t) : null
+                    )
                 )
     );
 }
