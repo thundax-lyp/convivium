@@ -165,13 +165,13 @@
 
 1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 Captain/local 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 Captain/local 专属数组。
 2. 当前面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
-3. 用户必须能够暂停、恢复、结束会议，以及在适用的会议控制入口中撤销或重新分配指定贡献任务的授权。插件面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
+3. 当前插件面板必须允许用户暂停、恢复和结束会议。面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
 7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实；状态 projection、Web 接口响应、Client 只读展示和 archive-facing history 必须对同一已提交事实保持一致。
 8. 会议操作可以出现在 DSH 原生工具调用记录中，但这些记录不得替代正式会议状态、transcript 或审计记录。
-9. loopback 本地用户可以在候选、accepted Decision 或风险旁直接接受、替换、撤销决策及接受、拒绝风险；共用一个表单，目标由所点击对象带入，理由显式填写，已有来源消息可预选为证据并须可查看和修改。只有替换需要额外选择候选；撤销没有可靠来源预选时须手选证据。不增加第二次确认弹窗。缓存、提交中及终态禁止新写入，成功或协议拒绝后读取完整状态，不自动重试写请求。
+9. 当前 Meeting Panel 对 Contribution 授权、pending DecisionCandidate、Decision 和 RiskDisposition 只读展示，不提供撤销、重新分配、接受、替换、撤销或风险处置写入口。这些写入面未有完整的统一 `MeetingCommand` 契约和 loopback Runtime 接线，不得在 UI 视觉重构中临时发明或恢复已移除的 HTTP 边界。若未来开放，必须另行确认需求、Interface、授权、幂等和失败语义。
 10. 会议状态提交后，通过刷新通知促使面板重新读取完整事实，替换固定 5 秒轮询；通知不携带或替代会议事实。连接恢复、重新聚焦和重新打开后补读完整状态；断线时保留已验证缓存并禁写，完整补读成功后才解除。
 
 ### MO-FR-12：Agent 内部能力边界
@@ -243,6 +243,25 @@ MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-ow
 7. 当前 Meeting Panel 不展示日期或时间字段，本项不新增字段或日期格式化行为。Timeline Panel、Meeting Panel 视觉重构、第三种语言和新的数据结构不属于本项范围。
 8. 完成验收必须在隔离的真实 DSH Web profile 中实际执行中文 → English → 中文切换，证明同一已挂载页面即时更新；Browser 自动化可以保持未覆盖，但必须在 readiness 中明确记录。
 
+### MO-FR-17：Meetings View 概览与时间线
+
+1. Convivium 在 DSH Conversation 中只提供一个 `Meetings` 功能级 View；Meeting Navigator、当前 Meeting 的概览和时间线都位于该 View 内，不提供独立 Timeline View。
+2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
+3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
+4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和泳道折叠；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
+5. 共享 Header 只显示当前 `controls` 允许的暂停、继续和结束入口。概览中的 Contribution 授权、Decision 和 Risk 对象仅做只读展示，本项不新增其写入入口。归档、陈旧、提交中或协议禁止的状态不得提供可执行 lifecycle 写入口，Runtime 仍执行最终授权和状态校验。
+6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review、MeetingTask 和技术标识。UI 不得生成当前投影不存在的综合结论、行动项或事实。
+7. 时间线必须是只读的可见事实时间视图，以 Captain、Manager、Contributor、Reviewer 和系统五类泳道展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
+8. 时间线只能使用 Meeting Interface 已有时间和身份字段。活动 Meeting 只从顶层 caller-filtered projection 建立节点；归档 Meeting 只从完整 `ArchiveView` 建立历史节点，并必须纳入其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态。
+9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源进入对应角色泳道；没有明确行为者字段的对象进入系统泳道。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
+10. 同一对象的多个已发生时间分别形成 phase 节点。稳定排序、分组、筛选、高亮和对象定位只用于展示，不得据此构造领域提交顺序、因果关系或新的 Timeline event；首版不绘制推断性的 phase 间因果箭头。
+11. 时间线必须提供基于现有可见字段的身份、数据类型、状态和关联对象筛选，以及缩放、滚动、折叠泳道和回到最新；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
+12. 概览与时间线之间的定位只在同一 Selected Meeting Workspace 内切换模式并定位稳定对象。定位目标不存在、不可见或目标模式不展示时使用中性失败提示，不得区分不存在与无权查看，也不得改变 Meeting 状态、筛选或权限。
+13. 宽屏中 Navigator 作为左侧栏；窄屏中同一 Navigator 折叠为显示当前 Meeting 的按钮和摘要列表抽屉，关闭后 Workspace 占满可用宽度。时间线在窄屏仍保留泳道模型并使用水平滚动，不产生第二份选择状态。
+14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘可以遍历节点和相邻泳道；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
+15. Meetings View 的新增标签、筛选、空状态、错误、ARIA 文案和已知 enum label 继续遵守 MO-FR-16 的 `zh`、`en` 本地化与原文保持边界；时间使用 DSH/Host 的 locale 与时区格式，不得从格式化结果反推字段。
+16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
+
 ## Collaborative Problem Solving
 
 会议沿“明确目标 → 建立候选路径 → 找出关键未知 → 搜集证据 → 分析与比较 → 修订路径 → 形成一致性方案”推进；新证据可使路径返回前序步骤。Manager 组织求解路径、拆解复杂目标、识别证据缺口和整合阶段成果；为子议题说明问题、范围、预期成果、完成条件与依赖。独立问题可并行准备，有依赖的子议题逐步推进。Manager 只在证据轮次收口后决定继续、停止当前议题或下一个议题及理由，也可将“质疑某份证据”列为下一议题；在已授权议题内安排下一步，新增 Agenda candidate 的正式处置仍由 Captain 完成。改变用户目标或重大范围须由作为本地用户的召集人确认，召集人不因此取得 Captain 专属协议权限。Manager 不得把未解决关键分歧宣布为已解决。
@@ -291,7 +310,7 @@ Agent 内部工具、命令或 MCP 失败属于 Agent 的执行过程。只有�
 
 ### BR-6：身份与授权
 
-Agent 的正式发言、立场、审核、风险接受和决策操作必须绑定 DSH 提供的真实调用 Session。仅对 MO-FR-7、MO-FR-8.9、MO-FR-11.9 的五种本地决策/风险操作，允许使用单 Host loopback 边界证明独立的 local 来源，无需 live Captain Session；不得伪装成 Captain 或 Participant。客户端提供的显示名称或身份标识不能作为授权依据，Agent tool 的 Captain-only 权限不变。
+Agent 的正式发言、立场、审核、风险接受和决策操作必须绑定 DSH 提供的真实调用 Session。仅对 MO-FR-7 和 MO-FR-8.9 定义的五种本地决策/风险操作，允许使用单 Host loopback 边界证明独立的 local 来源，无需 live Captain Session；当前 Meeting Panel 不暴露这些入口。本地来源不得伪装成 Captain 或 Participant。客户端提供的显示名称或身份标识不能作为授权依据，Agent tool 的 Captain-only 权限不变。
 
 ### BR-7：归档边界
 
@@ -368,6 +387,14 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 49. DSH 选择 `zh` 或 `en` 时，`conversation.view` 标签和全部 Meeting Panel 自有文案使用对应语言；在同一已挂载页面按中文 → English → 中文切换时，无需 Host 重启、plugin 重装、slot 重新注册或页面刷新即可即时更新。
 50. Meeting Panel 本地化不改写 objective、Agenda 标题、FormalMessage 正文、identity displayName 等用户或 Agent 内容，也不改变 command、Protocol、Domain、Storage 或权限语义；已知 enum 只在 UI 映射为本地化展示 label。
 51. 中文界面的 `ProtocolFailure` 提示使用本地化固定句式并保留稳定 error code，不直接显示未本地化的 server message；非协议异常显示本地化的会议数据不可用提示。
+52. DSH Conversation 只注册一个 Convivium `Meetings` View；进入后先显示完整 Meeting Navigator，未选择 Meeting 时不调用详情读取，也不显示当前 Meeting Header、模式切换器或内容。
+53. 选择 Meeting 后默认显示概览；切换到时间线时继续使用同一个 ID 和同一详情投影。选择另一个 Meeting 后回到概览且旧时间线本地状态被清除；旧 Meeting 的迟到读取结果不能覆盖新选择。详情失败、断线或选中项从新摘要列表消失时分别遵守 MO-FR-17.4，均不自动改选其他 Meeting。
+54. 活动、暂停、终态和归档 Meeting 的共享 Header 只显示各自 `controls` 允许的暂停、继续和结束 control；陈旧或提交中状态全部禁写。概览只读展示 Contribution 授权、Decision 和 Risk，时间线不产生任何写操作。
+55. 给定包含多个带时间对象的 caller-filtered `MeetingView`，时间线按确定性时间顺序和五类泳道展示节点；同一 Task 的 start/complete 等多个已发生时间形成不同 phase，缺 actor 的 Round、Publication、Termination 和 Archive 进入系统泳道，assignee 不被当作行为者。
+56. 给定完整 `ArchiveView`，时间线从 Archive 单一来源展示其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态；不得从顶层运行对象回填归档过程，也不得重复节点。
+57. 普通 Participant、Captain/local、Manager 和 Reviewer 分别只能在概览、时间线、筛选数量和定位结果中观察其 caller-filtered projection；筛选为空或目标不可见时不泄露其他对象是否存在。
+58. 在窄屏下 Navigator 通过按钮与抽屉操作同一个选择状态，Workspace 占满抽屉外内容区，时间线保持可水平滚动的五类泳道；键盘可以按时间访问节点，定位后焦点与可访问文本落在目标卡片。
+59. `zh`、`en` 下新增 View Switcher、Navigator、Timeline、筛选、失败状态和 ARIA 文案均完整本地化，用户或 Agent 内容保持原文；真实 DSH Web profile 中切换 locale 无需重新注册 View 或刷新页面。
 
 ## Related Documents
 
@@ -375,5 +402,6 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 - Meeting 协议、存储、Remote 与 Developer Markdown：[`../20-interfaces/MEETING-INTERFACE.md`](../20-interfaces/MEETING-INTERFACE.md)
 - Meeting Agent Definition、角色目录与参会推荐：[`../20-interfaces/DSH-ROLE-INTERFACE.md`](../20-interfaces/DSH-ROLE-INTERFACE.md)
 - 当前设计：[`../30-designs/MEETING-DESIGN.md`](../30-designs/MEETING-DESIGN.md)
+- DSH 插件与 Meetings View 设计：[`../30-designs/DSH-PLUGIN-DESIGN.md`](../30-designs/DSH-PLUGIN-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。
