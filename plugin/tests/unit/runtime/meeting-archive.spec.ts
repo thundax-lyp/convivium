@@ -177,6 +177,7 @@ describe("meeting archive dispatcher v1", () => {
 
         expect(state.lifecycle.status).toBe("archived");
         expect(calls).toEqual([
+            ...current.map((ownership) => `interrupt:${ownership.sessionId}`),
             `drain:captain-1:${current.map((ownership) => ownership.sessionId).join(",")}`,
             ...current.map((ownership) => `commit:${ownership.sessionId}:closed`)
         ]);

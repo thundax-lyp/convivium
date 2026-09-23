@@ -32,7 +32,10 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-type ArchiveSessions = Pick<SubagentRuntime, "listChildren" | "drainContinuableChildren">;
+type ArchiveSessions = Pick<
+    SubagentRuntime,
+    "listChildren" | "interrupt" | "drainContinuableChildren"
+>;
 
 interface DispatchArchiveCleanupInput {
     readonly outboxItem: OutboxItem;
@@ -269,6 +272,11 @@ export function createMeetingArchiveDispatcher(
             );
             if (pending.length > 0) {
                 try {
+                    for (const ownership of pending)
+                        dependencies.sessions.interrupt(ownership.sessionId as never, {
+                            kind: "ancestor",
+                            agent: input.parent
+                        });
                     await dependencies.sessions.drainContinuableChildren(
                         input.parent,
                         pending.map((ownership) => ownership.sessionId as never)
