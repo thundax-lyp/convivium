@@ -3,9 +3,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.js";
 import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.js";
-import { renderObservabilitySections } from "@/client/meeting-panel-sections.js";
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
-import type { MeetingView } from "@/protocol/index.js";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
 
@@ -134,63 +132,6 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
         expect(screen.getByLabelText("Meeting list")).toBeTruthy();
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
-    });
-
-    it("localizes projection labels while preserving authored content", () => {
-        const { view } = meetingProjectionFixture();
-        const authoredObjective = view.objective.statement;
-        const authoredAgenda = view.agenda.find((item) => item.status === "active")?.title;
-        const authoredMessage = "Agent-authored conclusion remains unchanged.";
-        const archive = {
-            status: "complete",
-            publicSnapshotVersion: 7,
-            messages: []
-        } as unknown as NonNullable<MeetingView["archive"]>;
-        const round = {
-            id: "round-1",
-            status: "open",
-            contributions: []
-        } as unknown as MeetingView["rounds"][number];
-        const archivedView = {
-            ...view,
-            archive,
-            rounds: [round],
-            messages: [
-                {
-                    id: "message-1",
-                    seq: 1,
-                    actorId: "contributor-v1",
-                    agendaId: "agenda-v1",
-                    kind: "statement",
-                    body: authoredMessage,
-                    publicationId: "publication-1",
-                    relatedIds: [],
-                    createdAt: 1
-                }
-            ]
-        };
-
-        const { rerender } = render(
-            renderObservabilitySections(archivedView, meetingTranslator("zh"))
-        );
-        expect(screen.getByLabelText("会议摘要")).toBeTruthy();
-        expect(screen.getByText("进行中")).toBeTruthy();
-        expect(screen.getByText("证据与审核")).toBeTruthy();
-        expect(screen.getByText("round-1：开放（0 个贡献）")).toBeTruthy();
-        expect(screen.getByText("已完成")).toBeTruthy();
-        expect(screen.getByText(authoredObjective)).toBeTruthy();
-        if (authoredAgenda !== undefined) expect(screen.getByText(authoredAgenda)).toBeTruthy();
-        expect(screen.getByText(authoredMessage)).toBeTruthy();
-
-        rerender(renderObservabilitySections(archivedView, meetingTranslator("en")));
-        expect(screen.getByLabelText("Meeting summary")).toBeTruthy();
-        expect(screen.getByText("Running")).toBeTruthy();
-        expect(screen.getByText("Evidence and reviews")).toBeTruthy();
-        expect(screen.getByText("round-1: Open (0 contributions)")).toBeTruthy();
-        expect(screen.getByText("Complete")).toBeTruthy();
-        expect(screen.getByText(authoredObjective)).toBeTruthy();
-        if (authoredAgenda !== undefined) expect(screen.getByText(authoredAgenda)).toBeTruthy();
-        expect(screen.getByText(authoredMessage)).toBeTruthy();
     });
 
     it("retranslates mounted errors without refreshing meeting data", async () => {

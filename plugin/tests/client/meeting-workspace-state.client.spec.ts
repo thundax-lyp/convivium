@@ -4,8 +4,7 @@ import {
     INITIAL_TIMELINE_FILTERS,
     INITIAL_WORKSPACE,
     controlsEnabled,
-    resetWorkspaceForMeeting,
-    type TimelineZoom
+    resetWorkspaceForMeeting
 } from "@/client/meeting-workspace-state.js";
 
 describe("Meetings workspace state", () => {
@@ -37,11 +36,6 @@ describe("Meetings workspace state", () => {
             timeline: INITIAL_TIMELINE_FILTERS,
             viewportRevision: 8
         });
-    });
-
-    it("uses the six fixed timeline zoom levels", () => {
-        const zooms: TimelineZoom[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
-        expect(zooms).toEqual([0.75, 1, 1.25, 1.5, 1.75, 2]);
     });
 
     it.each([
