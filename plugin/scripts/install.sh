@@ -170,8 +170,26 @@ if [ ! -e "$install_root/dev.env" ]; then
     (umask 077 && printf 'DEEPSEEK_API_KEY=\n' >"$install_root/dev.env")
 fi
 
+profile_manifest="$install_root/dsh-home/profiles/web/package.json"
+profile_existed=0
+if [ -e "$profile_manifest" ]; then
+    profile_existed=1
+fi
+
 export DSH_HOME="$install_root/dsh-home"
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add "$installed_artifact"
+if [ "$profile_existed" -eq 0 ]; then
+    node - "$profile_manifest" <<'NODE'
+const fs = require("node:fs");
+const path = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+if (manifest.name !== "dsh-profile-web" || manifest.dsh?.profile?.patchReload !== "live") {
+    throw new Error("new DSH web profile does not have the expected live reload default");
+}
+manifest.dsh.profile.patchReload = "startup";
+fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
+fi
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add \
     "@deepseek-ai/dsh-storage-sqlite@$DSH_VERSION"
 

@@ -274,6 +274,7 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 1. 在同一 shell 运行 `meetings_view_root="$(mktemp -d /tmp/convivium-meetings-view.XXXXXX)"`、`meetings_view_workspace="$meetings_view_root/dsh-workspace"` 和 `meetings_view_install_root="$meetings_view_root/convivium-user"`，再运行 `CONVIVIUM_INSTALL_ROOT="$meetings_view_install_root" ./scripts/install-from-source.sh --workspace "$meetings_view_workspace"`；必须同时传入 install root 环境变量和独立 workspace，不得复用已有路径，因为相同版本 release 不允许覆盖。
 2. 记录 `git rev-parse HEAD`、`git status --short`、三个绝对路径，运行 `cat "$meetings_view_install_root/release"`、`test -x "$meetings_view_install_root/start.sh"`；再运行 `meetings_view_artifact="$(find "$meetings_view_install_root/artifacts" -maxdepth 1 -type f -name '*.tgz')"` 和 `shasum -a 256 "$meetings_view_artifact"`，该 hash 是 T15 验收构建物标识。
+   核对首次新建的 `"$meetings_view_install_root/dsh-home/profiles/web/package.json"` 中 `dsh.profile.patchReload` 精确为 `startup`；不得临场改动 profile manifest 绕过失败。
 3. 安装完成后运行下列命令；任何检查失败立即 STOP，不继续到 `rm`。命令只在子进程检查 key 是否非空，不复制或回显凭据；删除的对象必须是安装器新建的空占位文件，随后链接到固定凭据。不得在构建、打包或安装前导出 key。
 
 ```bash
@@ -301,8 +302,9 @@ test -f "$meetings_view_install_root/release"
 test "$(find "$meetings_view_install_root/artifacts" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = "1"
 test -L "$meetings_view_install_root/dev.env"
 test "$(readlink "$meetings_view_install_root/dev.env")" = "$(git rev-parse --show-toplevel)/dev.env"
+node -e 'const p=require(process.argv[1]); if (p.dsh?.profile?.patchReload !== "startup") process.exit(1)' "$meetings_view_install_root/dsh-home/profiles/web/package.json"
 ```
-PASS：八条命令退出 0，记录含 HEAD、工作树、release 和唯一 artifact hash，且记录唯一 fixture A/B `meetingId` 并人工确认 A=`running`、B=`archived/complete`。STOP：安装失败、目标路径预先存在、artifact 不是唯一文件、固定凭据不存在/权限不符/为空、安装器占位文件不是预期内容、Provider/Preset 缺失、fixture 无法通过正式入口建立、fixture ID 不唯一或安装期间源码变化；保留命令、Host 输出和新路径，不改用旧 profile/smoke/复制 SQLite 或复制 key。失败恢复：只重跑同一新路径的安装失败恢复；若 release 已成功则创建另一个全新 root，不覆盖。
+PASS：九条命令退出 0，记录含 HEAD、工作树、release 和唯一 artifact hash，且记录唯一 fixture A/B `meetingId` 并人工确认 A=`running`、B=`archived/complete`。STOP：安装失败、目标路径预先存在、artifact 不是唯一文件、新 profile 不是 `patchReload: startup`、固定凭据不存在/权限不符/为空、安装器占位文件不是预期内容、Provider/Preset 缺失、fixture 无法通过正式入口建立、fixture ID 不唯一或安装期间源码变化；保留命令、Host 输出和新路径，不改用旧 profile/smoke/复制 SQLite 或复制 key。失败恢复：只重跑同一新路径的安装失败恢复；若 release 已成功则创建另一个全新 root，不覆盖。
 
 ### T15：真实 DSH Web 人工门禁与 readiness
 
@@ -390,7 +392,7 @@ PASS：删除前引用检查只命中本文件，删除后三条命令退出 0�
 | Timeline | active 只顶层，archive 只 complete archive，multi-phase/order/lane 确定 | T7、T10 |
 | controls/a11y | typed filters，六档缩放，DOM order/keyboard/focus | T11–T12 + T15 |
 | i18n/time | 中英同构动态切换，原文，Host locale/timezone | client tests + T15 |
-| install/Web | T13 通过的工作树构建为唯一 artifact，在隔离 profile 验证真实 Host 与重启恢复，凭据只读取固定 `dev.env`，验收后删除临时环境 | T14–T16 |
+| install/Web | T13 通过的工作树构建为唯一 artifact，新 profile 采用 `patchReload: startup`，在隔离 profile 验证真实 Host 与重启恢复，凭据只读取固定 `dev.env`，验收后删除临时环境 | T14–T16 |
 
 Not Applicable：无新 command，因此无新 caller/stale-version/idempotency/rollback/outbox 语义；无数据库迁移、兼容读写、新 event/receipt/outbox；不改服务器容量/并发，不增压力测试；仅 `zh`/`en`。
 
@@ -400,4 +402,4 @@ Scope 全部有代码/focused test/PASS，Non-goals 未引入，T13 自动验证
 
 结论：`Executable`。需求已缩减为已有数据展示和现有 lifecycle controls；纯状态、选择/读取、transport generation 恢复、响应式外壳、Header/tabs、projection、Overview 两批、泳道、视口控制、键盘定位、自动门禁、已验证构建安装、人工门禁和删除收口均按依赖拆分。执行者无需决定新 Remote/领域协议、对象写入、freshness 语义、Timeline 映射、裸 ID 推断、缩放语义或 Web 验收方式。
 
-作者未运行 typecheck/build/full verify/真实 DSH Web，因为本次只修订 RUNBOOK；它们是 T13–T15 门禁，当前不是 PASS 证据。
+本次 HMR 修复的聚焦安装契约测试、`pnpm --dir plugin verify` 和文档链接检查已 PASS；隔离 profile 中的 `patchReload: startup` 也已使真实 DSH Web 监听固定端口，但该诊断环境不算 T14 PASS。仍须按 T14–T15 从修复后的干净工作树重新安装、建立 fixture 并完成人工 Web 清单。

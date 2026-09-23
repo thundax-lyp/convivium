@@ -35,6 +35,8 @@ Host adapter 必须把 DSH 的具体 API 收敛在 role-catalog、preflight 和 
 
 DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox、Approval、Session 生命周期和存储 provider。Convivium 只拥有会议身份与 Session ownership 的对应关系、领域操作的受控入口、Meeting 事实投影和角色资源溯源。首发只支持精确 DSH 版本 `0.1.2-rc.1`；版本不同或缺少必需 lifecycle capability 时，加载必须拒绝并说明支持版本，不提供降级会议模式。
 
+专用 Web 安装根在首次创建 DSH `web` profile 时，将 `dsh.profile.patchReload` 从该版本默认的 `live` 固定为 `startup`：当前解析到的 Cordis HMR 不提供 DSH live watcher 调用的 `registerConfig`，而 Meetings View 不依赖运行中修改 patch。所有 bundle、profile、home 和启动 overlay 仍在每次 Host 启动时完整应用；修改 patch 后须重启 Host。安装器不改写已经存在的 profile manifest，也不复制凭据。
+
 每个 MeetingIdentity 使用独立、可持续的会议专用 Session；不同 Meeting、身份或授权范围不得共享。Meeting Session label、provisioning envelope 与 durable ownership 只使用全局唯一 `meetingId` 和 Meeting 内唯一 `identityId` 定位，不包含 `teamId`；任何创建、继续、interrupt、恢复、停止或撤权都必须先验证持久 ownership，不能凭显示名、前缀或 UI 输入猜测。
 
 Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 只向与当前 active Agenda 相关、具有 contributor 角色、无未结束 Contribution/MeetingTask 且已证明自己的会议 Session active 的身份排入一次 `agent_notice` 申请机会。相关身份是 `agendaResponsibilityIds` 包含 active Agenda ID 或该数组为空的 contributor；身份可以不申请或不发言。通知只携带 Meeting/Agenda/已公开 message ID，Agent 再由受控读入口取得 caller-visible Transcript。投递前 dispatcher 重新验证 Session ownership、active 和闲置资格；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手或材料已登记。初次举手或无轮次机会申请经已提交 command 通知 Manager，Manager 处置理由只通知作者本人。

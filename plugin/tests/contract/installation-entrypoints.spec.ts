@@ -45,7 +45,13 @@ async function fixture() {
     expect(packed.status, packed.stderr.toString()).toBe(0);
     await executable(
         join(fakeBin, "pnpm"),
-        `#!/bin/sh\nprintf '%s\\n' "DSH_HOME=$DSH_HOME PWD=$PWD ARGS=$*" >> "$CALLS_FILE"\n`
+        `#!/bin/sh
+printf '%s\\n' "DSH_HOME=$DSH_HOME PWD=$PWD ARGS=$*" >> "$CALLS_FILE"
+mkdir -p "$DSH_HOME/profiles/web"
+if [ ! -f "$DSH_HOME/profiles/web/package.json" ]; then
+    printf '%s\\n' '{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"],"patchReload":"live"}}}' > "$DSH_HOME/profiles/web/package.json"
+fi
+`
     );
     return { root, artifact, fakeBin, calls, installRoot: join(root, "installation") };
 }
@@ -111,6 +117,14 @@ describe("user installation entrypoints", () => {
         expect(await readFile(join(installRoot, "dev.env"), "utf8")).toBe(
             "DEEPSEEK_API_KEY=existing-key\n"
         );
+        expect(
+            JSON.parse(
+                await readFile(
+                    join(installRoot, "dsh-home", "profiles", "web", "package.json"),
+                    "utf8"
+                )
+            ).dsh.profile.patchReload
+        ).toBe("startup");
         const recordedCalls = await readFile(calls, "utf8");
         expect(recordedCalls).toContain(
             `plugin --profile web add ${join(installRoot, "artifacts", "convivium-dsh-plugin-1.2.3.tgz")}`
@@ -118,6 +132,30 @@ describe("user installation entrypoints", () => {
         expect(recordedCalls).toContain(
             "plugin --profile web add @deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1"
         );
+    });
+
+    it("preserves an existing web profile reload setting", async () => {
+        const { root, artifact, fakeBin, calls, installRoot } = await fixture();
+        const profileManifest = join(installRoot, "dsh-home", "profiles", "web", "package.json");
+        await mkdir(join(installRoot, "dsh-home", "profiles", "web"), { recursive: true });
+        const existing = {
+            name: "dsh-profile-web",
+            dsh: { profile: { bundles: ["@deepseek-ai/dsh-base"], patchReload: "live" } }
+        };
+        await writeFile(profileManifest, `${JSON.stringify(existing)}\n`);
+        const result = spawnSync(installScript, ["--artifact", artifact], {
+            cwd: root,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${fakeBin}:${process.env.PATH}`,
+                CALLS_FILE: calls,
+                CONVIVIUM_INSTALL_ROOT: installRoot
+            }
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(JSON.parse(await readFile(profileManifest, "utf8"))).toEqual(existing);
     });
 
     it("starts with the installed release, profile, workspace, and environment", async () => {
