@@ -9,7 +9,8 @@ import {
 import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingTranslate } from "./locales.js";
-import { lifecycleLabel, renderObservabilitySections } from "./meeting-panel-sections.js";
+import { lifecycleLabel } from "./meeting-panel-sections.js";
+import { MeetingPanelOverview } from "./meeting-panel-overview.js";
 import type { MeetingMode } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
@@ -199,7 +200,9 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             "aria-labelledby": `meeting-mode-${mode}`,
                             "aria-label": t("panel.detail.aria", { id: selected.meetingId })
                         },
-                        mode === "overview" ? renderObservabilitySections(ctx.detail, t) : null
+                        mode === "overview"
+                            ? createElement(MeetingPanelOverview, { detail: ctx.detail, t })
+                            : null
                     )
                 )
     );
