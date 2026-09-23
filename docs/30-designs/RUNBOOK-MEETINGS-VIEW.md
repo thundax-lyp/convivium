@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T11：实现筛选、缩放、折叠与滚动
-
-前置状态：T10 PASS。
-允许修改：`plugin/src/client/meeting-panel-timeline.tsx`、`plugin/src/client/meeting-panel.tsx` 仅 filter/revision callbacks、`plugin/src/client/locales.ts`；新增 `plugin/tests/client/meeting-panel-timeline-controls.client.spec.tsx`。
-禁止修改：projection 规则、键盘/定位。
-
-执行：先红测试四 filter 之间 AND/同类 OR、每个 option 集合只从未应用 UI filter 的 caller-visible projection nodes 生成、zoom 六档边界、lane collapse/expand、latest 滚到最大 time node、viewportRevision 变更将 `scrollLeft=0`。缩放只把 node 列间距设为 `12px * zoom`，并按同一公式重算 inner `minWidth`；不改 `160px` label、`220px` 卡片列宽、字体或泳道高度。实现 `TimelineFilters`/viewport controls。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-timeline-controls.client.spec.tsx
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，filters/zoom/collapse/latest/reset 成立，options 不随当前 filter 自缩减。STOP：需更改 projection 或将缩放变为整页缩放。失败恢复：纯 DOM/state。
-
 ### T12：实现键盘、焦点和跨模式定位
 
 前置状态：T11 PASS，Overview 和 Timeline 均已渲染且 T7 projection 可用。

@@ -292,6 +292,10 @@ export function ConviviumMeetingPanel({
             }),
             activeMode: workspace.activeMode,
             setMode: (activeMode) => setWorkspace((current) => ({ ...current, activeMode })),
+            timelineFilters: workspace.timeline,
+            viewportRevision: workspace.viewportRevision,
+            onTimelineFiltersChange: (timeline) =>
+                setWorkspace((current) => ({ ...current, timeline })),
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,
