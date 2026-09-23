@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+    activateTargetMeetingApplication,
     createTargetMeetingEffectDispatcher,
+    getLocalMeetingWebRuntime,
     recoverTargetMeetingDeliveries
 } from "@/runtime/meeting-lifecycle.js";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+import roleResources from "../../../meeting-roles/definitions.json" with { type: "json" };
 
 const item = (kind: string) =>
     ({
@@ -65,5 +70,65 @@ describe("target Meeting delivery recovery", () => {
         });
 
         expect(ensureDelivery).toHaveBeenCalledWith("meeting-1", parent);
+    });
+});
+
+describe("target Meeting list", () => {
+    it("rejects the whole list when a discovered Meeting has no recoverable snapshot", async () => {
+        const state = makeRunningMeetingStateV1();
+        const ready = {
+            bootstrap: { status: "ready" },
+            snapshot: {
+                meetingId: state.id,
+                version: state.version,
+                state,
+                createdAt: 0,
+                updatedAt: 1
+            },
+            sessionOwnership: []
+        };
+        const unavailable = {
+            bootstrap: { status: "ready" },
+            snapshot: undefined,
+            sessionOwnership: []
+        };
+        const registry = {
+            listMeetings: () => [{ meetingId: state.id }, { meetingId: "meeting-unavailable" }],
+            openMeeting: async ({ meetingId }: { meetingId: string }) => ({
+                recover: async () => (meetingId === state.id ? ready : unavailable)
+            }),
+            close: async () => undefined
+        };
+        const open = vi
+            .spyOn(DomainRepositoryRegistry, "open")
+            .mockResolvedValue(registry as never);
+        const owner = {
+            storageDomain: {},
+            subagents: {
+                getProvider: () => ({
+                    name: "spawn",
+                    capabilities: { outputSchema: true },
+                    prepareContinuable: async () => ({})
+                })
+            },
+            agents: { get: () => undefined }
+        };
+        const config = {
+            provider: "spawn",
+            maxParticipants: 3,
+            speakerTimeoutMs: 60_000,
+            outboxPollMs: 1_000,
+            agentDefinitions: roleResources.definitions
+        };
+        const dispose = await activateTargetMeetingApplication(owner as never, config);
+
+        try {
+            await expect(
+                getLocalMeetingWebRuntime(owner).list(new AbortController().signal)
+            ).rejects.toThrow("Meeting is not ready.");
+        } finally {
+            await dispose();
+            open.mockRestore();
+        }
     });
 });

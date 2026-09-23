@@ -32,7 +32,10 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-type ArchiveSessions = Pick<SubagentRuntime, "listChildren" | "drainContinuableDescendants">;
+type ArchiveSessions = Pick<
+    SubagentRuntime,
+    "listChildren" | "interrupt" | "drainContinuableChildren"
+>;
 
 interface DispatchArchiveCleanupInput {
     readonly outboxItem: OutboxItem;
@@ -122,15 +125,23 @@ async function proveDurableChildren(
     ownerships: readonly SessionOwnership[]
 ): Promise<void> {
     const entries = await sessions.listChildren(parent.id, signal);
-    if (entries.length !== ownerships.length) unavailable();
     const expected = new Map(ownerships.map((ownership) => [ownership.sessionId, ownership]));
     const observed = new Set<string>();
     for (const entry of entries) {
-        if (entry.kind !== "child") unavailable();
         const sessionId = String(entry.id);
         const ownership = expected.get(sessionId);
+        if (!ownership) {
+            if (
+                entry.kind === "child" &&
+                entry.label !== undefined &&
+                decodeMeetingIdentitySessionLabel(entry.label)?.meetingId ===
+                    ownerships[0]?.meetingId
+            )
+                unavailable();
+            continue;
+        }
         if (
-            !ownership ||
+            entry.kind !== "child" ||
             observed.has(sessionId) ||
             entry.mode !== "continuable" ||
             entry.label !== ownership.sessionLabel
@@ -261,7 +272,15 @@ export function createMeetingArchiveDispatcher(
             );
             if (pending.length > 0) {
                 try {
-                    await dependencies.sessions.drainContinuableDescendants([input.parent]);
+                    for (const ownership of pending)
+                        dependencies.sessions.interrupt(ownership.sessionId as never, {
+                            kind: "ancestor",
+                            agent: input.parent
+                        });
+                    await dependencies.sessions.drainContinuableChildren(
+                        input.parent,
+                        pending.map((ownership) => ownership.sessionId as never)
+                    );
                 } catch {
                     await recordResult(input, archiveId, pending[0]!, "failed");
                     retry("SESSION_CLOSE_FAILED");

@@ -44,17 +44,23 @@ describe("MeetingClient target transport", () => {
             })
         ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
 
-        const onUnavailable = vi.fn();
-        expect(client.subscribeRefresh(onUnavailable)).toBe(refreshStream);
+        const callbacks = {
+            carrierFailed: vi.fn(),
+            generationReopened: vi.fn()
+        };
+        expect(client.subscribeRefresh(callbacks)).toBe(refreshStream);
         expect($stream).toHaveBeenCalledOnce();
         const options = $stream.mock.calls[0]?.[0];
         expect(options?.name).toBe("convivium-meetings-refresh");
         const signal = new AbortController().signal;
         expect(options?.open(signal)).toBe(refreshSource);
+        expect(callbacks.generationReopened).not.toHaveBeenCalled();
+        expect(options?.open(signal)).toBe(refreshSource);
+        expect(callbacks.generationReopened).toHaveBeenCalledOnce();
         expect(subscribeRefresh).toHaveBeenCalledWith(signal);
         expect(options?.ended().message).toBe("Meeting refresh stream ended.");
         options?.carrierFailed();
-        expect(onUnavailable).toHaveBeenCalledOnce();
+        expect(callbacks.carrierFailed).toHaveBeenCalledOnce();
     });
 
     it("maps carrier invalid-request failures and forwards read input", async () => {

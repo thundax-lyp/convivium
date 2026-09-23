@@ -1,5 +1,5 @@
 import type { Context } from "@deepseek-ai/cordis";
-import { createElement } from "react";
+import * as React from "react";
 // Load the client Context and conversation slot augmentations without runtime imports.
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
@@ -13,7 +13,7 @@ export const name = "convivium-client";
 
 export const inject = ["remote", "locale"] as const;
 
-export async function apply(ctx: Context): Promise<void> {
+export const apply = async (ctx: Context): Promise<void> => {
     await ctx.remote.$mount(contribution);
     ctx.effect(
         () => ctx.locale.register(MEETING_LOCALE_NS, { zh, en }),
@@ -31,8 +31,14 @@ export async function apply(ctx: Context): Promise<void> {
                     order: 100,
                     locale: MEETING_LOCALE_NS
                 },
-                (props) => createElement(ConviviumMeetingPanel, { api, t: props.t })
+                (props) => (
+                    <ConviviumMeetingPanel
+                        api={api}
+                        t={props.t}
+                        locale={ctx.locale.getLocale().active}
+                    />
+                )
             )
         );
     });
-}
+};

@@ -99,4 +99,34 @@ describe("Meeting panel local controls", () => {
         });
         await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
     });
+
+    it("disables lifecycle controls while an end command is pending", async () => {
+        const { summary, view } = meetingProjectionFixture();
+        let acceptControl: () => void = () => {};
+        const controlPending = new Promise<{ kind: "accepted" }>((resolve) => {
+            acceptControl = () => resolve({ kind: "accepted" });
+        });
+        const stream = {
+            async *[Symbol.asyncIterator]() {
+                await new Promise<void>(() => {});
+                yield undefined as never;
+            },
+            dispose: vi.fn(async () => {})
+        };
+        const api = {
+            list: vi.fn(async () => ({ meetings: [summary] })),
+            read: vi.fn(async () => view),
+            control: vi.fn(() => controlPending),
+            subscribeRefresh: vi.fn(() => stream)
+        } as unknown as MeetingClient;
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        const end = await screen.findByRole("button", { name: "End meeting" });
+        fireEvent.click(end);
+        await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
+        expect(end.disabled).toBe(true);
+        expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
+        acceptControl();
+        await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
+    });
 });

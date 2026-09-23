@@ -33,6 +33,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$script_path")" && pwd)
 package_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 artifact_path=""
 workspace_input=""
+dev_refresh=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -48,7 +49,12 @@ while [ "$#" -gt 0 ]; do
             workspace_input=$2
             shift 2
             ;;
-        *) fail "usage: install.sh [--workspace <path>] [--artifact <tarball>]" ;;
+        --dev-refresh)
+            [ "$dev_refresh" -eq 0 ] || fail "--dev-refresh may only be specified once"
+            dev_refresh=1
+            shift
+            ;;
+        *) fail "usage: install.sh [--workspace <path>] [--artifact <tarball>] [--dev-refresh]" ;;
     esac
 done
 
@@ -117,16 +123,33 @@ process.stdout.write(`${manifest.name}\n${manifest.version}\n`);
 release_version=$(printf '%s\n' "$manifest_values" | sed -n '2p')
 [ -n "$release_version" ] || fail "artifact version is empty"
 
+release_id=$release_version
+artifact_digest=""
+if [ "$dev_refresh" -eq 1 ]; then
+    artifact_digest=$(node -e 'const fs = require("node:fs"); const crypto = require("node:crypto"); process.stdout.write(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"))' "$artifact_path")
+    release_id="$release_version-$artifact_digest"
+fi
+
 install_root=${CONVIVIUM_INSTALL_ROOT:-"$PWD/dsh-workspace/convivium-user"}
 mkdir -p "$install_root"
 install_root=$(CDPATH= cd -- "$install_root" && pwd)
 chmod 700 "$install_root"
 artifact_root="$install_root/artifacts"
-release_root="$install_root/releases/$release_version"
-installed_artifact="$artifact_root/$(basename -- "$artifact_path")"
+release_root="$install_root/releases/$release_id"
+if [ "$dev_refresh" -eq 1 ]; then
+    installed_artifact="$artifact_root/$artifact_digest/$(basename -- "$artifact_path")"
+else
+    installed_artifact="$artifact_root/$(basename -- "$artifact_path")"
+fi
 workspace_path_file="$install_root/workspace-path"
-[ ! -e "$release_root" ] || fail "release already exists: $release_root"
-[ ! -e "$installed_artifact" ] || fail "artifact already exists: $installed_artifact"
+if [ "$dev_refresh" -eq 0 ]; then
+    [ ! -e "$release_root" ] || fail "release already exists: $release_root"
+    [ ! -e "$installed_artifact" ] || fail "artifact already exists: $installed_artifact"
+elif [ -e "$release_root" ] || [ -e "$installed_artifact" ]; then
+    [ -d "$release_root" ] && [ -f "$installed_artifact" ] || fail "development release is incomplete: $release_root"
+    installed_digest=$(node -e 'const fs = require("node:fs"); const crypto = require("node:crypto"); process.stdout.write(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"))' "$installed_artifact")
+    [ "$installed_digest" = "$artifact_digest" ] || fail "development artifact has changed: $installed_artifact"
+fi
 
 if [ -n "$workspace_input" ]; then
     workspace_root=$(node -e 'const path = require("node:path"); process.stdout.write(path.resolve(process.argv[1]))' "$workspace_input")
@@ -140,12 +163,16 @@ else
     workspace_root="$PWD/dsh-workspace"
 fi
 
-mkdir -p "$artifact_root" "$install_root/releases" "$install_root/dsh-home" "$workspace_root"
-cp "$artifact_path" "$installed_artifact"
-installed_artifact_created=1
-mkdir "$release_root"
-release_root_created=1
-tar -xzf "$installed_artifact" -C "$release_root"
+dsh_home="$workspace_root/dsh-home"
+mkdir -p "$artifact_root" "$install_root/releases" "$dsh_home" "$workspace_root"
+if [ ! -e "$release_root" ]; then
+    mkdir -p "$(dirname -- "$installed_artifact")"
+    cp "$artifact_path" "$installed_artifact"
+    installed_artifact_created=1
+    mkdir "$release_root"
+    release_root_created=1
+    tar -xzf "$installed_artifact" -C "$release_root"
+fi
 
 if [ ! -e "$install_root/storage.patch.yml" ]; then
     storage_path=$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$install_root/convivium-storage.sqlite")
@@ -170,16 +197,35 @@ if [ ! -e "$install_root/dev.env" ]; then
     (umask 077 && printf 'DEEPSEEK_API_KEY=\n' >"$install_root/dev.env")
 fi
 
-export DSH_HOME="$install_root/dsh-home"
+profile_manifest="$dsh_home/profiles/web/package.json"
+profile_pending="$dsh_home/.convivium-web-profile-pending"
+if [ ! -e "$profile_manifest" ]; then
+    : >"$profile_pending"
+fi
+
+export DSH_HOME="$dsh_home"
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add "$installed_artifact"
+if [ -e "$profile_pending" ]; then
+    node - "$profile_manifest" <<'NODE'
+const fs = require("node:fs");
+const path = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+if (manifest.name !== "dsh-profile-web" || !["live", "startup"].includes(manifest.dsh?.profile?.patchReload)) {
+    throw new Error("incomplete DSH web profile has an unexpected reload setting");
+}
+manifest.dsh.profile.patchReload = "startup";
+fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
+    rm -f "$profile_pending"
+fi
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add \
     "@deepseek-ai/dsh-storage-sqlite@$DSH_VERSION"
 
 cp "$release_root/package/scripts/start.sh" "$install_root/start.sh"
 chmod 755 "$install_root/start.sh"
 printf '%s\n' "$workspace_root" >"$workspace_path_file"
-printf '%s\n' "$release_version" >"$install_root/release"
+printf '%s\n' "$release_id" >"$install_root/release"
 installation_completed=1
 
-printf 'Installed %s %s in %s\n' "$PACKAGE_NAME" "$release_version" "$install_root"
+printf 'Installed %s %s in %s\n' "$PACKAGE_NAME" "$release_id" "$install_root"
 printf 'Set DEEPSEEK_API_KEY in %s/dev.env, then run %s/start.sh\n' "$install_root" "$install_root"
