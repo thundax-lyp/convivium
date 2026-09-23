@@ -1,5 +1,6 @@
 import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
+import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { knownEnum, zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
 import {
     buildTimelineNodes,
@@ -158,10 +159,10 @@ function filterGroup(
         createElement("legend", null, title),
         ...values.map((value) =>
             createElement(
-                "button",
+                Pill,
                 {
                     key: value,
-                    type: "button",
+                    active: selected.includes(value),
                     "aria-pressed": selected.includes(value),
                     onClick: () => onToggle(value)
                 },
@@ -241,9 +242,11 @@ export function TimelineFilters({
             }
         ),
         createElement(
-            "button",
+            Button,
             {
                 type: "button",
+                variant: "outline",
+                size: "sm",
                 onClick: () =>
                     onChange({
                         ...filters,
@@ -358,23 +361,33 @@ export function TimelineViewport({
         null,
         focusMissing ? createElement("p", { role: "status" }, t("panel.state.focusMissing")) : null,
         createElement(
-            "button",
+            Button,
             {
                 type: "button",
+                variant: "outline",
+                size: "sm",
                 disabled: zoomIndex === zoomLevels.length - 1,
                 onClick: () => changeZoom(1)
             },
             t("panel.timeline.zoomIn")
         ),
         createElement(
-            "button",
-            { type: "button", disabled: zoomIndex === 0, onClick: () => changeZoom(-1) },
+            Button,
+            {
+                type: "button",
+                variant: "outline",
+                size: "sm",
+                disabled: zoomIndex === 0,
+                onClick: () => changeZoom(-1)
+            },
             t("panel.timeline.zoomOut")
         ),
         createElement(
-            "button",
+            Button,
             {
                 type: "button",
+                variant: "outline",
+                size: "sm",
                 onClick: () =>
                     (latestVisibleKey === undefined
                         ? undefined
@@ -407,10 +420,12 @@ export function TimelineViewport({
                 },
                 ...lanes.map((lane, index) =>
                     createElement(
-                        "button",
+                        Button,
                         {
                             key: lane,
                             type: "button",
+                            variant: "ghost",
+                            size: "sm",
                             "aria-label": `${t(collapsed.includes(lane) ? "panel.timeline.expand" : "panel.timeline.collapse")} ${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}`,
                             onClick: () =>
                                 onFiltersChange({
@@ -500,9 +515,11 @@ export function TimelineViewport({
                             : createElement("p", null, statusLabel(node, t)),
                         onLocateInOverview
                             ? createElement(
-                                  "button",
+                                  Button,
                                   {
                                       type: "button",
+                                      variant: "outline",
+                                      size: "sm",
                                       onClick: () =>
                                           onLocateInOverview({
                                               meetingId: detail.meetingId,

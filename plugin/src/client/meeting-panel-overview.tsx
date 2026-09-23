@@ -1,5 +1,6 @@
 import { createElement, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.js";
+import { Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { knownEnum as known, type MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { buildTimelineNodes } from "./meeting-timeline-projection.js";
@@ -43,7 +44,7 @@ export function OverviewObjective({ detail, t }: SectionProps): ReactElement {
     return section(
         t("panel.overview.objective"),
         createElement("p", null, objective.statement),
-        createElement("p", null, lifecycleLabel(detail.lifecycle.status, t)),
+        createElement(Pill, null, lifecycleLabel(detail.lifecycle.status, t)),
         createElement("p", null, `${t("panel.summary.version")}: ${detail.version}`),
         values(
             agenda.map((item) =>

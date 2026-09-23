@@ -7,7 +7,7 @@ import {
     type ReactElement
 } from "react";
 import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
-import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { MeetingPanelOverview } from "./meeting-panel-overview.js";
@@ -117,7 +117,7 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                         { "data-testid": "meeting-header" },
                         createElement("h3", null, ctx.detail.objective.statement),
                         createElement(
-                            "p",
+                            Pill,
                             null,
                             `${t("panel.header.status")}: ${lifecycleLabel(ctx.detail.lifecycle.status, t)}`
                         ),
