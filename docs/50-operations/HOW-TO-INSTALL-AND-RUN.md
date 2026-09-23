@@ -10,6 +10,7 @@
 - DSH、Cordis 和 Host provider 使用项目固定的 `0.1.2-rc.1` / `4.0.2` 组合。
 - 源码命令从仓库根执行；使用 npm 包时，在一个由用户选择的空工作目录执行。
 - `dsh-workspace/convivium-user/` 是本流程唯一持久根，保存 profile、workspace、SQLite 和已解包发布物；不得指向现有 DSH profile 或其他项目目录。
+- 人工 Web 调试和验收使用 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收) 的固定隔离子工程，不覆盖本流程的日常持久根。
 - DeepSeek 模型、search、fetch、Sandbox 和 Approval 仍由 DSH profile 管理。本文不写入凭据或绕过 Host 权限。
 
 ## Install

@@ -11,6 +11,27 @@
 
 Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会在 Host 启动前失败，不能作为 Browser 验收证据。
 
+## 人工 Web 调试与验收
+
+人工 Browser 调试不运行 `smoke:profile`，也不使用 `/tmp` 安装根。从仓库根为当前完整 `git HEAD` 使用固定路径 `dsh-workspace/web-ui/<git HEAD>/`；其中 `convivium-user/` 保存安装、`DSH_HOME`、SQLite 和对话，`workspace/` 是 DSH 工作区。同一 HEAD 重启时复用原安装，不重新安装或覆盖 release；源码修复形成新 HEAD 后使用新的对应子工程，旧子工程保留以便复盘。不同子工程的 Host 均使用 `127.0.0.1:31828`，启动前必须先停止占用该端口的旧 Host。
+
+首次安装从仓库根执行；目标已存在时停止并核对，不删除或覆盖：
+
+```sh
+web_ui_revision="$(git rev-parse HEAD)"
+web_ui_root="$PWD/dsh-workspace/web-ui/$web_ui_revision"
+test -z "$(git status --short)"
+command -v lsof >/dev/null
+test -z "$(lsof -nP -iTCP:31828 -sTCP:LISTEN)"
+test ! -e "$web_ui_root"
+mkdir -p "$web_ui_root"
+chmod 700 "$web_ui_root"
+CONVIVIUM_INSTALL_ROOT="$web_ui_root/convivium-user" \
+  ./scripts/install-from-source.sh --workspace "$web_ui_root/workspace"
+```
+
+按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件。若复用仓库根的固定 `dev.env`，只在确认安装器新建的 `convivium-user/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；不得复制或回显 key。运行 `"$web_ui_root/convivium-user/start.sh"`，在真实 Captain Session 中建立人工 fixture；不能把仅保留 Meeting SQLite 的自动 smoke 结果当作同时保留了 DSH 对话。需要重启时从相同安装根再运行同一 `start.sh`。成功判据是重启后同一子工程能读回已提交的对话和会议；仅端口监听不算通过。启动或补读失败时保留整个子工程及 Host 错误，停止并诊断，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留子工程；删除须另行按精确路径确认，不由 smoke Restore 清理。
+
 ## Prerequisites
 
 - 从仓库根目录执行命令。

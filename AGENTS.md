@@ -29,6 +29,7 @@ Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。项目边界以 [
 
 ## Key Constraints
 
+- 人工 DSH Web 调试和人工验收必须使用仓库 `dsh-workspace/web-ui/<git HEAD>/` 下的固定、持久子工程；`DSH_HOME`、DSH workspace、SQLite 和对话记录不得放在 `/tmp`。自动 `smoke:profile` 仍使用独立临时环境，不作为人工 Web 入口；路径和操作见 [DSH Smoke](docs/50-operations/HOW-TO-DSH-SMOKE.md#人工-web-调试与验收)。
 - 必须遵守 [Engineering Rules 的 Implementation Economy](docs/00-governance/ENGINEERING-RULES.md#implementation-economy)：新增机制必须有当前依据，采用保持必要不变量的最小安全改动，不顺带扩张范围。
 - 必须遵守 [Import Paths](docs/00-governance/ARCHITECTURE.md#import-paths) 和 [Public Module Entrypoints](docs/00-governance/ARCHITECTURE.md#public-module-entrypoints)：源码禁止父级相对导入；测试引用源码使用 `@/`；生产代码跨模块只引用登记的公开入口。不得通过禁用 lint、放宽规则或创建转发文件绕过检查。
 - 实现前明确业务不变量与反例，测试检查可观察行为；具体要求见 [Engineering Checks](docs/00-governance/ENGINEERING-RULES.md#engineering-checks) 和 [Test Rules](docs/00-governance/TEST-RULES.md)。
