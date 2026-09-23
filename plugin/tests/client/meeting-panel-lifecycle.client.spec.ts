@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting-client.js";
@@ -47,7 +47,7 @@ describe("Meeting panel lifecycle", () => {
                 meetingId: summary.meetingId
             })
         );
-        expect(screen.getByLabelText("Meeting summary")).toBeTruthy();
+        expect(screen.getByRole("region", { name: "Objective" })).toBeTruthy();
         fireEvent.click(item);
         expect(api.read).toHaveBeenCalledOnce();
 
@@ -88,11 +88,23 @@ describe("Meeting panel lifecycle", () => {
 
             fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
             fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
-            expect(await screen.findByText("Second detail")).toBeTruthy();
+            await waitFor(() =>
+                expect(
+                    within(screen.getByRole("region", { name: "Objective" })).getByText(
+                        "Second detail"
+                    )
+                ).toBeTruthy()
+            );
 
             if (settlement === "resolve") resolveFirst(view);
             else rejectFirst(new Error("late failure"));
-            await waitFor(() => expect(screen.getByText("Second detail")).toBeTruthy());
+            await waitFor(() =>
+                expect(
+                    within(screen.getByRole("region", { name: "Objective" })).getByText(
+                        "Second detail"
+                    )
+                ).toBeTruthy()
+            );
             expect(screen.queryByText(view.objective.statement)).toBeNull();
             expect(screen.queryByRole("alert")).toBeNull();
         }
@@ -107,16 +119,16 @@ describe("Meeting panel lifecycle", () => {
             .mockResolvedValueOnce({ meetings: [summary] });
         render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-        expect(await screen.findByLabelText("Meeting summary")).toBeTruthy();
+        expect(await screen.findByRole("region", { name: "Objective" })).toBeTruthy();
 
         releaseNotice();
 
         expect(await screen.findByText("Select a meeting.")).toBeTruthy();
-        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        expect(screen.queryByRole("region", { name: "Objective" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
         await waitFor(() => expect(api.list).toHaveBeenCalledTimes(3));
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
-        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        expect(screen.queryByRole("region", { name: "Objective" })).toBeNull();
     });
 
     it("keeps the selected Meeting and its last-good detail when rereading fails", async () => {
@@ -127,12 +139,22 @@ describe("Meeting panel lifecycle", () => {
             .mockRejectedValueOnce(new Error("detail unavailable"));
         render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-        expect(await screen.findByText(view.objective.statement)).toBeTruthy();
+        await waitFor(() =>
+            expect(
+                within(screen.getByRole("region", { name: "Objective" })).getByText(
+                    view.objective.statement
+                )
+            ).toBeTruthy()
+        );
 
         fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 
         expect((await screen.findByRole("alert")).textContent).toBe("Meeting data is unavailable.");
-        expect(screen.getByText(view.objective.statement)).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Objective" })).getByText(
+                view.objective.statement
+            )
+        ).toBeTruthy();
         expect(screen.getByLabelText(`Meeting ${summary.meetingId}`)).toBeTruthy();
     });
 });
