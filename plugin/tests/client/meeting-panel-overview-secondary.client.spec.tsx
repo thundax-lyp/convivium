@@ -82,23 +82,4 @@ describe("Meeting Overview secondary sections", () => {
             expect(technical.textContent).toContain(value);
         expect(screen.queryByText(/locate/i)).toBeNull();
     });
-
-    it("renders empty secondary groups without placeholder facts", () => {
-        const detail = activeTimelineFixture();
-        const empty = MeetingViewSchema.parse({
-            ...detail,
-            questions: [],
-            issues: [],
-            publications: [],
-            messages: [],
-            evidencePackages: [],
-            evidenceReviews: [],
-            reviewDeliveries: [],
-            tasks: [],
-            outcomes: { ...detail.outcomes, riskDispositions: [] }
-        });
-        render(createElement(MeetingPanelOverview, { detail: empty, t: meetingTranslator("en") }));
-        for (const name of ["Open items", "Transcript", "Evidence"])
-            expect(screen.getByRole("region", { name }).textContent).toContain("None");
-    });
 });

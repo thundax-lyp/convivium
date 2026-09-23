@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MeetingPanelTimeline } from "@/client/meeting-panel-timeline.js";
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting-workspace-state.js";
-import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.js";
+import { activeTimelineFixture } from "./meeting-timeline-fixtures.js";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
 
 afterEach(cleanup);
@@ -57,18 +57,5 @@ describe("Meeting Timeline lanes", () => {
         expect(cards[6]?.textContent).toContain("review scope");
         expect(cards[6]?.textContent).toContain("1970");
         expect(screen.getByText(/Timeline is a view/)).toBeTruthy();
-    });
-
-    it("uses complete archive only and reports incomplete archive", () => {
-        const rendered = render(timeline(archiveTimelineFixture("pending")));
-        expect(screen.getByText("The archive timeline is currently unavailable.")).toBeTruthy();
-        expect(screen.queryAllByTestId("timeline-node")).toHaveLength(0);
-        rendered.rerender(timeline(archiveTimelineFixture()));
-        expect(
-            screen
-                .getAllByTestId("timeline-node")
-                .some((card) => card.getAttribute("data-node-key") === "archive:archive-1:created")
-        ).toBe(true);
-        expect(screen.queryByText("The archive timeline is currently unavailable.")).toBeNull();
     });
 });

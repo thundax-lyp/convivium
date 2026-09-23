@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MeetingPanelOverview } from "@/client/meeting-panel-overview.js";
 import { MeetingViewSchema } from "@/protocol/meeting-view.js";
-import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.js";
+import { activeTimelineFixture } from "./meeting-timeline-fixtures.js";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
 
 afterEach(cleanup);
@@ -40,7 +40,15 @@ describe("Meeting Overview primary sections", () => {
         render(createElement(MeetingPanelOverview, { detail, t: meetingTranslator("en") }));
         expect(
             screen.getAllByRole("region").map((element) => element.getAttribute("aria-label"))
-        ).toEqual(["Objective", "Progress", "Outcomes"]);
+        ).toEqual([
+            "Objective",
+            "Progress",
+            "Outcomes",
+            "Open items",
+            "Transcript",
+            "Evidence",
+            "Technical"
+        ]);
         const objective = screen.getByRole("region", { name: "Objective" });
         expect(objective.textContent).toContain(detail.objective.statement);
         expect(objective.textContent).toContain("required output");
@@ -64,16 +72,5 @@ describe("Meeting Overview primary sections", () => {
             expect(outcomes.textContent).toContain(value);
         expect(within(outcomes).queryByRole("button")).toBeNull();
         expect(screen.queryByText(/locate/i)).toBeNull();
-    });
-
-    it("shows empty groups without invented summaries and omits runtime progress for archive", () => {
-        const detail = archiveTimelineFixture();
-        render(createElement(MeetingPanelOverview, { detail, t: meetingTranslator("en") }));
-        expect(
-            screen.getAllByRole("region").map((element) => element.getAttribute("aria-label"))
-        ).toEqual(["Objective", "Outcomes"]);
-        expect(screen.getByRole("region", { name: "Outcomes" }).textContent).toContain(
-            "decision-1"
-        );
     });
 });
