@@ -11,7 +11,8 @@ import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { MeetingPanelOverview } from "./meeting-panel-overview.js";
-import type { MeetingMode } from "./meeting-workspace-state.js";
+import { MeetingPanelTimeline } from "./meeting-panel-timeline.js";
+import { INITIAL_TIMELINE_FILTERS, type MeetingMode } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
     meetings: readonly MeetingSummary[];
@@ -202,7 +203,13 @@ function renderWorkspace(ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                         },
                         mode === "overview"
                             ? createElement(MeetingPanelOverview, { detail: ctx.detail, t })
-                            : null
+                            : createElement(MeetingPanelTimeline, {
+                                  detail: ctx.detail,
+                                  filters: INITIAL_TIMELINE_FILTERS,
+                                  viewportRevision: 0,
+                                  t,
+                                  onFiltersChange: () => undefined
+                              })
                     )
                 )
     );

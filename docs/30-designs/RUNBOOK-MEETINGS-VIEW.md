@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T10：实现 Timeline 卡片与五泳道
-
-前置状态：T9 PASS。
-允许修改：新增 `plugin/src/client/meeting-panel-timeline.tsx`、`plugin/tests/client/meeting-panel-timeline-lanes.client.spec.tsx`；修改 `plugin/src/client/meeting-panel-layout.tsx` 和 `plugin/src/client/meeting-panel.tsx` 仅 Timeline 接线、`plugin/src/client/locales.ts`。
-禁止修改：projection 规则、filters/键盘/定位、CSS file/dependency。
-
-执行：先红测试全局时间 DOM order、五个泳道 header、卡片文字、archive unavailable、窄屏水平滚动。使用一个按全局时间排序的 node map；viewport inner CSS grid 固定五个泳道行，每个 node 按 `lane` 设置 `gridRow`，按排序索引设置 `gridColumn=index+2`，第一列是固定 `160px` 泳道 label，后续 node 列宽固定 `220px`，初始列间距 `12px`，inner `minWidth=160 + nodes.length*220 + max(nodes.length-1,0)*12`，container `overflowX:auto`。卡片显示 lane/displayName/system/type/phase/time/status，不只靠颜色。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-timeline-lanes.client.spec.tsx tests/client/meeting-panel-locales.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，DOM order/泳道/文字语义成立。STOP：必须分五 DOM lists 或增 dependency。失败恢复：纯 DOM。
-
 ### T11：实现筛选、缩放、折叠与滚动
 
 前置状态：T10 PASS。
