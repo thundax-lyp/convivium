@@ -264,21 +264,6 @@ typed relations 固定为：`roundId->round`、`publicationId|basedOnPublication
 
 ## 机械执行步骤
 
-### T9：实现 Overview 后四组
-
-前置状态：T8 PASS。
-允许修改：`plugin/src/client/meeting-panel-overview.tsx`、`plugin/src/client/meeting-panel-sections.tsx`、`plugin/src/client/locales.ts`、`plugin/tests/client/meeting-panel-visibility.client.spec.ts`；新增 `plugin/tests/client/meeting-panel-overview-secondary.client.spec.tsx`。
-禁止修改：Timeline UI、跨模式定位、Protocol/Runtime、写入按钮。
-
-执行：先红测试 OpenItems、Transcript、Evidence、Technical 顺序/字段/缺席，用户原文和 Risk 只读；实现后四 renderer。本步不渲染 locate 按钮，也不消费 focus target。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel-overview-secondary.client.spec.tsx tests/client/meeting-panel-visibility.client.spec.ts tests/client/meeting-panel-locales.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：退出 0，七组、原文、visibility 和只读边界成立，无定位 UI。STOP：需外部数据或新业务摘要。失败恢复：纯 rendering。
-
 ### T10：实现 Timeline 卡片与五泳道
 
 前置状态：T9 PASS。

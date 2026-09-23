@@ -162,6 +162,133 @@ export function OverviewOutcomes({ detail, t }: SectionProps): ReactElement {
     );
 }
 
+export function OverviewOpenItems({ detail, t }: SectionProps): ReactElement {
+    const archive =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
+            ? detail.archive
+            : undefined;
+    const questions = archive?.questions ?? detail.questions;
+    const issues = archive?.issues ?? detail.issues;
+    const risks = archive?.riskDispositions ?? detail.outcomes.riskDispositions;
+    return section(
+        t("panel.overview.openItems"),
+        values(
+            [
+                ...questions.map((item) =>
+                    createElement(
+                        "li",
+                        { key: `question:${item.id}` },
+                        `${item.text}: ${known("questionStatus", item.status, t)}`
+                    )
+                ),
+                ...issues.map((item) =>
+                    createElement(
+                        "li",
+                        { key: `issue:${item.id}` },
+                        `${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`
+                    )
+                ),
+                ...risks.map((item) =>
+                    createElement(
+                        "li",
+                        { key: `risk:${item.id}` },
+                        `${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`
+                    )
+                )
+            ],
+            t
+        )
+    );
+}
+
+export function OverviewTranscript({ detail, t }: SectionProps): ReactElement {
+    const archive =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
+            ? detail.archive
+            : undefined;
+    return section(
+        t("panel.overview.transcript"),
+        values(
+            [
+                ...(archive?.publications ?? detail.publications).map((item) =>
+                    createElement(
+                        "li",
+                        { key: `publication:${item.id}` },
+                        `${item.id}: ${item.exitReasons.join("; ")}`
+                    )
+                ),
+                ...(archive?.messages ?? detail.messages).map((item) =>
+                    createElement("li", { key: `message:${item.id}` }, `${item.kind}: ${item.body}`)
+                )
+            ],
+            t
+        )
+    );
+}
+
+export function OverviewEvidence({ detail, t }: SectionProps): ReactElement {
+    const archive =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
+            ? detail.archive
+            : undefined;
+    const versions = archive
+        ? archive.evidenceBundles.map((bundle) => bundle.version)
+        : detail.evidencePackages.map((pkg) => pkg.currentVersion);
+    const reviews = archive
+        ? archive.evidenceBundles.map((bundle) => bundle.review)
+        : detail.evidenceReviews;
+    return section(
+        t("panel.overview.evidence"),
+        values(
+            [
+                ...versions.map((item) =>
+                    createElement(
+                        "li",
+                        { key: `version:${item.id}` },
+                        `${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`
+                    )
+                ),
+                ...reviews.map((item) =>
+                    createElement("li", { key: `review:${item.id}` }, `${item.id}: ${item.scope}`)
+                ),
+                ...(!archive
+                    ? detail.reviewDeliveries.map((item) =>
+                          createElement(
+                              "li",
+                              { key: `delivery:${item.id}` },
+                              `${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`
+                          )
+                      )
+                    : [])
+            ],
+            t
+        )
+    );
+}
+
+export function OverviewTechnical({ detail, t }: SectionProps): ReactElement {
+    const archive =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
+            ? detail.archive
+            : undefined;
+    return section(
+        t("panel.overview.technical"),
+        createElement("p", null, detail.meetingId),
+        archive
+            ? createElement("p", null, archive.id)
+            : values(
+                  detail.tasks.map((item) =>
+                      createElement(
+                          "li",
+                          { key: item.id },
+                          `${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`
+                      )
+                  ),
+                  t
+              )
+    );
+}
+
 export function MeetingPanelOverview(props: SectionProps): ReactElement {
     return createElement(
         "div",
@@ -170,6 +297,10 @@ export function MeetingPanelOverview(props: SectionProps): ReactElement {
         props.detail.lifecycle.status === "archived"
             ? null
             : createElement(OverviewProgress, props),
-        createElement(OverviewOutcomes, props)
+        createElement(OverviewOutcomes, props),
+        createElement(OverviewOpenItems, props),
+        createElement(OverviewTranscript, props),
+        createElement(OverviewEvidence, props),
+        createElement(OverviewTechnical, props)
     );
 }
