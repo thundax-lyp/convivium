@@ -325,44 +325,38 @@ type ToolDefinition = {
 };
 
 const commandToolParameters = (kind: keyof typeof actionSchemas): ParameterSchemaSpec => ({
-    input: {
-        ...exactObject({
-            protocolVersion: {
-                type: "integer",
-                const: 1,
-                required: true,
-                description: "Meeting protocol version."
-            },
-            meetingId:
-                kind === "create_meeting"
-                    ? {
-                          type: "string" as const,
-                          const: "new",
-                          required: true as const,
-                          description: 'Use the literal "new".'
-                      }
-                    : requiredString("Target Meeting identifier."),
-            ...(kind === "submit_review_batch"
-                ? {}
-                : {
-                      expectedMeetingVersion: {
-                          type: "integer" as const,
-                          ...(kind === "create_meeting" ? { const: 0 as const } : {}),
-                          required: true as const,
-                          description:
-                              kind === "create_meeting"
-                                  ? "Use 0 when creating a Meeting."
-                                  : "Current version returned by convivium_read_meeting."
-                      }
-                  }),
-            requestId: requiredString(
-                "Unique idempotency key; reuse only when retrying the exact same command."
-            ),
-            action: { ...actionSchemas[kind], required: true }
-        }),
+    protocolVersion: {
+        type: "integer",
+        const: 1,
         required: true,
-        description: "Complete action-specific MeetingCommand object."
-    }
+        description: "Meeting protocol version."
+    },
+    meetingId:
+        kind === "create_meeting"
+            ? {
+                  type: "string" as const,
+                  const: "new",
+                  required: true as const,
+                  description: 'Use the literal "new".'
+              }
+            : requiredString("Target Meeting identifier."),
+    ...(kind === "submit_review_batch"
+        ? {}
+        : {
+              expectedMeetingVersion: {
+                  type: "integer" as const,
+                  ...(kind === "create_meeting" ? { const: 0 as const } : {}),
+                  required: true as const,
+                  description:
+                      kind === "create_meeting"
+                          ? "Use 0 when creating a Meeting."
+                          : "Current version returned by convivium_read_meeting."
+              }
+          }),
+    requestId: requiredString(
+        "Unique idempotency key; reuse only when retrying the exact same command."
+    ),
+    action: { ...actionSchemas[kind], required: true }
 });
 
 function rejected(
@@ -399,7 +393,7 @@ function registerTool(
                 render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
             },
             async execute(args, exec) {
-                const command = parseCommand(args.input, definition);
+                const command = parseCommand(args, definition);
                 if ("kind" in command) return command as unknown as JsonValue;
                 if (exec.agent === undefined)
                     return rejected(

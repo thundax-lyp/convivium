@@ -9,22 +9,20 @@ const expectSubmitManagerPlanExecution = async (
 ) => {
     await definition.execute(
         {
-            input: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-plan-1",
-                action: {
-                    kind: "submit_manager_plan",
-                    agendaId: "agenda-1",
-                    planKind: "open_round",
-                    roundGoal: {
-                        question: "What should this round answer?",
-                        evidenceGap: "Which evidence is missing?",
-                        expectedOutput: "A bounded recommendation."
-                    },
-                    rationale: "The active agenda still has an evidence gap."
-                }
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 1,
+            requestId: "request-plan-1",
+            action: {
+                kind: "submit_manager_plan",
+                agendaId: "agenda-1",
+                planKind: "open_round",
+                roundGoal: {
+                    question: "What should this round answer?",
+                    evidenceGap: "Which evidence is missing?",
+                    expectedOutput: "A bounded recommendation."
+                },
+                rationale: "The active agenda still has an evidence gap."
             }
         },
         {
@@ -143,30 +141,34 @@ describe("target Meeting tool registration", () => {
         ]);
         for (const definition of definitions) {
             expect(JSON.stringify(definition.parameters)).not.toContain('"type":"json"');
-            expect(definition.parameters).toMatchObject({
-                type: "object",
-                required: ["input"],
-                properties: {
-                    input: { type: "object", additionalProperties: false }
-                }
-            });
             if (
                 definition.name === "convivium_read_meeting" ||
                 definition.name === "convivium_run_review_worker"
-            )
+            ) {
+                expect(definition.parameters).toMatchObject({
+                    type: "object",
+                    required: ["input"],
+                    properties: {
+                        input: { type: "object", additionalProperties: false }
+                    }
+                });
                 continue;
+            }
             expect(definition.parameters).toMatchObject({
+                type: "object",
+                required: expect.arrayContaining([
+                    "protocolVersion",
+                    "meetingId",
+                    "requestId",
+                    "action"
+                ]),
                 properties: {
-                    input: {
+                    action: {
+                        type: "object",
+                        additionalProperties: false,
                         properties: {
-                            action: {
-                                type: "object",
-                                additionalProperties: false,
-                                properties: {
-                                    kind: {
-                                        const: definition.name.replace("convivium_", "")
-                                    }
-                                }
+                            kind: {
+                                const: definition.name.replace("convivium_", "")
                             }
                         }
                     }
@@ -179,49 +181,42 @@ describe("target Meeting tool registration", () => {
         )!;
         expect(submitManagerPlan.parameters).toMatchObject({
             type: "object",
-            required: ["input"],
+            required: [
+                "protocolVersion",
+                "meetingId",
+                "expectedMeetingVersion",
+                "requestId",
+                "action"
+            ],
             properties: {
-                input: {
+                protocolVersion: { type: "integer", const: 1 },
+                meetingId: { type: "string" },
+                expectedMeetingVersion: { type: "integer" },
+                requestId: { type: "string" },
+                action: {
                     type: "object",
                     additionalProperties: false,
-                    required: [
-                        "protocolVersion",
-                        "meetingId",
-                        "expectedMeetingVersion",
-                        "requestId",
-                        "action"
-                    ],
+                    required: ["kind", "agendaId", "planKind", "rationale"],
                     properties: {
-                        protocolVersion: { type: "integer", const: 1 },
-                        meetingId: { type: "string" },
-                        expectedMeetingVersion: { type: "integer" },
-                        requestId: { type: "string" },
-                        action: {
+                        kind: { type: "string", const: "submit_manager_plan" },
+                        agendaId: { type: "string" },
+                        planKind: {
+                            type: "string",
+                            enum: [
+                                "open_round",
+                                "continue_agenda",
+                                "stop_agenda",
+                                "raise_agenda_candidate",
+                                "wait_for_required_identity"
+                            ]
+                        },
+                        roundGoal: {
                             type: "object",
                             additionalProperties: false,
-                            required: ["kind", "agendaId", "planKind", "rationale"],
-                            properties: {
-                                kind: { type: "string", const: "submit_manager_plan" },
-                                agendaId: { type: "string" },
-                                planKind: {
-                                    type: "string",
-                                    enum: [
-                                        "open_round",
-                                        "continue_agenda",
-                                        "stop_agenda",
-                                        "raise_agenda_candidate",
-                                        "wait_for_required_identity"
-                                    ]
-                                },
-                                roundGoal: {
-                                    type: "object",
-                                    additionalProperties: false,
-                                    required: ["question", "evidenceGap", "expectedOutput"]
-                                },
-                                rationale: { type: "string" },
-                                blockingReason: { type: "string" }
-                            }
-                        }
+                            required: ["question", "evidenceGap", "expectedOutput"]
+                        },
+                        rationale: { type: "string" },
+                        blockingReason: { type: "string" }
                     }
                 }
             }
@@ -232,18 +227,12 @@ describe("target Meeting tool registration", () => {
         )!.parameters;
         expect(openRoundParameters).toMatchObject({
             properties: {
-                input: {
+                action: {
                     properties: {
-                        action: {
-                            additionalProperties: false,
-                            required: ["kind", "agendaId", "planId"],
-                            properties: {
-                                kind: { const: "open_round" },
-                                agendaId: { type: "string" },
-                                planId: { type: "string" },
-                                deadlineAt: { type: "integer" }
-                            }
-                        }
+                        kind: { const: "open_round" },
+                        agendaId: { type: "string" },
+                        planId: { type: "string" },
+                        deadlineAt: { type: "integer" }
                     }
                 }
             }
@@ -270,13 +259,11 @@ describe("target Meeting tool registration", () => {
         const openRound = definitions.find(({ name }) => name === "convivium_open_round")!;
         await openRound.execute(
             {
-                input: {
-                    protocolVersion: 1,
-                    meetingId: "meeting-1",
-                    expectedMeetingVersion: 1,
-                    requestId: "request-1",
-                    action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
-                }
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
             },
             {
                 agent: { id: "agent-1" } as Agent,

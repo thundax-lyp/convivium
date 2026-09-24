@@ -356,21 +356,19 @@ export function createEvidenceReviewDispatcher(
                                 submit: {
                                     tool: "convivium_submit_review_batch",
                                     toolArguments: {
-                                        input: {
-                                            protocolVersion: 1,
-                                            meetingId: recovered.snapshot.meetingId,
-                                            requestId: `review-batch:${claimId}`,
-                                            action: {
-                                                kind: "submit_review_batch",
-                                                roundId: requested.roundId,
-                                                claimId,
-                                                reviews: []
-                                            }
+                                        protocolVersion: 1,
+                                        meetingId: recovered.snapshot.meetingId,
+                                        requestId: `review-batch:${claimId}`,
+                                        action: {
+                                            kind: "submit_review_batch",
+                                            roundId: requested.roundId,
+                                            claimId,
+                                            reviews: []
                                         }
                                     }
                                 },
                                 instructions:
-                                    "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；参数中的 meetingId 和 versionId 必须来自当前 request，prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.itemTemplate、scoringRubric 和 dimensionCriteria。convivium_run_review_worker 以机器校验的 workerOutputSchema 返回结果。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；baselineEvidenceIds 与 reviewConstraints 取交集，首轮没有 baseline 时必须保留 []。reviews 必须逐项覆盖全部 pending，versionId 集合必须与 pending 精确相等；任一 pending item 未得到 completed 结果时直接结束，不调用提交工具，也不得提交部分结果。第三步：全部结果齐备时复制 submit.toolArguments，只替换 submit.toolArguments.input.action.reviews，然后调用 convivium_submit_review_batch。工具参数直接使用结构化 object，不要生成 JSON 文本；最外层参数只有 input 一个键，不得添加 arguments、submit 或其他包装层。每个 worker 工具和提交工具都只允许调用一次。"
+                                    "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 仍只有顶层 input，input 内的 meetingId 和 versionId 必须来自当前 request，prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.itemTemplate、scoringRubric 和 dimensionCriteria。convivium_run_review_worker 以机器校验的 workerOutputSchema 返回结果。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；baselineEvidenceIds 与 reviewConstraints 取交集，首轮没有 baseline 时必须保留 []。reviews 必须逐项覆盖全部 pending，versionId 集合必须与 pending 精确相等；任一 pending item 未得到 completed 结果时直接结束，不调用提交工具，也不得提交部分结果。第三步：全部结果齐备时复制 submit.toolArguments，只替换 submit.toolArguments.action.reviews，然后调用 convivium_submit_review_batch。工具参数直接使用结构化 object，不要生成 JSON 文本；只有 convivium_submit_review_batch 的 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。每个 worker 工具和提交工具都只允许调用一次。"
                             })
                         }
                     ],

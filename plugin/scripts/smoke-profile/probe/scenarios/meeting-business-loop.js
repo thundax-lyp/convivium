@@ -15,6 +15,16 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
     reviewDeadlineMs: 90000
 });
 
+export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
+    ["manager", "convivium.meeting_manager", "1.3.2", "manager"],
+    ["reviewer", "convivium.verification_reviewer", "1.2.5", "evidence_reviewer"],
+    ["contributor-a", "convivium.domain_architect", "1.0.1", "contributor"],
+    ["contributor-b", "convivium.runtime_engineer", "1.0.1", "contributor"],
+    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.1", "contributor"],
+    ["contributor-d", "convivium.github_research_analyst", "1.0.1", "contributor"],
+    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.1", "contributor"]
+];
+
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
     {
         id: "literature",
@@ -90,29 +100,17 @@ function reviewerToolSummary(agent) {
             errorCode,
             ...(call.name === "convivium_submit_review_batch"
                 ? {
-                      input: {
-                          inputType: Array.isArray(call.args?.input)
-                              ? "array"
-                              : typeof call.args?.input,
+                      arguments: {
+                          rootType: Array.isArray(call.args) ? "array" : typeof call.args,
                           shape: {
                               root: Object.keys(call.args ?? {}),
-                              input:
-                                  call.args?.input && typeof call.args.input === "object"
-                                      ? Object.keys(call.args.input)
-                                      : [],
-                              nestedInput:
-                                  call.args?.input?.input &&
-                                  typeof call.args.input.input === "object"
-                                      ? Object.keys(call.args.input.input)
-                                      : [],
                               action:
-                                  call.args?.input?.action &&
-                                  typeof call.args.input.action === "object"
-                                      ? Object.keys(call.args.input.action)
+                                  call.args?.action && typeof call.args.action === "object"
+                                      ? Object.keys(call.args.action)
                                       : []
                           },
-                          expectedMeetingVersion: call.args?.input?.expectedMeetingVersion,
-                          reviews: call.args?.input?.action?.reviews?.map((review) => ({
+                          expectedMeetingVersion: call.args?.expectedMeetingVersion,
+                          reviews: call.args?.action?.reviews?.map((review) => ({
                               versionId: review.versionId,
                               dimensionKeys: Object.keys(review.dimensions ?? {})
                           }))
@@ -195,15 +193,6 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         "contributor-d",
         "contributor-e"
     ];
-    const definitions = [
-        ["manager", "convivium.meeting_manager", "1.3.0", "manager"],
-        ["reviewer", "convivium.verification_reviewer", "1.2.3", "evidence_reviewer"],
-        ["contributor-a", "convivium.domain_architect", "1.0.0", "contributor"],
-        ["contributor-b", "convivium.runtime_engineer", "1.0.0", "contributor"],
-        ["contributor-c", "convivium.protocol_ui_engineer", "1.0.0", "contributor"],
-        ["contributor-d", "convivium.github_research_analyst", "1.0.0", "contributor"],
-        ["contributor-e", "convivium.arxiv_research_analyst", "1.0.0", "contributor"]
-    ];
     const input = {
         protocolVersion: 1,
         meetingId: "new",
@@ -218,16 +207,18 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
-            identities: definitions.map(([identityKey, definitionId, definitionVersion, role]) => ({
-                identityKey,
-                definitionId,
-                definitionVersion,
-                displayName: identityKey,
-                roles: [role],
-                agendaResponsibilityIds: ["agenda-1"],
-                riskAuthority: false,
-                required: true
-            })),
+            identities: MEETING_BUSINESS_LOOP_DEFINITIONS.map(
+                ([identityKey, definitionId, definitionVersion, role]) => ({
+                    identityKey,
+                    definitionId,
+                    definitionVersion,
+                    displayName: identityKey,
+                    roles: [role],
+                    agendaResponsibilityIds: ["agenda-1"],
+                    riskAuthority: false,
+                    required: true
+                })
+            ),
             managerIdentityKey: "manager",
             evidenceReviewerIdentityKey: "reviewer",
             initialAgenda: [

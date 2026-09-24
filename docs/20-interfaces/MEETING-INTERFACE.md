@@ -30,7 +30,7 @@ interface CallerBinding {
 
 `CallerBinding` 只由 adapter 传给 Runtime。`create_meeting` 只接受 Captain-only DSH tool；adapter 从可信 `exec.agent` 注入 Captain parent，并令 `principalId=String(exec.agent.id)`，不设置 `sessionBindingId`，wire payload 不承载 parent/actor/authority。loopback Remote 不得创建 Meeting。创建命令在协议结构和 identityKey 引用校验通过后、需要 MeetingId 的 Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 `meetingId`，不混入 caller、Session、随机值或 `teamId`，因此相同 create requestId 必须定位同一 Meeting。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
 
-每个生产 Agent command tool 都把本节的完整 `MeetingCommand` envelope 与该 tool 唯一允许的 action shape 投影为模型可见的精确 object schema；不得只把 `input` 声明为无结构 `json`，也不得依赖 Skill 文本让模型猜测嵌套字段。tool schema 负责调用前的结构可见性与基础参数校验，`MeetingCommandSchema` 和 action schema 仍是 wire 解析真相源，Runtime 继续独立执行 caller、版本、幂等和领域授权校验。DSH Host 中的全局 tool 注册只表示可发现的实现入口，不表示任何 Meeting role 获得调用权；Meeting Definition 必须按角色收窄模型可见工具面，Runtime 对所有实际调用再次 fail closed。
+每个生产 Agent command tool 的 arguments 根对象直接使用本节的完整 `MeetingCommand` envelope，并把该 tool 唯一允许的 action shape 投影为模型可见的精确 object schema；不得额外包装 `input`、`arguments` 或 JSON string，也不得只暴露无结构 `json`、依赖 Skill 文本让模型猜测嵌套字段。tool schema 负责调用前的结构可见性与基础参数校验，`MeetingCommandSchema` 和 action schema 仍是 wire 解析真相源，Runtime 继续独立执行 caller、版本、幂等和领域授权校验。DSH Host 中的全局 tool 注册只表示可发现的实现入口，不表示任何 Meeting role 获得调用权；Meeting Definition 必须按角色收窄模型可见工具面，Runtime 对所有实际调用再次 fail closed。
 
 ## Command Action Union
 

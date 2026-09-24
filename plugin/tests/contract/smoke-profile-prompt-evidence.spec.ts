@@ -1,12 +1,31 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { collectAgentPromptEvidence } from "../../scripts/smoke-profile/probe/support.js";
 import {
+    MEETING_BUSINESS_LOOP_DEFINITIONS,
     MEETING_BUSINESS_LOOP_LIMITS,
     MEETING_BUSINESS_LOOP_TOPIC,
     MEETING_BUSINESS_LOOP_ROUNDS
 } from "../../scripts/smoke-profile/probe/scenarios/meeting-business-loop.js";
 
 describe("Meeting business-loop smoke prompt evidence", () => {
+    it("uses the currently published Meeting Agent Definition versions", () => {
+        const catalog = JSON.parse(
+            readFileSync(new URL("../../meeting-roles/definitions.json", import.meta.url), "utf8")
+        );
+        const published = catalog.definitions
+            .map((definition: { agentDefinitionId: string; definitionVersion: string }) => [
+                definition.agentDefinitionId,
+                definition.definitionVersion
+            ])
+            .sort();
+        const requested = MEETING_BUSINESS_LOOP_DEFINITIONS.map(
+            ([, definitionId, definitionVersion]) => [definitionId, definitionVersion]
+        ).sort();
+
+        expect(requested).toEqual(published);
+    });
+
     it("uses the agreed controllable-divergence research topic", () => {
         expect(MEETING_BUSINESS_LOOP_TOPIC).toEqual({
             objective:

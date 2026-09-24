@@ -104,6 +104,8 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
     expect(currentGuidance[0]).toContain("convivium_submit_manager_plan");
     expect(currentGuidance[0]).toContain("convivium_open_round");
+    expect(currentGuidance[0]).toContain("arguments 根对象");
+    expect(currentGuidance[0]).not.toContain("顶层 `input`");
     expect(currentGuidance[0].indexOf("convivium_submit_manager_plan")).toBeLessThan(
         currentGuidance[0].indexOf("convivium_open_round")
     );
@@ -111,6 +113,8 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("convivium_run_review_worker");
     expect(currentGuidance[1]).toContain("第一轮无 baseline 时必须明确为 `[]`");
     expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
+    expect(currentGuidance[1]).toContain("arguments 根对象");
+    expect(currentGuidance[1]).toContain("convivium_run_review_worker` 仍使用顶层 `input`");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
     expect(currentGuidance[1]).toContain("每个 pending item 只调用一次");

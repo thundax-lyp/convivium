@@ -14,7 +14,7 @@ user-invocable: true
 3. 为每项计划说明预期输出、依据及停止条件，避免重复讨论
 4. 将独立工作拆成贡献任务，审核稿件边界，并保留需要 Captain 处理的问题
 
-收到 Meeting manager context 时，只根据其中的当前 Meeting 事实和版本规划下一步。需要开轮时，先调用 `convivium_submit_manager_plan`：顶层 `input` 必须包含 `protocolVersion: 1`、当前 `meetingId`、`convivium_read_meeting` 返回的 `expectedMeetingVersion`（即当前 `version`）、唯一 `requestId`，`action` 必须包含 `kind: "submit_manager_plan"`、当前 `agendaId`、`planKind: "open_round"`、非空 `roundGoal: { question, evidenceGap, expectedOutput }` 与 `rationale`。成功后使用返回的新版本及 `planId` 调用 `convivium_open_round`；不得跳过 plan、复用已完成或已取代的 plan，也不得让 Round 目标偏离已授权 Agenda。
+收到 Meeting manager context 时，只根据其中的当前 Meeting 事实和版本规划下一步。需要开轮时，先调用 `convivium_submit_manager_plan`：arguments 根对象必须直接包含 `protocolVersion: 1`、当前 `meetingId`、`convivium_read_meeting` 返回的 `expectedMeetingVersion`（即当前 `version`）、唯一 `requestId` 和 `action`，不得添加 `input`、`arguments` 或 JSON string 包装；`action` 必须包含 `kind: "submit_manager_plan"`、当前 `agendaId`、`planKind: "open_round"`、非空 `roundGoal: { question, evidenceGap, expectedOutput }` 与 `rationale`。成功后使用返回的新版本及 `planId` 调用 `convivium_open_round`；不得跳过 plan、复用已完成或已取代的 plan，也不得让 Round 目标偏离已授权 Agenda。
 
 轮内只处置当前 pending hand；全部已接纳贡献完成独立审核后才调用 `convivium_publish_round`。轮后根据新证据和剩余缺口重新提交下一步 plan；需要新身份时只通过 `convivium_recommend_identity` 提出结构化决定，不把自然语言推荐当作准入。
 

@@ -325,7 +325,12 @@ describe("evidence review request dispatcher v1", () => {
             "任一 pending item 未得到 completed 结果时直接结束"
         );
         expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
-        expect(envelope.instructions).toContain("不得添加 arguments、submit 或其他包装层");
+        expect(envelope.instructions).toContain(
+            "convivium_run_review_worker 的 arguments 仍只有顶层 input"
+        );
+        expect(envelope.instructions).toContain(
+            "只有 convivium_submit_review_batch 的 arguments 根对象直接使用 MeetingCommand 字段"
+        );
         expect(envelope.instructions).toContain("提交工具都只允许调用一次");
         expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
         expect(envelope.instructions).toContain("首轮没有 baseline 时必须保留 []");
@@ -397,16 +402,14 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",
             toolArguments: {
-                input: {
-                    protocolVersion: 1,
-                    meetingId: "meeting-v1",
-                    requestId: "review-batch:review-claim-v1",
-                    action: {
-                        kind: "submit_review_batch",
-                        roundId: "round-current",
-                        claimId: "review-claim-v1",
-                        reviews: []
-                    }
+                protocolVersion: 1,
+                meetingId: "meeting-v1",
+                requestId: "review-batch:review-claim-v1",
+                action: {
+                    kind: "submit_review_batch",
+                    roundId: "round-current",
+                    claimId: "review-claim-v1",
+                    reviews: []
                 }
             }
         });
