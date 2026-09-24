@@ -41,7 +41,9 @@ function reviewedState() {
                     limitations: [{ value: "l", reason: "r" }],
                     claims: [],
                     materials: [],
-                    submittedAt: 1
+                    submittedAt: 1,
+                    status: "submitted" as const,
+                    failureCount: 0
                 }
             ]
         }

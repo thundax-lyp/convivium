@@ -31,7 +31,7 @@ function validateMeetingBusinessLoopResult(value) {
             "target-create",
             "meeting-started",
             "four-fixture-rounds",
-            "four-review-batches",
+            "eight-version-reviews",
             "worker-authority",
             "four-published-rounds",
             "archived",
@@ -73,7 +73,7 @@ export function validateMeetingBusinessLoopHotResult(value) {
             "target-create",
             "meeting-started",
             "four-fixture-rounds",
-            "four-review-batches",
+            "eight-version-reviews",
             "worker-authority",
             "four-published-rounds",
             "archived"

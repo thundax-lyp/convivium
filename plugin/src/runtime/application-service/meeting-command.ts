@@ -1,23 +1,24 @@
 import {
     closeContribution,
-    claimReviewBatch,
+    claimEvidenceReview,
     completeMeetingArchive,
     disposeHandRaise,
     endMeeting,
     openRound,
     publishRound,
     raiseHand,
-    releaseReviewBatchClaim,
+    failEvidenceValidation,
     recommendIdentity,
     recordIdentityAdmissionResult,
     recordReviewDelivery,
     startMeetingArchive,
     submitEvidence,
-    submitReviewBatch,
+    submitEvidenceReview,
     transitionMeetingState,
+    type IdentityAdmissionResultContext,
+    type MeetingDomainEffectRequest,
     type MeetingState,
-    type MeetingTransitionResult,
-    type IdentityAdmissionResultContext
+    type MeetingTransitionResult
 } from "@/domain/index.js";
 import {
     MeetingCommandSchema,
@@ -141,8 +142,8 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
         return scope.role === "local";
     if (
         action === "record_review_delivery" ||
-        action === "claim_review_batch" ||
-        action === "release_review_batch_claim" ||
+        action === "claim_evidence_review" ||
+        action === "fail_evidence_validation" ||
         action === "start_archive" ||
         action === "record_archive_session_result" ||
         action === "record_identity_admission_result"
@@ -158,7 +159,7 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
         ].includes(action)
     )
         return scope.role === "manager";
-    if (action === "submit_review_batch") return scope.role === "evidence_reviewer";
+    if (action === "submit_evidence_review") return scope.role === "evidence_reviewer";
     if (action === "close_contribution")
         return scope.role === "participant" || scope.role === "runtime";
     return scope.role === "participant";
@@ -289,6 +290,22 @@ type TransitionInput = {
     committedFacts: readonly CommittedFactRecord<MeetingState>[];
 };
 
+const resumedEvidenceReviewEffects = (state: MeetingState): readonly MeetingDomainEffectRequest[] =>
+    state.evidencePackages.flatMap((pkg) =>
+        pkg.versions
+            .filter(
+                (version) =>
+                    version.id === pkg.currentVersionId && version.status === "validation_cancelled"
+            )
+            .map((version) => ({
+                kind: "agent_notice" as const,
+                noticeKind: "review_request" as const,
+                recipientId: state.evidenceReviewerId,
+                agendaId: pkg.agendaId,
+                versionId: version.id
+            }))
+    );
+
 function actionAuthorizationFailure(
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
@@ -299,8 +316,8 @@ function actionAuthorizationFailure(
     if (
         [
             "record_review_delivery",
-            "claim_review_batch",
-            "release_review_batch_claim",
+            "claim_evidence_review",
+            "fail_evidence_validation",
             "start_archive",
             "record_archive_session_result",
             "record_identity_admission_result"
@@ -461,31 +478,31 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                 now
             });
             break;
-        case "submit_review_batch":
-            transition = submitReviewBatch(snapshot.state, {
+        case "submit_evidence_review":
+            transition = submitEvidenceReview(snapshot.state, {
                 reviewerId: actorId,
                 roundId: action.roundId,
                 claimId: action.claimId,
-                reviews: action.reviews.map((review) => ({
-                    ...review,
-                    reviewId: generated("review")
-                })),
+                versionId: action.versionId,
+                dimensions: action.dimensions,
+                scope: action.scope,
+                reviewId: generated("review"),
                 now
             });
             break;
-        case "claim_review_batch":
-            transition = claimReviewBatch(snapshot.state, {
+        case "claim_evidence_review":
+            transition = claimEvidenceReview(snapshot.state, {
                 claimId: generated("review_claim"),
                 sourceEffectId: action.sourceEffectId,
                 reviewerId: snapshot.state.evidenceReviewerId,
                 roundId: action.roundId,
-                versionIds: action.versionIds,
+                versionId: action.versionId,
                 now,
                 expiresAt: now + snapshot.state.limits.reviewDeadlineMs
             });
             break;
-        case "release_review_batch_claim":
-            transition = releaseReviewBatchClaim(snapshot.state, {
+        case "fail_evidence_validation":
+            transition = failEvidenceValidation(snapshot.state, {
                 claimId: action.claimId,
                 roundId: action.roundId,
                 reason: action.reason,
@@ -538,7 +555,10 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                 kind: "accepted",
                 state: result.state,
                 relatedIds: result.facts[0].relatedIds,
-                effectRequests: []
+                effectRequests:
+                    action.kind === "resume_meeting"
+                        ? resumedEvidenceReviewEffects(result.state)
+                        : []
             };
             break;
         }

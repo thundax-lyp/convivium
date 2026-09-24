@@ -41,46 +41,53 @@ function fixture() {
 }
 
 describe("meeting notice dispatcher v1", () => {
-    it("delivers meeting_started only to the matching active owned contributor", async () => {
-        const { state, ownership } = fixture();
-        const sendMessage = vi.fn().mockResolvedValue("message-1");
-        const dispatcher = createMeetingNoticeDispatcher({
-            sessions: { sendMessage },
-            repository: {
-                recover: async () => ({
-                    snapshot: {
-                        meetingId: state.id,
-                        version: state.version,
-                        state,
-                        createdAt: 0,
-                        updatedAt: 0
-                    },
-                    sessionOwnership: ownership
-                })
-            } as never
-        });
+    it.each([
+        ["manager-v1", "session:manager-v1"],
+        ["contributor-v1", "session:contributor-v1"],
+        ["reviewer-v1", "session:reviewer-v1"]
+    ])(
+        "delivers meeting_started to the active owned identity %s",
+        async (recipientId, sessionId) => {
+            const { state, ownership } = fixture();
+            const sendMessage = vi.fn().mockResolvedValue("message-1");
+            const dispatcher = createMeetingNoticeDispatcher({
+                sessions: { sendMessage },
+                repository: {
+                    recover: async () => ({
+                        snapshot: {
+                            meetingId: state.id,
+                            version: state.version,
+                            state,
+                            createdAt: 0,
+                            updatedAt: 0
+                        },
+                        sessionOwnership: ownership
+                    })
+                } as never
+            });
 
-        await dispatcher.dispatch({
-            outboxItem: item({
-                kind: "agent_notice",
+            await dispatcher.dispatch({
+                outboxItem: item({
+                    kind: "agent_notice",
+                    noticeKind: "meeting_started",
+                    recipientId,
+                    agendaId: "agenda-v1"
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            });
+
+            expect(sendMessage).toHaveBeenCalledTimes(1);
+            expect(sendMessage.mock.calls[0]?.[1]).toBe(sessionId);
+            const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ type: string; text: string }>;
+            expect(JSON.parse(prompt[0]!.text)).toEqual({
+                effectId: "effect-1",
+                meetingId: "meeting-v1",
                 noticeKind: "meeting_started",
-                recipientId: "contributor-v1",
                 agendaId: "agenda-v1"
-            }),
-            parent: { id: "captain-1" } as never,
-            signal: new AbortController().signal
-        });
-
-        expect(sendMessage).toHaveBeenCalledTimes(1);
-        expect(sendMessage.mock.calls[0]?.[1]).toBe("session:contributor-v1");
-        const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ type: string; text: string }>;
-        expect(JSON.parse(prompt[0]!.text)).toEqual({
-            effectId: "effect-1",
-            meetingId: "meeting-v1",
-            noticeKind: "meeting_started",
-            agendaId: "agenda-v1"
-        });
-    });
+            });
+        }
+    );
 
     it("accepts a committed disposition after its pending source was removed", async () => {
         const { state, ownership } = fixture();
@@ -297,4 +304,57 @@ describe("meeting notice dispatcher v1", () => {
             ).rejects.toMatchObject({ code: "OUTBOX_ROUTE_UNAVAILABLE", retryable: false });
         }
     });
+});
+
+describe("public transcript notice dispatch", () => {
+    it.each(["manager-v1", "reviewer-v1"])(
+        "delivers the update to the active owned identity %s",
+        async (recipientId) => {
+            const { state, ownership } = fixture();
+            state.messages = [
+                {
+                    id: "message-1",
+                    seq: 1,
+                    actorId: "contributor-v1",
+                    agendaId: "agenda-v1",
+                    kind: "round_evidence",
+                    body: "Published",
+                    publicationId: "publication-1",
+                    relatedIds: [],
+                    createdAt: 3
+                }
+            ];
+            const sendMessage = vi.fn().mockResolvedValue("accepted");
+            const dispatcher = createMeetingNoticeDispatcher({
+                sessions: { sendMessage },
+                repository: {
+                    recover: async () => ({
+                        snapshot: {
+                            meetingId: state.id,
+                            version: 2,
+                            state,
+                            createdAt: 0,
+                            updatedAt: 3
+                        },
+                        sessionOwnership: ownership
+                    })
+                } as never
+            });
+
+            await dispatcher.dispatch({
+                outboxItem: item({
+                    kind: "agent_notice",
+                    noticeKind: "transcript_update",
+                    recipientId,
+                    agendaId: "agenda-v1",
+                    publicMessageId: "message-1"
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            });
+
+            expect(sendMessage).toHaveBeenCalledOnce();
+            expect(sendMessage.mock.calls[0]?.[1]).toBe(`session:${recipientId}`);
+        }
+    );
 });

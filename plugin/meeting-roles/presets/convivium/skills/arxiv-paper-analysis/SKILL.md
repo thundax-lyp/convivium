@@ -7,6 +7,8 @@ user-invocable: true
 
 # 分析论文方法实验与适用局限
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 围绕明确问题检索并筛选直接相关论文
 2. 核对标题、作者、arXiv ID、版本和发布日期
 3. 区分作者主张、实验观察、局限与自己的推断

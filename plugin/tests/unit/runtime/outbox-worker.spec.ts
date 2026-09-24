@@ -303,3 +303,35 @@ describe("outbox worker", () => {
         ]);
     });
 });
+
+it("defers an outbox retry until the error-specified availability time", async () => {
+    const completions: { status: string; availableAt?: number; errorCode?: string }[] = [];
+    const worker = createOutboxWorker({
+        repository: {
+            claimOutbox: async () => [item()],
+            completeOutbox: async (input) => {
+                completions.push(input.completion);
+                return { id: input.id, status: input.completion.status };
+            }
+        },
+        owner: "worker-1",
+        ttlMs: 100,
+        batchSize: 1,
+        pollMs: 10,
+        retryDelayMs: 50,
+        dispatch: async () => {
+            throw Object.assign(new Error("claim in progress"), {
+                code: "REVIEW_CLAIM_IN_PROGRESS",
+                retryable: true,
+                retryAt: 1_000
+            });
+        },
+        now: () => 10
+    });
+
+    await worker.runOnce();
+
+    expect(completions).toEqual([
+        { status: "retry", availableAt: 1_000, errorCode: "REVIEW_CLAIM_IN_PROGRESS" }
+    ]);
+});

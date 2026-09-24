@@ -19,6 +19,7 @@ describe("meeting archive", () => {
             actorId: "local",
             now: 10
         });
+        expect(ended.kind).toBe("accepted");
         if (ended.kind !== "accepted") return;
         const archiving = startMeetingArchive(ended.state, {
             archiveId: "archive-v1",

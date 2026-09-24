@@ -22,6 +22,10 @@ import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
 import { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
+import {
+    createMeetingIdentityReader,
+    type MeetingIdentityReader
+} from "./services/meeting-identity-read.js";
 import { createMeetingArchiveDispatcher } from "./services/meeting-archive.js";
 import {
     createEvidenceReviewDispatcher,
@@ -197,6 +201,7 @@ function createIdentityProvisionOwner(dependencies: {
 
 const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
+const identityReaders = new WeakMap<object, MeetingIdentityReader>();
 const deliveryEnsurers = new WeakMap<
     object,
     (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => void
@@ -248,6 +253,12 @@ export function getLocalMeetingWebRuntime(
     if (!runtime) throw new Error("Target Meeting runtime is not active.");
     return runtime;
 }
+
+export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader => {
+    const reader = identityReaders.get(owner);
+    if (!reader) throw new Error("Target Meeting identity reader is not active.");
+    return reader;
+};
 
 export async function activateTargetMeetingApplication(
     ctx: Context,
@@ -331,6 +342,10 @@ export async function activateTargetMeetingApplication(
             provider: config.provider,
             ids
         })
+    });
+    const identityReader = createMeetingIdentityReader({
+        registry,
+        ...(catalog === undefined ? {} : { catalog })
     });
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const ensureDelivery = async (meetingId: string, parent: Agent): Promise<void> => {
@@ -496,12 +511,14 @@ export async function activateTargetMeetingApplication(
     } satisfies LocalMeetingWebRuntime & MeetingOwnershipLookup;
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
+    identityReaders.set(ctx, identityReader);
     return async () => {
         for (const worker of deliveryWorkers.values()) worker.stop();
         await Promise.all([...deliveryWorkers.values()].map((worker) => worker.wait()));
         deliveryWorkers.clear();
         deliveryEnsurers.delete(ctx);
         runtimes.delete(ctx);
+        identityReaders.delete(ctx);
         applications.delete(ctx);
         refreshListeners.clear();
         await registry.close();

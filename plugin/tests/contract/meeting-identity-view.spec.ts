@@ -224,7 +224,9 @@ describe("identity filtered view and archive provenance", () => {
             limitations: [],
             claims: [],
             materials: [],
-            submittedAt: 1
+            submittedAt: 1,
+            status: "submitted",
+            failureCount: 0
         };
         state.evidencePackages = [
             {
@@ -247,30 +249,30 @@ describe("identity filtered view and archive provenance", () => {
             createdAt: 0,
             updatedAt: 1
         };
-        const author = projectMeetingView(snapshot, {
-            kind: "identity",
-            identityId: "contributor-v1",
-            roles: ["contributor"]
-        });
-        const other = projectMeetingView(snapshot, {
-            kind: "identity",
-            identityId: "other-contributor",
-            roles: ["contributor"]
-        });
-        const manager = projectMeetingView(snapshot, {
-            kind: "identity",
-            identityId: "manager-v1",
-            roles: ["manager"]
-        });
-        const reviewer = projectMeetingView(snapshot, {
-            kind: "identity",
-            identityId: "reviewer-v1",
-            roles: ["evidence_reviewer"]
-        });
+        const readAs = (
+            identityId: string,
+            role: "contributor" | "manager" | "evidence_reviewer"
+        ) => projectMeetingView(snapshot, { kind: "identity", identityId, roles: [role] });
+        const author = readAs("contributor-v1", "contributor");
+        const other = readAs("other-contributor", "contributor");
+        const manager = readAs("manager-v1", "manager");
+        const reviewer = readAs("reviewer-v1", "evidence_reviewer");
         expect(author.evidencePackages).toHaveLength(1);
         expect(reviewer.evidencePackages).toHaveLength(1);
         expect(other.evidencePackages).toEqual([]);
         expect(manager.evidencePackages).toEqual([]);
+        expect(manager).toMatchObject({
+            evidenceValidationStatuses: [
+                {
+                    packageId: "package-private",
+                    contributionId: "contribution-1",
+                    versionId: "version-private",
+                    status: "submitted",
+                    failureCount: 0
+                }
+            ]
+        });
+        expect(other).toMatchObject({ evidenceValidationStatuses: [] });
     });
 
     it("projects the value archive locally without identity ownership data", () => {

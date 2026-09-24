@@ -7,6 +7,8 @@ user-invocable: true
 
 # 核对领域模型与需求设计一致性
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 从正式需求和接口提取对象、身份、状态与完成条件
 2. 检查所有权、授权、幂等、恢复和终态不变量
 3. 区分确认的产品决定、实现选择与尚未证实的假设

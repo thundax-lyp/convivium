@@ -20,7 +20,7 @@ Convivium 需要区分四类概念，避免把模型、工具权限和会议职�
 | Captain | 建立会议；提供并维护宏观 Objective/Agenda；对新 Agenda candidate 作最终正式处置；处理 Captain 专属问题、风险、决策和结束权力。 | `create_meeting`；Agenda candidate 的 promote/park/reject；Question/Issue 的 Captain 处置；Decision、Risk、结束等 Captain 专属操作。 | 不逐轮决定检索问题、证据缺口或贡献分配；不替 Manager 做微观调度；不替 Reviewer 审核 Evidence。 |
 | Manager | 已授权 Agenda 内的求解编排者：识别待解问题、证据缺口、依赖和路径；决定每轮的 `roundGoal`；开轮、处置举手、发布轮次；在轮后规划继续、停止、等待或提出候选 Agenda；识别并推荐所需身份。 | `open_round`（含 `roundGoal`）；`dispose_hand_raise`；`publish_round`；`recommend_identity`；Manager plan。 | 不创建、提升、替换或处置 Agenda candidate；不写正式论证、Decision、Risk 或完成事实；不阅读/批准 Evidence 正文来代替 Reviewer；不自行扩大权限或创建任意角色。 |
 | Contributor（通用） | 围绕当前 Agenda 和 Round goal 提出可整合的观点、证据、推导、质疑、补证、修订和总结；可处理自己的异步工作。 | 申请发言/举手；在被接纳的 Contribution 中提交 Evidence；在授权下提交其余贡献或 MeetingTask 结果。 | 不代表他人；不自行获得贡献授权；不直接发布未审内容；不处置 Agenda candidate、Decision 或风险。 |
-| Evidence Reviewer | 独立评估确切 Evidence version 的来源、可信度、完整性和支持度；定义核验范围、反例和限制；向作者送达审核结果。 | 对 claim 固定的每个 immutable version 创建一个 one-shot worker；结果完整覆盖 claim 后一次 `submit_review_batch` 原子提交全部 Review。 | 不写 Contributor Evidence；不决定 Agenda 或 Round goal；不接受风险/决策；不得提交部分 worker 结果；worker 不得调用任何 Meeting command。 |
+| Evidence Reviewer | 独立评估确切 Evidence version 的来源、可信度、完整性和支持度；定义核验范围、反例和限制；向作者送达审核结果。 | 对每个独立 claim 的 immutable version 创建一个 one-shot worker；completed 结果通过 `submit_evidence_review` 逐版本提交。 | 不写 Contributor Evidence；不决定 Agenda 或 Round goal；不接受风险/决策；不得把未完成 worker 结果写成 Review；worker 不得调用任何 Meeting command。 |
 | local controller | 作为单 Host 的受控本地用户入口，执行其被接口明示允许的控制与恢复操作；提供可信时间、ID、Storage/Runtime 边界。 | local-controller 允许的 pause/resume/end/archive 等受控操作。 | 不是 Captain 的别名；不能以本地控制替代 Agent 的 Agenda candidate、Round、Evidence 或审核职责。 |
 | DSH Host / Meeting Runtime | 执行确定性身份、版本、授权、状态、期限、原子提交、outbox、恢复和 capability 撤销；将 Agent 结构化输入转为领域状态。 | 原子 Meeting commit、receipt、effect/outbox、Session ownership/provisioning、归档和恢复。 | 不进行语义性研究判断；不从隐藏推理或 Session tool history 推导 Meeting 事实；不替任一角色宣布业务结论。 |
 
@@ -63,7 +63,7 @@ Convivium 需要区分四类概念，避免把模型、工具权限和会议职�
 1. Reviewer 是唯一的会议审核身份，读取待审 immutable Evidence version 与固定的公开 baseline。
 2. 对每个 pending version，Reviewer 只能创建一个独立的 DSH native one-shot worker，不创建 replacement worker。
 3. worker 记录核验方法、结果和限制；它不拥有 Meeting identity、Contribution 或 Meeting command authority。
-4. Reviewer 只收集 completed 且可规范化的结果；结果完整覆盖持久 claim 中全部 version 时才一次性提交 `submit_review_batch`，否则不提交并维持待审。
+4. Reviewer 只收集 completed 且可规范化的结果；每份结果必须精确匹配该 version 的持久 claim，随后以 `submit_evidence_review` 独立提交。一个 version 失败或取消不阻塞同轮其它 version。
 5. Review 是独立判断：作者结论、链接存在、或“尚未运行的命令”不能被写成核验通过。
 
 ## 已确认边界与后续问题

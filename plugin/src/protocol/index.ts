@@ -65,9 +65,9 @@ export {
     RaiseHandActionSchema,
     DisposeHandRaiseActionSchema,
     SubmitEvidenceActionSchema,
-    ClaimReviewBatchActionSchema,
-    ReleaseReviewBatchClaimActionSchema,
-    SubmitReviewBatchActionSchema,
+    ClaimEvidenceReviewActionSchema,
+    FailEvidenceValidationActionSchema,
+    SubmitEvidenceReviewActionSchema,
     PublishRoundActionSchema,
     MeetingCommandSchema,
     ListMeetingsRequestSchema,
@@ -89,3 +89,4 @@ export {
 } from "./meeting-identity.js";
 export { serializeValidatedRequest } from "./request-idempotency.js";
 export * from "./meeting-view.js";
+export * from "./review-worker.js";

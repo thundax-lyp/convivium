@@ -39,13 +39,31 @@ describe("meeting create", () => {
             {
                 kind: "agent_notice",
                 noticeKind: "meeting_started",
+                recipientId: "manager-v1",
+                agendaId: "agenda-v1"
+            },
+            {
+                kind: "agent_notice",
+                noticeKind: "meeting_started",
                 recipientId: "contributor-v1",
                 agendaId: "agenda-v1"
             },
             {
                 kind: "agent_notice",
                 noticeKind: "meeting_started",
+                recipientId: "reviewer-v1",
+                agendaId: "agenda-v1"
+            },
+            {
+                kind: "agent_notice",
+                noticeKind: "meeting_started",
                 recipientId: "contributor-any-agenda",
+                agendaId: "agenda-v1"
+            },
+            {
+                kind: "agent_notice",
+                noticeKind: "meeting_started",
+                recipientId: "contributor-other-agenda",
                 agendaId: "agenda-v1"
             }
         ]);

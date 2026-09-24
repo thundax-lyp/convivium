@@ -12,13 +12,15 @@ const version = {
     limitations: [],
     claims: [],
     materials: [],
-    submittedAt: 24
+    submittedAt: 24,
+    status: "validated" as const,
+    failureCount: 0
 };
 const dimension = { score: 2, reason: "reason", scope: "scope", baselineEvidenceIds: [] };
 const review = {
     id: "review-1",
     versionId: "version-1",
-    baselinePublicationIds: [],
+    baselinePublicationIds: ["publication-baseline"],
     scope: "review scope",
     dimensions: {
         source: dimension,
@@ -64,6 +66,7 @@ const decision = {
     id: "decision-1",
     actorId: "multi-v1",
     candidateId: "candidate-1",
+    replacesDecisionId: "decision-old",
     status: "accepted",
     createdAt: 31
 };
@@ -251,6 +254,7 @@ export function archiveTimelineFixture(
                     summary: "proposal summary",
                     body: "proposal body",
                     evidenceIds: ["version-1"],
+                    supersedesRevisionId: "proposal-old",
                     createdAt: 38
                 }
             ],

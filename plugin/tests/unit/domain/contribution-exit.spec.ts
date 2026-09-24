@@ -88,6 +88,8 @@ describe("contribution exit", () => {
                             id: "version-v1",
                             ordinal: 1,
                             submittedAt: 4,
+                            status: "validated" as const,
+                            failureCount: 0,
                             observation: "观察",
                             interpretation: "解释",
                             method: "方法",

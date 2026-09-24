@@ -110,7 +110,9 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                         limitations: [],
                         claims: [],
                         materials: [],
-                        submittedAt: 0
+                        submittedAt: 0,
+                        status: "validated",
+                        failureCount: 0
                     }
                 ]
             }

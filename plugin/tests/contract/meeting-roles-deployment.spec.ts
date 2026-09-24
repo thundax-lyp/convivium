@@ -40,10 +40,11 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.3.0",
+        definitionVersion: "1.3.2",
         toolFilter: {
             allow: [
                 "skill",
+                "convivium_read_meeting",
                 "convivium_submit_manager_plan",
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
@@ -55,11 +56,26 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.3",
+        definitionVersion: "1.2.6",
         toolFilter: {
-            allow: ["skill", "subagent", "convivium_submit_review_batch"]
+            allow: [
+                "skill",
+                "convivium_read_meeting",
+                "convivium_run_review_worker",
+                "convivium_submit_evidence_review"
+            ]
         }
     });
+    const contributorDeniedTools = [
+        "convivium_create_meeting",
+        "convivium_submit_manager_plan",
+        "convivium_open_round",
+        "convivium_dispose_hand_raise",
+        "convivium_publish_round",
+        "convivium_run_review_worker",
+        "convivium_submit_evidence_review",
+        "convivium_recommend_identity"
+    ];
     expect(
         definitions
             .filter(
@@ -67,25 +83,44 @@ it("publishes only the current contribution tools for Manager", () => {
                     roleDefinitionId !== "meeting_manager" &&
                     roleDefinitionId !== "verification_reviewer"
             )
-            .every(({ definitionVersion }) => definitionVersion === "1.0.0")
+            .every(
+                ({ definitionVersion, toolFilter }) =>
+                    definitionVersion === "1.0.3" &&
+                    JSON.stringify(toolFilter) === JSON.stringify({ deny: contributorDeniedTools })
+            )
     ).toBe(true);
 
-    const currentGuidance = ["meeting-management/SKILL.md", "verification-review/SKILL.md"].map(
-        (path) => readFileSync(new URL(path, roleSkills), "utf8")
+    const currentGuidance = [
+        "meeting-management/SKILL.md",
+        "verification-review/SKILL.md",
+        "domain-architecture/SKILL.md",
+        "dsh-runtime-engineering/SKILL.md",
+        "protocol-ui-engineering/SKILL.md",
+        "github-source-research/SKILL.md",
+        "arxiv-paper-analysis/SKILL.md"
+    ].map((path) => readFileSync(new URL(path, roleSkills), "utf8"));
+    expect(currentGuidance.every((guidance) => guidance.includes("convivium_read_meeting"))).toBe(
+        true
     );
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
     expect(currentGuidance[0]).toContain("convivium_submit_manager_plan");
     expect(currentGuidance[0]).toContain("convivium_open_round");
+    expect(currentGuidance[0]).toContain("arguments 根对象");
+    expect(currentGuidance[0]).not.toContain("顶层 `input`");
     expect(currentGuidance[0].indexOf("convivium_submit_manager_plan")).toBeLessThan(
         currentGuidance[0].indexOf("convivium_open_round")
     );
     expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
-    expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
+    expect(currentGuidance[1]).toContain("convivium_run_review_worker");
+    expect(currentGuidance[1]).toContain("第一轮无 baseline 时必须明确为 `[]`");
+    expect(currentGuidance[1]).toContain("convivium_submit_evidence_review");
+    expect(currentGuidance[1]).toContain("arguments 根对象");
+    expect(currentGuidance[1]).toContain("convivium_run_review_worker` 仍使用顶层 `input`");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
-    expect(currentGuidance[1]).toContain("每个 pending item 只创建一个");
-    expect(currentGuidance[1]).toContain("完整覆盖全部 pending item");
-    expect(currentGuidance[1]).toContain("任一 worker 失败、取消或不可规范化时不提交");
+    expect(currentGuidance[1]).toContain("每个 pending item 只调用一次");
+    expect(currentGuidance[1]).toContain("versionId 与 claim 精确相等");
+    expect(currentGuidance[1]).toContain("worker 失败、取消或返回无效结果时不提交");
     expect(currentGuidance[1]).toContain("只调用一次");
 });
 

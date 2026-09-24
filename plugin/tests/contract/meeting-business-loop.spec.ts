@@ -101,33 +101,29 @@ describe("target Meeting business-loop protocol", () => {
                 reason: "withdraw"
             },
             {
-                kind: "claim_review_batch",
+                kind: "claim_evidence_review",
                 sourceEffectId: "review-effect-1",
                 roundId: "round-1",
-                versionIds: ["version-1"]
+                versionId: "version-1"
             },
             {
-                kind: "release_review_batch_claim",
+                kind: "fail_evidence_validation",
                 roundId: "round-1",
                 claimId: "review-claim-1",
-                reason: "turn_timed_out"
+                reason: "review_timeout"
             },
             {
-                kind: "submit_review_batch",
+                kind: "submit_evidence_review",
                 roundId: "round-1",
                 claimId: "review-claim-1",
-                reviews: [
-                    {
-                        versionId: "version-1",
-                        dimensions: {
-                            source: dimension,
-                            credibility: dimension,
-                            completeness: dimension,
-                            support: dimension
-                        },
-                        scope: "scope"
-                    }
-                ]
+                versionId: "version-1",
+                dimensions: {
+                    source: dimension,
+                    credibility: dimension,
+                    completeness: dimension,
+                    support: dimension
+                },
+                scope: "scope"
             },
             {
                 kind: "record_review_delivery",
@@ -176,31 +172,17 @@ describe("target Meeting business-loop protocol", () => {
         ).toBe(false);
         expect(
             MeetingActionSchema.safeParse({
-                kind: "submit_review_batch",
+                kind: "submit_evidence_review",
                 roundId: "round-1",
                 claimId: "review-claim-1",
-                reviews: [
-                    {
-                        versionId: "version-1",
-                        dimensions: {
-                            source: dimension,
-                            credibility: dimension,
-                            completeness: dimension,
-                            support: dimension
-                        },
-                        scope: "scope"
-                    },
-                    {
-                        versionId: "version-1",
-                        dimensions: {
-                            source: dimension,
-                            credibility: dimension,
-                            completeness: dimension,
-                            support: dimension
-                        },
-                        scope: "scope"
-                    }
-                ]
+                versionId: "",
+                dimensions: {
+                    source: dimension,
+                    credibility: dimension,
+                    completeness: dimension,
+                    support: dimension
+                },
+                scope: "scope"
             }).success
         ).toBe(false);
         expect(

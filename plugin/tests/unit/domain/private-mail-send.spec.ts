@@ -266,12 +266,14 @@ describe("private mail start gates", () => {
                     actorKind: "effect_dispatcher",
                     now: 20
                 });
+                expect(started.kind).toBe("accepted");
                 if (started.kind !== "accepted") return;
                 const completed = completePrivateMail(started.state, {
                     mailId: "mail-1",
                     recipientId: "recipient",
                     now: 30
                 });
+                expect(completed.kind).toBe("accepted");
                 if (completed.kind !== "accepted") return;
                 candidate = completed.state;
             } else if (status === "cancelled") {
@@ -281,6 +283,7 @@ describe("private mail start gates", () => {
                     reason: "stop",
                     now: 20
                 });
+                expect(cancelled.kind).toBe("accepted");
                 if (cancelled.kind !== "accepted") return;
                 candidate = cancelled.state;
             } else {
@@ -290,6 +293,7 @@ describe("private mail start gates", () => {
                     reason: "late",
                     now: 110
                 });
+                expect(expired.kind).toBe("accepted");
                 if (expired.kind !== "accepted") return;
                 candidate = expired.state;
             }

@@ -22,6 +22,7 @@ export { createMeetingCreationCoordinator } from "./meeting-runtime.js";
 export {
     activateTargetMeetingApplication,
     getMeetingCommandApplication,
+    getMeetingIdentityReader,
     getLocalMeetingWebRuntime,
     ensureTargetMeetingDelivery
 } from "./meeting-lifecycle.js";
@@ -36,6 +37,10 @@ export {
 export { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
 export { provisionMeetingIdentity } from "./services/meeting-identity-provision.js";
 export { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
+export {
+    createMeetingIdentityReader,
+    type MeetingIdentityReader
+} from "./services/meeting-identity-read.js";
 export {
     createEvidenceReviewDispatcher,
     createReviewDeliveryDispatcher

@@ -7,6 +7,8 @@ user-invocable: true
 
 # 从 GitHub 官方源码与版本记录取证
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 围绕明确问题检索 repository、源码、commit、issue、PR 和 release
 2. 先核对目标依赖版本对应的实现与类型，再比较后续变化
 3. 记录 repository、ref、文件定位、日期和适用范围

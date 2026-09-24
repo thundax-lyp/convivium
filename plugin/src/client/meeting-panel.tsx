@@ -51,7 +51,9 @@ export const ConviviumMeetingPanel = ({
     const [writePending, setWritePending] = useState(false);
     const selectedRef = useRef<string>();
     const refreshGenerationRef = useRef(0);
+    const carrierFailureEpochRef = useRef(0);
     const connectionRef = useRef(INITIAL_FRESHNESS.connection);
+    const settledListFreshnessRef = useRef(INITIAL_FRESHNESS.list);
     const streamTerminalRef = useRef(false);
     const loadDetail = useCallback(
         async (meetingId: string) => {
@@ -73,6 +75,7 @@ export const ConviviumMeetingPanel = ({
         async ({ recovery }: { recovery: boolean }) => {
             const generation = refreshGenerationRef.current + 1;
             refreshGenerationRef.current = generation;
+            const carrierFailureEpoch = carrierFailureEpochRef.current;
             const capturedMeetingId = selectedRef.current;
             setFreshness((current) => ({
                 ...current,
@@ -103,6 +106,7 @@ export const ConviviumMeetingPanel = ({
                 setMeetings(listResult.value.meetings);
                 setListFailure(undefined);
             } else setListFailure(classifyFailure(listResult.reason));
+            settledListFreshnessRef.current = listSucceeded ? "fresh" : "stale";
             if (listSucceeded && capturedMeetingId !== undefined && !selectedStillExists) {
                 selectedRef.current = undefined;
                 setWorkspace((current) => ({
@@ -125,6 +129,7 @@ export const ConviviumMeetingPanel = ({
             if (recovery) {
                 const recovered =
                     !streamTerminalRef.current &&
+                    carrierFailureEpochRef.current === carrierFailureEpoch &&
                     listSucceeded &&
                     (capturedMeetingId === undefined || !selectedStillExists || detailSucceeded);
                 connection = recovered ? "connected" : "disconnected";
@@ -153,7 +158,9 @@ export const ConviviumMeetingPanel = ({
     useEffect(() => {
         let stopped = false;
         const markDisconnected = () => {
+            carrierFailureEpochRef.current += 1;
             connectionRef.current = "disconnected";
+            settledListFreshnessRef.current = "stale";
             setFreshness({
                 connection: "disconnected",
                 list: "stale",
@@ -204,7 +211,11 @@ export const ConviviumMeetingPanel = ({
             );
             setDetail(undefined);
             setDetailFailure(undefined);
-            setFreshness((current) => ({ ...current, detail: "loading" }));
+            setFreshness((current) => ({
+                ...current,
+                list: settledListFreshnessRef.current,
+                detail: "loading"
+            }));
             void loadDetail(meetingId);
         },
         [loadDetail]

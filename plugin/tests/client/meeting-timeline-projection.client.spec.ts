@@ -123,7 +123,17 @@ describe("Timeline projection", () => {
         expect(
             nodes.find(({ objectKind }) => objectKind === "risk_disposition")?.relatedObjects
         ).toContainEqual({ objectKind: "issue", objectId: "issue-1" });
+        expect(
+            nodes.find(({ objectKind }) => objectKind === "evidence_review")?.relatedObjects
+        ).toContainEqual({ objectKind: "publication", objectId: "publication-baseline" });
+        expect(
+            nodes.find(({ objectKind }) => objectKind === "decision")?.relatedObjects
+        ).toContainEqual({ objectKind: "decision", objectId: "decision-old" });
         const archiveNodes = buildTimelineNodes(archiveTimelineFixture("complete"));
+        expect(
+            archiveNodes.find(({ objectKind }) => objectKind === "proposal_revision")
+                ?.relatedObjects
+        ).toContainEqual({ objectKind: "proposal_revision", objectId: "proposal-old" });
         expect(
             archiveNodes.find(({ objectKind }) => objectKind === "disposition_fact")?.relatedObjects
         ).toEqual([

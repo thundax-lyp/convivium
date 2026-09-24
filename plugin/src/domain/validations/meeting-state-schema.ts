@@ -353,18 +353,35 @@ const materialSchema = z
             path: ["reason"]
         }
     );
-const evidenceVersionSchema = z.object({
-    id: opaqueIdSchema,
-    ordinal: positiveIntegerSchema,
-    observation: textSchema,
-    interpretation: textSchema,
-    method: textSchema,
-    falsifiers: z.array(textWithReasonSchema),
-    uncertainties: z.array(textWithReasonSchema),
-    limitations: z.array(textWithReasonSchema),
-    claims: uniqueEntityArray(claimSchema),
-    materials: uniqueEntityArray(materialSchema),
-    submittedAt: epochSchema
+const evidenceVersionSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        ordinal: positiveIntegerSchema,
+        observation: textSchema,
+        interpretation: textSchema,
+        method: textSchema,
+        falsifiers: z.array(textWithReasonSchema),
+        uncertainties: z.array(textWithReasonSchema),
+        limitations: z.array(textWithReasonSchema),
+        claims: uniqueEntityArray(claimSchema),
+        materials: uniqueEntityArray(materialSchema),
+        submittedAt: epochSchema,
+        status: z.enum([
+            "submitted",
+            "validating",
+            "validated",
+            "validation_failed",
+            "validation_cancelled"
+        ]),
+        failureCount: integerSchema,
+        lastFailureReason: z
+            .enum(["review_timeout", "review_interrupted", "dispatch_failed"])
+            .optional()
+    }),
+    ["lastFailureReason"]
+).superRefine((version, ctx) => {
+    if ((version.status === "validation_failed") !== (version.lastFailureReason !== undefined))
+        ctx.addIssue({ code: "custom", path: ["lastFailureReason"] });
 });
 const evidencePackageSchema = z.object({
     id: opaqueIdSchema,
@@ -413,7 +430,7 @@ const reviewClaimSchema = z
         sourceEffectId: opaqueIdSchema,
         roundId: opaqueIdSchema,
         reviewerId: opaqueIdSchema,
-        versionIds: uniqueIdArraySchema.refine((ids) => ids.length > 0),
+        versionId: opaqueIdSchema,
         claimedAt: epochSchema,
         expiresAt: epochSchema
     })

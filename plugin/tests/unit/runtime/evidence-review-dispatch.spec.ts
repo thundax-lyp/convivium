@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+import type { EvidenceVersion } from "@/domain/index.js";
 import { createEvidenceReviewDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
 
 const outboxItem = (payload: Record<string, unknown>) => ({
@@ -39,7 +40,7 @@ function stateWithPendingReview() {
             contributionIds: ["contribution-current"]
         }
     ];
-    const version = (id: string, submittedAt: number) => ({
+    const version = (id: string, submittedAt: number): EvidenceVersion => ({
         id,
         ordinal: 1,
         observation: `observation:${id}`,
@@ -72,9 +73,12 @@ function stateWithPendingReview() {
                 sharedDependencies: []
             }
         ],
-        submittedAt
+        submittedAt,
+        status: "submitted" as const,
+        failureCount: 0
     });
     const baselineVersion = version("version-baseline", 2);
+    baselineVersion.status = "validated";
     const pendingVersion = version("version-pending", 5);
     const dimension = {
         score: 3 as const,
@@ -167,19 +171,19 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
         async (command: {
             action:
                 | {
-                      kind: "claim_review_batch";
+                      kind: "claim_evidence_review";
                       sourceEffectId: string;
                       roundId: string;
-                      versionIds: string[];
+                      versionId: string;
                   }
                 | {
-                      kind: "release_review_batch_claim";
+                      kind: "fail_evidence_validation";
                       roundId: string;
                       claimId: string;
                       reason: string;
                   };
         }) => {
-            if (command.action.kind === "release_review_batch_claim") {
+            if (command.action.kind === "fail_evidence_validation") {
                 const found = state.reviewClaims.some(
                     (claim) =>
                         claim.id === command.action.claimId &&
@@ -193,6 +197,13 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                 state.reviewClaims = state.reviewClaims.filter(
                     (claim) => claim.id !== command.action.claimId
                 );
+                for (const pkg of state.evidencePackages)
+                    for (const version of pkg.versions)
+                        if (version.id === "version-pending") {
+                            version.status = "validation_failed";
+                            version.failureCount += 1;
+                            version.lastFailureReason = command.action.reason as "review_timeout";
+                        }
                 return {
                     kind: "accepted" as const,
                     meetingId: state.id,
@@ -203,7 +214,7 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                 };
             }
             state.reviewClaims = state.reviewClaims.filter((claim) => claim.expiresAt > 6);
-            if (state.reviewClaims.some((claim) => claim.roundId === command.action.roundId))
+            if (state.reviewClaims.some((claim) => claim.versionId === command.action.versionId))
                 return {
                     kind: "rejected" as const,
                     error: { code: "REVIEWER_CONFLICT", message: "claimed", retryable: true }
@@ -213,16 +224,19 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                 sourceEffectId: command.action.sourceEffectId,
                 roundId: command.action.roundId,
                 reviewerId: state.evidenceReviewerId,
-                versionIds: command.action.versionIds,
+                versionId: command.action.versionId,
                 claimedAt: 6,
                 expiresAt: 100
             });
+            for (const pkg of state.evidencePackages)
+                for (const version of pkg.versions)
+                    if (version.id === command.action.versionId) version.status = "validating";
             return {
                 kind: "accepted" as const,
                 meetingId: state.id,
                 committedVersion: 7,
                 receiptId: "receipt-claim",
-                relatedIds: ["review-claim-v1", ...command.action.versionIds],
+                relatedIds: ["review-claim-v1", command.action.versionId],
                 effects: []
             };
         }
@@ -241,6 +255,7 @@ describe("evidence review request dispatcher v1", () => {
                 versionId: pendingVersion.id,
                 baselinePublicationIds: ["publication-baseline"]
             });
+            pendingVersion.status = "validated";
             state.reviewClaims = [];
             return "message-1";
         });
@@ -291,10 +306,10 @@ describe("evidence review request dispatcher v1", () => {
             expectedMeetingVersion: 6,
             requestId: "review-claim:effect-review-1:1",
             action: {
-                kind: "claim_review_batch",
+                kind: "claim_evidence_review",
                 sourceEffectId: "effect-review-1",
                 roundId: "round-current",
-                versionIds: ["version-pending"]
+                versionId: "version-pending"
             }
         });
         const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ text: string }>;
@@ -303,35 +318,35 @@ describe("evidence review request dispatcher v1", () => {
             effectId: "effect-review-1",
             meetingId: "meeting-v1",
             expectedMeetingVersion: 6,
-            pending: [
-                {
-                    version: pendingVersion,
-                    baseline: [
-                        {
-                            publicationId: "publication-baseline",
-                            evidence: [{ version: baselineVersion, review: state.reviews[0] }]
-                        }
-                    ]
-                }
-            ]
-        });
-        expect(envelope.instructions).toContain("convivium_submit_review_batch");
-        expect(envelope.instructions).toContain("每个 pending item 只调用一次 subagent");
-        expect(envelope.instructions).toContain("reviews 必须逐项覆盖全部 pending");
-        expect(envelope.instructions).toContain(
-            "任一 pending item 未得到 completed 且可规范化的结果时直接结束"
-        );
-        expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
-        expect(envelope.instructions).toContain("不得添加 arguments 包装层");
-        expect(envelope.instructions).toContain("只允许调用一次提交工具");
-        expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
-        expect(envelope.instructions).not.toContain("fallback");
-        expect(envelope.reviewConstraints).toEqual([
-            {
-                versionId: "version-pending",
-                allowedBaselineEvidenceIds: ["version-baseline"]
+            pending: {
+                version: { ...pendingVersion, status: "validating" },
+                baseline: [
+                    {
+                        publicationId: "publication-baseline",
+                        evidence: [{ version: baselineVersion, review: state.reviews[0] }]
+                    }
+                ]
             }
-        ]);
+        });
+        expect(envelope.instructions).toContain("convivium_submit_evidence_review");
+        expect(envelope.instructions).toContain("只调用一次 convivium_run_review_worker");
+        expect(envelope.instructions).toContain("不调用通用 subagent");
+        expect(envelope.instructions).toContain("未得到 completed 结果时直接结束");
+        expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
+        expect(envelope.instructions).toContain(
+            "convivium_run_review_worker 的 arguments 仍只有顶层 input"
+        );
+        expect(envelope.instructions).toContain(
+            "工具 arguments 根对象直接使用 MeetingCommand 字段"
+        );
+        expect(envelope.instructions).toContain("提交工具都只允许调用一次");
+        expect(envelope.instructions).toContain("与 reviewConstraint 取交集");
+        expect(envelope.instructions).toContain("首轮没有 baseline 时必须保留 []");
+        expect(envelope.instructions).not.toContain("fallback");
+        expect(envelope.reviewConstraint).toEqual({
+            versionId: "version-pending",
+            allowedBaselineEvidenceIds: ["version-baseline"]
+        });
         expect(envelope.reviewItemRules).toMatchObject({
             requiredDimensions: ["source", "credibility", "completeness", "support"],
             allowedScores: [0, 1, 2, 3, "unable_to_assess"],
@@ -384,27 +399,27 @@ describe("evidence review request dispatcher v1", () => {
                 additionalProperties: false
             }
         });
-        expect(envelope.instructions).toContain("不得使用数组或 0、1、2、3 等数字键");
+        expect(envelope.instructions).toContain(
+            "dimensions 只能是 source、credibility、completeness、support 四个键"
+        );
         expect(envelope.instructions).toContain("workerOutputSchema");
         expect(envelope.instructions).toContain("reviewItemRules.itemTemplate");
-        expect(envelope.instructions).toContain("不返回 Markdown、代码围栏或说明文字");
-        expect(envelope.instructions).toContain(
-            "直接以 object 作为函数调用参数，不要先生成 JSON 文本"
-        );
+        expect(envelope.instructions).toContain("机器校验的 workerOutputSchema");
+        expect(envelope.instructions).toContain("工具参数直接使用结构化 object");
         expect(envelope.instructions).not.toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
-            tool: "convivium_submit_review_batch",
+            tool: "convivium_submit_evidence_review",
             toolArguments: {
-                input: {
-                    protocolVersion: 1,
-                    meetingId: "meeting-v1",
-                    requestId: "review-batch:review-claim-v1",
-                    action: {
-                        kind: "submit_review_batch",
-                        roundId: "round-current",
-                        claimId: "review-claim-v1",
-                        reviews: []
-                    }
+                protocolVersion: 1,
+                meetingId: "meeting-v1",
+                requestId: "evidence-review:review-claim-v1",
+                action: {
+                    kind: "submit_evidence_review",
+                    roundId: "round-current",
+                    claimId: "review-claim-v1",
+                    versionId: "version-pending",
+                    dimensions: {},
+                    scope: ""
                 }
             }
         });
@@ -413,7 +428,7 @@ describe("evidence review request dispatcher v1", () => {
 });
 
 describe("evidence review request dispatcher claim lifecycle", () => {
-    it("keeps the review effect retryable when the coordinator returns without committing", async () => {
+    it("preserves the claim until expiry when inbox acceptance does not prove turn completion", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
@@ -447,10 +462,19 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({
-            code: "REVIEW_NOT_COMPLETED",
+            code: "REVIEW_CLAIM_IN_PROGRESS",
             retryable: true,
-            terminalOnAttemptLimit: false
+            terminalOnAttemptLimit: false,
+            retryAt: 100
         });
+        expect(state.reviewClaims).toEqual([
+            expect.objectContaining({
+                id: "review-claim-v1",
+                sourceEffectId: "effect-review-1",
+                expiresAt: 100
+            })
+        ]);
+        expect(application.execute).toHaveBeenCalledOnce();
     });
 
     it("releases the claim when the reviewer turn times out", async () => {
@@ -488,16 +512,20 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
-        ).rejects.toThrow("review turn timed out");
+        ).rejects.toMatchObject({
+            code: "REVIEW_VALIDATION_RETRY",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
         expect(state.reviewClaims).toEqual([]);
         expect(application.execute).toHaveBeenCalledTimes(2);
         expect(application.execute.mock.calls[1]?.[0]).toMatchObject({
-            requestId: "review-claim-release:review-claim-v1:turn_timed_out",
+            requestId: "review-claim-release:review-claim-v1:review_timeout",
             action: {
-                kind: "release_review_batch_claim",
+                kind: "fail_evidence_validation",
                 roundId: "round-current",
                 claimId: "review-claim-v1",
-                reason: "turn_timed_out"
+                reason: "review_timeout"
             }
         });
     });
@@ -574,13 +602,16 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         await expect(second.dispatch(input)).rejects.toMatchObject({
             code: "REVIEW_CLAIM_IN_PROGRESS",
             retryable: true,
-            terminalOnAttemptLimit: false
+            terminalOnAttemptLimit: false,
+            retryAt: 100
         });
         releaseFirst?.();
         await firstDispatch;
     });
+});
 
-    it("lets the source effect reclaim the batch after its claim expires", async () => {
+describe("evidence review request dispatcher recovery", () => {
+    it("records review_timeout when a claim expires before a later retry", async () => {
         const { state, ownership, pendingVersion } = stateWithPendingReview();
         state.reviewClaims = [
             {
@@ -588,7 +619,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 sourceEffectId: "effect-review-1",
                 roundId: "round-current",
                 reviewerId: "reviewer-v1",
-                versionIds: [pendingVersion.id],
+                versionId: pendingVersion.id,
                 claimedAt: 1,
                 expiresAt: 5
             }
@@ -622,25 +653,32 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             } as never
         });
 
-        await dispatcher.dispatch({
-            outboxItem: outboxItem({
-                kind: "agent_notice",
-                noticeKind: "review_request",
-                recipientId: "reviewer-v1",
-                agendaId: "agenda-v1",
-                versionId: pendingVersion.id
-            }),
-            parent: { id: "captain-1" } as never,
-            signal: new AbortController().signal
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: outboxItem({
+                    kind: "agent_notice",
+                    noticeKind: "review_request",
+                    recipientId: "reviewer-v1",
+                    agendaId: "agenda-v1",
+                    versionId: pendingVersion.id
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({
+            code: "REVIEW_VALIDATION_RETRY",
+            retryable: true,
+            terminalOnAttemptLimit: false
         });
 
-        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(sendMessage).not.toHaveBeenCalled();
         expect(application.execute).toHaveBeenCalledOnce();
         expect(application.execute.mock.calls[0]?.[0]).toMatchObject({
+            requestId: "review-claim-release:review-claim-expired:review_timeout",
             action: {
-                kind: "claim_review_batch",
-                sourceEffectId: "effect-review-1",
-                versionIds: [pendingVersion.id]
+                kind: "fail_evidence_validation",
+                claimId: "review-claim-expired",
+                reason: "review_timeout"
             }
         });
     });
@@ -651,6 +689,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             ...state.reviews,
             { ...state.reviews[0]!, id: "review-pending", versionId: "version-pending" }
         ];
+        state.evidencePackages[1]!.versions[0]!.status = "validated";
         const sendMessage = vi.fn();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
@@ -683,5 +722,45 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         });
         expect(sendMessage).not.toHaveBeenCalled();
         expect(application.execute).not.toHaveBeenCalled();
+    });
+
+    it("parks a review request while the Meeting is paused", async () => {
+        const { state, ownership } = stateWithPendingReview();
+        state.lifecycle = { status: "paused", changedAt: 6, reason: "人工暂停" };
+        const application = claimApplication(state);
+        const sendMessage = vi.fn();
+        const dispatcher = createEvidenceReviewDispatcher({
+            sessions: { sendMessage },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 6,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 5
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: outboxItem({
+                    kind: "agent_notice",
+                    noticeKind: "review_request",
+                    recipientId: "reviewer-v1",
+                    agendaId: "agenda-v1",
+                    versionId: "version-pending"
+                }),
+                parent: { id: "captain-1" } as never,
+                signal: new AbortController().signal
+            })
+        ).resolves.toBeUndefined();
+        expect(application.execute).not.toHaveBeenCalled();
+        expect(sendMessage).not.toHaveBeenCalled();
     });
 });

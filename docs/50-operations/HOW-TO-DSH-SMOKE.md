@@ -7,13 +7,20 @@
 当前只支持：
 
 - `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立 continuable child Session。
-- `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer worker/batch、Publication、Archive 和 SQLite cold reopen。
+- `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer 逐版本 worker/Review、Publication、Archive 和 SQLite cold reopen。
 
 Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会在 Host 启动前失败，不能作为 Browser 验收证据。
 
 ## 人工 Web 调试与验收
 
 人工 Browser 调试不运行 `smoke:profile`，也不使用 `/tmp` 安装根。DSH 启动工作目录固定为仓库 `dsh-workspace/`，`DSH_HOME` 固定为 `dsh-workspace/dsh-home/`，项目目录固定为 `dsh-workspace/projects/meetings-view/`，安装、会议 SQLite 和角色资源固定在 `dsh-workspace/web-ui/convivium-user/`。Session 与 Meeting 数据跨源码刷新和 Git HEAD 变化保留，不为连续调试重建会议。Host 使用 `127.0.0.1:31828`；刷新或重启前必须先停止占用该端口的 Host，且不得并行运行共享 `DSH_HOME` 的常规安装。
+
+上述固定目录的职责和持久数据位置如下；它们均位于已被 Git 忽略的 `dsh-workspace/`，不是 Convivium 源码目录：
+
+- `dsh-workspace/web-ui/convivium-user/` 是人工 Web 调试安装根，保存 release、artifact、角色资源、运行配置以及 Convivium 会议存储；会议 SQLite 的固定路径是 `dsh-workspace/web-ui/convivium-user/convivium-storage.sqlite`，运行期间可能同时出现同路径前缀的 `-wal` 和 `-shm` 文件。
+- `dsh-workspace/dsh-home/` 是该人工调试环境共享的 `DSH_HOME`，保存 DSH profile、Session 和设置；DSH Session 不存入上述会议 SQLite。
+- `dsh-workspace/projects/meetings-view/` 是 DSH Web 的 Choose workspace 所选择的项目工作目录，用于限定 Captain Session 操作的项目上下文；它不是插件安装根，也不保存 Convivium 会议 SQLite。
+- `dsh-workspace/convivium-user/convivium-storage.sqlite` 属于普通持久安装流程，不是人工 Web 调试数据库；两套安装根不得混用。
 
 从仓库根执行；首次安装创建固定目录，后续源码刷新复用它们，只新增以构建物 SHA-256 标识的 release 和 artifact，不覆盖旧 release、Session 或会议 SQLite：
 
@@ -108,9 +115,9 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 3. 目标锚定、漂移检测与纠偏闭环的最小机制；
 4. 同时衡量发散价值与目标一致性的继续／停止条件。
 
-每轮必须登记两份 Evidence，Reviewer coordinator 为每份当前 version 启动一个 one-shot worker，收齐两个 Review 后携带 `claimId` 原子提交 batch，再发布 Round。最终结果必须满足：
+每轮必须登记两份 Evidence。Reviewer coordinator 为每份当前 version 独立领取 claim、启动一个 one-shot worker，并在得到 completed 结果后携带对应 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两份 Evidence 都完成 Review 和 delivery 后才能发布 Round。最终结果必须满足：
 
-- 4 个 Round、8 个 EvidenceVersion、4 个 Review batch 和 4 个 Publication；
+- 4 个 Round、8 个 EvidenceVersion、8 份逐版本 Review 和 4 个 Publication；
 - 8 个不同 worker Session，且 worker 没有 Meeting command authority；
 - 子议题来源明确为 `manager-round-goal`；
 - Meeting 进入 `archived`，Archive 为 `complete`；

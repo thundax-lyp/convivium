@@ -1,6 +1,6 @@
 # Meeting Evidence Round Requirements
 
-状态：已确认的目标业务流程；2026-09-17 确认贡献者只提交准备公开的证据、删除 Manager 私有草稿与格式审批、使用唯一专职审核身份批量取得证据并通过 DSH workers 并发审核。本文定义目标业务验收，不声明实现覆盖。
+状态：已确认的目标业务流程；2026-09-17 确认贡献者只提交准备公开的证据、删除 Manager 私有草稿与格式审批；2026-09-24 确认唯一专职审核身份按 EvidenceVersion 独立领取、验证、失败计数和提交。本文定义目标业务验收，不声明实现覆盖。
 
 ## Purpose
 
@@ -23,7 +23,7 @@
 
 1. 召集人是发起并控制会议的本地用户，不等同于 Captain Agent；召集人确定会议目标，Manager 规划当前议题。进入下一轮时，贡献者可看到截至上一轮结束时已经公开的累计会议内容，并据此判断是否举手。需要 Captain 专属结构化权限的操作仍由 Captain 执行，不因召集人在时序图中出现而转授给本地用户或 Manager。
 2. 每轮开始时固定截至上一轮的公开内容与最终证据版本。审核本轮一份证据时，只使用该固定累计公开基线及当前待审证据版本；不使用本轮其他贡献者的证据，无论后者提交或审核得更早。
-3. A、B 可以并行举手、取证、提交和接受反馈。提交先后不扩大任一人的本轮可见范围，也不改变另一人的审核基线。每场会议只有一个专职证据审核身份；它可一次取得多份待审证据，并以彼此隔离的 DSH worker 并发审核。
+3. A、B 可以并行举手、取证、提交和接受反馈。提交先后不扩大任一人的本轮可见范围，也不改变另一人的审核基线。每场会议只有一个专职证据审核身份；每份待审 EvidenceVersion 独立领取并交给一个隔离的 DSH worker，不形成跨版本原子批次。
 4. Manager 只在本轮所有已接纳的举手及最终证据审核均已收口后规划继续、停止当前议题或下一议题；下一议题可以专门质疑某份已公开证据。Manager 可选择已有授权议题中的下一步；若需把新议题 candidate 纳入正式议程，只提出计划和理由，仍由 Captain 按会议议程权限处置。正常议题规划不在已接纳提交或审核在途时停止当前议题；强制结束、取消及预算耗尽属于异常终止边界，须保留未完成项和原因。召集人接收并判断会议成果或决定结束整场会议，但正式目标完成仍按会议完成条件与授权操作判断，Manager 不代替该接受。
 
 ### ER-FR-2：举手与 Manager 安排
@@ -45,7 +45,7 @@
 ### ER-FR-4：提交校验、登记与轮内可见性
 
 1. 贡献者只向 Meeting Runtime 提交准备公开的证据包。Runtime 只校验结构、必填字段、引用、调用身份、Contribution 授权和适用期限，不判断来源真实性、观察可信度或观点支撑度，也不替作者补写未知信息。失败整条拒绝，不创建 EvidencePackage、EvidenceVersion、Registration 或 Review；作者在自己的 Session 中修正后可于原 Contribution 期限内重新提交，未登记的修正不计实质补充次数。
-2. 合法提交在一个原子转换中创建或更新该贡献者本轮唯一 EvidencePackage、当前 EvidenceVersion 与完整 Registration。登记内容是准备在轮末公开的确切版本；作者和唯一证据审核身份可读取，Manager 只读取贡献与审核状态。本轮其他贡献者在轮次结束前不能读取该证据包或其审核意见，因此 B 的本轮准备及审核不能交叉引用 A 本轮证据。
+2. 合法提交在一个原子转换中创建或更新该贡献者本轮唯一 EvidencePackage、当前 EvidenceVersion 与完整 Registration。每个新版本的 `EvidenceStatus` 为 `submitted`、`failureCount` 为 0，且没有 `lastFailureReason`。登记内容是准备在轮末公开的确切版本；作者和唯一证据审核身份可读取。Manager 只读取当前 version 的标识、`EvidenceStatus`、`failureCount` 和可选 `lastFailureReason`，不读取证据正文、资料 ID 或评分。本轮其他贡献者在轮次结束前不能读取该证据包或其审核意见，因此 B 的本轮准备及审核不能交叉引用 A 本轮证据。
 3. 证据进入会议只确认当前版本已登记，不等于已核验或已向全体公开。本轮贡献者围绕该包形成的待公开论证正文也不得在轮次收口前向其他贡献者发布。轮次收口后，会议原样公开该轮每位贡献者的一份最终证据包、相关论证正文及其最终审核意见，成为下一轮累计公开基线；旧版本对应的审核不自动成为新版本的审核。
 
 ### Evidence Source And Code Materials
@@ -70,9 +70,10 @@
    | 观点支撑度 | 指定资料的指定部分对某个具体观点是直接支持、部分支持、不支持，还是无法判断；所需推断假设是否成立。 |
 
 3. 每维使用 0～3 级：0 表示有明确重大缺口或反证，1 表示明显不足，2 表示足以有限判断但有已说明限制，3 表示依据充分且可核对；证据不足以给出数值时另记“无法判断”，不把它当作 0。每项评分须保留审核范围、理由和影响判断的上一轮依据。评分是审核意见，不是 Manager 接纳、观点接受或会议目标完成事实。
-4. Runtime 在唤醒审核人前，必须为同一 Round 的确切待审 EvidenceVersion 集合原子创建一个持久 `ReviewBatchClaim`；每轮至多一个未过期 claim。claim 固化 `claimId`、`roundId`、唯一审核人、`versionIds`、`claimedAt` 与 `expiresAt`，但不持久化 worker 内部过程。审核人的 coordinator Session 使用 DSH 原生 worker sessions 并发处理；每个 worker 只取得 claim 中一份确切 EvidenceVersion 与该 Round 的固定公开 baseline，不是 MeetingIdentity、不能写 Meeting。`SubmitReviewBatch` 必须携带并精确匹配未过期 claim 及其全部 versionIds，成功时原子写入全部 Review 并移除 claim。重复 effect 在有效 claim 存在时不得再次唤醒审核人；Reviewer turn 超时、中断或投递失败时，Runtime 必须原子撤销该 turn 的确切 claim，撤销后不再接受该旧 turn 的 Review，仍待审版本可由后续 effect 立即重新认领。若 Runtime 未能观察到 turn 结束（例如进程崩溃），则保留 claim 到 `expiresAt` 后再重新认领。Reviewer 或任一 worker 未完成时不得提交部分结果。Meeting 冷恢复后必须从持久 claim 与最终 Review 判定等待、重试或重新认领，不依赖进程内锁。
-
-5. claim 还必须绑定创建它的 `sourceEffectId`。同一 version 的其它重复 effect 在有效 claim 存在时直接去重完成；原 effect 的崩溃重投不得被误判为已完成，而应保持等待，直至显式撤销、Review 成功或 claim 到期后重新认领。
+4. `EvidenceStatus` 必须精确为 `submitted | validating | validated | validation_failed | validation_cancelled`，并绑定每个 immutable EvidenceVersion。`submitted` 表示已登记待验证；创建该版本的独立持久 claim 后转为 `validating`；成功提交该版本的最终 Review 后转为 `validated`。评分为 0、负面意见或 `unable_to_assess` 仍是已完成验证，不得记为执行失败。审核执行未完成时转为 `validation_failed`、递增 `failureCount` 并记录 `lastFailureReason`；当前失败原因仅为 `review_timeout | review_interrupted | dispatch_failed`。只有 `validation_failed` 且 `failureCount` 小于固定上限 5 的版本可以重试，达到上限后保持可观察失败，不再领取。Outbox 只记录通知运输，不得以 delivered/failed 代替 EvidenceStatus；ReviewDelivery 仍只记录已形成 Review 向作者的送达结果。
+5. Runtime 在唤醒审核人前，必须为每个确切 EvidenceVersion 独立创建一个持久 `EvidenceReviewClaim`。claim 固化 `claimId`、`sourceEffectId`、`roundId`、唯一审核人、`versionId`、`claimedAt` 与 `expiresAt`，但不持久化 worker 内部过程；同一 Round 可有多个不同 version 的 claim，同一 version 同时至多一个 claim。审核人的 coordinator Session 对该 claim 只调用一个 DSH 原生 worker；worker 只取得这一份 EvidenceVersion 与该 Round 的固定公开 baseline，不是 MeetingIdentity、不能写 Meeting。worker 的 Review object 必须由 provider 按固定 schema 机器校验；第一轮没有公开 baseline 时，各维 `baselineEvidenceIds` 的合法值为显式空数组 `[]`。`SubmitEvidenceReview` 必须携带并精确匹配未过期 claim 与 versionId，成功时只写入该版本 Review、把该版本置为 `validated`、移除 claim 并创建该 Review 的 delivery effect；同轮其它版本是否完成不影响该提交。
+6. claim 必须绑定创建它的 `sourceEffectId`。同一 version 的其它重复 effect 在有效 claim 存在时直接去重完成；原 effect 的崩溃重投不得被误判为已完成，而应保持等待至 claim 到期。可观察的 reviewer turn 超时、中断或投递失败通过 `FailEvidenceValidation` 精确消费 claim 并记录失败状态；迟到 Review 因 claim 已不存在而拒绝。若 Runtime 未观察到 turn 结束，则保留 claim 到 `expiresAt`，届时先以 `review_timeout` 记录失败，再按版本自己的失败次数决定是否重试。Outbox attempt 不得提前耗尽 EvidenceVersion 的失败预算。冷恢复只依赖持久 EvidenceStatus、claim 与最终 Review，不依赖进程内锁。
+7. Meeting 暂停时，所有 `submitted | validating` 版本转为 `validation_cancelled` 并移除对应 claim；取消不增加 `failureCount`，也不写 `lastFailureReason`，旧 review request 不在暂停期间轮询。恢复 Meeting 时为仍是 current、complete 的 `validation_cancelled` 版本重新创建 review request，重新领取后转回 `validating`。暂停前旧 turn 的迟到 Review 必须因 claim 已取消而拒绝；`validated` 版本不受暂停和恢复影响。
 
 ### ER-FR-6：审核意见、两次补充与响应
 
@@ -94,8 +95,9 @@ Captain 或 loopback 本地召集人可以在轮次无法继续时通过结构�
 
 ### ER-FR-8：申请运行机会与 Transcript 通知
 
-1. 会议进入 running 后，合格身份自己的会议专用 DSH Session 已 active 时可以获得一次申请机会；此机会只允许其自行判断是否申请，不授予 Contribution。此后每条新正式 Transcript 内容通知相关且当前没有未结束贡献或任务的身份，使闲置 Participant 取得运行轮次；不要求每次通知都发言，也不唤醒未证明归属或非 active 的 Session。
-2. 通知携带可核对的会议、议题和已公开内容标识，Agent 通过受控读取取得 caller-visible 内容；通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、Agent 执行完成、举手获接纳和证据提交是不同结果。通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
+1. 会议进入 running 后，`meeting_started` 作为公开 Meeting 事件投递给每个具有 active meeting-owned Session 的初始身份，不按 Manager、Contributor 或 Evidence Reviewer 角色筛选。各身份依据自己的职责和 caller-visible 状态自行决定处理或忽略；Manager 据此规划首轮，Contributor 可判断是否申请取证机会，Evidence Reviewer 在没有有效审核请求时无需行动。收到启动事件不授予 Contribution，也不扩大任何命令权限。
+2. 此后每条新正式 Transcript 内容作为公开 Meeting 事件投递给全部具有 active meeting-owned Session 的会议身份，不因角色、Agenda responsibility 或当前任务状态筛除接收者。接收者可以处理或忽略；是否允许读取具体内容、申请机会或提交命令，仍由 caller-filtered projection 与 Runtime 授权确定。私信、举手处置、审核请求、deadline 等具有明确工作归属或非公开内容的通知仍只投递给对应身份，不适用公开广播规则。
+3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识。每个 Meeting identity 必须能通过统一的受控读取入口，以通知中的 `meetingId` 取得自己的 caller-visible Meeting 内容；Manager 至少能读取已提交的 objective、Agenda、当前进度、version 与允许操作，Contributor 和 Evidence Reviewer 读取同一事实源的各自权限投影。通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、Agent 执行完成、举手获接纳和证据提交是不同结果。未证明归属、Session 非 active、capability 已撤销或请求其它 Meeting 时不得读取或投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
 
 ## Business Rules
 
@@ -132,7 +134,7 @@ sequenceDiagram
             C->>C: 校验并登记 A 当前版本，轮内不向 B 公开
             C-->>H: 待审 A 版本＋固定公开基线
             H->>H: worker 独立审核 A
-            H->>C: 批量提交中的 A 四维 Review
+            H->>C: 独立提交 A 四维 Review
             C-->>A: 发送审核意见，完成后起算 1 分钟
             loop A 自主继续且仍有机会，零至两次实质补充
                 A->>M: 原任务内说明内容并申请补证
@@ -140,7 +142,7 @@ sequenceDiagram
                 A->>C: 提交准备公开的新版本
                 C->>C: 校验并登记同一包
                 C-->>H: 新版本＋同一固定基线
-                H->>C: 后续批次提交新版本 Review
+                H->>C: 独立提交新版本 Review
                 C-->>A: 发送新意见，重新起算 1 分钟
             end
             alt A 明确放弃
@@ -163,7 +165,7 @@ sequenceDiagram
             C->>C: 校验并登记 B 当前版本，轮内不向 A 公开
             C-->>H: 待审 B 版本＋固定公开基线
             H->>H: worker 独立审核 B
-            H->>C: 批量提交中的 B 四维 Review
+            H->>C: 独立提交 B 四维 Review
             C-->>B: 发送审核意见，完成后起算 1 分钟
             loop B 自主继续且仍有机会，零至两次实质补充
                 B->>M: 原任务内说明内容并申请补证
@@ -205,12 +207,13 @@ sequenceDiagram
 1. A、B 同轮独立提交时，B 在轮末公开前读不到 A 的轮内证据及审核意见；两份审核都使用同一截至上一轮的固定累计公开基线，先后顺序不改变审核输入。
 2. Manager 拒绝 A 初次举手时，A 收到拒绝，本轮会议没有 A 的举手或证据记录，也不因 A 不回复而等待；B 的有效贡献仍能继续。若 A 已获接纳但到适用期限仍未提交，则明确记录未提交退出，轮次不提前忽略 A，也不生成空证据包。
 3. 准备公开的证据第一次因结构、必填字段、引用或权限不合法被拒绝时，Meeting 不存在对应 EvidencePackage、EvidenceVersion、Registration 或 Review；作者在自己的 Session 中修正并于原 Contribution 期限内重交，未登记修正不消耗补充机会。合法登记后最多两次获接纳实质补充只更新这一包，第三次申请拒绝，新版本重新审核且旧评分不冒充新评分。
-4. Manager 不接收私有草稿或审核证据正文；唯一专职审核身份只对已登记版本分别给出来源、可信度、完整性及具体观点支撑度的数值或无法判断与理由，不因来源疑点删除登记事实。多份待审证据可由隔离 workers 并发处理并由审核身份批量原子提交，任一 worker 失败不把未完成 Review 写入批次。
+4. Manager 不接收私有草稿或审核证据正文；唯一专职审核身份只对已登记版本分别给出来源、可信度、完整性及具体观点支撑度的数值或无法判断与理由，不因来源疑点删除登记事实。每个版本独立领取、失败计数、重试和提交；一个 worker 失败不阻止同轮其它版本形成 Review，也不把未完成结果写成 Review。
 5. 审核意见内部发送完成后，贡献者 1 分钟内明确举手或放弃；发送失败不启动期限。无回复只产生可区分的超时退出，不能标成主动放弃或已充分核验。
 6. Manager 只能在所有已接纳举手及最终审核均收口后决定议题继续、停止或下个问题；轮末公开后 A、B 才能读取彼此本轮的最终证据、相关论证和意见。负面审核可成为下一轮的质疑议题，不要求全员同意评分。新增议题 candidate 须由 Captain 正式处置，Manager 的计划不越权生效。
 7. 轮次完成、证据登记、证据审核与正式成果接受可分别观察；某人超时、评分为负或已完成轮次均不自动满足会议目标。
 8. 审核员或 Manager 的必要处理逾期、意见持续无法发送时，未审版本不公开，会议显示受阻阶段和原因并交由召集人处理；强制结束或预算耗尽不得冒充正常轮次收口。没有已接纳举手的轮次可结束为空轮次，不生成证据或完成事实。
-9. Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束任务时不能申请新贡献；正式 Transcript 每新增一条，相关闲置身份得到申请运行机会，但通知不自动生成申请、发言或证据。
+9. Meeting 创建后，Manager、全部初始 Contributor 和 Evidence Reviewer 的 active meeting-owned Session 各收到一次 `meeting_started`，且都能以通知中的 `meetingId` 调用统一读取入口；Manager 由返回的 objective 与 active Agenda 形成 planning context 并规划首轮，不会因通知不复制议题正文而停在没有 ManagerPlan 和 open Round 的初始状态。Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束任务时不能申请新贡献。正式 Transcript 每新增一条，全部 active Meeting identity 收到公开更新，但通知本身不自动生成申请、发言、审核或证据。
+10. 验证中的 Meeting 暂停后，对应版本显示 `validation_cancelled` 且失败次数不变；恢复后重新进入验证流程。旧 reviewer turn 的迟到提交不能写入 Review，恢复后的新 claim 可以独立完成验证。
 
 ## Related Documents
 

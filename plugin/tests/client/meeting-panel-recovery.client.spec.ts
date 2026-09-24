@@ -195,8 +195,16 @@ describe("Meeting panel refresh recovery", () => {
         );
     });
 
-    it("discards a recovery generation after the user selects another Meeting", async () => {
-        const fixture = recoveryFixture();
+    it("discards a refresh generation and restores list freshness after selecting another Meeting", async () => {
+        const notice = deferred<void>();
+        const stream = {
+            async *[Symbol.asyncIterator]() {
+                await notice.promise;
+                yield { accept: vi.fn() };
+                await new Promise<void>(() => undefined);
+            }
+        };
+        const fixture = recoveryFixture(stream);
         const secondSummary = {
             ...fixture.summary,
             meetingId: "meeting-second",
@@ -209,32 +217,52 @@ describe("Meeting panel refresh recovery", () => {
         };
         fixture.api.list = vi.fn(async () => ({ meetings: [fixture.summary, secondSummary] }));
         await renderSelected(fixture);
-        const recoveryList = deferred<{ meetings: [typeof fixture.summary] }>();
-        const recoveryDetail = deferred<typeof fixture.view>();
-        fixture.api.list = vi.fn(() => recoveryList.promise) as never;
+        const refreshList = deferred<{ meetings: [typeof fixture.summary] }>();
+        const refreshDetail = deferred<typeof fixture.view>();
+        fixture.api.list = vi.fn(() => refreshList.promise) as never;
         fixture.api.read = vi
             .fn()
-            .mockImplementationOnce(() => recoveryDetail.promise)
+            .mockImplementationOnce(() => refreshDetail.promise)
             .mockResolvedValueOnce(secondView);
 
-        act(() => fixture.callbacks()?.carrierFailed());
-        act(() => fixture.callbacks()?.generationReopened());
+        notice.resolve();
+        await waitFor(() => expect(fixture.api.list).toHaveBeenCalledOnce());
         fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
         await waitFor(() =>
             expect(
                 within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
             ).toBeTruthy()
         );
-        recoveryList.resolve({ meetings: [fixture.summary] });
-        recoveryDetail.resolve({
+        expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(false);
+        refreshList.resolve({ meetings: [fixture.summary] });
+        refreshDetail.resolve({
             ...fixture.view,
-            objective: { ...fixture.view.objective, statement: "obsolete recovery" }
+            objective: { ...fixture.view.objective, statement: "obsolete refresh" }
         });
         await act(async () => Promise.resolve());
         expect(
             within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
         ).toBeTruthy();
-        expect(screen.queryByText("obsolete recovery")).toBeNull();
+        expect(screen.queryByText("obsolete refresh")).toBeNull();
+    });
+
+    it("does not reconnect when the carrier fails during a recovery generation", async () => {
+        const fixture = recoveryFixture();
+        await renderSelected(fixture);
+        const recoveryList = deferred<{ meetings: [typeof fixture.summary] }>();
+        const recoveryDetail = deferred<typeof fixture.view>();
+        fixture.api.list = vi.fn(() => recoveryList.promise) as never;
+        fixture.api.read = vi.fn(() => recoveryDetail.promise) as never;
+
+        act(() => fixture.callbacks()?.carrierFailed());
+        act(() => fixture.callbacks()?.generationReopened());
+        act(() => fixture.callbacks()?.carrierFailed());
+        recoveryList.resolve({ meetings: [fixture.summary] });
+        recoveryDetail.resolve(fixture.view);
+
+        await waitFor(() => expect(fixture.api.read).toHaveBeenCalledOnce());
+        await act(async () => Promise.resolve());
+        expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
     });
 
     it("uses Browser focus for recovery and removes the listener on unmount", async () => {

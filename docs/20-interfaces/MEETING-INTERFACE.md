@@ -16,7 +16,7 @@ type OpaqueId = string;
 interface MeetingCommand {
   protocolVersion: 1;
   meetingId: OpaqueId; // createMeeting 时必须为 "new"
-  expectedMeetingVersion?: number; // create_meeting 为 0；SubmitReviewBatch 禁止携带；其余 action 必填
+  expectedMeetingVersion?: number; // create_meeting 为 0；SubmitEvidenceReview 禁止携带；其余 action 必填
   requestId: OpaqueId;
   action: MeetingAction;
 }
@@ -29,6 +29,8 @@ interface CallerBinding {
 ```
 
 `CallerBinding` 只由 adapter 传给 Runtime。`create_meeting` 只接受 Captain-only DSH tool；adapter 从可信 `exec.agent` 注入 Captain parent，并令 `principalId=String(exec.agent.id)`，不设置 `sessionBindingId`，wire payload 不承载 parent/actor/authority。loopback Remote 不得创建 Meeting。创建命令在协议结构和 identityKey 引用校验通过后、需要 MeetingId 的 Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 `meetingId`，不混入 caller、Session、随机值或 `teamId`，因此相同 create requestId 必须定位同一 Meeting。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
+
+每个生产 Agent command tool 的 arguments 根对象直接使用本节的完整 `MeetingCommand` envelope，并把该 tool 唯一允许的 action shape 投影为模型可见的精确 object schema；不得额外包装 `input`、`arguments` 或 JSON string，也不得只暴露无结构 `json`、依赖 Skill 文本让模型猜测嵌套字段。tool schema 负责调用前的结构可见性与基础参数校验，`MeetingCommandSchema` 和 action schema 仍是 wire 解析真相源，Runtime 继续独立执行 caller、版本、幂等和领域授权校验。DSH Host 中的全局 tool 注册只表示可发现的实现入口，不表示任何 Meeting role 获得调用权；Meeting Definition 必须按角色收窄模型可见工具面，Runtime 对所有实际调用再次 fail closed。
 
 ## Command Action Union
 
@@ -53,9 +55,9 @@ type MeetingAction =
   | RaiseHand
   | DisposeHandRaise
   | SubmitEvidence
-  | ClaimReviewBatch
-  | ReleaseReviewBatchClaim
-  | SubmitReviewBatch
+  | ClaimEvidenceReview
+  | FailEvidenceValidation
+  | SubmitEvidenceReview
   | RecordReviewDelivery
   | RaiseSupplementHand
   | DisposeSupplementHand
@@ -251,27 +253,25 @@ interface SubmitEvidence {
   contributionId: OpaqueId;
   evidence: EvidenceInput;
 }
-interface ClaimReviewBatch {
-  kind: "claim_review_batch";
+interface ClaimEvidenceReview {
+  kind: "claim_evidence_review";
   sourceEffectId: OpaqueId;
   roundId: OpaqueId;
-  versionIds: OpaqueId[];
+  versionId: OpaqueId;
 }
-interface ReleaseReviewBatchClaim {
-  kind: "release_review_batch_claim";
+interface FailEvidenceValidation {
+  kind: "fail_evidence_validation";
   roundId: OpaqueId;
   claimId: OpaqueId;
-  reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
+  reason: "review_timeout" | "review_interrupted" | "dispatch_failed";
 }
-interface SubmitReviewBatch {
-  kind: "submit_review_batch";
+interface SubmitEvidenceReview {
+  kind: "submit_evidence_review";
   roundId: OpaqueId;
   claimId: OpaqueId;
-  reviews: Array<{
-    versionId: OpaqueId;
-    dimensions: ReviewDimensionsInput;
-    scope: string;
-  }>;
+  versionId: OpaqueId;
+  dimensions: ReviewDimensionsInput;
+  scope: string;
 }
 interface RecordReviewDelivery {
   kind: "record_review_delivery";
@@ -374,7 +374,11 @@ interface ReviewDimensionInput {
 
 `falsifiers`、`uncertainties`、`limitations`、`claims`、`materials` 各至少一项；每个 `TextWithReason.value` 必须非空，填写“无”或“未知”时必须有非空 `reason`，不能由公开模板替作者生成缺项理由。每个 claim 至少引用一个本 evidence 的 material。kind 为 unknown/not_applicable 时必须给出 reason；Runtime 从 Round 注入固定 `baselinePublicationIds`，请求不得提供它。每维 `scope` 与 `reason` 均须非空；每维 `baselineEvidenceIds` 只可引用固定 baseline 中 Publication.finalVersionIds 所列的版本；未引用上一轮依据时数组明确为 []，不能用本轮其他证据补入。reviewer 不能审核作者 identity 的版本，且只能审核当前、已 complete 的版本。
 
-Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。Runtime-only `ClaimReviewBatch` 在唤醒 reviewer 前以普通 Meeting version CAS 原子认领同一 Round 的确切非空待审集合；成功状态记录 `claimId`、`roundId`、reviewerId、versionIds、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt，同一 Round 至多一个未过期 claim。reviewer coordinator 只能把该 claim 的全部 version 逐份交给 DSH 原生 worker sessions 并发分析；worker 不是 MeetingIdentity、没有 Meeting 写权限。`SubmitReviewBatch` 只由该 reviewer 的 coordinator Session 提交，必须携带所属 `roundId` 与未过期 `claimId`，不得携带全局 `expectedMeetingVersion`；reviews 的 versionId 集合必须与 claim 精确相等。每项还必须仍属于该 Round、仍是对应 package 的 current complete version、尚无最终 Review，并分别验证固定 baseline 与维度。整批成功时原子追加全部 Review、移除 claim 并创建各自 delivery effect；任一项缺失、失效或多余均整批拒绝，不能提交部分 worker 结果。相同 submit requestId 重放返回原 receipt；重复 review effect 若其 version 已被同 Round 的有效 claim 覆盖，则作为已去重完成，不再次唤醒 reviewer，也不持续竞争写入。Reviewer turn 超时、中断或投递失败时，dispatcher 以当前 Meeting version 调用 Runtime-only `ReleaseReviewBatchClaim`，只撤销精确匹配的 roundId 与 claimId；撤销先提交时旧 turn 的迟到 Review 返回 `REVIEWER_CONFLICT`，Review 先提交时撤销观察到 claim 已不存在并成为无操作。未观察到 turn 结束时由 expiresAt 兜底。冷恢复从持久 claim 与 Review 决定等待或重新认领，不依赖进程内锁；worker 内部过程不持久化。
+Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。每个 immutable EvidenceVersion 都携带 `status`、`failureCount` 和可选 `lastFailureReason`：新版本为 `submitted/0`；`ClaimEvidenceReview` 以普通 Meeting version CAS 为一个 current、complete 版本创建独立 `EvidenceReviewClaim` 并置为 `validating`；claim 记录 `claimId`、`sourceEffectId`、`roundId`、reviewerId、versionId、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt。同一 version 同时只能有一个 claim，不限制同一 Round 的其它 version 独立认领。reviewer coordinator 通过 `convivium_run_review_worker` 把该 version 交给一个 DSH 原生 one-shot worker；该工具固定使用 `spawn` provider、无工具权限的 child 与本节 `ReviewDimensionsInput` 对应的 object-rooted output schema。只有 provider 返回 `completed` 且 structured object 通过 schema 校验时才返回 completed Review；第一轮各维 `baselineEvidenceIds: []` 合法。
+
+`SubmitEvidenceReview` 只由该 reviewer coordinator 提交，必须携带所属 `roundId`、未过期 `claimId` 和精确 `versionId`，不得携带全局 `expectedMeetingVersion`。Runtime 再验证该版本仍是 current、complete、`validating` 且没有最终 Review；成功时原子追加一份 Review、把版本置为 `validated`、移除 claim 并创建 delivery effect。0 分、负面意见和 `unable_to_assess` 仍是 `validated`。`FailEvidenceValidation` 只消费精确 claim，把版本置为 `validation_failed`、递增 `failureCount` 并记录 `review_timeout | review_interrupted | dispatch_failed`；`failureCount < 5` 才能重新认领。相同 submit requestId 重放返回原 receipt；其它覆盖同一 version 的 effect 在有效 claim 存在时去重完成，原 source effect 延后到 expiresAt。未观察到 turn 结束时，claim 保留到 expiresAt，再以 `review_timeout` 失败；冷恢复从持久 EvidenceStatus、claim 与 Review 继续。
+
+Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `validation_cancelled` 并移除 claim，不增加 failureCount、不写 lastFailureReason；旧 review request 完成而不在暂停期间轮询。恢复时为这些 current、complete 版本重新创建 review request，重新领取后回到 `validating`。暂停前旧 turn 的迟到提交因 claim 已不存在返回 `REVIEWER_CONFLICT`。Outbox delivered/failed 只表示运输结果，不改变 EvidenceStatus，也不得提前耗尽 EvidenceVersion 的固定失败预算；ReviewDelivery 只描述已形成 Review 向作者的送达。
 
 已接纳但还没有登记证据的 Contribution 的准备期限为 acceptedAt + limits.taskDeadlineMs，并与存在的 Round.deadlineAt、该作者同 Agenda 未结束 MeetingTask.deadlineAt 取最早值；期限到达后可信 deadline handler 才能记录 submission_missing，绝不造空包。当前版审核或 ReviewDelivery 尚未成功时，不能据作者沉默记录 timed_out 或正常 PublishRound；reviewDeadlineMs 到达须报告未审/未送达包并交由后续异常轮次处置，不把该包视为最终已审。
 
@@ -539,7 +543,7 @@ interface RecordArchiveSessionResult {
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, accept/reject Risk, or abort a Round using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles opportunity/hand dispositions and recommends; it does not receive evidence drafts, submit evidence for the author or review evidence content. A contributor may submit own evidence/proposal/position/candidate/task result；唯一专职 reviewer 只读取待审证据并提交 review batch。Runtime rejects role-confused actions.
+local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, accept/reject Risk, or abort a Round using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles opportunity/hand dispositions and recommends; it does not receive evidence drafts, submit evidence for the author or review evidence content. A contributor may submit own evidence/proposal/position/candidate/task result；唯一专职 reviewer 只读取待审证据并逐版本提交 Review。Runtime rejects role-confused actions.
 
 Any authorized Meeting identity may use `record_question` and `record_issue`. Only an identity with the `captain` role may use `resolve_question` and `dispose_issue`; local controller may use none of these four actions. A caller that does not meet this role boundary is rejected as `UNAUTHORIZED` under the fixed error precedence; a permitted caller whose target is absent or whose state precondition fails is rejected by the subsequent `NOT_FOUND`, `INVALID_STATE`, or `PRECONDITION_FAILED` check.
 
@@ -762,6 +766,7 @@ interface MeetingView {
   rounds: RoundView[];
   publications: PublicationView[];
   evidencePackages: EvidencePackageView[];
+  evidenceValidationStatuses: EvidenceValidationStatusView[];
   evidenceReviews: EvidenceReviewView[];
   reviewDeliveries: ReviewDeliveryView[];
   messages: FormalMessageView[];
@@ -780,6 +785,8 @@ interface RefreshNotice {
   committedVersion: number;
 }
 ```
+
+Agent 侧统一通过 DSH tool `convivium_read_meeting` 调用读取契约，tool arguments 为 `{ input: ReadMeetingRequest }`。adapter 必须从可信 `exec.agent` 解析 active meeting-owned Session ownership；`input.meetingId` 必须与 ownership 的 Meeting 一致，并再次核对已提交 MeetingIdentity、`identityId`、角色和 `sessionOwnershipId`。成功返回 `MeetingReadResult`，使用该 identity 的 caller-filtered projection；读取不提交 command、不改变 Meeting version，也不产生 fact、receipt 或 outbox。参数非法返回 `INVALID_ARGUMENT`；无 Agent caller、ownership 非 active、capability 已撤销、跨 Meeting 请求或已提交身份绑定不一致返回 `UNAUTHORIZED`，不得退化为 local 完整投影。Repository/recovery 不可用仍作为读取失败，不返回缓存或不完整状态。
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
@@ -803,7 +810,10 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "awaiting_response" | "withdrawn" | "submission_missing" | "timed_out" | "supplement_rejected" | "aborted" | "closed"; packageId?: OpaqueId; substantiveSupplementCount: number; exitReason?: string }
     interface PublicationView { id: OpaqueId; roundId: OpaqueId; seq: number; finalVersionIds: OpaqueId[]; finalReviewIds: OpaqueId[]; exitReasons: string[]; publishedAt: EpochMs }
     interface EvidencePackageView { id: OpaqueId; roundId: OpaqueId; contributionId: OpaqueId; authorId: OpaqueId; agendaId: OpaqueId; currentVersion: EvidenceVersionView }
-    interface EvidenceVersionView { id: OpaqueId; ordinal: number; observation: string; interpretation: string; method: string; falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[]; claims: EvidenceClaimInput[]; materials: MaterialInput[]; submittedAt: EpochMs }
+    type EvidenceStatus = "submitted" | "validating" | "validated" | "validation_failed" | "validation_cancelled";
+    type EvidenceValidationFailureReason = "review_timeout" | "review_interrupted" | "dispatch_failed";
+    interface EvidenceValidationStatusView { packageId: OpaqueId; contributionId: OpaqueId; versionId: OpaqueId; status: EvidenceStatus; failureCount: number; lastFailureReason?: EvidenceValidationFailureReason }
+    interface EvidenceVersionView { id: OpaqueId; ordinal: number; observation: string; interpretation: string; method: string; falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[]; claims: EvidenceClaimInput[]; materials: MaterialInput[]; submittedAt: EpochMs; status: EvidenceStatus; failureCount: number; lastFailureReason?: EvidenceValidationFailureReason }
     interface EvidenceReviewView { id: OpaqueId; versionId: OpaqueId; reviewerId: OpaqueId; baselinePublicationIds: OpaqueId[]; scope: string; dimensions: ReviewDimensionsInput; createdAt: EpochMs }
     interface ReviewDeliveryView { id: OpaqueId; reviewId: OpaqueId; authorId: OpaqueId; status: "sent" | "failed"; sentAt?: EpochMs; failedAt?: EpochMs; failureReason?: string }
     interface FormalMessageView { id: OpaqueId; seq: number; actorId: OpaqueId; agendaId: OpaqueId; kind: string; body: string; publicationId: OpaqueId; relatedIds: OpaqueId[]; createdAt: EpochMs }
@@ -852,7 +862,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
     type AllowedControl = MeetingAction["kind"];
 
-evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核；Manager 只读取 Contribution/Review 状态，不读取本轮证据正文、资料 ID 或评分。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
+evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 的 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 
@@ -1028,6 +1038,8 @@ type AgentNoticePayload =
     })
   | (AgentNoticeBase & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
+
+`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、parent Session 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `MeetingStateRecord` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecord` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackage` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 
