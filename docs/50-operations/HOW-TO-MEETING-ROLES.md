@@ -83,7 +83,7 @@
 - 每个 child 原生 Session 中出现 skill tool/call 和成功 tool/result，正文包含其方法步骤。只有目录发现或服务 get 成功不算加载。
 - GitHub/arXiv 两类研究角色的真实 search 返回对应域的非空来源，fetch 返回成功 HTTP 与非空正文；缺 Provider 或凭据是失败。
 - Manager 和 Evidence Reviewer 的越权会议写入被真实工具执行层拒绝，Meeting 事实不变；tool filter 不等同于 OS Sandbox。
-- Evidence Reviewer 为 claim 中每个 immutable version 只创建一个 one-shot worker，worker 没有 Meeting command authority；只有完整结果集可以提交 batch。
+- Evidence Reviewer 为每个独立 claim 中的 immutable version 只创建一个 one-shot worker，worker 没有 Meeting command authority；只有该 worker 返回 completed 且结构化结果有效时，才能通过对应 claim 单独提交该 version 的 Review。
 - 不同角色的模型覆盖保持差异，父 Session 未被更改，冷恢复保留原 descriptor；配置变化不重配旧角色。
 
 当前 `smoke:profile` 不提供 `meeting-roles` 或 `role-composition` selector；不得执行历史命令或把旧结果当作当前七身份验收。自动入口和已验证边界以 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 与 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。

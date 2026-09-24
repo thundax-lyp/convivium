@@ -7,7 +7,7 @@
 当前只支持：
 
 - `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立 continuable child Session。
-- `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer worker/batch、Publication、Archive 和 SQLite cold reopen。
+- `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer 逐版本 worker/Review、Publication、Archive 和 SQLite cold reopen。
 
 Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会在 Host 启动前失败，不能作为 Browser 验收证据。
 
@@ -115,9 +115,9 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 3. 目标锚定、漂移检测与纠偏闭环的最小机制；
 4. 同时衡量发散价值与目标一致性的继续／停止条件。
 
-每轮必须登记两份 Evidence，Reviewer coordinator 为每份当前 version 启动一个 one-shot worker，收齐两个 Review 后携带 `claimId` 原子提交 batch，再发布 Round。最终结果必须满足：
+每轮必须登记两份 Evidence。Reviewer coordinator 为每份当前 version 独立领取 claim、启动一个 one-shot worker，并在得到 completed 结果后携带对应 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两份 Evidence 都完成 Review 和 delivery 后才能发布 Round。最终结果必须满足：
 
-- 4 个 Round、8 个 EvidenceVersion、4 个 Review batch 和 4 个 Publication；
+- 4 个 Round、8 个 EvidenceVersion、8 份逐版本 Review 和 4 个 Publication；
 - 8 个不同 worker Session，且 worker 没有 Meeting command authority；
 - 子议题来源明确为 `manager-round-goal`；
 - Meeting 进入 `archived`，Archive 为 `complete`；
