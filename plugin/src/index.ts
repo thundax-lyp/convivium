@@ -69,7 +69,7 @@ const meetingConsumerPlugin = {
                 }
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {
-                if (new Set(["127.0.0.1", "localhost"]).has(remoteContext.webServer.host))
+                if (remoteContext.webServer.host === "127.0.0.1")
                     remoteContext.plugin(ConviviumRemoteService, runtime);
             });
         }

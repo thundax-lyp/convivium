@@ -333,7 +333,7 @@ describe("target Meeting lifecycle", () => {
 
 describe("Convivium local Meeting route lifecycle", () => {
     async function host(
-        host: "127.0.0.1" | "0.0.0.0" | undefined,
+        host: "127.0.0.1" | "localhost" | "0.0.0.0" | undefined,
         runtimeConfig = config,
         workspace: { path: string } | undefined = undefined,
         includeWorkspaceRegistry = false
@@ -468,6 +468,13 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.toolDisposers).toHaveLength(9);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not register Meeting routes for a localhost host alias", async () => {
+        const fixture = await host("localhost");
+        expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
+        await fixture.dispose();
+        expect(fixture.toolDisposers).toHaveLength(9);
     });
 
     it("does not activate legacy workspace projection", async () => {
