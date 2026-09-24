@@ -465,6 +465,15 @@ describe("evidence review and delivery", () => {
         expect(
             published.kind === "accepted" && published.state.publications[0]?.exitReasons
         ).toEqual(["published"]);
+        expect(published.kind === "accepted" && published.effectRequests).toEqual(
+            ["manager-v1", "contributor-v1", "reviewer-v1"].map((recipientId) => ({
+                kind: "agent_notice",
+                noticeKind: "transcript_update",
+                recipientId,
+                agendaId: "agenda-v1",
+                publicMessageId: "message-v1"
+            }))
+        );
         expect(
             published.kind === "accepted" && validateMeetingState(published.state)
         ).toMatchObject({ kind: "valid" });

@@ -1029,6 +1029,8 @@ type AgentNoticePayload =
   | (AgentNoticeBase & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
+`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、parent Session 与 active capability。接收者通过 caller-filtered `read` 取得内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
+
 `MeetingStateRecord` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecord` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackage` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 
 ## Compatibility And Acceptance

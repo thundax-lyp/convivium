@@ -125,17 +125,6 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
         publishedAt: input.now,
         exitReasons: publicationExitReasons
     };
-    const idleContributors = state.identities.filter(
-        (identity) =>
-            identity.roles.includes("contributor") &&
-            (identity.agendaResponsibilityIds.length === 0 ||
-                identity.agendaResponsibilityIds.includes(round.agendaId)) &&
-            !state.tasks.some(
-                (task) =>
-                    task.assigneeId === identity.id &&
-                    (task.status === "open" || task.status === "claimed")
-            )
-    );
     const nextState: MeetingState = {
         ...state,
         version: state.version + 1,
@@ -177,7 +166,7 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
         state: exhaustedState,
         relatedIds: [publication.id, ...input.messageIds],
         effectRequests: messages.flatMap((message) =>
-            idleContributors.map((identity) => ({
+            state.identities.map((identity) => ({
                 kind: "agent_notice" as const,
                 noticeKind: "transcript_update" as const,
                 recipientId: identity.id,

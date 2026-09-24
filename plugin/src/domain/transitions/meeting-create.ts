@@ -25,18 +25,11 @@ export function createMeeting(state: MeetingState): MeetingTransitionResult {
         kind: "accepted",
         state: structuredClone(state),
         relatedIds: [state.id],
-        effectRequests: state.identities
-            .filter(
-                (identity) =>
-                    identity.roles.includes("contributor") &&
-                    (identity.agendaResponsibilityIds.length === 0 ||
-                        identity.agendaResponsibilityIds.includes(agendaId))
-            )
-            .map((identity) => ({
-                kind: "agent_notice" as const,
-                noticeKind: "meeting_started" as const,
-                recipientId: identity.id,
-                agendaId
-            }))
+        effectRequests: state.identities.map((identity) => ({
+            kind: "agent_notice" as const,
+            noticeKind: "meeting_started" as const,
+            recipientId: identity.id,
+            agendaId
+        }))
     };
 }

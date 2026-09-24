@@ -74,7 +74,6 @@ function assertNoticeReferences(
     if (!agenda) fail("NOTICE_VISIBILITY_INVALID");
     switch (noticeKind) {
         case "meeting_started":
-            assertRole(identity, "contributor", agendaId);
             if (state.lifecycle.status !== "running" || agenda.status !== "active")
                 fail("NOTICE_VISIBILITY_INVALID");
             return {};
@@ -186,7 +185,6 @@ function assertNoticeReferences(
             return fail("NOTICE_PAYLOAD_INVALID");
         }
         case "transcript_update": {
-            assertRole(identity, "contributor", agendaId);
             const publicMessageId = stringField(payload, "publicMessageId");
             if (
                 !state.messages.some(
