@@ -40,10 +40,11 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.3.0",
+        definitionVersion: "1.3.1",
         toolFilter: {
             allow: [
                 "skill",
+                "convivium_read_meeting",
                 "convivium_submit_manager_plan",
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
@@ -55,9 +56,9 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.3",
+        definitionVersion: "1.2.4",
         toolFilter: {
-            allow: ["skill", "subagent", "convivium_submit_review_batch"]
+            allow: ["skill", "subagent", "convivium_read_meeting", "convivium_submit_review_batch"]
         }
     });
     expect(
@@ -70,8 +71,17 @@ it("publishes only the current contribution tools for Manager", () => {
             .every(({ definitionVersion }) => definitionVersion === "1.0.0")
     ).toBe(true);
 
-    const currentGuidance = ["meeting-management/SKILL.md", "verification-review/SKILL.md"].map(
-        (path) => readFileSync(new URL(path, roleSkills), "utf8")
+    const currentGuidance = [
+        "meeting-management/SKILL.md",
+        "verification-review/SKILL.md",
+        "domain-architecture/SKILL.md",
+        "dsh-runtime-engineering/SKILL.md",
+        "protocol-ui-engineering/SKILL.md",
+        "github-source-research/SKILL.md",
+        "arxiv-paper-analysis/SKILL.md"
+    ].map((path) => readFileSync(new URL(path, roleSkills), "utf8"));
+    expect(currentGuidance.every((guidance) => guidance.includes("convivium_read_meeting"))).toBe(
+        true
     );
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
     expect(currentGuidance[0]).toContain("convivium_submit_manager_plan");

@@ -96,7 +96,7 @@ Captain 或 loopback 本地召集人可以在轮次无法继续时通过结构�
 
 1. 会议进入 running 后，`meeting_started` 作为公开 Meeting 事件投递给每个具有 active meeting-owned Session 的初始身份，不按 Manager、Contributor 或 Evidence Reviewer 角色筛选。各身份依据自己的职责和 caller-visible 状态自行决定处理或忽略；Manager 据此规划首轮，Contributor 可判断是否申请取证机会，Evidence Reviewer 在没有有效审核请求时无需行动。收到启动事件不授予 Contribution，也不扩大任何命令权限。
 2. 此后每条新正式 Transcript 内容作为公开 Meeting 事件投递给全部具有 active meeting-owned Session 的会议身份，不因角色、Agenda responsibility 或当前任务状态筛除接收者。接收者可以处理或忽略；是否允许读取具体内容、申请机会或提交命令，仍由 caller-filtered projection 与 Runtime 授权确定。私信、举手处置、审核请求、deadline 等具有明确工作归属或非公开内容的通知仍只投递给对应身份，不适用公开广播规则。
-3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识，Agent 通过受控读取取得 caller-visible 内容；通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、Agent 执行完成、举手获接纳和证据提交是不同结果。未证明归属、Session 非 active 或 capability 已撤销时不得投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
+3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识。每个 Meeting identity 必须能通过统一的受控读取入口，以通知中的 `meetingId` 取得自己的 caller-visible Meeting 内容；Manager 至少能读取已提交的 objective、Agenda、当前进度、version 与允许操作，Contributor 和 Evidence Reviewer 读取同一事实源的各自权限投影。通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、Agent 执行完成、举手获接纳和证据提交是不同结果。未证明归属、Session 非 active、capability 已撤销或请求其它 Meeting 时不得读取或投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
 
 ## Business Rules
 
@@ -211,7 +211,7 @@ sequenceDiagram
 6. Manager 只能在所有已接纳举手及最终审核均收口后决定议题继续、停止或下个问题；轮末公开后 A、B 才能读取彼此本轮的最终证据、相关论证和意见。负面审核可成为下一轮的质疑议题，不要求全员同意评分。新增议题 candidate 须由 Captain 正式处置，Manager 的计划不越权生效。
 7. 轮次完成、证据登记、证据审核与正式成果接受可分别观察；某人超时、评分为负或已完成轮次均不自动满足会议目标。
 8. 审核员或 Manager 的必要处理逾期、意见持续无法发送时，未审版本不公开，会议显示受阻阶段和原因并交由召集人处理；强制结束或预算耗尽不得冒充正常轮次收口。没有已接纳举手的轮次可结束为空轮次，不生成证据或完成事实。
-9. Meeting 创建后，Manager、全部初始 Contributor 和 Evidence Reviewer 的 active meeting-owned Session 各收到一次 `meeting_started`；Manager 能据此读取自己的 planning context 并规划首轮，不会因只通知 Contributor 而停在没有 ManagerPlan 和 open Round 的初始状态。Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束任务时不能申请新贡献。正式 Transcript 每新增一条，全部 active Meeting identity 收到公开更新，但通知本身不自动生成申请、发言、审核或证据。
+9. Meeting 创建后，Manager、全部初始 Contributor 和 Evidence Reviewer 的 active meeting-owned Session 各收到一次 `meeting_started`，且都能以通知中的 `meetingId` 调用统一读取入口；Manager 由返回的 objective 与 active Agenda 形成 planning context 并规划首轮，不会因通知不复制议题正文而停在没有 ManagerPlan 和 open Round 的初始状态。Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束任务时不能申请新贡献。正式 Transcript 每新增一条，全部 active Meeting identity 收到公开更新，但通知本身不自动生成申请、发言、审核或证据。
 
 ## Related Documents
 

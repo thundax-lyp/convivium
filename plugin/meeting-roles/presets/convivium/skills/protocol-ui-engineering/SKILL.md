@@ -7,6 +7,8 @@ user-invocable: true
 
 # 检查协议与用户界面的事实边界
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 列出字段的 producer、consumer、事实源和兼容约束
 2. 核对 Schema、错误码与调用者可见 projection
 3. 检查加载、过期版本、终态和权限不足的用户可观察结果

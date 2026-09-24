@@ -7,6 +7,8 @@ user-invocable: true
 
 # 用反例与证据评估交付条件
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 从验收条件和权限边界形成验证矩阵
 2. 优先寻找身份隔离、原子性、幂等、终态和恢复的反例
 3. 区分单元、契约、集成、真实 Host 与人工验证的证明范围

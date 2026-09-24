@@ -39,7 +39,9 @@ DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox�
 
 每个 MeetingIdentity 使用独立、可持续的会议专用 Session；不同 Meeting、身份或授权范围不得共享。Meeting Session label、provisioning envelope 与 durable ownership 只使用全局唯一 `meetingId` 和 Meeting 内唯一 `identityId` 定位，不包含 `teamId`；任何创建、继续、interrupt、恢复、停止或撤权都必须先验证持久 ownership，不能凭显示名、前缀或 UI 输入猜测。
 
-Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 只向与当前 active Agenda 相关、具有 contributor 角色、无未结束 Contribution/MeetingTask 且已证明自己的会议 Session active 的身份排入一次 `agent_notice` 申请机会。相关身份是 `agendaResponsibilityIds` 包含 active Agenda ID 或该数组为空的 contributor；身份可以不申请或不发言。通知只携带 Meeting/Agenda/已公开 message ID，Agent 再由受控读入口取得 caller-visible Transcript。投递前 dispatcher 重新验证 Session ownership、active 和闲置资格；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手或材料已登记。初次举手或无轮次机会申请经已提交 command 通知 Manager，Manager 处置理由只通知作者本人。
+Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 为每个 Meeting identity 排入独立的公开 `agent_notice`；身份可以根据职责和 caller-visible 状态处理或忽略。通知只携带 Meeting、Agenda 和已公开 message 等定位 ID，Agent 使用 `convivium_read_meeting` 取得 caller-filtered Meeting View。投递前 dispatcher 重新验证事实引用、Session ownership、parent、active 与 capability；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手、材料登记或角色行动。具有明确工作归属的机会申请、举手、审核和私信通知仍定向投递。
+
+`convivium_read_meeting` 与 command tools 分离：tool adapter 先用可信 `exec.agent` 解析 active ownership，并要求请求的 `meetingId` 与 ownership 一致；identity reader 再核对 committed MeetingIdentity 的 `identityId`、role 和 `sessionOwnershipId`，最后复用 `projectMeetingView` 生成 identity projection。它不调用 local Web `read`，因此不能暴露 local 完整投影；也不创建新的持久状态、事件、receipt 或 outbox。Manager 和带 allow-list 的 Evidence Reviewer Definition 显式允许该 tool，其余无 allow-list 的 Meeting identity 从共享 tool registry 获得同一入口；七个角色 Skill 均要求收到 notice 后先读取事实再决定处理或忽略。
 
 贡献者的私有取证材料只存在于其 DSH Session/工作范围，不交给 Manager，也不进入 MeetingState、FormalMessage、projection 或 outbox。贡献者通过 `submit_evidence` 直接提交准备公开的 EvidenceInput；Runtime 只做结构、引用、身份、授权和期限校验，失败不保存 payload，成功才原子建立 EvidencePackage/Version/Registration。Manager 只看贡献与审核状态，不读取本轮证据正文。
 

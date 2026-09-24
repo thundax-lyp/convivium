@@ -6,6 +6,7 @@ import {
     CreateMeetingActionSchema,
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
+    ReadMeetingRequestSchema,
     OpenRoundActionSchema,
     SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
@@ -14,7 +15,9 @@ import {
     SubmitEvidenceActionSchema,
     SubmitReviewBatchActionSchema,
     type MeetingCommandResult,
-    type MeetingCommand
+    type MeetingCommand,
+    type MeetingReadResult,
+    type ReadMeetingRequest
 } from "@/protocol/index.js";
 import type { MeetingCommandApplication } from "@/runtime/index.js";
 
@@ -22,10 +25,19 @@ export interface TargetMeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCaller | undefined>;
 }
 
+export interface TargetMeetingToolReader {
+    read(
+        request: ReadMeetingRequest,
+        caller: ResolvedMeetingCaller,
+        signal: AbortSignal
+    ): Promise<MeetingReadResult | undefined>;
+}
+
 export interface MeetingCommandToolDependencies {
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
     readonly callers: TargetMeetingToolCallerResolver;
+    readonly reader: TargetMeetingToolReader;
     readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
 }
 
@@ -35,6 +47,15 @@ const toolParameters = {
         required: true,
         description:
             "Complete MeetingCommand object. The tool-call arguments must have exactly one top-level field named input; input must be an object, never a serialized JSON string."
+    }
+} as const;
+
+const readToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "Meeting read request with protocolVersion and the meetingId supplied by the notice. The tool-call arguments must have exactly one top-level field named input."
     }
 } as const;
 
@@ -123,6 +144,46 @@ function registerTool(
     );
 }
 
+const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => void) => {
+    return dependencies.registry.register(
+        defineTool({
+            name: "convivium_read_meeting",
+            description:
+                "Read the current caller-visible Meeting objective, agenda, progress, and allowed controls after receiving a Meeting notice.",
+            parameters: readToolParameters,
+            output: {
+                schema: { type: "json" },
+                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+            },
+            async execute(args, exec) {
+                const request = ReadMeetingRequestSchema.safeParse(args.input);
+                if (!request.success)
+                    return rejected(
+                        "INVALID_ARGUMENT",
+                        "Expected a valid Meeting read request."
+                    ) as unknown as JsonValue;
+                if (exec.agent === undefined)
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "A Meeting tool requires an Agent caller."
+                    ) as unknown as JsonValue;
+                const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
+                if (caller === undefined || caller.meetingId !== request.data.meetingId)
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "The caller is not an active identity of the requested Meeting."
+                    ) as unknown as JsonValue;
+                const result = await dependencies.reader.read(request.data, caller, exec.signal);
+                return (result ??
+                    rejected(
+                        "UNAUTHORIZED",
+                        "The caller cannot read the requested Meeting."
+                    )) as unknown as JsonValue;
+            }
+        })
+    );
+};
+
 export function registerMeetingTools(
     dependencies: MeetingCommandToolDependencies
 ): readonly (() => void)[] {
@@ -165,5 +226,10 @@ export function registerMeetingTools(
             schema: RecommendIdentityActionSchema
         }
     ];
-    return definitions.map((definition) => registerTool(dependencies, definition));
+    const [create, ...commands] = definitions;
+    return [
+        registerTool(dependencies, create!),
+        registerReadTool(dependencies),
+        ...commands.map((definition) => registerTool(dependencies, definition))
+    ];
 }

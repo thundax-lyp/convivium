@@ -7,6 +7,8 @@ user-invocable: true
 
 # 分析运行时持久化与会话生命周期
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 以锁定版本的公开类型和实现核对 DSH 能力
 2. 划分领域、持久化、投递与 Session adapter 的责任
 3. 沿成功、失败、取消、并发、恢复和隔离路径检查行为

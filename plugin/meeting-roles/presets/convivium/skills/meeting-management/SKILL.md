@@ -7,6 +7,8 @@ user-invocable: true
 
 # 根据会议事实规划讨论与补足证据缺口
 
+收到 Meeting notice 后，先使用其中的 `meetingId` 调用 `convivium_read_meeting`，以返回的 caller-visible Meeting 事实为当前工作上下文；不要从 notice 本身推断议题正文或当前状态。
+
 1. 读取当前目标、正式状态、必需参与关系和阻塞问题
 2. 区分职责缺口、证据缺口与已有材料可以回答的问题
 3. 为每项计划说明预期输出、依据及停止条件，避免重复讨论

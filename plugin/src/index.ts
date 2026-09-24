@@ -8,6 +8,7 @@ import { ConviviumRemoteService } from "./remote/index.js";
 import {
     activateTargetMeetingApplication,
     getLocalMeetingWebRuntime,
+    getMeetingIdentityReader,
     getMeetingCommandApplication,
     ensureTargetMeetingDelivery
 } from "./runtime/index.js";
@@ -50,6 +51,7 @@ const meetingConsumerPlugin = {
             const disposeTarget = await activateTargetMeetingApplication(ctx, config);
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
             const runtime = getLocalMeetingWebRuntime(ctx);
+            const reader = getMeetingIdentityReader(ctx);
             const application = getMeetingCommandApplication(ctx);
             (ctx as Context & { provide?: (name: string, value: unknown) => void }).provide?.(
                 "conviviumMeetingRuntime",
@@ -58,6 +60,7 @@ const meetingConsumerPlugin = {
             registerMeetingTools({
                 registry: ctx.tools,
                 application,
+                reader,
                 callers: {
                     async resolve(agent, signal) {
                         const resolved = await resolveMeetingCaller(agent, runtime, signal);
