@@ -159,6 +159,19 @@ export function abortRound(state: MeetingState, input: AbortRoundInput): Meeting
                     : candidate
             ),
             pendingHandRaises: state.pendingHandRaises.filter((hand) => hand.roundId !== round.id),
+            evidencePackages: state.evidencePackages.map((pkg) => ({
+                ...pkg,
+                versions: pkg.versions.map((version) =>
+                    pkg.roundId === round.id && version.status === "validating"
+                        ? {
+                              ...version,
+                              status: "validation_failed" as const,
+                              failureCount: version.failureCount + 1,
+                              lastFailureReason: "review_interrupted" as const
+                          }
+                        : version
+                )
+            })),
             reviewClaims: state.reviewClaims.filter((claim) => claim.roundId !== round.id),
             contributions: state.contributions.map((contribution) =>
                 abortedContributionIds.includes(contribution.id)
@@ -194,6 +207,8 @@ export function isRoundClosable(state: MeetingState, roundId: OpaqueId): boolean
                 candidate.versionId === pkg.currentVersionId && candidate.status === "complete"
         );
         if (!registration) return false;
+        const currentVersion = pkg.versions.find((version) => version.id === pkg.currentVersionId);
+        if (currentVersion?.status !== "validated") return false;
         const reviews = state.reviews.filter((review) => review.versionId === pkg.currentVersionId);
         const finalReview = reviews.find(
             (review) => review.reviewerId === state.evidenceReviewerId

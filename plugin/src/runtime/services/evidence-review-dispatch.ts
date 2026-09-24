@@ -7,6 +7,7 @@ import type {
     MeetingState,
     Publication
 } from "@/domain/index.js";
+import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.js";
 import { followupMeetingIdentitySession } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
@@ -44,14 +45,14 @@ function stringField(payload: Record<string, unknown>, key: string): string {
 function claimReleaseReason(
     error: unknown,
     signal: AbortSignal
-): "turn_timed_out" | "turn_interrupted" | "dispatch_failed" {
-    if (signal.aborted) return "turn_interrupted";
+): "review_timeout" | "review_interrupted" | "dispatch_failed" {
+    if (signal.aborted) return "review_interrupted";
     const detail =
         error instanceof Error
             ? `${error.name} ${error.message}`.toLowerCase()
             : String(error).toLowerCase();
     return detail.includes("timeout") || detail.includes("timed out") || detail.includes("deadline")
-        ? "turn_timed_out"
+        ? "review_timeout"
         : "dispatch_failed";
 }
 
@@ -115,10 +116,13 @@ function pendingReviews(state: MeetingState) {
                 registration.versionId === evidencePackage.currentVersionId &&
                 registration.status === "complete"
         );
-        const reviewed = state.reviews.some(
-            (review) => review.versionId === evidencePackage.currentVersionId
-        );
-        if (!version || !registered || reviewed) return [];
+        if (
+            !version ||
+            !registered ||
+            !["submitted", "validation_failed", "validation_cancelled"].includes(version.status) ||
+            version.failureCount >= MAX_EVIDENCE_VALIDATION_FAILURES
+        )
+            return [];
         const round = state.rounds.find((candidate) => candidate.id === evidencePackage.roundId);
         if (!round || round.agendaId !== evidencePackage.agendaId) fail("REVIEW_PENDING_INVALID");
         const baseline = round.publicBaselinePublicationIds.map((publicationId) => {
@@ -135,7 +139,7 @@ function pendingReviews(state: MeetingState) {
     });
 }
 
-interface DispatchEvidenceReviewBatchInput {
+interface DispatchEvidenceReviewInput {
     readonly outboxItem: OutboxItem;
     readonly parent: Agent;
     readonly signal: AbortSignal;
@@ -150,12 +154,12 @@ interface EvidenceReviewDispatcherDependencies {
 
 export function createEvidenceReviewDispatcher(
     dependencies: EvidenceReviewDispatcherDependencies
-): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
-    async function releaseClaim(
+): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } {
+    async function failValidation(
         meetingId: string,
         roundId: string,
         claimId: string,
-        reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed"
+        reason: "review_timeout" | "review_interrupted" | "dispatch_failed"
     ): Promise<void> {
         for (let attempt = 0; attempt < 5; attempt += 1) {
             const recovered = await dependencies.repository.recover();
@@ -172,7 +176,7 @@ export function createEvidenceReviewDispatcher(
                     meetingId,
                     expectedMeetingVersion: recovered.snapshot.version,
                     requestId: `review-claim-release:${claimId}:${reason}`,
-                    action: { kind: "release_review_batch_claim", roundId, claimId, reason }
+                    action: { kind: "fail_evidence_validation", roundId, claimId, reason }
                 },
                 {
                     caller: {
@@ -205,31 +209,33 @@ export function createEvidenceReviewDispatcher(
             if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             const { state } = recovered.snapshot;
             if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
+            if (state.lifecycle.status === "paused") return;
+            const existingClaim = state.reviewClaims.find(
+                (claim) => claim.versionId === requestedVersionId
+            );
+            if (existingClaim) {
+                if (existingClaim.expiresAt <= dependencies.clock.now()) {
+                    await failValidation(
+                        recovered.snapshot.meetingId,
+                        existingClaim.roundId,
+                        existingClaim.id,
+                        "review_timeout"
+                    );
+                    retry("REVIEW_VALIDATION_RETRY", false);
+                }
+                if (existingClaim.sourceEffectId !== outboxItem.id) return;
+                retry("REVIEW_CLAIM_IN_PROGRESS", false, existingClaim.expiresAt);
+            }
             const pending = pendingReviews(state);
             const requested = pending.find(({ version }) => version.id === requestedVersionId);
             if (!requested) return;
-            const activeClaim = state.reviewClaims.find(
-                (claim) =>
-                    claim.roundId === requested.roundId &&
-                    claim.reviewerId === recipientId &&
-                    claim.versionIds.includes(requestedVersionId) &&
-                    claim.expiresAt > dependencies.clock.now()
-            );
-            if (activeClaim) {
-                if (activeClaim.sourceEffectId !== outboxItem.id) return;
-                retry("REVIEW_CLAIM_IN_PROGRESS", false, activeClaim.expiresAt);
-            }
-            const roundPending = pending.filter((item) => item.roundId === requested.roundId);
-            const reviewConstraints = roundPending.map((item) => ({
-                versionId: item.version.id,
-                allowedBaselineEvidenceIds: [
-                    ...new Set(
-                        item.baseline.flatMap((publication) =>
-                            publication.evidence.map(({ version }) => version.id)
-                        )
+            const allowedBaselineEvidenceIds = [
+                ...new Set(
+                    requested.baseline.flatMap((publication) =>
+                        publication.evidence.map(({ version }) => version.id)
                     )
-                ]
-            }));
+                )
+            ];
             if (
                 !state.evidencePackages.some(
                     (evidencePackage) =>
@@ -255,10 +261,10 @@ export function createEvidenceReviewDispatcher(
                     expectedMeetingVersion: recovered.snapshot.version,
                     requestId: `review-claim:${outboxItem.id}:${outboxItem.attempts}`,
                     action: {
-                        kind: "claim_review_batch",
+                        kind: "claim_evidence_review",
                         sourceEffectId: outboxItem.id,
                         roundId: requested.roundId,
-                        versionIds: roundPending.map(({ version }) => version.id)
+                        versionId: requestedVersionId
                     }
                 },
                 {
@@ -277,7 +283,7 @@ export function createEvidenceReviewDispatcher(
                         (candidate) =>
                             candidate.roundId === requested.roundId &&
                             candidate.reviewerId === recipientId &&
-                            candidate.versionIds.includes(requestedVersionId) &&
+                            candidate.versionId === requestedVersionId &&
                             candidate.expiresAt > dependencies.clock.now()
                     );
                     if (activeClaim) {
@@ -304,8 +310,11 @@ export function createEvidenceReviewDispatcher(
                                 effectId: outboxItem.id,
                                 meetingId: recovered.snapshot.meetingId,
                                 expectedMeetingVersion: recovered.snapshot.version,
-                                pending: roundPending,
-                                reviewConstraints,
+                                pending: requested,
+                                reviewConstraint: {
+                                    versionId: requestedVersionId,
+                                    allowedBaselineEvidenceIds
+                                },
                                 reviewItemRules: {
                                     requiredDimensions: [
                                         "source",
@@ -354,53 +363,54 @@ export function createEvidenceReviewDispatcher(
                                     }
                                 },
                                 submit: {
-                                    tool: "convivium_submit_review_batch",
+                                    tool: "convivium_submit_evidence_review",
                                     toolArguments: {
                                         protocolVersion: 1,
                                         meetingId: recovered.snapshot.meetingId,
-                                        requestId: `review-batch:${claimId}`,
+                                        requestId: `evidence-review:${claimId}`,
                                         action: {
-                                            kind: "submit_review_batch",
+                                            kind: "submit_evidence_review",
                                             roundId: requested.roundId,
                                             claimId,
-                                            reviews: []
+                                            versionId: requestedVersionId,
+                                            dimensions: {},
+                                            scope: ""
                                         }
                                     }
                                 },
                                 instructions:
-                                    "按顺序执行，不要解释。第一步：对每个 pending item 只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 仍只有顶层 input，input 内的 meetingId 和 versionId 必须来自当前 request，prompt 必须包含该 item、允许使用的 baseline、reviewItemRules.itemTemplate、scoringRubric 和 dimensionCriteria。convivium_run_review_worker 以机器校验的 workerOutputSchema 返回结果。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键，不得使用数组或 0、1、2、3 等数字键；baselineEvidenceIds 与 reviewConstraints 取交集，首轮没有 baseline 时必须保留 []。reviews 必须逐项覆盖全部 pending，versionId 集合必须与 pending 精确相等；任一 pending item 未得到 completed 结果时直接结束，不调用提交工具，也不得提交部分结果。第三步：全部结果齐备时复制 submit.toolArguments，只替换 submit.toolArguments.action.reviews，然后调用 convivium_submit_review_batch。工具参数直接使用结构化 object，不要生成 JSON 文本；只有 convivium_submit_review_batch 的 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。每个 worker 工具和提交工具都只允许调用一次。"
+                                    "按顺序执行，不要解释。第一步：只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 仍只有顶层 input，input 内的 meetingId 和 versionId 必须来自当前 request，prompt 必须包含 pending、允许使用的 baseline、reviewItemRules.itemTemplate、scoringRubric、dimensionCriteria 和 workerOutputSchema；worker 返回机器校验的 workerOutputSchema。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键；baselineEvidenceIds 与 reviewConstraint 取交集，首轮没有 baseline 时必须保留 []。未得到 completed 结果时直接结束，不调用提交工具。第三步：得到结果时复制 submit.toolArguments，把 worker 结果的 dimensions 和 scope 写入 action，然后调用 convivium_submit_evidence_review。工具参数直接使用结构化 object，不要生成 JSON 文本；工具 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。worker 工具和提交工具都只允许调用一次。"
                             })
                         }
                     ],
                     signal
                 });
             } catch (error) {
-                await releaseClaim(
+                await failValidation(
                     recovered.snapshot.meetingId,
                     requested.roundId,
                     claimId,
                     claimReleaseReason(error, signal)
                 );
-                throw error;
+                retry("REVIEW_VALIDATION_RETRY", false);
             }
             const completed = await dependencies.repository.recover();
             if (!completed.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             if (
-                roundPending.some(
-                    ({ version }) =>
-                        !completed.snapshot!.state.reviews.some(
-                            (review) => review.versionId === version.id
-                        )
+                completed.snapshot.state.reviews.some(
+                    (review) => review.versionId === requestedVersionId
                 )
-            ) {
-                await releaseClaim(
-                    recovered.snapshot.meetingId,
-                    requested.roundId,
-                    claimId,
-                    "dispatch_failed"
-                );
-                retry("REVIEW_NOT_COMPLETED");
-            }
+            )
+                return;
+            const retainedClaim = completed.snapshot.state.reviewClaims.find(
+                (candidate) =>
+                    candidate.id === claimId &&
+                    candidate.roundId === requested.roundId &&
+                    candidate.sourceEffectId === outboxItem.id &&
+                    candidate.expiresAt > dependencies.clock.now()
+            );
+            if (!retainedClaim) retry("REVIEW_CLAIM_UNAVAILABLE");
+            retry("REVIEW_CLAIM_IN_PROGRESS", false, retainedClaim.expiresAt);
         }
     };
 }
@@ -420,9 +430,9 @@ function alreadySent(state: MeetingState, reviewId: string): boolean {
 
 export function createReviewDeliveryDispatcher(
     dependencies: ReviewDeliveryDispatcherDependencies
-): { dispatch(input: DispatchEvidenceReviewBatchInput): Promise<void> } {
+): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } {
     async function record(
-        input: DispatchEvidenceReviewBatchInput,
+        input: DispatchEvidenceReviewInput,
         status: "sent" | "failed",
         reviewId: string,
         failureReason?: string

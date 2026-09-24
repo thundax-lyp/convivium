@@ -289,6 +289,7 @@ it("clears the final blocking issue and enters converging in the same transition
             createdAt: 0
         }
     ];
+    current.evidencePackages[0].versions[0].status = "validated";
     current.reviewDeliveries = [
         {
             id: "delivery-1",

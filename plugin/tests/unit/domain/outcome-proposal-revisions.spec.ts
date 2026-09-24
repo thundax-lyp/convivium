@@ -183,7 +183,8 @@ describe("risk disposition gates", () => {
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
         expect(
             disposeRisk(state, input({ kind: "identity", id: "captain" }, { evidenceIds: ["v2"] }))
@@ -372,7 +373,8 @@ describe("completion declaration gates", () => {
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
         expect(
             submitCompletionDeclaration(

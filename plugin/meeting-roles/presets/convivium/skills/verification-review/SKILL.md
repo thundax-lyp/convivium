@@ -16,6 +16,6 @@ user-invocable: true
 
 收到 review request 后，每个 pending item 只调用一次 `convivium_run_review_worker`，不调用通用 `subagent`，也不创建 replacement worker。`convivium_run_review_worker` 仍使用顶层 `input`，其中的 `meetingId` 和 `versionId` 必须来自 request；prompt 只能包含该 item、对应 baseline、`itemTemplate`、评分规则和维度标准。该入口通过 DSH 原生 one-shot worker 执行，并由 provider 依据 `workerOutputSchema` 机器校验输出。worker 逐主张记录核验方法、结果和限制；worker 不是 Meeting Identity，不得调用 Meeting command 或复用为共享 Session，不得执行提交代码。
 
-Coordinator 必须等待 `kind=completed` 的 Review item 完整覆盖全部 pending item，且 versionId 集合与 claim 精确相等，才只调用一次 `convivium_submit_review_batch`。`baselineEvidenceIds` 只能保留 request 允许的 baseline；第一轮无 baseline 时必须明确为 `[]`。任一 worker 失败、取消或返回无效结果时不提交，也不得省略该项形成部分 batch。只有 `convivium_submit_review_batch` 的 arguments 根对象直接使用 request 指定的结构化 `MeetingCommand` 字段，不得添加 `input`、`arguments` 或 JSON string 包装。审核必须独立于作者结论；不得把作者输出、链接存在或未运行的命令写成验证通过。
+Coordinator 只在该 EvidenceVersion 得到 `kind=completed` 的 Review item，且 versionId 与 claim 精确相等时调用一次 `convivium_submit_evidence_review`。`baselineEvidenceIds` 只能保留 request 允许的 baseline；第一轮无 baseline 时必须明确为 `[]`。worker 失败、取消或返回无效结果时不提交。`convivium_submit_evidence_review` 的 arguments 根对象直接使用 request 指定的结构化 `MeetingCommand` 字段，不得添加 `input`、`arguments` 或 JSON string 包装。审核必须独立于作者结论；不得把作者输出、链接存在或未运行的命令写成验证通过。
 
 只报告实际观察或执行的结果，说明证据不足与适用限制。工具和角色文本不扩大 Host 或任务授予的权限。

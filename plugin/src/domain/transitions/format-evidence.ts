@@ -197,7 +197,9 @@ export function submitEvidence(
         ...input.evidence,
         id: input.versionId,
         ordinal: (currentVersion?.ordinal ?? 0) + 1,
-        submittedAt: input.now
+        submittedAt: input.now,
+        status: "submitted",
+        failureCount: 0
     };
     const packageValue =
         existingPackage === undefined

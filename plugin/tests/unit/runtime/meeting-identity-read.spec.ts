@@ -30,7 +30,7 @@ const caller = (role: "manager" | "evidence_reviewer" | "participant", identityI
 describe("Meeting identity read", () => {
     it.each([
         ["manager", "manager-v1", "submit_manager_plan"],
-        ["evidence_reviewer", "reviewer-v1", "submit_review_batch"],
+        ["evidence_reviewer", "reviewer-v1", "submit_evidence_review"],
         ["participant", "contributor-v1", "raise_hand"]
     ] as const)(
         "returns the caller-filtered Meeting view for %s",

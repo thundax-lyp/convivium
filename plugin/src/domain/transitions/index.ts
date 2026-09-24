@@ -17,14 +17,14 @@ export {
 export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.js";
 export { submitEvidence, type EvidenceInput, type SubmitEvidenceInput } from "./format-evidence.js";
 export {
-    claimReviewBatch,
-    releaseReviewBatchClaim,
-    submitReviewBatch,
+    claimEvidenceReview,
+    failEvidenceValidation,
+    submitEvidenceReview,
     recordReviewDelivery,
-    type ClaimReviewBatchInput,
-    type ReleaseReviewBatchClaimInput,
-    type SubmitReviewBatchInput,
-    type SubmitReviewBatchItem
+    MAX_EVIDENCE_VALIDATION_FAILURES,
+    type ClaimEvidenceReviewInput,
+    type FailEvidenceValidationInput,
+    type SubmitEvidenceReviewInput
 } from "./evidence-review.js";
 export { closeContribution } from "./contribution-exit.js";
 export { publishRound } from "./round-publication.js";

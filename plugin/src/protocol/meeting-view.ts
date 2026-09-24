@@ -148,7 +148,18 @@ export const EvidenceVersionViewSchema = z.object({
     limitations: z.array(textWithReason),
     claims: z.array(evidenceClaim),
     materials: z.array(material),
-    submittedAt: epoch
+    submittedAt: epoch,
+    status: z.enum([
+        "submitted",
+        "validating",
+        "validated",
+        "validation_failed",
+        "validation_cancelled"
+    ]),
+    failureCount: z.number().int().nonnegative(),
+    lastFailureReason: z
+        .enum(["review_timeout", "review_interrupted", "dispatch_failed"])
+        .optional()
 });
 export const EvidencePackageViewSchema = z.object({
     id,
@@ -157,6 +168,22 @@ export const EvidencePackageViewSchema = z.object({
     authorId: id,
     agendaId: id,
     currentVersion: EvidenceVersionViewSchema
+});
+export const EvidenceValidationStatusViewSchema = z.object({
+    packageId: id,
+    contributionId: id,
+    versionId: id,
+    status: z.enum([
+        "submitted",
+        "validating",
+        "validated",
+        "validation_failed",
+        "validation_cancelled"
+    ]),
+    failureCount: z.number().int().nonnegative(),
+    lastFailureReason: z
+        .enum(["review_timeout", "review_interrupted", "dispatch_failed"])
+        .optional()
 });
 const dimension = z.object({
     score: z.union([
@@ -575,7 +602,7 @@ export const AllowedControlSchema = z.enum([
     "dispose_hand_raise",
     "submit_evidence",
     "close_contribution",
-    "submit_review_batch",
+    "submit_evidence_review",
     "record_review_delivery",
     "publish_round",
     "pause_meeting",
@@ -610,6 +637,7 @@ export const MeetingViewSchema = z.object({
     rounds: z.array(RoundViewSchema),
     publications: z.array(PublicationViewSchema),
     evidencePackages: z.array(EvidencePackageViewSchema),
+    evidenceValidationStatuses: z.array(EvidenceValidationStatusViewSchema),
     evidenceReviews: z.array(EvidenceReviewViewSchema),
     reviewDeliveries: z.array(ReviewDeliveryViewSchema),
     messages: z.array(FormalMessageViewSchema),

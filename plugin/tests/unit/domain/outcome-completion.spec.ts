@@ -9,6 +9,7 @@ describe("CompletionFact", () => {
             "missing evidence review",
             (s: MeetingState) => {
                 s.reviews = [];
+                s.evidencePackages[0].versions[0].status = "submitted";
                 s.reviewDeliveries = [];
                 s.publications[0].finalReviewIds = [];
             }
@@ -130,7 +131,8 @@ describe("CompletionFact", () => {
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
         state.publications[0].finalVersionIds = ["v", "v2"];
         state.publications[0].finalReviewIds = ["review"];

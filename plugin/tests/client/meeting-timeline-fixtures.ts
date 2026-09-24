@@ -12,7 +12,9 @@ const version = {
     limitations: [],
     claims: [],
     materials: [],
-    submittedAt: 24
+    submittedAt: 24,
+    status: "validated" as const,
+    failureCount: 0
 };
 const dimension = { score: 2, reason: "reason", scope: "scope", baselineEvidenceIds: [] };
 const review = {

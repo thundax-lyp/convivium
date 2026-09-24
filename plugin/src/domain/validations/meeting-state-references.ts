@@ -211,31 +211,51 @@ function validateRegistrationsAndReviews(parsedState: MeetingState): string | un
             return fail(`${path}.reviewerId`);
         const owner = versionOwnerById.get(r.versionId);
         if (owner?.authorId === r.reviewerId) return fail(`${path}.reviewerId`);
+        const version = owner?.versions.find((candidate) => candidate.id === r.versionId);
+        if (version?.status !== "validated") return fail(`${path}.versionId`);
     }
-    const claimedRoundIds = new Set<string>();
+    for (let i = 0; i < parsedState.evidencePackages.length; i++) {
+        const pkg = parsedState.evidencePackages[i];
+        for (let j = 0; j < pkg.versions.length; j++) {
+            const version = pkg.versions[j];
+            const path = `$.evidencePackages[${i}].versions[${j}].status`;
+            if (
+                (version.status === "validated") !==
+                reviews.some((review) => review.versionId === version.id)
+            )
+                return fail(path);
+            if (
+                (version.status === "validating") !==
+                parsedState.reviewClaims.some((claim) => claim.versionId === version.id)
+            )
+                return fail(path);
+            if (version.status === "validation_failed" && version.failureCount === 0)
+                return fail(path);
+        }
+    }
+    const claimedVersionIds = new Set<string>();
     for (let i = 0; i < parsedState.reviewClaims.length; i++) {
         const claim = parsedState.reviewClaims[i];
         const path = `$.reviewClaims[${i}]`;
-        if (claimedRoundIds.has(claim.roundId)) return fail(`${path}.roundId`);
-        claimedRoundIds.add(claim.roundId);
+        if (claimedVersionIds.has(claim.versionId)) return fail(`${path}.versionId`);
+        claimedVersionIds.add(claim.versionId);
         const round = roundById.get(claim.roundId);
         if (!round || round.status !== "open") return fail(`${path}.roundId`);
         if (claim.reviewerId !== parsedState.evidenceReviewerId) return fail(`${path}.reviewerId`);
-        for (let j = 0; j < claim.versionIds.length; j++) {
-            const versionId = claim.versionIds[j];
-            const owner = versionOwnerById.get(versionId);
-            if (
-                !owner ||
-                owner.roundId !== claim.roundId ||
-                owner.currentVersionId !== versionId ||
-                !registrations.some(
-                    (registration) =>
-                        registration.versionId === versionId && registration.status === "complete"
-                ) ||
-                reviews.some((review) => review.versionId === versionId)
-            )
-                return fail(`${path}.versionIds[${j}]`);
-        }
+        const owner = versionOwnerById.get(claim.versionId);
+        const version = owner?.versions.find((candidate) => candidate.id === claim.versionId);
+        if (
+            !owner ||
+            owner.roundId !== claim.roundId ||
+            owner.currentVersionId !== claim.versionId ||
+            version?.status !== "validating" ||
+            !registrations.some(
+                (registration) =>
+                    registration.versionId === claim.versionId && registration.status === "complete"
+            ) ||
+            reviews.some((review) => review.versionId === claim.versionId)
+        )
+            return fail(`${path}.versionId`);
     }
     for (let i = 0; i < contributions.length; i++) {
         const hand = (contributions[i] as unknown as RecordValue).supplementHand as unknown as

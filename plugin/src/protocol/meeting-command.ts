@@ -150,34 +150,26 @@ export const SubmitEvidenceActionSchema = z.object({
     contributionId: id,
     evidence
 });
-export const ClaimReviewBatchActionSchema = z.object({
-    kind: z.literal("claim_review_batch"),
+export const ClaimEvidenceReviewActionSchema = z.object({
+    kind: z.literal("claim_evidence_review"),
     sourceEffectId: id,
     roundId: id,
-    versionIds: z
-        .array(id)
-        .min(1)
-        .refine((ids) => new Set(ids).size === ids.length)
+    versionId: id
 });
-export const ReleaseReviewBatchClaimActionSchema = z.object({
-    kind: z.literal("release_review_batch_claim"),
+export const FailEvidenceValidationActionSchema = z.object({
+    kind: z.literal("fail_evidence_validation"),
     roundId: id,
     claimId: id,
-    reason: z.enum(["turn_timed_out", "turn_interrupted", "dispatch_failed"])
+    reason: z.enum(["review_timeout", "review_interrupted", "dispatch_failed"])
 });
-export const SubmitReviewBatchActionSchema = z
-    .object({
-        kind: z.literal("submit_review_batch"),
-        roundId: id,
-        claimId: id,
-        reviews: z
-            .array(z.object({ versionId: id, dimensions: reviewDimensions, scope: text }))
-            .min(1)
-    })
-    .superRefine((value, ctx) => {
-        const ids = value.reviews.map((review) => review.versionId);
-        if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["reviews"] });
-    });
+export const SubmitEvidenceReviewActionSchema = z.object({
+    kind: z.literal("submit_evidence_review"),
+    roundId: id,
+    claimId: id,
+    versionId: id,
+    dimensions: reviewDimensions,
+    scope: text
+});
 export const PublishRoundActionSchema = z.object({
     kind: z.literal("publish_round"),
     roundId: id
@@ -206,9 +198,9 @@ const actions = [
         exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
         reason: text
     }),
-    ClaimReviewBatchActionSchema,
-    ReleaseReviewBatchClaimActionSchema,
-    SubmitReviewBatchActionSchema,
+    ClaimEvidenceReviewActionSchema,
+    FailEvidenceValidationActionSchema,
+    SubmitEvidenceReviewActionSchema,
     z
         .object({
             kind: z.literal("record_review_delivery"),
@@ -271,12 +263,12 @@ export const MeetingCommandSchema = z
             });
         if (
             value.action.kind !== "create_meeting" &&
-            value.action.kind !== "submit_review_batch" &&
+            value.action.kind !== "submit_evidence_review" &&
             value.expectedMeetingVersion === undefined
         )
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
         if (
-            value.action.kind === "submit_review_batch" &&
+            value.action.kind === "submit_evidence_review" &&
             value.expectedMeetingVersion !== undefined
         )
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });

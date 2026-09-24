@@ -102,7 +102,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
                         "convivium_publish_round",
-                        "convivium_submit_review_batch",
+                        "convivium_submit_evidence_review",
                         "convivium_recommend_identity"
                     ];
                     const toolFilter =
@@ -124,7 +124,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                         "skill",
                                         "convivium_read_meeting",
                                         "convivium_run_review_worker",
-                                        "convivium_submit_review_batch"
+                                        "convivium_submit_evidence_review"
                                     ]
                                 }
                               : { deny: contributorDeny };
@@ -138,8 +138,8 @@ export async function verifyMeetingAgentDefinitions(root) {
                             (role === "meeting_manager"
                                 ? "1.3.2"
                                 : role === "verification_reviewer"
-                                  ? "1.2.5"
-                                  : "1.0.1") ||
+                                  ? "1.2.6"
+                                  : "1.0.2") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||

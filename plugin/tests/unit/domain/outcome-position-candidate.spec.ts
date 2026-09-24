@@ -93,7 +93,8 @@ it.each([
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
     const result = recordPosition(
         state,
@@ -248,7 +249,8 @@ it.each([
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
     const result = recordDecisionCandidate(state, candidateInput(undefined, { evidenceIds }));
     expect(result).toMatchObject({

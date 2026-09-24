@@ -1,5 +1,14 @@
-import type { EvidenceReview, MeetingState, OpaqueId, ReviewDimension } from "@/domain/index.js";
-export interface SubmitReviewBatchItem {
+import type {
+    EvidenceReview,
+    EvidenceValidationFailureReason,
+    MeetingState,
+    OpaqueId,
+    ReviewDimension
+} from "@/domain/index.js";
+
+export const MAX_EVIDENCE_VALIDATION_FAILURES = 5;
+
+export interface SubmitEvidenceReviewInput {
     reviewId: OpaqueId;
     versionId: OpaqueId;
     dimensions: Readonly<{
@@ -9,30 +18,27 @@ export interface SubmitReviewBatchItem {
         support: ReviewDimension;
     }>;
     scope: string;
-}
-export interface SubmitReviewBatchInput {
     reviewerId: OpaqueId;
     roundId: OpaqueId;
     claimId: OpaqueId;
-    reviews: readonly SubmitReviewBatchItem[];
     now: number;
 }
-export interface ClaimReviewBatchInput {
+export interface ClaimEvidenceReviewInput {
     claimId: OpaqueId;
     sourceEffectId: OpaqueId;
     reviewerId: OpaqueId;
     roundId: OpaqueId;
-    versionIds: readonly OpaqueId[];
+    versionId: OpaqueId;
     now: number;
     expiresAt: number;
 }
-export interface ReleaseReviewBatchClaimInput {
+export interface FailEvidenceValidationInput {
     claimId: OpaqueId;
     roundId: OpaqueId;
-    reason: "turn_timed_out" | "turn_interrupted" | "dispatch_failed";
+    reason: EvidenceValidationFailureReason;
     now: number;
 }
-type ReviewDimensionsInput = SubmitReviewBatchItem["dimensions"];
+type ReviewDimensionsInput = SubmitEvidenceReviewInput["dimensions"];
 type DeliveryInput = {
     reviewId: OpaqueId;
     dispatcherId: OpaqueId;
@@ -68,31 +74,45 @@ function validDimensions(
     );
 }
 
-export function claimReviewBatch(
+function updateVersion(
     state: MeetingState,
-    input: ClaimReviewBatchInput
+    versionId: OpaqueId,
+    transform: (
+        version: MeetingState["evidencePackages"][number]["versions"][number]
+    ) => MeetingState["evidencePackages"][number]["versions"][number]
+) {
+    return state.evidencePackages.map((pkg) => ({
+        ...pkg,
+        versions: pkg.versions.map((version) =>
+            version.id === versionId ? transform(version) : version
+        )
+    }));
+}
+
+export function claimEvidenceReview(
+    state: MeetingState,
+    input: ClaimEvidenceReviewInput
 ): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.sourceEffectId.trim() ||
         !input.reviewerId.trim() ||
         !input.roundId.trim() ||
-        input.versionIds.length === 0 ||
-        new Set(input.versionIds).size !== input.versionIds.length ||
+        !input.versionId.trim() ||
         !valid(input.now) ||
         !Number.isSafeInteger(input.expiresAt) ||
         input.expiresAt <= input.now
     )
-        return reject(state, "INVALID_ARGUMENT", "invalid review claim input");
+        return reject(state, "INVALID_ARGUMENT", "invalid evidence review claim input");
     if (state.lifecycle.status !== "running")
         return reject(state, "INVALID_STATE", "meeting is not running");
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
     if (!round || round.status !== "open")
         return reject(state, "INVALID_STATE", "round is not open");
     const activeClaims = state.reviewClaims.filter((claim) => claim.expiresAt > input.now);
-    if (activeClaims.some((claim) => claim.roundId === input.roundId))
-        return reject(state, "REVIEWER_CONFLICT", "round already has an active review claim");
-    if (activeClaims.some((claim) => claim.id === input.claimId))
+    if (activeClaims.some((claim) => claim.versionId === input.versionId))
+        return reject(state, "REVIEWER_CONFLICT", "evidence already has an active review claim");
+    if (state.reviewClaims.some((claim) => claim.id === input.claimId))
         return reject(state, "INVALID_ARGUMENT", "review claim id already exists");
     const reviewer = state.identities.find((identity) => identity.id === input.reviewerId);
     if (
@@ -101,57 +121,63 @@ export function claimReviewBatch(
         reviewer.roles[0] !== "evidence_reviewer"
     )
         return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
-    const pending = input.versionIds.every((versionId) => {
-        const pkg = state.evidencePackages.find(
-            (candidate) => candidate.currentVersionId === versionId
-        );
-        return (
-            pkg?.roundId === input.roundId &&
-            state.registrations.some(
-                (registration) =>
-                    registration.versionId === versionId && registration.status === "complete"
-            ) &&
-            !state.reviews.some((review) => review.versionId === versionId)
-        );
-    });
-    if (!pending)
-        return reject(state, "REVIEWER_CONFLICT", "review claim versions are unavailable");
+    const pkg = state.evidencePackages.find(
+        (candidate) => candidate.currentVersionId === input.versionId
+    );
+    const version = pkg?.versions.find((candidate) => candidate.id === input.versionId);
+    if (
+        pkg?.roundId !== input.roundId ||
+        version === undefined ||
+        !["submitted", "validation_failed", "validation_cancelled"].includes(version.status) ||
+        version.failureCount >= MAX_EVIDENCE_VALIDATION_FAILURES ||
+        !state.registrations.some(
+            (registration) =>
+                registration.versionId === input.versionId && registration.status === "complete"
+        ) ||
+        state.reviews.some((review) => review.versionId === input.versionId)
+    )
+        return reject(state, "REVIEWER_CONFLICT", "evidence version is unavailable");
     return {
         kind: "accepted",
         state: {
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
+            evidencePackages: updateVersion(state, input.versionId, (candidate) => {
+                const { lastFailureReason: _lastFailureReason, ...withoutFailure } = candidate;
+                return { ...withoutFailure, status: "validating" as const };
+            }),
             reviewClaims: [
-                ...activeClaims,
+                ...state.reviewClaims,
                 {
                     id: input.claimId,
                     sourceEffectId: input.sourceEffectId,
                     roundId: input.roundId,
                     reviewerId: input.reviewerId,
-                    versionIds: input.versionIds,
+                    versionId: input.versionId,
                     claimedAt: input.now,
                     expiresAt: input.expiresAt
                 }
             ]
         },
-        relatedIds: [input.claimId, ...input.versionIds],
+        relatedIds: [input.claimId, input.versionId],
         effectRequests: []
     };
 }
 
-export function submitReviewBatch(
+export function submitEvidenceReview(
     state: MeetingState,
-    input: SubmitReviewBatchInput
+    input: SubmitEvidenceReviewInput
 ): MeetingTransitionResult {
     if (
         !input.reviewerId.trim() ||
         !input.roundId.trim() ||
         !input.claimId.trim() ||
         !valid(input.now) ||
-        input.reviews.length === 0
+        !input.reviewId.trim() ||
+        !input.versionId.trim()
     )
-        return reject(state, "INVALID_ARGUMENT", "invalid review batch input");
+        return reject(state, "INVALID_ARGUMENT", "invalid evidence review input");
     const reviewer = state.identities.find((candidate) => candidate.id === input.reviewerId);
     if (
         input.reviewerId !== state.evidenceReviewerId ||
@@ -165,91 +191,73 @@ export function submitReviewBatch(
             candidate.id === input.claimId &&
             candidate.roundId === input.roundId &&
             candidate.reviewerId === input.reviewerId &&
+            candidate.versionId === input.versionId &&
             candidate.expiresAt > input.now
     );
-    if (
-        !claim ||
-        new Set(claim.versionIds).size !== input.reviews.length ||
-        input.reviews.some((review) => !claim.versionIds.includes(review.versionId))
-    )
-        return reject(state, "REVIEWER_CONFLICT", "review batch claim is invalid");
-    const reviewIds = new Set<string>();
-    const versionIds = new Set<string>();
-    const pending: EvidenceReview[] = [];
-    for (const item of input.reviews) {
-        if (
-            !item.reviewId.trim() ||
-            !item.versionId.trim() ||
-            reviewIds.has(item.reviewId) ||
-            versionIds.has(item.versionId) ||
-            state.reviews.some((review) => review.versionId === item.versionId)
-        )
-            return reject(state, "REVIEWER_CONFLICT", "review or version is duplicated");
-        reviewIds.add(item.reviewId);
-        versionIds.add(item.versionId);
-        const pkg = state.evidencePackages.find((candidate) =>
-            candidate.versions.some((version) => version.id === item.versionId)
-        );
-        const version = pkg?.versions.find((candidate) => candidate.id === item.versionId);
-        const round =
-            pkg === undefined
-                ? undefined
-                : state.rounds.find((candidate) => candidate.id === pkg.roundId);
-        if (
-            pkg === undefined ||
-            version === undefined ||
-            pkg.currentVersionId !== item.versionId ||
-            round === undefined ||
-            round.id !== input.roundId ||
-            !state.registrations.some(
-                (registration) =>
-                    registration.versionId === item.versionId && registration.status === "complete"
-            ) ||
-            !validDimensions(state, round.id, item.dimensions)
-        )
-            return reject(state, "INVALID_ARGUMENT", "review batch item is invalid");
-        pending.push({
-            id: item.reviewId,
-            versionId: item.versionId,
-            reviewerId: input.reviewerId,
-            baselinePublicationIds: round.publicBaselinePublicationIds,
-            scope: item.scope,
-            dimensions: item.dimensions,
-            createdAt: input.now
-        });
-    }
-    const authors = pending.map(
-        (review) =>
-            state.evidencePackages.find((pkg) =>
-                pkg.versions.some((version) => version.id === review.versionId)
-            )!.authorId
+    if (!claim) return reject(state, "REVIEWER_CONFLICT", "evidence review claim is invalid");
+    if (state.reviews.some((review) => review.versionId === input.versionId))
+        return reject(state, "REVIEWER_CONFLICT", "evidence review is duplicated");
+    const pkg = state.evidencePackages.find((candidate) =>
+        candidate.versions.some((version) => version.id === input.versionId)
     );
+    const version = pkg?.versions.find((candidate) => candidate.id === input.versionId);
+    const round =
+        pkg === undefined
+            ? undefined
+            : state.rounds.find((candidate) => candidate.id === pkg.roundId);
+    if (
+        pkg === undefined ||
+        version?.status !== "validating" ||
+        pkg.currentVersionId !== input.versionId ||
+        round?.id !== input.roundId ||
+        !state.registrations.some(
+            (registration) =>
+                registration.versionId === input.versionId && registration.status === "complete"
+        ) ||
+        !validDimensions(state, input.roundId, input.dimensions)
+    )
+        return reject(state, "INVALID_ARGUMENT", "evidence review is invalid");
+    const review: EvidenceReview = {
+        id: input.reviewId,
+        versionId: input.versionId,
+        reviewerId: input.reviewerId,
+        baselinePublicationIds: round.publicBaselinePublicationIds,
+        scope: input.scope,
+        dimensions: input.dimensions,
+        createdAt: input.now
+    };
     return {
         kind: "accepted",
         state: {
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
-            reviews: [...state.reviews, ...pending],
+            evidencePackages: updateVersion(state, input.versionId, (candidate) => ({
+                ...candidate,
+                status: "validated" as const
+            })),
+            reviews: [...state.reviews, review],
             reviewClaims: state.reviewClaims.filter((candidate) => candidate.id !== claim.id)
         },
-        relatedIds: pending.flatMap((review) => [review.id, review.versionId]),
-        effectRequests: pending.map((review, index) => ({
-            kind: "review_delivery" as const,
-            reviewId: review.id,
-            authorId: authors[index]
-        }))
+        relatedIds: [review.id, review.versionId],
+        effectRequests: [
+            {
+                kind: "review_delivery",
+                reviewId: review.id,
+                authorId: pkg.authorId
+            }
+        ]
     };
 }
 
-export function releaseReviewBatchClaim(
+export function failEvidenceValidation(
     state: MeetingState,
-    input: ReleaseReviewBatchClaimInput
+    input: FailEvidenceValidationInput
 ): MeetingTransitionResult {
     if (
         !input.claimId.trim() ||
         !input.roundId.trim() ||
-        !["turn_timed_out", "turn_interrupted", "dispatch_failed"].includes(input.reason) ||
+        !["review_timeout", "review_interrupted", "dispatch_failed"].includes(input.reason) ||
         !valid(input.now)
     )
         return reject(state, "INVALID_ARGUMENT", "invalid review claim release");
@@ -263,17 +271,19 @@ export function releaseReviewBatchClaim(
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
+            evidencePackages: updateVersion(state, claim.versionId, (version) => ({
+                ...version,
+                status: "validation_failed" as const,
+                failureCount: version.failureCount + 1,
+                lastFailureReason: input.reason
+            })),
             reviewClaims: state.reviewClaims.filter((candidate) => candidate.id !== claim.id)
         },
-        relatedIds: [claim.id, claim.roundId, ...claim.versionIds],
+        relatedIds: [claim.id, claim.roundId, claim.versionId],
         effectRequests: []
     };
 }
 
-/*
- * The former single-item entry point is intentionally removed. Delivery
- * recording remains separate because it is an external lifecycle result.
- */
 export function recordReviewDelivery(
     state: MeetingState,
     input: DeliveryInput

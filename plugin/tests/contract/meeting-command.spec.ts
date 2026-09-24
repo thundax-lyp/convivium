@@ -77,41 +77,37 @@ describe("target Meeting command core", () => {
             meetingId: "meeting-v1",
             requestId: "review-1",
             action: {
-                kind: "submit_review_batch",
+                kind: "submit_evidence_review",
                 roundId: "round-v1",
                 claimId: "review-claim-v1",
-                reviews: [
-                    {
-                        versionId: "evidence-version-v1",
-                        scope: "核验来源与论证",
-                        dimensions: {
-                            source: {
-                                score: 2,
-                                scope: "来源",
-                                reason: "可追溯",
-                                baselineEvidenceIds: []
-                            },
-                            credibility: {
-                                score: 2,
-                                scope: "可信度",
-                                reason: "方法明确",
-                                baselineEvidenceIds: []
-                            },
-                            completeness: {
-                                score: 2,
-                                scope: "完整性",
-                                reason: "覆盖范围",
-                                baselineEvidenceIds: []
-                            },
-                            support: {
-                                score: 2,
-                                scope: "支持度",
-                                reason: "直接支持",
-                                baselineEvidenceIds: []
-                            }
-                        }
+                versionId: "evidence-version-v1",
+                scope: "核验来源与论证",
+                dimensions: {
+                    source: {
+                        score: 2,
+                        scope: "来源",
+                        reason: "可追溯",
+                        baselineEvidenceIds: []
+                    },
+                    credibility: {
+                        score: 2,
+                        scope: "可信度",
+                        reason: "方法明确",
+                        baselineEvidenceIds: []
+                    },
+                    completeness: {
+                        score: 2,
+                        scope: "完整性",
+                        reason: "覆盖范围",
+                        baselineEvidenceIds: []
+                    },
+                    support: {
+                        score: 2,
+                        scope: "支持度",
+                        reason: "直接支持",
+                        baselineEvidenceIds: []
                     }
-                ]
+                }
             }
         };
         expect(MeetingCommandSchema.safeParse(review).success).toBe(true);

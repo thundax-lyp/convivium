@@ -19,7 +19,7 @@ import {
     RaiseHandActionSchema,
     RecommendIdentityActionSchema,
     SubmitEvidenceActionSchema,
-    SubmitReviewBatchActionSchema,
+    SubmitEvidenceReviewActionSchema,
     type MeetingCommandResult,
     type MeetingCommand,
     type MeetingReadResult,
@@ -260,23 +260,18 @@ const actionSchemas = {
             )
         })
     }),
-    submit_review_batch: exactObject({
-        kind: { type: "string", const: "submit_review_batch", required: true },
+    submit_evidence_review: exactObject({
+        kind: { type: "string", const: "submit_evidence_review", required: true },
         roundId: requiredString("Round identifier covered by the claim."),
-        claimId: requiredString("Active ReviewBatchClaim identifier."),
-        reviews: requiredObjectArray(
-            {
-                versionId: requiredString("Evidence version identifier."),
-                dimensions: requiredObject({
-                    source: requiredObject(reviewDimensionSchema),
-                    credibility: requiredObject(reviewDimensionSchema),
-                    completeness: requiredObject(reviewDimensionSchema),
-                    support: requiredObject(reviewDimensionSchema)
-                }),
-                scope: requiredString("Overall review scope.")
-            },
-            "Complete non-empty review set for the claimed versions."
-        )
+        claimId: requiredString("Active EvidenceReviewClaim identifier."),
+        versionId: requiredString("Evidence version identifier."),
+        dimensions: requiredObject({
+            source: requiredObject(reviewDimensionSchema),
+            credibility: requiredObject(reviewDimensionSchema),
+            completeness: requiredObject(reviewDimensionSchema),
+            support: requiredObject(reviewDimensionSchema)
+        }),
+        scope: requiredString("Overall review scope.")
     }),
     recommend_identity: exactObject({
         kind: { type: "string", const: "recommend_identity", required: true },
@@ -340,7 +335,7 @@ const commandToolParameters = (kind: keyof typeof actionSchemas): ParameterSchem
                   description: 'Use the literal "new".'
               }
             : requiredString("Target Meeting identifier."),
-    ...(kind === "submit_review_batch"
+    ...(kind === "submit_evidence_review"
         ? {}
         : {
               expectedMeetingVersion: {
@@ -582,9 +577,9 @@ export function registerMeetingTools(
             schema: SubmitEvidenceActionSchema
         },
         {
-            name: "convivium_submit_review_batch",
-            kind: "submit_review_batch",
-            schema: SubmitReviewBatchActionSchema
+            name: "convivium_submit_evidence_review",
+            kind: "submit_evidence_review",
+            schema: SubmitEvidenceReviewActionSchema
         },
         {
             name: "convivium_recommend_identity",

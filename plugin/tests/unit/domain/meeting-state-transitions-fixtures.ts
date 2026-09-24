@@ -233,7 +233,9 @@ export function publishedQuestionState(blocking: boolean): MeetingState {
                     limitations: [],
                     claims: [],
                     materials: [],
-                    submittedAt: 0
+                    submittedAt: 0,
+                    status: "submitted",
+                    failureCount: 0
                 }
             ]
         }

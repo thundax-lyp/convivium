@@ -80,7 +80,7 @@ describe("target repository facts contract", () => {
         const committed = await repository.execute({
             requestId: "large-review-batch",
             requestHash: "large-review-batch-hash",
-            commandKind: "submit_review_batch",
+            commandKind: "submit_evidence_review",
             authorization,
             expectedMeetingVersion: 0,
             transition: (snapshot) => ({
@@ -108,7 +108,7 @@ describe("target repository facts contract", () => {
             await reopened.replayReceipt({
                 requestId: "large-review-batch",
                 requestHash: "large-review-batch-hash",
-                commandKind: "submit_review_batch",
+                commandKind: "submit_evidence_review",
                 authorization
             })
         ).toMatchObject({ meetingVersion: 1, result: { accepted: true } });
@@ -122,7 +122,7 @@ describe("target repository facts contract", () => {
         const committed = await repository.execute({
             requestId: "review-immutable-version",
             requestHash: "review-immutable-version-hash",
-            commandKind: "submit_review_batch",
+            commandKind: "submit_evidence_review",
             authorization,
             transition: (snapshot) => ({
                 state: {

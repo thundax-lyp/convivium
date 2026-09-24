@@ -17,12 +17,12 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 
 export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
     ["manager", "convivium.meeting_manager", "1.3.2", "manager"],
-    ["reviewer", "convivium.verification_reviewer", "1.2.5", "evidence_reviewer"],
-    ["contributor-a", "convivium.domain_architect", "1.0.1", "contributor"],
-    ["contributor-b", "convivium.runtime_engineer", "1.0.1", "contributor"],
-    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.1", "contributor"],
-    ["contributor-d", "convivium.github_research_analyst", "1.0.1", "contributor"],
-    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.1", "contributor"]
+    ["reviewer", "convivium.verification_reviewer", "1.2.6", "evidence_reviewer"],
+    ["contributor-a", "convivium.domain_architect", "1.0.2", "contributor"],
+    ["contributor-b", "convivium.runtime_engineer", "1.0.2", "contributor"],
+    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.2", "contributor"],
+    ["contributor-d", "convivium.github_research_analyst", "1.0.2", "contributor"],
+    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.2", "contributor"]
 ];
 
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
@@ -98,7 +98,7 @@ function reviewerToolSummary(agent) {
             isError: block.isError === true || event.data.error !== undefined,
             outcome,
             errorCode,
-            ...(call.name === "convivium_submit_review_batch"
+            ...(call.name === "convivium_submit_evidence_review"
                 ? {
                       arguments: {
                           rootType: Array.isArray(call.args) ? "array" : typeof call.args,
@@ -110,10 +110,10 @@ function reviewerToolSummary(agent) {
                                       : []
                           },
                           expectedMeetingVersion: call.args?.expectedMeetingVersion,
-                          reviews: call.args?.action?.reviews?.map((review) => ({
-                              versionId: review.versionId,
-                              dimensionKeys: Object.keys(review.dimensions ?? {})
-                          }))
+                          review: {
+                              versionId: call.args?.action?.versionId,
+                              dimensionKeys: Object.keys(call.args?.action?.dimensions ?? {})
+                          }
                       }
                   }
                 : {})
@@ -547,7 +547,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             versionIds.every((versionId) =>
                 reviewedView?.evidenceReviews?.some((review) => review.versionId === versionId)
             ),
-            `reviewer did not atomically submit the worker review batch for ${roundPlan.id}; currentVersion=${reviewedView?.version}; reviewed=${JSON.stringify(reviewedView?.evidenceReviews?.map((review) => review.versionId) ?? [])}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
+            `reviewer did not independently submit all worker reviews for ${roundPlan.id}; currentVersion=${reviewedView?.version}; reviewed=${JSON.stringify(reviewedView?.evidenceReviews?.map((review) => review.versionId) ?? [])}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
         );
         let reviewDelivered;
         for (let attempt = 0; attempt < 900; attempt += 1) {

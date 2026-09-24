@@ -93,7 +93,7 @@ function allowedControls(state: MeetingState, caller: MeetingProjectionCaller) {
             "publish_round",
             "recommend_identity"
         ] as const;
-    if (hasRole(caller, "evidence_reviewer")) return ["submit_review_batch"] as const;
+    if (hasRole(caller, "evidence_reviewer")) return ["submit_evidence_review"] as const;
     if (hasRole(caller, "contributor")) return ["raise_hand", "submit_evidence"] as const;
     return [];
 }
@@ -250,6 +250,27 @@ export function projectMeetingView(
                   ]
                 : [];
         }),
+        evidenceValidationStatuses: manager
+            ? state.evidencePackages.flatMap((item) => {
+                  const currentVersion = item.versions.find(
+                      ({ id }) => id === item.currentVersionId
+                  );
+                  return currentVersion
+                      ? [
+                            {
+                                packageId: item.id,
+                                contributionId: item.contributionId,
+                                versionId: currentVersion.id,
+                                status: currentVersion.status,
+                                failureCount: currentVersion.failureCount,
+                                ...(currentVersion.lastFailureReason
+                                    ? { lastFailureReason: currentVersion.lastFailureReason }
+                                    : {})
+                            }
+                        ]
+                      : [];
+              })
+            : [],
         evidenceReviews: reviews.map(copy),
         reviewDeliveries: deliveries.map(copy),
         messages: copy(state.messages),

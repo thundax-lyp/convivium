@@ -257,7 +257,16 @@ export interface EvidenceVersion {
     claims: readonly EvidenceClaim[];
     materials: readonly EvidenceMaterial[];
     submittedAt: EpochMs;
+    status: EvidenceStatus;
+    failureCount: number;
+    lastFailureReason?: EvidenceValidationFailureReason;
 }
+
+export type EvidenceStatus =
+    "submitted" | "validating" | "validated" | "validation_failed" | "validation_cancelled";
+
+export type EvidenceValidationFailureReason =
+    "review_timeout" | "review_interrupted" | "dispatch_failed";
 
 export interface EvidencePackage {
     id: OpaqueId;
@@ -298,12 +307,12 @@ export interface EvidenceReview {
     createdAt: EpochMs;
 }
 
-export interface ReviewBatchClaim {
+export interface EvidenceReviewClaim {
     id: OpaqueId;
     sourceEffectId: OpaqueId;
     roundId: OpaqueId;
     reviewerId: OpaqueId;
-    versionIds: readonly OpaqueId[];
+    versionId: OpaqueId;
     claimedAt: EpochMs;
     expiresAt: EpochMs;
 }
@@ -624,7 +633,7 @@ export interface MeetingState {
     evidencePackages: readonly EvidencePackage[];
     registrations: readonly Registration[];
     reviews: readonly EvidenceReview[];
-    reviewClaims: readonly ReviewBatchClaim[];
+    reviewClaims: readonly EvidenceReviewClaim[];
     reviewDeliveries: readonly ReviewDelivery[];
     publications: readonly Publication[];
     messages: readonly FormalMessage[];

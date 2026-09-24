@@ -42,7 +42,8 @@ describe("proposal revision gates", () => {
         unpublished.evidencePackages[0].versions.push({
             ...unpublished.evidencePackages[0].versions[0],
             id: "v2",
-            ordinal: 2
+            ordinal: 2,
+            status: "submitted"
         });
         const result = recordProposalRevision(unpublished, input({ evidenceIds: ["v2"] }));
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });

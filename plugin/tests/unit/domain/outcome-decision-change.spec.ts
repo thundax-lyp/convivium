@@ -41,7 +41,8 @@ describe("decision change corrective gates", () => {
             state.evidencePackages[0].versions.push({
                 ...state.evidencePackages[0].versions[0],
                 id: "v2",
-                ordinal: 2
+                ordinal: 2,
+                status: "submitted"
             });
         expect(change(state, { evidenceIds })).toMatchObject({
             kind: "rejected",

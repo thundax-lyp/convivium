@@ -56,13 +56,13 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.5",
+        definitionVersion: "1.2.6",
         toolFilter: {
             allow: [
                 "skill",
                 "convivium_read_meeting",
                 "convivium_run_review_worker",
-                "convivium_submit_review_batch"
+                "convivium_submit_evidence_review"
             ]
         }
     });
@@ -72,7 +72,7 @@ it("publishes only the current contribution tools for Manager", () => {
         "convivium_open_round",
         "convivium_dispose_hand_raise",
         "convivium_publish_round",
-        "convivium_submit_review_batch",
+        "convivium_submit_evidence_review",
         "convivium_recommend_identity"
     ];
     expect(
@@ -84,7 +84,7 @@ it("publishes only the current contribution tools for Manager", () => {
             )
             .every(
                 ({ definitionVersion, toolFilter }) =>
-                    definitionVersion === "1.0.1" &&
+                    definitionVersion === "1.0.2" &&
                     JSON.stringify(toolFilter) === JSON.stringify({ deny: contributorDeniedTools })
             )
     ).toBe(true);
@@ -112,14 +112,14 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
     expect(currentGuidance[1]).toContain("convivium_run_review_worker");
     expect(currentGuidance[1]).toContain("第一轮无 baseline 时必须明确为 `[]`");
-    expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
+    expect(currentGuidance[1]).toContain("convivium_submit_evidence_review");
     expect(currentGuidance[1]).toContain("arguments 根对象");
     expect(currentGuidance[1]).toContain("convivium_run_review_worker` 仍使用顶层 `input`");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
     expect(currentGuidance[1]).toContain("每个 pending item 只调用一次");
-    expect(currentGuidance[1]).toContain("完整覆盖全部 pending item");
-    expect(currentGuidance[1]).toContain("任一 worker 失败、取消或返回无效结果时不提交");
+    expect(currentGuidance[1]).toContain("versionId 与 claim 精确相等");
+    expect(currentGuidance[1]).toContain("worker 失败、取消或返回无效结果时不提交");
     expect(currentGuidance[1]).toContain("只调用一次");
 });
 

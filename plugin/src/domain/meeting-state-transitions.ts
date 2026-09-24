@@ -266,6 +266,8 @@ type TransitionChanges = {
     issues?: MeetingState["issues"];
     managerPlans?: MeetingState["managerPlans"];
     lifecycle?: MeetingState["lifecycle"];
+    evidencePackages?: MeetingState["evidencePackages"];
+    reviewClaims?: MeetingState["reviewClaims"];
     relatedIds: readonly OpaqueId[];
     payload?: TargetDomainFactPayload;
     recalculateCompletion?: boolean;
@@ -295,7 +297,11 @@ function completeTransition(
         ...(changes.questions === undefined ? {} : { questions: changes.questions }),
         ...(changes.issues === undefined ? {} : { issues: changes.issues }),
         ...(changes.managerPlans === undefined ? {} : { managerPlans: changes.managerPlans }),
-        ...(changes.lifecycle === undefined ? {} : { lifecycle: changes.lifecycle })
+        ...(changes.lifecycle === undefined ? {} : { lifecycle: changes.lifecycle }),
+        ...(changes.evidencePackages === undefined
+            ? {}
+            : { evidencePackages: changes.evidencePackages }),
+        ...(changes.reviewClaims === undefined ? {} : { reviewClaims: changes.reviewClaims })
     };
     if (changes.recalculateCompletion)
         nextState = recalculateMeetingCompletion(nextState, actor.id, now);
@@ -407,6 +413,19 @@ function transitionMeetingControl(
                 changedBy: actor.id,
                 reason: action.reason
             },
+            ...(action.kind === "pause_meeting"
+                ? {
+                      evidencePackages: state.evidencePackages.map((pkg) => ({
+                          ...pkg,
+                          versions: pkg.versions.map((version) =>
+                              ["submitted", "validating"].includes(version.status)
+                                  ? { ...version, status: "validation_cancelled" as const }
+                                  : version
+                          )
+                      })),
+                      reviewClaims: []
+                  }
+                : {}),
             relatedIds: [state.id]
         });
     }
