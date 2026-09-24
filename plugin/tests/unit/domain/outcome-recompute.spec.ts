@@ -5,7 +5,7 @@ import {
     isObjectiveSatisfied,
     recalculateMeetingCompletion
 } from "@/domain/transitions/outcome.js";
-import { completionReadyState } from "./outcome-fixtures.js";
+import { completionReadyState, validState } from "./outcome-fixtures.js";
 
 describe("Recompute/Convergence", () => {
     const completedFactState = () => {
@@ -241,6 +241,11 @@ describe("Recompute/Convergence", () => {
         state.issues[0].blocking = true;
         expect(isObjectiveSatisfied(state)).toBe(false);
     });
+    it("requires a valid active fact even when targets are pre-marked satisfied", () => {
+        const state = validState();
+        state.objective.requiredOutputs[0].status = "satisfied";
+        expect(isObjectiveSatisfied(state)).toBe(false);
+    });
     it("recalculation preserves bookkeeping and non-running lifecycle", () => {
         const state = completedFactState();
         state.lifecycle = { ...state.lifecycle, status: "paused" };
@@ -250,5 +255,6 @@ describe("Recompute/Convergence", () => {
         expect(result.updatedAt).toBe(before.updatedAt);
         expect(result.objective.hardConstraints).toEqual(before.objective.hardConstraints);
         expect(result.lifecycle).toEqual(before.lifecycle);
+        expect(state).toEqual(before);
     });
 });

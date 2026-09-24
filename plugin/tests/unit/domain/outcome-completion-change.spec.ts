@@ -62,6 +62,9 @@ describe("CompletionFact change", () => {
             ...before.completionFacts[0],
             status: "revoked"
         });
+        expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
+        expect(result.state.objective.acceptanceCriteria[0].status).toBe("pending");
+        expect(result.state.lifecycle.status).toBe("running");
         expect(result.state.version).toBe(2);
         expect(result.state.updatedAt).toBe(1);
         expect(state).toEqual(before);

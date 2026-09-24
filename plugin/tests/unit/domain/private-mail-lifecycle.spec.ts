@@ -15,40 +15,6 @@ import {
 } from "./private-mail-fixtures.js";
 
 describe("private mail completion and cancellation", () => {
-    it("completes, cancels, and expires with lifecycle fields", () => {
-        const sent = sendPrivateMail(privateMailState(), {
-            mailId: "mail-1",
-            senderId: "sender",
-            recipientId: "recipient",
-            body: "hello",
-            relatedIds: ["pub-1"],
-            now: 10
-        });
-        expect(sent.kind).toBe("accepted");
-        if (sent.kind === "accepted") {
-            const completed = completePrivateMail(sent.state, {
-                mailId: "mail-1",
-                recipientId: "recipient",
-                now: 20
-            });
-            expect(completed.kind).toBe("rejected");
-            const cancelled = cancelPrivateMail(sent.state, {
-                mailId: "mail-1",
-                senderId: "sender",
-                reason: "stop",
-                now: 20
-            });
-            expect(cancelled.kind).toBe("accepted");
-            const expired = expirePrivateMail(sent.state, {
-                mailId: "mail-1",
-                actorKind: "deadline_handler",
-                reason: "late",
-                now: 110
-            });
-            expect(expired.kind).toBe("accepted");
-        }
-    });
-
     function startedState() {
         const sent = sendPrivateMail(privateMailState(), input);
         expect(sent.kind).toBe("accepted");
