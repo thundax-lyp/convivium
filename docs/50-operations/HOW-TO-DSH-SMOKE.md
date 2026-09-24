@@ -15,6 +15,13 @@ Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会
 
 人工 Browser 调试不运行 `smoke:profile`，也不使用 `/tmp` 安装根。DSH 启动工作目录固定为仓库 `dsh-workspace/`，`DSH_HOME` 固定为 `dsh-workspace/dsh-home/`，项目目录固定为 `dsh-workspace/projects/meetings-view/`，安装、会议 SQLite 和角色资源固定在 `dsh-workspace/web-ui/convivium-user/`。Session 与 Meeting 数据跨源码刷新和 Git HEAD 变化保留，不为连续调试重建会议。Host 使用 `127.0.0.1:31828`；刷新或重启前必须先停止占用该端口的 Host，且不得并行运行共享 `DSH_HOME` 的常规安装。
 
+上述固定目录的职责和持久数据位置如下；它们均位于已被 Git 忽略的 `dsh-workspace/`，不是 Convivium 源码目录：
+
+- `dsh-workspace/web-ui/convivium-user/` 是人工 Web 调试安装根，保存 release、artifact、角色资源、运行配置以及 Convivium 会议存储；会议 SQLite 的固定路径是 `dsh-workspace/web-ui/convivium-user/convivium-storage.sqlite`，运行期间可能同时出现同路径前缀的 `-wal` 和 `-shm` 文件。
+- `dsh-workspace/dsh-home/` 是该人工调试环境共享的 `DSH_HOME`，保存 DSH profile、Session 和设置；DSH Session 不存入上述会议 SQLite。
+- `dsh-workspace/projects/meetings-view/` 是 DSH Web 的 Choose workspace 所选择的项目工作目录，用于限定 Captain Session 操作的项目上下文；它不是插件安装根，也不保存 Convivium 会议 SQLite。
+- `dsh-workspace/convivium-user/convivium-storage.sqlite` 属于普通持久安装流程，不是人工 Web 调试数据库；两套安装根不得混用。
+
 从仓库根执行；首次安装创建固定目录，后续源码刷新复用它们，只新增以构建物 SHA-256 标识的 release 和 artifact，不覆盖旧 release、Session 或会议 SQLite：
 
 ```sh
