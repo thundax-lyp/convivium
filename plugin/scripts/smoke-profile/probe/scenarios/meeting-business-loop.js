@@ -789,7 +789,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             "target-create",
             "meeting-started",
             "four-fixture-rounds",
-            "four-review-batches",
+            "eight-version-reviews",
             "worker-authority",
             "four-published-rounds",
             "archived"
