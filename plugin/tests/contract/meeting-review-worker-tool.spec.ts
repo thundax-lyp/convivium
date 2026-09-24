@@ -117,4 +117,38 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
         }
     });
     expect(dispose).toHaveBeenCalledOnce();
+
+    const invalidDispose = vi.fn(async () => undefined);
+    start.mockResolvedValueOnce({
+        id: "worker-2",
+        localAgent: undefined,
+        result: Promise.resolve({
+            output: [],
+            stopReason: "completed" as const,
+            structured: {
+                ...structured,
+                scope: "   "
+            }
+        }),
+        dispose: invalidDispose
+    });
+
+    await expect(
+        definitions
+            .find(({ name }) => name === "convivium_run_review_worker")!
+            .execute(
+                {
+                    input: {
+                        meetingId: "meeting-1",
+                        versionId: "version-1",
+                        prompt: "Review this immutable version."
+                    }
+                },
+                {
+                    agent: { id: "reviewer-agent-1" } as Agent,
+                    signal: new AbortController().signal
+                } as ToolRunContext
+            )
+    ).resolves.toEqual({ kind: "failed", code: "REVIEW_WORKER_OUTPUT_INVALID" });
+    expect(invalidDispose).toHaveBeenCalledOnce();
 });

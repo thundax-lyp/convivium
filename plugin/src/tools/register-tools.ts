@@ -536,7 +536,28 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                                     ? "REVIEW_WORKER_VERSION_MISMATCH"
                                     : "REVIEW_WORKER_NOT_COMPLETED"
                         } as JsonValue;
-                    return { kind: "completed", review: result.structured } as JsonValue;
+                    const output = result.structured as Record<string, unknown>;
+                    const parsed = SubmitEvidenceReviewActionSchema.safeParse({
+                        kind: "submit_evidence_review",
+                        roundId: "worker-output",
+                        claimId: "worker-output",
+                        versionId: output.versionId,
+                        dimensions: output.dimensions,
+                        scope: output.scope
+                    });
+                    if (!parsed.success)
+                        return {
+                            kind: "failed",
+                            code: "REVIEW_WORKER_OUTPUT_INVALID"
+                        } as JsonValue;
+                    return {
+                        kind: "completed",
+                        review: {
+                            versionId: parsed.data.versionId,
+                            dimensions: parsed.data.dimensions,
+                            scope: parsed.data.scope
+                        }
+                    } as JsonValue;
                 } finally {
                     await run.dispose();
                 }

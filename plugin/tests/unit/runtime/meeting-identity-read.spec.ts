@@ -48,7 +48,7 @@ describe("Meeting identity read", () => {
                     createdAt: 0,
                     updatedAt: 1
                 },
-                sessionOwnership: []
+                sessionOwnership: [caller(role, identityId).ownership]
             }));
             const reader = createMeetingIdentityReader({
                 registry: { openMeeting: vi.fn(async () => ({ recover })) }
@@ -102,6 +102,51 @@ describe("Meeting identity read", () => {
         ).resolves.toBeUndefined();
     });
 
+    it.each([
+        ["closed", { lifecycleStatus: "closed" as const }],
+        ["revoked", { capabilityStatus: "revoked" as const }]
+    ])(
+        "fails closed when the recovered ownership was %s after caller resolution",
+        async (_case, status) => {
+            const state = makeRunningMeetingStateV1();
+            state.identities = state.identities.map((identity) => ({
+                ...identity,
+                sessionOwnershipId: `owner:${identity.id}`
+            }));
+            const resolved = caller("evidence_reviewer", "reviewer-v1");
+            const reader = createMeetingIdentityReader({
+                registry: {
+                    openMeeting: vi.fn(async () => ({
+                        recover: async () => ({
+                            snapshot: {
+                                meetingId: state.id,
+                                version: state.version,
+                                state,
+                                createdAt: 0,
+                                updatedAt: 1
+                            },
+                            sessionOwnership: [
+                                {
+                                    ...resolved.ownership,
+                                    ...status,
+                                    updatedAt: 2
+                                }
+                            ]
+                        })
+                    }))
+                }
+            });
+
+            await expect(
+                reader.read(
+                    { protocolVersion: 1, meetingId: state.id },
+                    resolved,
+                    new AbortController().signal
+                )
+            ).resolves.toBeUndefined();
+        }
+    );
+
     it("adds the Host catalog only to the Manager projection", async () => {
         const state = makeRunningMeetingStateV1();
         state.identities = state.identities.map((identity) => ({
@@ -119,7 +164,7 @@ describe("Meeting identity read", () => {
                             createdAt: 0,
                             updatedAt: 1
                         },
-                        sessionOwnership: []
+                        sessionOwnership: [caller("manager", "manager-v1").ownership]
                     })
                 }))
             },
