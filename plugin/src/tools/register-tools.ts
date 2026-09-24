@@ -1,4 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import {
     defineTool,
     type ParameterSchemaSpec,
@@ -22,7 +23,8 @@ import {
     type MeetingCommandResult,
     type MeetingCommand,
     type MeetingReadResult,
-    type ReadMeetingRequest
+    type ReadMeetingRequest,
+    ReviewWorkerOutputSchema
 } from "@/protocol/index.js";
 import type { MeetingCommandApplication } from "@/runtime/index.js";
 
@@ -41,6 +43,7 @@ export interface TargetMeetingToolReader {
 export interface MeetingCommandToolDependencies {
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
+    readonly reviewWorkers: Pick<SubagentRuntime, "start">;
     readonly callers: TargetMeetingToolCallerResolver;
     readonly reader: TargetMeetingToolReader;
     readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
@@ -302,6 +305,18 @@ const readToolParameters = {
     }
 } as const;
 
+const reviewWorkerParameters = {
+    input: {
+        ...exactObject({
+            meetingId: requiredString("Meeting identifier supplied by the review request."),
+            versionId: requiredString("Immutable evidence version assigned to this worker."),
+            prompt: requiredString("Complete review instructions and immutable evidence input.")
+        }),
+        required: true,
+        description: "One machine-validated review-worker request."
+    }
+} as const;
+
 type ActionSchema = { safeParse(value: unknown): { success: boolean; data?: unknown } };
 type ToolDefinition = {
     readonly name: string;
@@ -468,6 +483,79 @@ const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => 
     );
 };
 
+const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies): (() => void) => {
+    return dependencies.registry.register(
+        defineTool({
+            name: "convivium_run_review_worker",
+            description:
+                "Run one isolated review worker with the Meeting review output schema enforced by the provider.",
+            parameters: reviewWorkerParameters,
+            output: {
+                schema: { type: "json" },
+                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+            },
+            async execute(args, exec) {
+                const input = args.input as Record<string, unknown>;
+                const meetingId = input.meetingId;
+                const versionId = input.versionId;
+                const prompt = input.prompt;
+                if (
+                    typeof meetingId !== "string" ||
+                    typeof versionId !== "string" ||
+                    typeof prompt !== "string"
+                )
+                    return rejected(
+                        "INVALID_ARGUMENT",
+                        "Expected meetingId, versionId and prompt strings."
+                    ) as unknown as JsonValue;
+                if (exec.agent === undefined)
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "A review worker requires an Agent caller."
+                    ) as unknown as JsonValue;
+                const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
+                if (
+                    caller === undefined ||
+                    caller.meetingId !== meetingId ||
+                    caller.role !== "evidence_reviewer"
+                )
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "Only the active Evidence Reviewer may run a review worker."
+                    ) as unknown as JsonValue;
+                const run = await dependencies.reviewWorkers.start("spawn", {
+                    label: `convivium:review:${versionId}`,
+                    prompt: [{ type: "text", text: prompt }],
+                    parent: exec.agent,
+                    signal: exec.signal,
+                    outputSchema: ReviewWorkerOutputSchema,
+                    toolFilter: { allow: [] }
+                });
+                try {
+                    const result = await run.result;
+                    if (
+                        result.stopReason !== "completed" ||
+                        result.structured === undefined ||
+                        typeof result.structured !== "object" ||
+                        result.structured === null ||
+                        (result.structured as { versionId?: unknown }).versionId !== versionId
+                    )
+                        return {
+                            kind: "failed",
+                            code:
+                                result.stopReason === "completed"
+                                    ? "REVIEW_WORKER_VERSION_MISMATCH"
+                                    : "REVIEW_WORKER_NOT_COMPLETED"
+                        } as JsonValue;
+                    return { kind: "completed", review: result.structured } as JsonValue;
+                } finally {
+                    await run.dispose();
+                }
+            }
+        })
+    );
+};
+
 export function registerMeetingTools(
     dependencies: MeetingCommandToolDependencies
 ): readonly (() => void)[] {
@@ -514,6 +602,7 @@ export function registerMeetingTools(
     return [
         registerTool(dependencies, create!),
         registerReadTool(dependencies),
+        registerReviewWorkerTool(dependencies),
         ...commands.map((definition) => registerTool(dependencies, definition))
     ];
 }

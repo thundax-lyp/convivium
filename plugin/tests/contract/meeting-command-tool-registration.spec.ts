@@ -98,6 +98,7 @@ describe("target Meeting tool registration", () => {
                 }
             },
             application: { execute },
+            reviewWorkers: { start: vi.fn() },
             reader: { read },
             callers: {
                 resolve: vi.fn(async () => ({
@@ -130,6 +131,7 @@ describe("target Meeting tool registration", () => {
         expect(definitions.map(({ name }) => name)).toEqual([
             "convivium_create_meeting",
             "convivium_read_meeting",
+            "convivium_run_review_worker",
             "convivium_open_round",
             "convivium_submit_manager_plan",
             "convivium_dispose_hand_raise",
@@ -148,7 +150,11 @@ describe("target Meeting tool registration", () => {
                     input: { type: "object", additionalProperties: false }
                 }
             });
-            if (definition.name === "convivium_read_meeting") continue;
+            if (
+                definition.name === "convivium_read_meeting" ||
+                definition.name === "convivium_run_review_worker"
+            )
+                continue;
             expect(definition.parameters).toMatchObject({
                 properties: {
                     input: {
@@ -305,6 +311,7 @@ describe("target Meeting tool registration", () => {
                 }
             },
             application: { execute: vi.fn() },
+            reviewWorkers: { start: vi.fn() },
             reader: { read },
             callers: {
                 resolve: vi.fn(async () => ({

@@ -95,7 +95,7 @@
         },
         {
             "agentDefinitionId": "convivium.verification_reviewer",
-            "definitionVersion": "1.2.4",
+            "definitionVersion": "1.2.5",
             "roleDefinitionId": "verification_reviewer",
             "displayName": "Verification Reviewer",
             "summary": "建立测试矩阵、反例、回归和 readiness 证据。",
@@ -104,14 +104,14 @@
             "toolFilter": {
                 "allow": [
                     "skill",
-                    "subagent",
                     "convivium_read_meeting",
+                    "convivium_run_review_worker",
                     "convivium_submit_review_batch"
                 ]
             },
             "expertiseTags": ["verification", "regression", "readiness"],
             "evidenceScopes": ["repository"],
-            "roleDescription": "独立评估当前议题的验收证据、权限边界和恢复风险，识别阻止交付的反例。\n\n收到 Meeting notice 后，先通过 convivium_read_meeting 读取当前 caller-visible Meeting 事实。收到 review request 后，每个 immutable version 在本轮只创建一个独立的 DSH 原生 one-shot worker，不创建 replacement worker。Coordinator 只有在 completed 且可规范化的 Review item 完整覆盖 claim 中全部 version 时，才通过 convivium_submit_review_batch 一次提交；任一 worker 失败、取消或不可规范化时不得提交部分结果。worker 不是 Meeting Identity，也没有 Meeting command authority。\n\n未获得明确实现任务和权限时不修改核心实现；不替 Captain 接受剩余风险，不把未执行的验证描述为通过。"
+            "roleDescription": "独立评估当前议题的验收证据、权限边界和恢复风险，识别阻止交付的反例。\n\n收到 Meeting notice 后，先通过 convivium_read_meeting 读取当前 caller-visible Meeting 事实。收到 review request 后，每个 immutable version 在本轮只调用一次 convivium_run_review_worker；该入口通过 DSH 原生 one-shot worker 和机器校验的 outputSchema 返回结果，不调用通用 subagent，也不创建 replacement worker。Coordinator 只有在 completed Review item 完整覆盖 claim 中全部 version 时，才通过 convivium_submit_review_batch 一次提交；任一 worker 失败、取消或返回无效结果时不得提交部分结果。worker 不是 Meeting Identity，也没有 Meeting command authority。\n\n未获得明确实现任务和权限时不修改核心实现；不替 Captain 接受剩余风险，不把未执行的验证描述为通过。"
         },
         {
             "agentDefinitionId": "convivium.github_research_analyst",

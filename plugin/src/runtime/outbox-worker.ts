@@ -85,6 +85,15 @@ function terminatesOnAttemptLimit(error: unknown): boolean {
     );
 }
 
+function retryAvailableAt(error: unknown, fallback: number): number {
+    if (error && typeof error === "object" && "retryAt" in error) {
+        const retryAt = (error as { retryAt?: unknown }).retryAt;
+        if (typeof retryAt === "number" && Number.isSafeInteger(retryAt) && retryAt > fallback)
+            return retryAt;
+    }
+    return fallback;
+}
+
 export function createOutboxWorker(options: OutboxWorkerOptions) {
     if (options.batchSize < 1 || options.ttlMs < 1 || options.pollMs < 1) {
         throw new Error("Outbox worker batchSize, ttlMs and pollMs must be positive");
@@ -133,13 +142,14 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                     !isRetryable(error) ||
                     (terminatesOnAttemptLimit(error) && item.attempts >= maxAttempts);
                 const completionNow = now();
+                const availableAt = retryAvailableAt(error, completionNow + retryDelayMs);
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
                     leaseToken: item.leaseToken,
                     completion: terminal
                         ? { status: "failed", failedAt: completionNow, errorCode: code }
-                        : { status: "retry", availableAt: now() + retryDelayMs, errorCode: code },
+                        : { status: "retry", availableAt, errorCode: code },
                     now: completionNow
                 });
                 if (terminal) {

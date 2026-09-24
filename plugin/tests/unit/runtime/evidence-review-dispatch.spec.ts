@@ -316,15 +316,19 @@ describe("evidence review request dispatcher v1", () => {
             ]
         });
         expect(envelope.instructions).toContain("convivium_submit_review_batch");
-        expect(envelope.instructions).toContain("每个 pending item 只调用一次 subagent");
+        expect(envelope.instructions).toContain(
+            "每个 pending item 只调用一次 convivium_run_review_worker"
+        );
+        expect(envelope.instructions).toContain("不调用通用 subagent");
         expect(envelope.instructions).toContain("reviews 必须逐项覆盖全部 pending");
         expect(envelope.instructions).toContain(
-            "任一 pending item 未得到 completed 且可规范化的结果时直接结束"
+            "任一 pending item 未得到 completed 结果时直接结束"
         );
         expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
-        expect(envelope.instructions).toContain("不得添加 arguments 包装层");
-        expect(envelope.instructions).toContain("只允许调用一次提交工具");
+        expect(envelope.instructions).toContain("不得添加 arguments、submit 或其他包装层");
+        expect(envelope.instructions).toContain("提交工具都只允许调用一次");
         expect(envelope.instructions).toContain("与 reviewConstraints 取交集");
+        expect(envelope.instructions).toContain("首轮没有 baseline 时必须保留 []");
         expect(envelope.instructions).not.toContain("fallback");
         expect(envelope.reviewConstraints).toEqual([
             {
@@ -387,10 +391,8 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope.instructions).toContain("不得使用数组或 0、1、2、3 等数字键");
         expect(envelope.instructions).toContain("workerOutputSchema");
         expect(envelope.instructions).toContain("reviewItemRules.itemTemplate");
-        expect(envelope.instructions).toContain("不返回 Markdown、代码围栏或说明文字");
-        expect(envelope.instructions).toContain(
-            "直接以 object 作为函数调用参数，不要先生成 JSON 文本"
-        );
+        expect(envelope.instructions).toContain("机器校验的 workerOutputSchema");
+        expect(envelope.instructions).toContain("工具参数直接使用结构化 object");
         expect(envelope.instructions).not.toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",
@@ -413,7 +415,7 @@ describe("evidence review request dispatcher v1", () => {
 });
 
 describe("evidence review request dispatcher claim lifecycle", () => {
-    it("keeps the review effect retryable when the coordinator returns without committing", async () => {
+    it("releases the claim and uses bounded retry when the coordinator returns without committing", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
@@ -449,7 +451,18 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         ).rejects.toMatchObject({
             code: "REVIEW_NOT_COMPLETED",
             retryable: true,
-            terminalOnAttemptLimit: false
+            terminalOnAttemptLimit: true
+        });
+        expect(state.reviewClaims).toEqual([]);
+        expect(application.execute).toHaveBeenCalledTimes(2);
+        expect(application.execute.mock.calls[1]?.[0]).toMatchObject({
+            requestId: "review-claim-release:review-claim-v1:dispatch_failed",
+            action: {
+                kind: "release_review_batch_claim",
+                roundId: "round-current",
+                claimId: "review-claim-v1",
+                reason: "dispatch_failed"
+            }
         });
     });
 
@@ -574,7 +587,8 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         await expect(second.dispatch(input)).rejects.toMatchObject({
             code: "REVIEW_CLAIM_IN_PROGRESS",
             retryable: true,
-            terminalOnAttemptLimit: false
+            terminalOnAttemptLimit: false,
+            retryAt: 100
         });
         releaseFirst?.();
         await firstDispatch;

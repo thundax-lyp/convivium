@@ -60,6 +60,7 @@ const meetingConsumerPlugin = {
             registerMeetingTools({
                 registry: ctx.tools,
                 application,
+                reviewWorkers: ctx.subagents,
                 reader,
                 callers: {
                     async resolve(agent, signal) {

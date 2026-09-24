@@ -122,8 +122,8 @@ export async function verifyMeetingAgentDefinitions(root) {
                               ? {
                                     allow: [
                                         "skill",
-                                        "subagent",
                                         "convivium_read_meeting",
+                                        "convivium_run_review_worker",
                                         "convivium_submit_review_batch"
                                     ]
                                 }
@@ -138,7 +138,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                             (role === "meeting_manager"
                                 ? "1.3.2"
                                 : role === "verification_reviewer"
-                                  ? "1.2.4"
+                                  ? "1.2.5"
                                   : "1.0.1") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
