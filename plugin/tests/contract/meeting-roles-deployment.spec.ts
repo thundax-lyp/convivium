@@ -72,6 +72,7 @@ it("publishes only the current contribution tools for Manager", () => {
         "convivium_open_round",
         "convivium_dispose_hand_raise",
         "convivium_publish_round",
+        "convivium_run_review_worker",
         "convivium_submit_evidence_review",
         "convivium_recommend_identity"
     ];
@@ -84,7 +85,7 @@ it("publishes only the current contribution tools for Manager", () => {
             )
             .every(
                 ({ definitionVersion, toolFilter }) =>
-                    definitionVersion === "1.0.2" &&
+                    definitionVersion === "1.0.3" &&
                     JSON.stringify(toolFilter) === JSON.stringify({ deny: contributorDeniedTools })
             )
     ).toBe(true);

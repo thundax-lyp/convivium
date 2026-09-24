@@ -102,6 +102,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
                         "convivium_publish_round",
+                        "convivium_run_review_worker",
                         "convivium_submit_evidence_review",
                         "convivium_recommend_identity"
                     ];
@@ -139,7 +140,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                 ? "1.3.2"
                                 : role === "verification_reviewer"
                                   ? "1.2.6"
-                                  : "1.0.2") ||
+                                  : "1.0.3") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||

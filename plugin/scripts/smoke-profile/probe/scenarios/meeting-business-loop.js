@@ -18,11 +18,11 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
     ["manager", "convivium.meeting_manager", "1.3.2", "manager"],
     ["reviewer", "convivium.verification_reviewer", "1.2.6", "evidence_reviewer"],
-    ["contributor-a", "convivium.domain_architect", "1.0.2", "contributor"],
-    ["contributor-b", "convivium.runtime_engineer", "1.0.2", "contributor"],
-    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.2", "contributor"],
-    ["contributor-d", "convivium.github_research_analyst", "1.0.2", "contributor"],
-    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.2", "contributor"]
+    ["contributor-a", "convivium.domain_architect", "1.0.3", "contributor"],
+    ["contributor-b", "convivium.runtime_engineer", "1.0.3", "contributor"],
+    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.3", "contributor"],
+    ["contributor-d", "convivium.github_research_analyst", "1.0.3", "contributor"],
+    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.3", "contributor"]
 ];
 
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
