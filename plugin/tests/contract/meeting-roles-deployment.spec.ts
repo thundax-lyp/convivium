@@ -40,7 +40,7 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.3.1",
+        definitionVersion: "1.3.2",
         toolFilter: {
             allow: [
                 "skill",
@@ -61,6 +61,15 @@ it("publishes only the current contribution tools for Manager", () => {
             allow: ["skill", "subagent", "convivium_read_meeting", "convivium_submit_review_batch"]
         }
     });
+    const contributorDeniedTools = [
+        "convivium_create_meeting",
+        "convivium_submit_manager_plan",
+        "convivium_open_round",
+        "convivium_dispose_hand_raise",
+        "convivium_publish_round",
+        "convivium_submit_review_batch",
+        "convivium_recommend_identity"
+    ];
     expect(
         definitions
             .filter(
@@ -68,7 +77,11 @@ it("publishes only the current contribution tools for Manager", () => {
                     roleDefinitionId !== "meeting_manager" &&
                     roleDefinitionId !== "verification_reviewer"
             )
-            .every(({ definitionVersion }) => definitionVersion === "1.0.0")
+            .every(
+                ({ definitionVersion, toolFilter }) =>
+                    definitionVersion === "1.0.1" &&
+                    JSON.stringify(toolFilter) === JSON.stringify({ deny: contributorDeniedTools })
+            )
     ).toBe(true);
 
     const currentGuidance = [

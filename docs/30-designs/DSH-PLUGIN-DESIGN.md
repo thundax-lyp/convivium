@@ -41,11 +41,11 @@ DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox�
 
 Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 为每个 Meeting identity 排入独立的公开 `agent_notice`；身份可以根据职责和 caller-visible 状态处理或忽略。通知只携带 Meeting、Agenda 和已公开 message 等定位 ID，Agent 使用 `convivium_read_meeting` 取得 caller-filtered Meeting View。投递前 dispatcher 重新验证事实引用、Session ownership、parent、active 与 capability；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手、材料登记或角色行动。具有明确工作归属的机会申请、举手、审核和私信通知仍定向投递。
 
-`convivium_read_meeting` 与 command tools 分离：tool adapter 先用可信 `exec.agent` 解析 active ownership，并要求请求的 `meetingId` 与 ownership 一致；identity reader 再核对 committed MeetingIdentity 的 `identityId`、role 和 `sessionOwnershipId`，最后复用 `projectMeetingView` 生成 identity projection。它不调用 local Web `read`，因此不能暴露 local 完整投影；也不创建新的持久状态、事件、receipt 或 outbox。Manager 和带 allow-list 的 Evidence Reviewer Definition 显式允许该 tool，其余无 allow-list 的 Meeting identity 从共享 tool registry 获得同一入口；七个角色 Skill 均要求收到 notice 后先读取事实再决定处理或忽略。
+`convivium_read_meeting` 与 command tools 分离：tool adapter 先用可信 `exec.agent` 解析 active ownership，并要求请求的 `meetingId` 与 ownership 一致；identity reader 再核对 committed MeetingIdentity 的 `identityId`、role 和 `sessionOwnershipId`，最后复用 `projectMeetingView` 生成 identity projection。它不调用 local Web `read`，因此不能暴露 local 完整投影；也不创建新的持久状态、事件、receipt 或 outbox。Manager 与 Evidence Reviewer 使用显式 allow-list；五类 Contributor 使用 deny-list 隐藏 Captain、Manager 和 Reviewer command，仅保留共享 Preset 能力以及 `convivium_read_meeting`、`convivium_raise_hand`、`convivium_submit_evidence` 等未被拒绝的 Contributor 入口。七个角色 Skill 均要求收到 notice 后先读取事实再决定处理或忽略。
 
 贡献者的私有取证材料只存在于其 DSH Session/工作范围，不交给 Manager，也不进入 MeetingState、FormalMessage、projection 或 outbox。贡献者通过 `submit_evidence` 直接提交准备公开的 EvidenceInput；Runtime 只做结构、引用、身份、授权和期限校验，失败不保存 payload，成功才原子建立 EvidencePackage/Version/Registration。Manager 只看贡献与审核状态，不读取本轮证据正文。
 
-Convivium 只限制自身会议操作的调用权限和模型可见的会议上下文；Agent 在 DSH 已授权范围内自行选择 Prompt、Skills、Tools、MCP 与内部工作方式。插件不得依赖具体 Skill、内部 Tool Schema、调用顺序或隐藏推理才能正确运行；Manager 身份不得以 Contributor 身份提交正式发言或 Position。
+Convivium 的 command 实现在 Host tool registry 全局注册，以便 DSH 装配和审计；这不是全角色授权。版本化 Definition 的 `toolFilter` 先收窄每个 Meeting identity 的模型可见工具面，Runtime 再按可信 caller binding、active ownership 和 committed role 执行独立授权，两层均不能由 Prompt 或 Skill 替代。每个生产 command tool 向模型暴露完整 command envelope 与唯一 action 的精确 object schema，Runtime 仍以协议 schema 为解析真相源。Agent 在 DSH 已授权范围内自行选择 Prompt、Skills、Tools、MCP 与内部工作方式；插件不得依赖隐藏推理才能正确运行，Manager 身份不得以 Contributor 身份提交正式发言或 Position。
 
 角色 Definition 只声明 DSH 已公开且经过预检的能力。预检在创建第一个会议专用 Session 前完成；缺少必需能力时拒绝创建，不通过临时修改 Prompt、权限或资源来降级。已创建身份的运行配置由 DSH 拥有，角色资源变更只影响新的 MeetingIdentity。
 

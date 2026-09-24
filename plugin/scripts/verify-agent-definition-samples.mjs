@@ -96,26 +96,39 @@ export async function verifyMeetingAgentDefinitions(root) {
             else
                 doc.definitions.forEach((d, i) => {
                     const [role, skill] = roles[i];
-                    const allow =
+                    const contributorDeny = [
+                        "convivium_create_meeting",
+                        "convivium_submit_manager_plan",
+                        "convivium_open_round",
+                        "convivium_dispose_hand_raise",
+                        "convivium_publish_round",
+                        "convivium_submit_review_batch",
+                        "convivium_recommend_identity"
+                    ];
+                    const toolFilter =
                         role === "meeting_manager"
-                            ? [
-                                  "skill",
-                                  "convivium_read_meeting",
-                                  "convivium_submit_manager_plan",
-                                  "convivium_open_round",
-                                  "convivium_dispose_hand_raise",
-                                  "convivium_publish_round",
-                                  "convivium_recommend_identity"
-                              ]
+                            ? {
+                                  allow: [
+                                      "skill",
+                                      "convivium_read_meeting",
+                                      "convivium_submit_manager_plan",
+                                      "convivium_open_round",
+                                      "convivium_dispose_hand_raise",
+                                      "convivium_publish_round",
+                                      "convivium_recommend_identity"
+                                  ]
+                              }
                             : role === "verification_reviewer"
-                              ? [
-                                    "skill",
-                                    "subagent",
-                                    "convivium_read_meeting",
-                                    "convivium_submit_review_batch"
-                                ]
-                              : undefined;
-                    const expectedFields = [...fields, ...(allow ? ["toolFilter"] : [])].sort();
+                              ? {
+                                    allow: [
+                                        "skill",
+                                        "subagent",
+                                        "convivium_read_meeting",
+                                        "convivium_submit_review_batch"
+                                    ]
+                                }
+                              : { deny: contributorDeny };
+                    const expectedFields = [...fields, "toolFilter"].sort();
                     if (
                         !d ||
                         !same(Object.keys(d).sort(), expectedFields) ||
@@ -123,10 +136,10 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
                             (role === "meeting_manager"
-                                ? "1.3.1"
+                                ? "1.3.2"
                                 : role === "verification_reviewer"
                                   ? "1.2.4"
-                                  : "1.0.0") ||
+                                  : "1.0.1") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||
@@ -140,7 +153,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                             ["repository", "github", "arxiv", "web"].includes(s)
                         ) ||
                         new Set(d.evidenceScopes).size !== d.evidenceScopes.length ||
-                        (allow && !same(d.toolFilter, { allow })) ||
+                        !same(d.toolFilter, toolFilter) ||
                         Buffer.byteLength(JSON.stringify(d)) > 16384
                     )
                         add("DEFINITION_INVALID", `definitions.json/${i}`);
