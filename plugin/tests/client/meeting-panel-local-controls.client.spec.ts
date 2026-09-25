@@ -139,3 +139,53 @@ describe("Meeting panel local controls", () => {
         await waitFor(() => expect(api.read).toHaveBeenCalledTimes(3));
     });
 });
+
+it.each([false, true])(
+    "does not offer a retry for another meeting after selection changes (late=%s)",
+    async (late) => {
+        const { summary, view } = meetingProjectionFixture();
+        const second = { ...summary, meetingId: "meeting-2", objective: "Second meeting" };
+        let rejectControl: (error: Error) => void = () => {};
+        const pending = new Promise<never>((_, reject) => {
+            rejectControl = reject;
+        });
+        const api = {
+            list: vi.fn(async () => ({ meetings: [summary, second] })),
+            read: vi.fn(async (request) => ({ ...view, meetingId: request.meetingId })),
+            control: vi.fn(() => pending),
+            subscribeRefresh: () => ({
+                async *[Symbol.asyncIterator]() {
+                    await new Promise(() => {});
+                    yield undefined as never;
+                },
+                dispose: async () => {}
+            })
+        } as unknown as MeetingClient;
+        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
+        await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
+        if (!late) {
+            rejectControl(new Error("connection lost"));
+            await screen.findByRole("button", { name: "Retry this submission" });
+        }
+        fireEvent.click(screen.getByRole("button", { name: /Second meeting/ }));
+        await waitFor(() =>
+            expect(api.read).toHaveBeenCalledWith({
+                protocolVersion: 1,
+                meetingId: second.meetingId
+            })
+        );
+        if (late) rejectControl(new Error("connection lost"));
+        await waitFor(() =>
+            expect(
+                (screen.getByRole("button", { name: "Pause meeting" }) as HTMLButtonElement)
+                    .disabled
+            ).toBe(false)
+        );
+        await waitFor(() =>
+            expect(screen.queryByRole("button", { name: "Retry this submission" })).toBeNull()
+        );
+        expect(api.control).toHaveBeenCalledOnce();
+    }
+);

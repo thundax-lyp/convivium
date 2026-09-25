@@ -218,9 +218,21 @@ export const ConviviumMeetingPanel = ({
         window.addEventListener("focus", handleFocus);
         return () => window.removeEventListener("focus", handleFocus);
     }, [refresh]);
+    const localSubmission = useMeetingSubmission(
+        controlClient,
+        !controlsEnabled({
+            freshness,
+            selectedMeetingId: workspace.selectedMeetingId,
+            writePending
+        }),
+        () => {
+            void refreshAll({ recovery: false });
+        }
+    );
     const selectMeeting = useCallback(
         (meetingId: string) => {
             if (selectedRef.current === meetingId) return;
+            localSubmission.edit();
             refreshGenerationRef.current += 1;
             selectedRef.current = meetingId;
             setWorkspace((current) =>
@@ -235,18 +247,7 @@ export const ConviviumMeetingPanel = ({
             }));
             void loadDetail(meetingId);
         },
-        [loadDetail]
-    );
-    const localSubmission = useMeetingSubmission(
-        controlClient,
-        !controlsEnabled({
-            freshness,
-            selectedMeetingId: workspace.selectedMeetingId,
-            writePending
-        }),
-        () => {
-            void refreshAll({ recovery: false });
-        }
+        [loadDetail, localSubmission.edit]
     );
     const endMeeting = async () => {
         if (!detail) return;
