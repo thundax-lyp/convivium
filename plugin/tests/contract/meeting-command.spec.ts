@@ -205,12 +205,27 @@ describe("target Meeting command application creation", () => {
         };
         const context = {
             caller: {
-                channel: "dsh_tool" as const,
-                principalId: "captain-1"
-            },
-            captainParent: { id: "captain-1" } as never
+                channel: "loopback_remote" as const,
+                principalId: "local-controller"
+            }
         };
 
+        for (const caller of [
+            { channel: "dsh_tool" as const, principalId: "local-controller" },
+            { channel: "loopback_remote" as const, principalId: "other" },
+            {
+                channel: "loopback_remote" as const,
+                principalId: "local-controller",
+                sessionBindingId: "agent-binding"
+            }
+        ]) {
+            expect(await app.execute(command, { caller }, signal)).toMatchObject({
+                kind: "rejected",
+                error: { code: "UNAUTHORIZED" }
+            });
+        }
+        expect(create).not.toHaveBeenCalled();
+        now.mockClear();
         const result = await app.execute(command, context, signal);
 
         expect(result).toMatchObject({
@@ -278,8 +293,7 @@ describe("target Meeting command application creation", () => {
             app.execute(
                 command,
                 {
-                    caller: { channel: "dsh_tool", principalId: "captain-1" },
-                    captainParent: { id: "captain-1" } as never
+                    caller: { channel: "loopback_remote", principalId: "local-controller" }
                 },
                 new AbortController().signal
             )

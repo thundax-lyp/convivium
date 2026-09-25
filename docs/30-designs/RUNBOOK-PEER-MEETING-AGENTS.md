@@ -674,3 +674,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T7 测试依赖补全：同版 agent-loop、session-projection、session-persistence、session-persistence-jsonl、skill-filesystem，以及与已安装版本一致的 cordis-plugin-loader@1.0.3；仅 session-persistence 同时作为产品 peer 声明。T8 才把 owner 接入创建 coordinator，T10/T11 接入投递及恢复。
 
 - T5 前置补齐：模型 route 不可用时曾错误返回 ready（已观察 RED）。预检现调用 Host llm.resolveCallConfig，校验 provider/model 与显式 reasoningEffort；入口注入 llm，owner 测试同步注册模型替身。预检与 owner 共 3 文件、22 项通过；该验证不发起真实模型请求。
+
+- T8 第一笔：application 创建门禁改为 loopback_remote/local-controller 且无 sessionBindingId，移除 captainParent；既有 command contract 测试同步可信用户并覆盖伪造 Agent、错误 principal 和附带绑定的拒绝。先观察合法用户被旧门禁拒绝的 RED，修复后 11 项通过。允许该既有 contract 测试随 T8 修改；coordinator 与 Remote 接线尚待迁移，不能记 T8 PASS。

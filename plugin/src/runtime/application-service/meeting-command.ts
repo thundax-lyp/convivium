@@ -39,7 +39,6 @@ import type {
     SessionOwnership,
     TransitionResult
 } from "@/repository/types.js";
-import type { Agent } from "@deepseek-ai/dsh-agent";
 
 export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
@@ -53,8 +52,6 @@ export interface CallerBinding {
 
 export interface MeetingCommandExecutionContext {
     caller: CallerBinding;
-    /** Trusted Captain parent injected by the create tool; never decoded from command input. */
-    captainParent?: Agent;
     archiveEffect?: { effectId: string; archiveId: string };
     identityAdmissionResult?: IdentityAdmissionResultContext;
 }
@@ -835,12 +832,11 @@ async function executeCreateMeeting(
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
     if (
-        context.caller.channel !== "dsh_tool" ||
-        context.captainParent === undefined ||
-        context.caller.principalId !== String(context.captainParent.id) ||
+        context.caller.channel !== "loopback_remote" ||
+        context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
         context.caller.sessionBindingId !== undefined
     )
-        return rejected("UNAUTHORIZED", "Only a trusted Captain tool caller may create a Meeting");
+        return rejected("UNAUTHORIZED", "Only the trusted local user may create a Meeting");
     try {
         return await deps.creation.create(
             command,
