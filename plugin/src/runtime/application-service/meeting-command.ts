@@ -1,24 +1,12 @@
 import {
-    closeContribution,
-    claimEvidenceReview,
-    completeMeetingArchive,
-    disposeHandRaise,
-    endMeeting,
-    openRound,
-    publishRound,
-    raiseHand,
-    failEvidenceValidation,
-    recommendIdentity,
-    recordIdentityAdmissionResult,
-    recordReviewDelivery,
-    startMeetingArchive,
-    submitEvidence,
-    submitEvidenceReview,
-    transitionMeetingState,
+    runMeetingActionTransition,
+    TransitionRejected,
+    type CommandTransition
+} from "./meeting-action-transition.js";
+import {
+    captainActorIdFor,
     type IdentityAdmissionResultContext,
-    type MeetingDomainEffectRequest,
-    type MeetingState,
-    type MeetingTransitionResult
+    type MeetingState
 } from "@/domain/index.js";
 import {
     MeetingCommandSchema,
@@ -39,7 +27,6 @@ import type {
     SessionOwnership,
     TransitionResult
 } from "@/repository/types.js";
-import type { Agent } from "@deepseek-ai/dsh-agent";
 
 export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
@@ -53,8 +40,6 @@ export interface CallerBinding {
 
 export interface MeetingCommandExecutionContext {
     caller: CallerBinding;
-    /** Trusted Captain parent injected by the create tool; never decoded from command input. */
-    captainParent?: Agent;
     archiveEffect?: { effectId: string; archiveId: string };
     identityAdmissionResult?: IdentityAdmissionResultContext;
 }
@@ -77,7 +62,7 @@ export interface ResolvedCallerScope {
     caller: CallerBinding;
     meetingId: string;
     identityId?: string;
-    role: "local" | "manager" | "evidence_reviewer" | "participant" | "runtime";
+    role: "captain" | "manager" | "evidence_reviewer" | "participant" | "runtime";
     ownership?: SessionOwnership;
 }
 
@@ -101,17 +86,6 @@ export interface MeetingCommandApplicationDependencies {
     clock: { now(): number };
     resolveCallerScope: ResolveCallerScope;
     catalog?: RoleCatalogPort;
-}
-
-class TransitionRejected extends Error {
-    constructor(
-        readonly code: string,
-        message: string,
-        readonly targetKind?: string,
-        readonly targetId?: string
-    ) {
-        super(message);
-    }
 }
 
 const rejected = (
@@ -138,8 +112,24 @@ function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
 }
 
 function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean {
-    if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
-        return scope.role === "local";
+    if (
+        [
+            "activate_agenda",
+            "dispose_agenda_candidate",
+            "resolve_question",
+            "dispose_issue",
+            "abort_round",
+            "decide",
+            "change_decision",
+            "dispose_risk",
+            "record_completion_fact",
+            "change_completion_fact",
+            "pause_meeting",
+            "resume_meeting",
+            "end_meeting"
+        ].includes(action)
+    )
+        return scope.role === "captain";
     if (
         action === "record_review_delivery" ||
         action === "claim_evidence_review" ||
@@ -180,6 +170,8 @@ function validScope(
         const ownership = scope.ownership;
         return (
             scope.identityId !== undefined &&
+            scope.identityId === context.caller.principalId &&
+            scope.role === ownership?.role &&
             ownership !== undefined &&
             ownership.id === context.caller.sessionBindingId &&
             ownership.meetingId === command.meetingId &&
@@ -190,7 +182,7 @@ function validScope(
     }
     if (context.caller.channel === "loopback_remote")
         return (
-            scope.role === "local" &&
+            scope.role === "captain" &&
             context.caller.principalId === LOCAL_CONTROLLER_PRINCIPAL_ID &&
             context.caller.sessionBindingId === undefined
         );
@@ -262,49 +254,7 @@ function mapRepositoryError(error: unknown): MeetingCommandResult {
     return rejected(code, error.message);
 }
 
-type CommandTransition =
-    | MeetingTransitionResult
-    | {
-          kind: "accepted";
-          state: MeetingState;
-          relatedIds: readonly string[];
-          effectRequests: readonly {
-              kind: "identity_provision";
-              recommendationId: string;
-              admissionId: string;
-          }[];
-      };
-
 type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingState>["openMeeting"]>>;
-
-type TransitionInput = {
-    snapshot: { state: MeetingState; version: number };
-    repositoryContext: { allSessionOwnershipClosedAfterResult?: boolean };
-    deps: MeetingCommandApplicationDependencies;
-    command: MeetingCommand;
-    context: MeetingCommandExecutionContext;
-    scope: ResolvedCallerScope;
-    now: number;
-    factId: string;
-    catalogDefinitionHash?: string;
-    committedFacts: readonly CommittedFactRecord<MeetingState>[];
-};
-
-const resumedEvidenceReviewEffects = (state: MeetingState): readonly MeetingDomainEffectRequest[] =>
-    state.evidencePackages.flatMap((pkg) =>
-        pkg.versions
-            .filter(
-                (version) =>
-                    version.id === pkg.currentVersionId && version.status === "validation_cancelled"
-            )
-            .map((version) => ({
-                kind: "agent_notice" as const,
-                noticeKind: "review_request" as const,
-                recipientId: state.evidenceReviewerId,
-                agendaId: pkg.agendaId,
-                versionId: version.id
-            }))
-    );
 
 function actionAuthorizationFailure(
     command: MeetingCommand,
@@ -360,7 +310,6 @@ async function prepareIdentityCatalog(
     const catalog = await readMeetingRoleCatalog(
         deps.catalog,
         command.meetingId,
-        scope.ownership.parentSessionId,
         scope.ownership.sessionId
     );
     if (catalog.kind !== "available")
@@ -379,302 +328,6 @@ async function prepareIdentityCatalog(
     )
         return { result: rejected("PRECONDITION_FAILED", "Catalog candidate does not match") };
     return { definitionHash: candidate.definitionHash };
-}
-
-function runMeetingActionTransition(input: TransitionInput): CommandTransition {
-    const {
-        snapshot,
-        repositoryContext,
-        deps,
-        command,
-        context,
-        scope,
-        now,
-        factId,
-        catalogDefinitionHash,
-        committedFacts
-    } = input;
-    const generated = (kind: string) => deps.ids.nextId(kind);
-    const action = command.action;
-    const actorId = scope.identityId ?? scope.caller.principalId;
-    let transition: CommandTransition;
-    switch (action.kind) {
-        case "submit_manager_plan": {
-            const result = transitionMeetingState(
-                snapshot.state,
-                {
-                    kind: "plan_next_step",
-                    agendaId: action.agendaId,
-                    planKind: action.planKind,
-                    ...(action.roundGoal === undefined ? {} : { roundGoal: action.roundGoal }),
-                    rationale: action.rationale,
-                    ...(action.blockingReason === undefined
-                        ? {}
-                        : { blockingReason: action.blockingReason })
-                },
-                { kind: "identity", id: actorId },
-                now,
-                factId,
-                generated("manager_plan")
-            );
-            if (result.kind === "rejected") throw new TransitionRejected(result.code, result.code);
-            transition = {
-                kind: "accepted",
-                state: result.state,
-                relatedIds: result.facts[0].relatedIds,
-                effectRequests: []
-            };
-            break;
-        }
-        case "open_round":
-            transition = openRound(snapshot.state, {
-                roundId: generated("round"),
-                agendaId: action.agendaId,
-                planId: action.planId,
-                managerId: actorId,
-                now,
-                ...(action.deadlineAt === undefined ? {} : { deadlineAt: action.deadlineAt })
-            });
-            break;
-        case "raise_hand":
-            transition = raiseHand(snapshot.state, {
-                roundId: action.roundId,
-                contributorId: actorId,
-                purpose: action.purpose,
-                now
-            });
-            break;
-        case "dispose_hand_raise":
-            transition = disposeHandRaise(snapshot.state, {
-                roundId: action.roundId,
-                contributorId: action.contributorId,
-                managerId: actorId,
-                disposition: action.disposition,
-                reason: action.reason,
-                ...(action.disposition === "accepted"
-                    ? { contributionId: generated("contribution") }
-                    : {}),
-                now
-            });
-            break;
-        case "submit_evidence":
-            transition = submitEvidence(snapshot.state, {
-                contributionId: action.contributionId,
-                authorId: actorId,
-                evidence: action.evidence,
-                packageId: generated("evidence_package"),
-                versionId: generated("evidence_version"),
-                now
-            });
-            break;
-        case "close_contribution":
-            transition = closeContribution(snapshot.state, {
-                contributionId: action.contributionId,
-                actorId,
-                actorKind:
-                    scope.caller.channel === "deadline_handler" ? "deadline_handler" : "author",
-                exit: action.exit,
-                reason: action.reason,
-                now
-            });
-            break;
-        case "submit_evidence_review":
-            transition = submitEvidenceReview(snapshot.state, {
-                reviewerId: actorId,
-                roundId: action.roundId,
-                claimId: action.claimId,
-                versionId: action.versionId,
-                dimensions: action.dimensions,
-                scope: action.scope,
-                reviewId: generated("review"),
-                now
-            });
-            break;
-        case "claim_evidence_review":
-            transition = claimEvidenceReview(snapshot.state, {
-                claimId: generated("review_claim"),
-                sourceEffectId: action.sourceEffectId,
-                reviewerId: snapshot.state.evidenceReviewerId,
-                roundId: action.roundId,
-                versionId: action.versionId,
-                now,
-                expiresAt: now + snapshot.state.limits.reviewDeadlineMs
-            });
-            break;
-        case "fail_evidence_validation":
-            transition = failEvidenceValidation(snapshot.state, {
-                claimId: action.claimId,
-                roundId: action.roundId,
-                reason: action.reason,
-                now
-            });
-            break;
-        case "record_review_delivery":
-            transition = recordReviewDelivery(snapshot.state, {
-                reviewId: action.reviewId,
-                dispatcherId: actorId,
-                deliveryId: generated("review_delivery"),
-                status: action.status,
-                ...(action.failureReason === undefined
-                    ? {}
-                    : { failureReason: action.failureReason }),
-                now
-            });
-            break;
-        case "publish_round": {
-            const round = snapshot.state.rounds.find(
-                (candidate) => candidate.id === action.roundId
-            );
-            const count =
-                round?.contributionIds.filter((id) => {
-                    const contribution = snapshot.state.contributions.find(
-                        (candidate) => candidate.id === id
-                    );
-                    return contribution?.packageId !== undefined;
-                }).length ?? 0;
-            transition = publishRound(snapshot.state, {
-                roundId: action.roundId,
-                managerId: actorId,
-                publicationId: generated("publication"),
-                messageIds: Array.from({ length: count }, () => generated("formal_message")),
-                now
-            });
-            break;
-        }
-        case "pause_meeting":
-        case "resume_meeting": {
-            const result = transitionMeetingState(
-                snapshot.state,
-                action,
-                { kind: "local_controller", id: actorId },
-                now,
-                factId
-            );
-            if (result.kind === "rejected") throw new TransitionRejected(result.code, result.code);
-            transition = {
-                kind: "accepted",
-                state: result.state,
-                relatedIds: result.facts[0].relatedIds,
-                effectRequests:
-                    action.kind === "resume_meeting"
-                        ? resumedEvidenceReviewEffects(result.state)
-                        : []
-            };
-            break;
-        }
-        case "end_meeting":
-            transition = endMeeting(snapshot.state, {
-                ...action,
-                terminationId: generated("termination"),
-                actorId,
-                now
-            });
-            break;
-        case "start_archive":
-            transition = startMeetingArchive(snapshot.state, {
-                archiveId: context.archiveEffect!.archiveId,
-                actorId,
-                now,
-                questionIssueDispositionFacts: committedFacts
-                    .filter(
-                        (fact) =>
-                            (fact.kind === "resolve_question" &&
-                                fact.payload.kind === "question_disposition") ||
-                            (fact.kind === "dispose_issue" &&
-                                fact.payload.kind === "issue_disposition")
-                    )
-                    .sort(
-                        (left, right) =>
-                            left.occurredAt - right.occurredAt ||
-                            left.factId.localeCompare(right.factId)
-                    )
-                    .map((fact) => ({
-                        factId: fact.factId,
-                        kind: fact.kind,
-                        actorId: fact.actorId,
-                        occurredAt: fact.occurredAt,
-                        relatedIds: fact.relatedIds,
-                        payload: fact.payload
-                    })) as never
-            });
-            break;
-        case "record_archive_session_result": {
-            transition =
-                action.status === "closed" &&
-                repositoryContext.allSessionOwnershipClosedAfterResult === true
-                    ? completeMeetingArchive(snapshot.state, {
-                          actorId,
-                          now,
-                          allSessionOwnershipClosed: true
-                      })
-                    : {
-                          kind: "accepted",
-                          state: {
-                              ...snapshot.state,
-                              version: snapshot.state.version + 1,
-                              updatedAt: now
-                          },
-                          relatedIds: [action.sessionOwnershipId],
-                          effectRequests: []
-                      };
-            break;
-        }
-        case "recommend_identity": {
-            const result = recommendIdentity(
-                snapshot.state,
-                action,
-                actorId,
-                {
-                    recommendationId: generated("identity_recommendation"),
-                    ...(action.decision === "admit"
-                        ? {
-                              identityId: generated("meeting_identity"),
-                              childSessionId: generated("child_session"),
-                              definitionHash: catalogDefinitionHash
-                          }
-                        : {})
-                },
-                now
-            );
-            if (result.kind === "rejected")
-                throw new TransitionRejected(result.errorCode, result.errorCode);
-            transition = {
-                kind: "accepted",
-                state: result.state,
-                relatedIds: result.fact.relatedIds,
-                effectRequests: result.effect === undefined ? [] : [result.effect]
-            };
-            break;
-        }
-        case "record_identity_admission_result": {
-            if (context.identityAdmissionResult === undefined)
-                throw new TransitionRejected(
-                    "PRECONDITION_FAILED",
-                    "Identity admission result is required"
-                );
-            const result = recordIdentityAdmissionResult(
-                snapshot.state,
-                action.recommendationId,
-                context.identityAdmissionResult,
-                now
-            );
-            if (result.kind === "rejected")
-                throw new TransitionRejected(result.errorCode, result.errorCode);
-            transition = {
-                kind: "accepted",
-                state: result.state,
-                relatedIds: result.fact.relatedIds,
-                effectRequests: []
-            };
-            break;
-        }
-        case "create_meeting":
-            throw new TransitionRejected(
-                "INVALID_ARGUMENT",
-                "Create must use the creation coordinator"
-            );
-    }
-    return transition;
 }
 
 function finalizeMeetingTransition(input: {
@@ -745,6 +398,11 @@ function finalizeMeetingTransition(input: {
               }
             : {})
     };
+    const payload = transition.factPayload;
+    const factPayload: JsonObject =
+        payload === undefined || payload.kind === "references"
+            ? { kind: "references", relatedIds: [...transition.relatedIds] }
+            : { ...payload, evidenceIds: [...payload.evidenceIds] };
     const facts: readonly CommittedFactRecord<MeetingState>[] = [
         {
             factId,
@@ -753,7 +411,7 @@ function finalizeMeetingTransition(input: {
             occurredAt: now,
             meetingVersion: snapshotVersion + 1,
             relatedIds: transition.relatedIds,
-            payload: { kind: "references", relatedIds: [...transition.relatedIds] },
+            payload: factPayload,
             resultingState: transition.state
         }
     ];
@@ -778,8 +436,6 @@ function createRepositoryCommand(input: {
     committedFacts: readonly CommittedFactRecord<MeetingState>[];
 }): RepositoryCommand<MeetingCommandResult, MeetingState> {
     const { deps, command, context, scope, now, catalogDefinitionHash, committedFacts } = input;
-    const factId = deps.ids.nextId("fact");
-    const receiptId = deps.ids.nextId("receipt");
     const repositoryCommand: RepositoryCommand<MeetingCommandResult, MeetingState> = {
         requestId: command.requestId,
         commandKind: command.action.kind,
@@ -798,6 +454,8 @@ function createRepositoryCommand(input: {
               }
             : {}),
         transition: (snapshot, repositoryContext = {}) => {
+            const factId = deps.ids.nextId("fact");
+            const receiptId = deps.ids.nextId("receipt");
             const transition = runMeetingActionTransition({
                 snapshot,
                 repositoryContext,
@@ -817,7 +475,10 @@ function createRepositoryCommand(input: {
                 now,
                 factId,
                 receiptId,
-                actorId: scope.identityId ?? scope.caller.principalId,
+                actorId:
+                    scope.role === "captain"
+                        ? captainActorIdFor(command.meetingId)
+                        : (scope.identityId ?? scope.caller.principalId),
                 snapshotVersion: snapshot.version
             });
             repositoryCommand.facts = finalized.facts;
@@ -835,12 +496,11 @@ async function executeCreateMeeting(
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
     if (
-        context.caller.channel !== "dsh_tool" ||
-        context.captainParent === undefined ||
-        context.caller.principalId !== String(context.captainParent.id) ||
+        context.caller.channel !== "loopback_remote" ||
+        context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
         context.caller.sessionBindingId !== undefined
     )
-        return rejected("UNAUTHORIZED", "Only a trusted Captain tool caller may create a Meeting");
+        return rejected("UNAUTHORIZED", "Only the trusted local user may create a Meeting");
     try {
         return await deps.creation.create(
             command,

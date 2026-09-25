@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { abortRound, openRound } from "@/domain/transitions/round.js";
@@ -241,7 +242,7 @@ describe("evidence review and delivery", () => {
         const paused = transitionMeetingState(
             claim.state,
             { kind: "pause_meeting", reason: "人工暂停" },
-            { kind: "local_controller", id: "local-v1" },
+            { kind: "captain_user", id: captainActorIdFor("meeting-v1") },
             7,
             "pause-fact"
         );
@@ -255,7 +256,7 @@ describe("evidence review and delivery", () => {
         const resumed = transitionMeetingState(
             paused.state,
             { kind: "resume_meeting", reason: "继续" },
-            { kind: "local_controller", id: "local-v1" },
+            { kind: "captain_user", id: captainActorIdFor("meeting-v1") },
             8,
             "resume-fact"
         );
@@ -277,7 +278,7 @@ describe("evidence review and delivery", () => {
         const paused = transitionMeetingState(
             evidenceState(),
             { kind: "pause_meeting", reason: "人工暂停" },
-            { kind: "local_controller", id: "local-v1" },
+            { kind: "captain_user", id: captainActorIdFor("meeting-v1") },
             7,
             "pause-fact"
         );
@@ -456,7 +457,7 @@ describe("evidence review and delivery", () => {
 
         const aborted = abortRound(claim.state, {
             roundId: "round-v1",
-            actor: { kind: "local_controller", id: "runtime-v1" },
+            actor: { kind: "captain_user", id: captainActorIdFor("meeting-v1") },
             reason: "审核无法恢复",
             now: 6
         });

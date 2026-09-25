@@ -2,12 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
     activateTargetMeetingApplication,
     createTargetMeetingEffectDispatcher,
-    getLocalMeetingWebRuntime,
-    recoverTargetMeetingDeliveries
+    getLocalMeetingWebRuntime
 } from "@/runtime/meeting-lifecycle.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import roleResources from "../../../meeting-roles/definitions.json" with { type: "json" };
+import roleResources from "../../../config/definitions.json" with { type: "json" };
 
 const item = (kind: string) =>
     ({
@@ -29,9 +28,7 @@ describe("target Meeting effect routing", () => {
         const archive = { dispatch: vi.fn(async () => undefined) };
         const review = { dispatch: vi.fn(async () => undefined) };
         const reviewDelivery = { dispatch: vi.fn(async () => undefined) };
-        const parent = { id: "captain-1" };
         const dispatch = createTargetMeetingEffectDispatcher({
-            parent: parent as never,
             identity,
             notice,
             archive,
@@ -48,28 +45,6 @@ describe("target Meeting effect routing", () => {
         expect(archive.dispatch).not.toHaveBeenCalled();
         expect(review.dispatch).not.toHaveBeenCalled();
         expect(reviewDelivery.dispatch).not.toHaveBeenCalled();
-    });
-});
-
-describe("target Meeting delivery recovery", () => {
-    it("restarts delivery for a persisted non-archived Meeting with its exact live parent", async () => {
-        const parent = { id: "captain-1" };
-        const ensureDelivery = vi.fn(async () => undefined);
-        const recover = vi.fn(async () => ({
-            bootstrap: { status: "ready" },
-            snapshot: { state: { lifecycle: { status: "running" } } },
-            sessionOwnership: [{ parentSessionId: "captain-1" }]
-        }));
-        await recoverTargetMeetingDeliveries({
-            registry: {
-                listMeetings: () => [{ meetingId: "meeting-1" }],
-                openMeeting: async () => ({ recover })
-            } as never,
-            agents: { get: (id: string) => (id === "captain-1" ? parent : undefined) } as never,
-            ensureDelivery
-        });
-
-        expect(ensureDelivery).toHaveBeenCalledWith("meeting-1", parent);
     });
 });
 
@@ -104,6 +79,7 @@ describe("target Meeting list", () => {
             .mockResolvedValue(registry as never);
         const owner = {
             storageDomain: {},
+            logger: () => ({ error: vi.fn() }),
             subagents: {
                 getProvider: () => ({
                     name: "spawn",
@@ -120,7 +96,9 @@ describe("target Meeting list", () => {
             outboxPollMs: 1_000,
             agentDefinitions: roleResources.definitions
         };
-        const dispose = await activateTargetMeetingApplication(owner as never, config);
+        const dispose = await activateTargetMeetingApplication(owner as never, config, {
+            rolePackageRoot: "/fixture"
+        });
 
         try {
             await expect(

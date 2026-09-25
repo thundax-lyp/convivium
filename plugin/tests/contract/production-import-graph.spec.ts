@@ -93,11 +93,10 @@ describe("production import graph", () => {
         expect(graph.externals).not.toContain("node:sqlite");
     });
 
-    it("keeps Meeting code on Storage Domain and away from backend paths", () => {
+    it("keeps repository persistence on Storage Domain and away from filesystem paths", () => {
         const graph = importGraph([
             "repository/domain/domain-meeting-repository.ts",
-            "repository/domain/domain-repository-registry.ts",
-            "runtime/index.ts"
+            "repository/domain/domain-repository-registry.ts"
         ]);
         expect(graph.files.some((file) => resolve(sourceRoot, file).startsWith(storageRoot))).toBe(
             false

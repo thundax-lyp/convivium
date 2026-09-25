@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { expect, it } from "vitest";
 import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/transitions/outcome.js";
 import { validateMeetingState } from "@/domain/meeting-state-validation.js";
@@ -5,8 +6,8 @@ import { validState, decisionReadyState } from "./outcome-fixtures.js";
 
 it("decides with captain and local controller while copying candidate fields", () => {
     for (const actor of [
-        { kind: "identity", id: "captain" },
-        { kind: "local_controller", id: "contributor" }
+        { kind: "captain_user", id: captainActorIdFor("m") },
+        { kind: "captain_user", id: captainActorIdFor("m") }
     ] as const) {
         const state = decisionReadyState();
         const before = structuredClone(state);
@@ -47,15 +48,15 @@ const decidedState = () => {
     const result = decide(state, {
         decisionId: "old-decision",
         candidateId: "cand",
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 1
     });
     if (result.kind !== "accepted") throw new Error("fixture decision failed");
     return result.state;
 };
 it.each([
-    ["captain", { kind: "identity", id: "captain" }],
-    ["local", { kind: "local_controller", id: "captain" }]
+    ["captain", { kind: "captain_user", id: captainActorIdFor("m") }],
+    ["local", { kind: "captain_user", id: captainActorIdFor("m") }]
 ] as const)("supersedes atomically with %s", (_name, actor) => {
     const state = decidedState();
     const before = structuredClone(state);
@@ -112,7 +113,7 @@ it("supersedes with a replacement candidate from the current revision of the sam
         replacementDecisionId: "new-decision",
         rationale: "replace",
         evidenceIds: ["v"],
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 2
     });
 
@@ -166,7 +167,7 @@ it("rejects decision discriminant shapes and preserves state", () => {
             rationale: "x",
             evidenceIds: ["v"],
             replacementCandidateId: "c",
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         } as never)
     ).toMatchObject({
@@ -179,7 +180,7 @@ it("rejects decision discriminant shapes and preserves state", () => {
         decide(state, {
             decisionId: "",
             candidateId: "cand",
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         })
     ).toMatchObject({ error: { code: "INVALID_ARGUMENT" }, state });
@@ -197,7 +198,7 @@ it.each([
             decide(decisionReadyState(), {
                 decisionId: "d",
                 candidateId: "missing",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             }),
         "NOT_FOUND"
@@ -212,7 +213,7 @@ it.each([
             return decide(s, {
                 decisionId: "d",
                 candidateId: "cand",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             });
         },
@@ -260,7 +261,7 @@ it.each(["used candidate", "same revision accepted", "old revision candidate"] a
         const result = decide(state, {
             decisionId: "new-decision",
             candidateId: "cand",
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
         expect(result).toMatchObject({
@@ -284,7 +285,7 @@ it.each([
             status: "revoked",
             rationale: "x",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 2
         })
     ).toMatchObject({
@@ -300,7 +301,7 @@ it.each(["paused"] as const)("decision lifecycle %s", (status) => {
     const result = decide(state, {
         decisionId: "d",
         candidateId: "cand",
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 1
     });
     expect(result).toMatchObject({
@@ -315,7 +316,7 @@ it.each(["terminal"] as const)("decision terminal lifecycle %s", (status) => {
     const result = decide(state, {
         decisionId: "d",
         candidateId: "cand",
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 1
     });
     expect(result).toMatchObject({
@@ -333,7 +334,7 @@ it.each(["terminal"] as const)("change terminal lifecycle %s", (status) => {
             status: "revoked",
             rationale: "x",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 2
         })
     ).toMatchObject({

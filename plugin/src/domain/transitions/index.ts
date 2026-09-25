@@ -1,6 +1,6 @@
 export * from "./result.js";
 export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.js";
-export { openRound, isRoundClosable } from "./round.js";
+export { openRound, abortRound, isRoundClosable } from "./round.js";
 export { raiseHand, disposeHandRaise } from "./hand-raise.js";
 export {
     sendPrivateMail,

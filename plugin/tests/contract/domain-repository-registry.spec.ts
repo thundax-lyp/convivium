@@ -1,3 +1,4 @@
+import { peerBindings } from "../fixtures/peer-ownership.js";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
@@ -30,13 +31,15 @@ function catalogRecord(meetingId: string) {
 
 function creationRecord(meetingId: string) {
     return {
-        formatVersion: 1 as const,
+        formatVersion: 2 as const,
         meetingId,
         status: "creating" as const,
         requestId: `create-${meetingId}`,
         requestHash: `hash-${meetingId}`,
         authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
         initialState: {},
+        creator: { kind: "local_user", principalId: "local-controller" },
+        preparedDescriptors: [],
         createResult: null,
         initialOutbox: [],
         sessionOwnership: {},
@@ -207,7 +210,12 @@ describe("DomainRepositoryRegistry contract", () => {
 
     it("passes the projection callback to a meeting repository", async () => {
         const { facility } = fixture([catalogRecord("meeting-1")]);
+        facility.register(createFakeMeetingDomain({ name: meetingDomainName("meeting-1") }));
         const snapshots: unknown[] = [];
+        const identities = Array.from({ length: 7 }, (_, i) => ({
+            id: `identity-${i}`,
+            roles: [i === 0 ? "manager" : i === 1 ? "evidence_reviewer" : "contributor"]
+        }));
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
@@ -219,15 +227,19 @@ describe("DomainRepositoryRegistry contract", () => {
                 requestId: "create-meeting-1",
                 requestHash: "hash-meeting-1",
                 authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
-                initialState: { status: "created" },
+                initialState: { status: "created", identities },
+                ...peerBindings("meeting-1", identities),
                 createdAt: 1
             }
         });
+        for (const binding of peerBindings("meeting-1", identities).initialOwnership)
+            await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
         await repository.completeCreate({
             requestId: "create-meeting-1",
             requestHash: "hash-meeting-1",
             authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
-            initialState: { status: "created" },
+            initialState: { status: "created", identities },
+            ...peerBindings("meeting-1", identities),
             createdAt: 1
         });
         expect(snapshots).toHaveLength(1);

@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { recordCompletionFact, changeCompletionFact } from "@/domain/transitions/outcome.js";
@@ -114,7 +115,7 @@ describe("CompletionFact", () => {
             {
                 id: "old",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "old",
                 rationale: "old",
@@ -148,7 +149,7 @@ describe("CompletionFact", () => {
                 evidenceIds: ["v2"],
                 decisionIds: ["dec"]
             },
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
         expect(reviewResult).toMatchObject({
@@ -160,7 +161,7 @@ describe("CompletionFact", () => {
             {
                 id: "old",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "old",
                 rationale: "old",
@@ -191,7 +192,7 @@ describe("CompletionFact", () => {
                 evidenceIds: ["v"],
                 decisionIds: ["dec"]
             },
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
         expect(basisResult).toMatchObject({
@@ -215,7 +216,7 @@ describe("CompletionFact", () => {
                 {
                     id: "fact",
                     outputId: "o",
-                    actorId: "captain",
+                    actorId: captainActorIdFor("m"),
                     status: "active",
                     statement: "existing",
                     rationale: "existing",
@@ -250,7 +251,7 @@ describe("CompletionFact", () => {
                 actor: undefined,
                 status: "active",
                 id: "fact",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 createdAt: 0
             } as never
         ];
@@ -258,7 +259,7 @@ describe("CompletionFact", () => {
             changeCompletionFact(state, {
                 factId: "fact",
                 rationale: "x",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1,
                 ...overrides
             } as never)

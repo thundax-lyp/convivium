@@ -205,12 +205,27 @@ describe("target Meeting command application creation", () => {
         };
         const context = {
             caller: {
-                channel: "dsh_tool" as const,
-                principalId: "captain-1"
-            },
-            captainParent: { id: "captain-1" } as never
+                channel: "loopback_remote" as const,
+                principalId: "local-controller"
+            }
         };
 
+        for (const caller of [
+            { channel: "dsh_tool" as const, principalId: "local-controller" },
+            { channel: "loopback_remote" as const, principalId: "other" },
+            {
+                channel: "loopback_remote" as const,
+                principalId: "local-controller",
+                sessionBindingId: "agent-binding"
+            }
+        ]) {
+            expect(await app.execute(command, { caller }, signal)).toMatchObject({
+                kind: "rejected",
+                error: { code: "UNAUTHORIZED" }
+            });
+        }
+        expect(create).not.toHaveBeenCalled();
+        now.mockClear();
         const result = await app.execute(command, context, signal);
 
         expect(result).toMatchObject({
@@ -278,8 +293,7 @@ describe("target Meeting command application creation", () => {
             app.execute(
                 command,
                 {
-                    caller: { channel: "dsh_tool", principalId: "captain-1" },
-                    captainParent: { id: "captain-1" } as never
+                    caller: { channel: "loopback_remote", principalId: "local-controller" }
                 },
                 new AbortController().signal
             )
@@ -313,7 +327,7 @@ describe("target Meeting command application transitions", () => {
         } as unknown as MeetingRepositoryPort<MeetingState>;
         const caller = {
             channel: "dsh_tool" as const,
-            principalId: "manager-session",
+            principalId: "manager-v1",
             sessionBindingId: "ownership-v1"
         };
         const app = createMeetingCommandApplication({
@@ -329,10 +343,10 @@ describe("target Meeting command application transitions", () => {
                 identityId: "manager-v1",
                 role: "manager" as const,
                 ownership: {
+                    role: "manager",
                     id: "ownership-v1",
                     meetingId: state.id,
                     identityId: "manager-v1",
-                    parentSessionId: "captain-session",
                     sessionId: "manager-session",
                     lifecycleStatus: "active",
                     capabilityStatus: "active"
@@ -388,7 +402,7 @@ describe("target Meeting command application transitions", () => {
             resolveCallerScope: async ({ caller }) => ({
                 caller,
                 meetingId: state.id,
-                role: "local"
+                role: "captain"
             })
         });
 
@@ -477,5 +491,137 @@ describe("target Meeting command application transitions", () => {
         ).resolves.toEqual(replayed);
         expect(execute).toHaveBeenCalledOnce();
         expect(recover).not.toHaveBeenCalled();
+    });
+});
+
+const captainActions = [
+    { kind: "activate_agenda", agendaId: "a", previousDisposition: "completed", reason: "next" },
+    { kind: "dispose_agenda_candidate", candidateId: "c", disposition: "parked", reason: "later" },
+    {
+        kind: "resolve_question",
+        questionId: "q",
+        status: "deferred",
+        rationale: "later",
+        evidenceIds: []
+    },
+    {
+        kind: "dispose_issue",
+        issueId: "i",
+        status: "resolved",
+        rationale: "fixed",
+        evidenceIds: []
+    },
+    { kind: "abort_round", roundId: "r", reason: "stop" },
+    { kind: "decide", candidateId: "c" },
+    {
+        kind: "change_decision",
+        decisionId: "d",
+        status: "revoked",
+        rationale: "invalid",
+        evidenceIds: []
+    },
+    {
+        kind: "dispose_risk",
+        issueId: "i",
+        action: "accept",
+        scope: "current",
+        rationale: "bounded",
+        evidenceIds: []
+    },
+    {
+        kind: "record_completion_fact",
+        outputId: "o",
+        statement: "done",
+        rationale: "verified",
+        evidenceIds: [],
+        decisionIds: []
+    },
+    { kind: "change_completion_fact", factId: "f", status: "revoked", rationale: "invalid" }
+];
+const controlEnvelope = {
+    protocolVersion: 1,
+    meetingId: "meeting-1",
+    expectedMeetingVersion: 1,
+    requestId: "request-1"
+};
+describe("Captain action wire contract", () => {
+    it.each(captainActions)(
+        "parses $kind and requires its fields and Meeting version",
+        (action) => {
+            expect(MeetingCommandSchema.parse({ ...controlEnvelope, action }).action).toEqual(
+                action
+            );
+            expect(
+                MeetingCommandSchema.safeParse({
+                    ...controlEnvelope,
+                    expectedMeetingVersion: undefined,
+                    action
+                }).success
+            ).toBe(false);
+            for (const key of Object.keys(action).filter((key) => key !== "kind")) {
+                const missing: Record<string, unknown> = { ...action };
+                delete missing[key];
+                expect(
+                    MeetingCommandSchema.safeParse({ ...controlEnvelope, action: missing }).success,
+                    key
+                ).toBe(false);
+            }
+            expect(
+                MeetingCommandSchema.safeParse({
+                    ...controlEnvelope,
+                    action: { kind: action.kind, json: action }
+                }).success
+            ).toBe(false);
+        }
+    );
+    it.each([
+        [
+            {
+                kind: "dispose_agenda_candidate",
+                candidateId: "c",
+                disposition: "promoted",
+                reason: "next"
+            },
+            "promotedAgenda",
+            { id: "a", title: "topic", question: "why", requiredOutputIds: [] },
+            "parked"
+        ],
+        [
+            {
+                kind: "change_decision",
+                decisionId: "d",
+                status: "superseded",
+                rationale: "new",
+                evidenceIds: []
+            },
+            "replacementCandidateId",
+            "candidate-2",
+            "revoked"
+        ],
+        [
+            { kind: "change_completion_fact", factId: "f", status: "superseded", rationale: "new" },
+            "replacement",
+            {
+                outputId: "o",
+                statement: "done",
+                rationale: "verified",
+                evidenceIds: [],
+                decisionIds: []
+            },
+            "revoked"
+        ]
+    ])("requires and forbids conditional data for %j", (action, key, value, forbiddenStatus) => {
+        const parse = (input) =>
+            MeetingCommandSchema.safeParse({ ...controlEnvelope, action: input }).success;
+        expect(parse(action)).toBe(false);
+        const complete = { ...action, [key]: value };
+        expect(parse(complete)).toBe(true);
+        expect(
+            parse({
+                ...complete,
+                [action.kind === "dispose_agenda_candidate" ? "disposition" : "status"]:
+                    forbiddenStatus
+            })
+        ).toBe(false);
     });
 });

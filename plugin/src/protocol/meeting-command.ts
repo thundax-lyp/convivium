@@ -20,7 +20,7 @@ const initialIdentity = z.object({
     definitionId: id,
     definitionVersion: text,
     displayName: text,
-    roles: z.array(z.enum(["captain", "manager", "contributor", "evidence_reviewer"])),
+    roles: z.array(z.enum(["manager", "contributor", "evidence_reviewer"])),
     agendaResponsibilityIds: z.array(id),
     riskAuthority: z.boolean(),
     required: z.boolean()
@@ -183,7 +183,107 @@ export const ResumeMeetingActionSchema = z.object({
     reason: text
 });
 
+const agendaInput = z.object({
+    id,
+    title: text,
+    question: text,
+    requiredOutputIds: z.array(id),
+    ownerId: id.optional()
+});
+const completionInput = z.object({
+    outputId: id,
+    criterionId: id.optional(),
+    statement: text,
+    rationale: text,
+    evidenceIds: z.array(id),
+    decisionIds: z.array(id)
+});
+export const ActivateAgendaActionSchema = z.object({
+    kind: z.literal("activate_agenda"),
+    agendaId: id,
+    previousDisposition: z.enum(["completed", "deferred", "closed"]),
+    reason: text
+});
+export const DisposeAgendaCandidateActionSchema = z
+    .object({
+        kind: z.literal("dispose_agenda_candidate"),
+        candidateId: id,
+        disposition: z.enum(["promoted", "parked", "rejected"]),
+        reason: text,
+        promotedAgenda: agendaInput.optional()
+    })
+    .superRefine((value, ctx) => {
+        if ((value.disposition === "promoted") !== (value.promotedAgenda !== undefined))
+            ctx.addIssue({ code: "custom", path: ["promotedAgenda"] });
+    });
+export const ResolveQuestionActionSchema = z.object({
+    kind: z.literal("resolve_question"),
+    questionId: id,
+    status: z.enum(["answered", "withdrawn", "deferred"]),
+    rationale: text,
+    evidenceIds: z.array(id)
+});
+export const DisposeIssueActionSchema = z.object({
+    kind: z.literal("dispose_issue"),
+    issueId: id,
+    status: z.enum(["resolved", "deferred", "out_of_scope"]),
+    rationale: text,
+    evidenceIds: z.array(id)
+});
+export const AbortRoundActionSchema = z.object({
+    kind: z.literal("abort_round"),
+    roundId: id,
+    reason: text
+});
+export const DecideActionSchema = z.object({ kind: z.literal("decide"), candidateId: id });
+export const ChangeDecisionActionSchema = z
+    .object({
+        kind: z.literal("change_decision"),
+        decisionId: id,
+        status: z.enum(["superseded", "revoked"]),
+        rationale: text,
+        evidenceIds: z.array(id),
+        replacementCandidateId: id.optional()
+    })
+    .superRefine((value, ctx) => {
+        if ((value.status === "superseded") !== (value.replacementCandidateId !== undefined))
+            ctx.addIssue({ code: "custom", path: ["replacementCandidateId"] });
+    });
+export const DisposeRiskActionSchema = z.object({
+    kind: z.literal("dispose_risk"),
+    issueId: id,
+    action: z.enum(["accept", "reject"]),
+    scope: text,
+    rationale: text,
+    evidenceIds: z.array(id)
+});
+export const RecordCompletionFactActionSchema = completionInput.extend({
+    kind: z.literal("record_completion_fact")
+});
+export const ChangeCompletionFactActionSchema = z
+    .object({
+        kind: z.literal("change_completion_fact"),
+        factId: id,
+        status: z.enum(["superseded", "revoked"]),
+        rationale: text,
+        replacement: completionInput.optional()
+    })
+    .superRefine((value, ctx) => {
+        if ((value.status === "superseded") !== (value.replacement !== undefined))
+            ctx.addIssue({ code: "custom", path: ["replacement"] });
+    });
+
 const actions = [
+    ActivateAgendaActionSchema,
+    DisposeAgendaCandidateActionSchema,
+    ResolveQuestionActionSchema,
+    DisposeIssueActionSchema,
+    AbortRoundActionSchema,
+    DecideActionSchema,
+    ChangeDecisionActionSchema,
+    DisposeRiskActionSchema,
+    RecordCompletionFactActionSchema,
+    ChangeCompletionFactActionSchema,
     CreateMeetingActionSchema,
     RecommendIdentityActionSchema,
     RecordIdentityAdmissionResultActionSchema,

@@ -16,13 +16,13 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 });
 
 export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
-    ["manager", "convivium.meeting_manager", "1.3.2", "manager"],
-    ["reviewer", "convivium.verification_reviewer", "1.2.6", "evidence_reviewer"],
-    ["contributor-a", "convivium.domain_architect", "1.0.3", "contributor"],
-    ["contributor-b", "convivium.runtime_engineer", "1.0.3", "contributor"],
-    ["contributor-c", "convivium.protocol_ui_engineer", "1.0.3", "contributor"],
-    ["contributor-d", "convivium.github_research_analyst", "1.0.3", "contributor"],
-    ["contributor-e", "convivium.arxiv_research_analyst", "1.0.3", "contributor"]
+    ["manager", "convivium.meeting_manager", "2.0.0", "manager"],
+    ["reviewer", "convivium.verification_reviewer", "2.0.0", "evidence_reviewer"],
+    ["contributor-a", "convivium.domain_architect", "2.0.0", "contributor"],
+    ["contributor-b", "convivium.runtime_engineer", "2.0.0", "contributor"],
+    ["contributor-c", "convivium.protocol_ui_engineer", "2.0.0", "contributor"],
+    ["contributor-d", "convivium.github_research_analyst", "2.0.0", "contributor"],
+    ["contributor-e", "convivium.arxiv_research_analyst", "2.0.0", "contributor"]
 ];
 
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
@@ -176,7 +176,6 @@ const evidence = (round, suffix) => ({
 export async function runMeetingBusinessLoopScenario(runtime) {
     const {
         ctx,
-        captain,
         callTargetTool,
         callTargetToolResult,
         nextCall,
@@ -201,7 +200,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         action: {
             kind: "create_meeting",
             objective: {
-                statement: MEETING_BUSINESS_LOOP_TOPIC.objective,
+                statement:
+                    MEETING_BUSINESS_LOOP_TOPIC.objective +
+                    "。这是确定性业务冒烟：Manager 与五位 Contributor 仅阅读通知后等待测试驱动调用命令，不自行开轮、提交计划、举手、写证据或发布；Reviewer 独立处理真实 review request 并运行 one-shot worker。测试驱动将完成四轮业务，正式交流只经 Runtime。",
                 requiredOutputs: [],
                 acceptanceCriteria: [],
                 hardConstraints: [],
@@ -234,17 +235,10 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             limits: MEETING_BUSINESS_LOOP_LIMITS
         }
     };
-    const created = await callTargetTool(
-        ctx,
-        captain.agent,
-        "convivium_create_meeting",
-        input,
-        nextCall()
-    );
+    const created = await runtime.remote("control", { command: input });
+    assert(created.kind === "accepted", "user creation rejected: " + JSON.stringify(created));
     const meetingId = created.meetingId;
-    const runtimeApi = ctx.get("conviviumMeetingRuntime");
-    const read = () =>
-        runtimeApi.read({ protocolVersion: 1, meetingId }, new AbortController().signal);
+    const read = () => runtime.remote("read", { request: { protocolVersion: 1, meetingId } });
     const view = await read();
     const identities = Object.fromEntries(
         view.identities.map((identity) => [identity.displayName, identity.id])
@@ -253,7 +247,10 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         await Promise.all(
             keys.map(async (key) => [
                 key,
-                await runtime.waitForAgent(ctx, stableId("child_session", meetingId, key))
+                await runtime.waitForAgent(
+                    ctx,
+                    stableId("meeting_agent_session", meetingId, identities[key])
+                )
             ])
         )
     );
@@ -273,9 +270,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         for (const key of contributorKeys) {
             const turns = reviewerTurnSummary(currentAgent(key));
             if (turns.starts > turns.ends && interruptedTurnCount.get(key) !== turns.starts) {
-                ctx.subagents.interrupt(agents[key].id, {
-                    kind: "ancestor",
-                    agent: captain.agent
+                currentAgent(key).cancel({
+                    kind: "hook",
+                    reason: "fixture contribution is driven by probe"
                 });
                 interruptedTurnCount.set(key, turns.starts);
             }
@@ -325,12 +322,11 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         reviewerProvisioning.endReasons.at(-1)?.kind === "completed",
         `reviewer provisioning turn failed: ${JSON.stringify(reviewerProvisioning)}`
     );
-    let version = view.version;
+    const settled = await read();
+    assert(settled.rounds.length === 0, "fixture Manager opened an unsolicited round");
+    let version = settled.version;
     let manager = await runtime.waitForAgent(ctx, agents.manager.id);
-    const knownSessionIds = new Set([
-        String(captain.agent.id),
-        ...Object.values(agents).map((agent) => String(agent.id))
-    ]);
+    const knownSessionIds = new Set([...Object.values(agents).map((agent) => String(agent.id))]);
     const roundTrace = [];
     const workerSessionIds = new Set();
     let workerAuthorityVerified = false;
@@ -554,9 +550,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             for (const key of raised) {
                 const turns = reviewerTurnSummary(currentAgent(key));
                 if (turns.starts > turns.ends && interruptedTurnCount.get(key) !== turns.starts) {
-                    ctx.subagents.interrupt(agents[key].id, {
-                        kind: "ancestor",
-                        agent: captain.agent
+                    currentAgent(key).cancel({
+                        kind: "hook",
+                        reason: "fixture contribution is driven by probe"
                     });
                     interruptedTurnCount.set(key, turns.starts);
                 }
@@ -737,8 +733,8 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 .map((review) => review.id)
         });
     }
-    const ended = await runtimeApi.control(
-        {
+    const ended = await runtime.remote("control", {
+        command: {
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: version,
@@ -752,9 +748,8 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 unresolvedQuestionIds: [],
                 unresolvedIssueIds: []
             }
-        },
-        new AbortController().signal
-    );
+        }
+    });
     assert(ended.kind === "accepted", "local end_meeting was rejected");
     let archived;
     for (let attempt = 0; attempt < 900; attempt += 1) {

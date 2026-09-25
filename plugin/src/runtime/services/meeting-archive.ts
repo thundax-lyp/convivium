@@ -1,5 +1,6 @@
-import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
+import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
+import type { MeetingAgentOwner } from "@/dsh/index.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
 import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -10,6 +11,7 @@ import {
 } from "@/runtime/application-service/meeting-command.js";
 
 class MeetingArchiveDispatchError extends Error {
+    readonly terminalOnAttemptLimit = false;
     constructor(
         readonly code: string,
         readonly retryable: boolean
@@ -18,38 +20,36 @@ class MeetingArchiveDispatchError extends Error {
     }
 }
 
-function unavailable(): never {
+const unavailable: () => never = () => {
     throw new MeetingArchiveDispatchError("RECOVERY_UNAVAILABLE", false);
-}
+};
 
-function retry(code: string): never {
+const retry: (code: string) => never = (code) => {
     throw new MeetingArchiveDispatchError(code, true);
-}
+};
 
-function stringField(payload: Record<string, unknown>, key: string): string {
+const stringField = (payload: Record<string, unknown>, key: string): string => {
     const value = payload[key];
     if (typeof value !== "string" || value.trim() === "") unavailable();
     return value;
-}
-
-type ArchiveSessions = Pick<
-    SubagentRuntime,
-    "listChildren" | "interrupt" | "drainContinuableChildren"
->;
+};
 
 interface DispatchArchiveCleanupInput {
     readonly outboxItem: OutboxItem;
-    readonly parent: Agent;
     readonly signal: AbortSignal;
 }
 
 interface MeetingArchiveDispatcherDependencies {
-    readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
-    readonly sessions: ArchiveSessions;
+    readonly repository: Pick<
+        MeetingRepositoryPort<MeetingState>,
+        "recover" | "recordSessionOwnership"
+    >;
+    readonly owner: Pick<MeetingAgentOwner, "stop">;
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly application: MeetingCommandApplication;
 }
 
-function roleFor(identity: MeetingIdentity): SessionOwnership["role"] {
+const roleFor = (identity: MeetingIdentity): SessionOwnership["role"] => {
     if (identity.roles.length !== 1) unavailable();
     switch (identity.roles[0]) {
         case "manager":
@@ -61,13 +61,12 @@ function roleFor(identity: MeetingIdentity): SessionOwnership["role"] {
         default:
             return unavailable();
     }
-}
+};
 
-function targetOwnerships(
+const targetOwnerships = (
     state: MeetingState,
-    ownerships: readonly SessionOwnership[],
-    parent: Agent
-): readonly SessionOwnership[] {
+    ownerships: readonly SessionOwnership[]
+): readonly SessionOwnership[] => {
     const archiveIdentityIds = new Set(
         state.archive?.identityProvenance.map(({ identityId }) => identityId) ?? []
     );
@@ -76,11 +75,8 @@ function targetOwnerships(
         state.identities.some((identity) => !archiveIdentityIds.has(identity.id))
     )
         unavailable();
-    const targets = ownerships.filter(
-        (ownership) =>
-            ownership.meetingId === state.id && ownership.supersededBySessionId === undefined
-    );
-    if (targets.length !== state.identities.length) unavailable();
+    const targets = ownerships;
+    if (targets.some((o) => o.meetingId !== state.id)) unavailable();
     const ids = new Set<string>();
     const sessions = new Set<string>();
     let managers = 0;
@@ -99,7 +95,6 @@ function targetOwnerships(
         const role = roleFor(identity);
         if (
             ownership.role !== role ||
-            ownership.parentSessionId !== String(parent.id) ||
             (ownership.lifecycleStatus === "closed" && ownership.capabilityStatus !== "revoked")
         )
             unavailable();
@@ -115,42 +110,22 @@ function targetOwnerships(
         if (role === "evidence_reviewer") reviewers += 1;
     }
     if (managers !== 1 || reviewers !== 1) unavailable();
-    return targets;
-}
-
-async function proveDurableChildren(
-    sessions: ArchiveSessions,
-    parent: Agent,
-    signal: AbortSignal,
-    ownerships: readonly SessionOwnership[]
-): Promise<void> {
-    const entries = await sessions.listChildren(parent.id, signal);
-    const expected = new Map(ownerships.map((ownership) => [ownership.sessionId, ownership]));
-    const observed = new Set<string>();
-    for (const entry of entries) {
-        const sessionId = String(entry.id);
-        const ownership = expected.get(sessionId);
-        if (!ownership) {
-            if (
-                entry.kind === "child" &&
-                entry.label !== undefined &&
-                decodeMeetingIdentitySessionLabel(entry.label)?.meetingId ===
-                    ownerships[0]?.meetingId
-            )
-                unavailable();
-            continue;
-        }
+    for (const ownership of targets) {
+        if (state.identities.some((i) => i.sessionOwnershipId === ownership.id)) continue;
+        const admission = state.identityRecommendations.find((r) => r.id === ownership.admissionId);
         if (
-            entry.kind !== "child" ||
-            observed.has(sessionId) ||
-            entry.mode !== "continuable" ||
-            entry.label !== ownership.sessionLabel
+            !admission ||
+            admission.identityId !== ownership.identityId ||
+            admission.sessionId !== ownership.sessionId ||
+            ids.has(ownership.id) ||
+            sessions.has(ownership.sessionId)
         )
             unavailable();
-        observed.add(sessionId);
+        ids.add(ownership.id);
+        sessions.add(ownership.sessionId);
     }
-    if (observed.size !== ownerships.length) unavailable();
-}
+    return targets;
+};
 
 const context = {
     caller: {
@@ -159,15 +134,15 @@ const context = {
     }
 };
 
-export function createMeetingArchiveDispatcher(
+export const createMeetingArchiveDispatcher = (
     dependencies: MeetingArchiveDispatcherDependencies
-): { dispatch(input: DispatchArchiveCleanupInput): Promise<void> } {
-    async function recordResult(
+): { dispatch(input: DispatchArchiveCleanupInput): Promise<void> } => {
+    const recordResult = async (
         input: DispatchArchiveCleanupInput,
         archiveId: string,
         ownership: SessionOwnership,
         status: "closed" | "failed"
-    ): Promise<void> {
+    ): Promise<void> => {
         const recovered = await dependencies.repository.recover();
         const snapshot = recovered.snapshot;
         if (!snapshot || !ownership.id) unavailable();
@@ -203,10 +178,8 @@ export function createMeetingArchiveDispatcher(
             (candidate) => candidate.id === ownership.id
         );
         if (persisted?.lifecycleStatus === "closed") return;
-        if (status === "failed" && persisted?.lastClosureFailureCode === "SESSION_CLOSE_FAILED")
-            return;
         retry("ARCHIVE_SESSION_RESULT_COMMIT_FAILED");
-    }
+    };
 
     return {
         async dispatch(input) {
@@ -256,38 +229,48 @@ export function createMeetingArchiveDispatcher(
                 snapshot.state.archive.status !== "complete"
             )
                 unavailable();
-            const ownerships = targetOwnerships(
-                snapshot.state,
-                recovered.sessionOwnership,
-                input.parent
-            );
-            await proveDurableChildren(
-                dependencies.sessions,
-                input.parent,
-                input.signal,
-                ownerships
-            );
-            const pending = ownerships.filter(
-                (ownership) => ownership.lifecycleStatus !== "closed"
-            );
-            if (pending.length > 0) {
-                try {
-                    for (const ownership of pending)
-                        dependencies.sessions.interrupt(ownership.sessionId as never, {
-                            kind: "ancestor",
-                            agent: input.parent
-                        });
-                    await dependencies.sessions.drainContinuableChildren(
-                        input.parent,
-                        pending.map((ownership) => ownership.sessionId as never)
-                    );
-                } catch {
-                    await recordResult(input, archiveId, pending[0]!, "failed");
-                    retry("SESSION_CLOSE_FAILED");
-                }
+            const ownerships = targetOwnerships(snapshot.state, recovered.sessionOwnership);
+            // Revoke the entire Meeting before stopping any handle. A partial cleanup never
+            // leaves another owned Agent authorized while the Meeting is archiving.
+            const pending: SessionOwnership[] = [];
+            for (const ownership of ownerships) {
+                if (ownership.lifecycleStatus === "closed") continue;
+                const { createdAt: _created, updatedAt: _updated, ...binding } = ownership;
+                pending.push(
+                    ownership.capabilityStatus === "revoked"
+                        ? ownership
+                        : await dependencies.repository.recordSessionOwnership(
+                              { ...binding, capabilityStatus: "revoked" },
+                              Date.now()
+                          )
+                );
             }
-            for (const ownership of pending)
+            for (const ownership of pending) {
+                const definition = dependencies.definitions.find(
+                    (d) =>
+                        d.agentDefinitionId === ownership.definition.agentDefinitionId &&
+                        d.definitionVersion === ownership.definition.definitionVersion
+                );
+                if (!definition) retry("RECOVERY_UNAVAILABLE");
+                try {
+                    await dependencies.owner.stop({
+                        ownership,
+                        definition,
+                        reason: "Meeting archived",
+                        signal: input.signal
+                    });
+                } catch (error) {
+                    // A never-materialized provisioning Session has no handle to close.
+                    if (
+                        !(error instanceof SessionPersistenceNotFoundError) ||
+                        ownership.lifecycleStatus !== "provisioning"
+                    ) {
+                        await recordResult(input, archiveId, ownership, "failed");
+                        retry("SESSION_CLOSE_FAILED");
+                    }
+                }
                 await recordResult(input, archiveId, ownership, "closed");
+            }
             const completed = await dependencies.repository.recover();
             if (
                 completed.snapshot?.state.lifecycle.status !== "archived" ||
@@ -296,4 +279,4 @@ export function createMeetingArchiveDispatcher(
                 unavailable();
         }
     };
-}
+};

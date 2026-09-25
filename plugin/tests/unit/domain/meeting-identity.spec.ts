@@ -74,7 +74,7 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1",
+                sessionId: "meeting-v1-participant-identity-1",
                 definitionHash: "a".repeat(64)
             },
             1
@@ -90,7 +90,7 @@ describe("identity domain transitions", () => {
                 admissionId: "recommendation-1",
                 meetingId: "meeting-v1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1",
+                sessionId: "meeting-v1-participant-identity-1",
                 ownershipId: "ownership-1",
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
@@ -128,7 +128,7 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1",
+                sessionId: "meeting-v1-participant-identity-1",
                 definitionHash: "a".repeat(64)
             },
             1
@@ -143,7 +143,7 @@ describe("identity domain transitions", () => {
                 admissionId: "recommendation-1",
                 meetingId: "meeting-v1",
                 identityId: "identity-1",
-                childSessionId: "meeting-v1-participant-identity-1",
+                sessionId: "meeting-v1-participant-identity-1",
                 ownershipId: "ownership-1",
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
@@ -177,7 +177,7 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1",
+                sessionId: "session-1",
                 definitionHash: "a".repeat(64)
             },
             1
@@ -191,7 +191,7 @@ describe("identity domain transitions", () => {
                 admissionId: "recommendation-1",
                 meetingId: "meeting-v1",
                 identityId: "identity-1",
-                childSessionId: "session-1",
+                sessionId: "session-1",
                 ownershipId: "ownership-1",
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
@@ -225,7 +225,7 @@ describe("identity domain transitions", () => {
         expect(reused.state.identityRecommendations.at(-1)).toMatchObject({
             status: "active",
             identityId: "identity-1",
-            childSessionId: "session-1",
+            sessionId: "session-1",
             definitionHash: "a".repeat(64),
             resolvedAt: 3
         });
@@ -275,7 +275,7 @@ describe("identity domain transitions", () => {
             {
                 recommendationId: "recommendation-1",
                 identityId: "identity-1",
-                childSessionId: "session-1",
+                sessionId: "session-1",
                 definitionHash: "a".repeat(64)
             },
             1

@@ -1,5 +1,5 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
-import { createHash } from "node:crypto";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 import { parseAgentModelOverrides } from "./model-options.js";
 import type { MeetingAgentModelOverrides } from "./model-options.js";
@@ -7,7 +7,7 @@ import { parseAgentDefinitions } from "./model.js";
 import type { AgentDefinitionBinding, MeetingAgentDefinition } from "./model.js";
 
 export interface ResolvedRoleComposition {
-    readonly persona: string;
+    readonly agentInstructions: MeetingAgentDefinition["agentInstructions"];
     readonly toolFilter?: ToolRestriction;
     readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
     readonly agentDefinition: AgentDefinitionBinding;
@@ -40,16 +40,19 @@ export type DynamicDefinitionResolution =
           code: "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH" | "ROLE_NOT_ALLOWED";
       };
 
-export function resolveDynamicMeetingDefinition(
+export const resolveDynamicMeetingDefinition = (
     definitions: readonly MeetingAgentDefinition[],
     definitionRef: { id: string; version: string },
     expectedHash: string
-): DynamicDefinitionResolution {
+): DynamicDefinitionResolution => {
     const definition = definitions.find((item) => item.agentDefinitionId === definitionRef.id);
     if (!definition) return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
     if (definition.definitionVersion !== definitionRef.version)
         return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
-    if (definition.roleDefinitionId === "meeting_manager")
+    if (
+        definition.roleDefinitionId === "meeting_manager" ||
+        definition.roleDefinitionId === "verification_reviewer"
+    )
         return { kind: "rejected", code: "ROLE_NOT_ALLOWED" };
     const binding = {
         agentDefinitionId: definition.agentDefinitionId,
@@ -59,44 +62,33 @@ export function resolveDynamicMeetingDefinition(
     if (binding.definitionHash !== expectedHash)
         return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
     return { kind: "resolved", definition, binding };
-}
+};
 
-function definitionHash(d: MeetingAgentDefinition): string {
-    return createHash("sha256")
-        .update(
-            JSON.stringify({
-                agentDefinitionId: d.agentDefinitionId,
-                definitionVersion: d.definitionVersion,
-                roleDefinitionId: d.roleDefinitionId,
-                displayName: d.displayName,
-                summary: d.summary,
-                roleDescription: d.roleDescription,
-                dshPresetId: d.dshPresetId,
-                requiredSkillNames: d.requiredSkillNames,
-                ...(d.toolFilter === undefined
-                    ? {}
-                    : {
-                          toolFilter: {
-                              ...(d.toolFilter.allow === undefined
-                                  ? {}
-                                  : { allow: d.toolFilter.allow }),
-                              ...(d.toolFilter.deny === undefined
-                                  ? {}
-                                  : { deny: d.toolFilter.deny })
-                          }
-                      }),
-                expertiseTags: d.expertiseTags,
-                evidenceScopes: d.evidenceScopes
-            })
-        )
-        .digest("hex");
-}
+export const definitionHash = (d: MeetingAgentDefinition): string =>
+    sha256Hex(
+        encodeCanonicalJson({
+            ...d,
+            requiredSkillNames: [...d.requiredSkillNames].sort(),
+            ...(d.toolFilter === undefined
+                ? {}
+                : {
+                      toolFilter: {
+                          ...(d.toolFilter.allow === undefined
+                              ? {}
+                              : { allow: [...d.toolFilter.allow].sort() }),
+                          ...(d.toolFilter.deny === undefined
+                              ? {}
+                              : { deny: [...d.toolFilter.deny].sort() })
+                      }
+                  })
+        })
+    );
 
 /** Resolve all selections before the single capability preflight; never create Sessions. */
-export async function resolveMeetingRoles(
+export const resolveMeetingRoles = async (
     input: ResolveMeetingRolesInput,
     validate: (selected: readonly MeetingAgentDefinition[]) => Promise<void>
-): Promise<ResolvedMeetingRoles> {
+): Promise<ResolvedMeetingRoles> => {
     let definitions: readonly MeetingAgentDefinition[];
     let overrides: MeetingAgentModelOverrides;
     try {
@@ -106,23 +98,18 @@ export async function resolveMeetingRoles(
         throw new RoleCompositionError();
     }
     const selected: MeetingAgentDefinition[] = [];
-    function resolve(
+    const resolve = (
         id: string | undefined,
         manager: boolean
-    ): ResolvedRoleComposition | undefined {
+    ): ResolvedRoleComposition | undefined => {
         if (id === undefined) return undefined;
         if (typeof id !== "string" || !id.trim()) throw new RoleCompositionError();
         const d = definitions.find((item) => item.agentDefinitionId === id);
         if (!d || (d.roleDefinitionId === "meeting_manager") !== manager)
             throw new RoleCompositionError();
         selected.push(d);
-        const skillInstruction = d.requiredSkillNames.length
-            ? "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
-              d.requiredSkillNames.join("、") +
-              "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
-            : "";
         return Object.freeze({
-            persona: d.roleDescription + skillInstruction,
+            agentInstructions: d.agentInstructions,
             ...(d.toolFilter === undefined ? {} : { toolFilter: d.toolFilter }),
             ...(overrides[id] === undefined ? {} : { agentOptions: overrides[id] }),
             agentDefinition: Object.freeze({
@@ -131,7 +118,7 @@ export async function resolveMeetingRoles(
                 definitionHash: definitionHash(d)
             })
         });
-    }
+    };
     const manager = resolve(input.managerAgentDefinitionId, true);
     const participants: Record<string, ResolvedRoleComposition> = Object.create(null);
     for (const participant of input.participants) {
@@ -143,4 +130,4 @@ export async function resolveMeetingRoles(
         ...(manager === undefined ? {} : { manager }),
         participants: Object.freeze(participants)
     });
-}
+};

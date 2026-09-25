@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import {
     changeDecision,
@@ -18,7 +19,7 @@ describe("Recompute/Convergence", () => {
             {
                 id: "fact",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "done",
                 rationale: "why",
@@ -37,7 +38,7 @@ describe("Recompute/Convergence", () => {
             status: "revoked",
             rationale: "revoke",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 2
         });
         expect(result).toMatchObject({
@@ -67,7 +68,7 @@ describe("Recompute/Convergence", () => {
             replacementDecisionId: "new",
             rationale: "replace",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 2
         });
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
@@ -101,7 +102,7 @@ describe("Recompute/Convergence", () => {
             {
                 id: "fact",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "done",
                 rationale: "why",
@@ -155,7 +156,7 @@ describe("Recompute/Convergence", () => {
             scope: "scope",
             rationale: "accept",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 3
         });
         expect(result).toMatchObject({
@@ -171,7 +172,7 @@ describe("Recompute/Convergence", () => {
         expect(result.state.lifecycle).toMatchObject({
             status: "converging",
             changedAt: 3,
-            changedBy: "captain",
+            changedBy: captainActorIdFor("m"),
             reason: "objective_satisfied"
         });
         expect(result.state.termination).toBeUndefined();
@@ -189,7 +190,7 @@ describe("Recompute/Convergence", () => {
             {
                 id: "fact",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "done",
                 rationale: "why",
@@ -206,7 +207,7 @@ describe("Recompute/Convergence", () => {
             scope: "scope",
             rationale: "reject",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 3
         });
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
@@ -225,7 +226,7 @@ describe("Recompute/Convergence", () => {
             {
                 id: "fact",
                 outputId: "o",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "done",
                 rationale: "why",

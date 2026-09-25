@@ -7,7 +7,7 @@ export type EpochMs = number;
 export type OpaqueId = string;
 
 export type RiskLevel = "low" | "medium" | "high";
-export type MeetingRole = "captain" | "manager" | "contributor" | "evidence_reviewer";
+export type MeetingRole = "manager" | "contributor" | "evidence_reviewer";
 export type MeetingLifecycleStatus =
     | "preparing"
     | "running"
@@ -79,7 +79,7 @@ export type IdentityRecommendation = IdentityRecommendationCore &
               status: "rejected";
               resolvedAt: number;
               identityId?: never;
-              childSessionId?: never;
+              sessionId?: never;
               definitionHash?: never;
               failureCode?: never;
           }
@@ -87,7 +87,7 @@ export type IdentityRecommendation = IdentityRecommendationCore &
               decision: "admit";
               status: "provisioning" | "active" | "failed";
               identityId: string;
-              childSessionId: string;
+              sessionId: string;
               definitionHash: string;
               resolvedAt?: number;
               failureCode?: string;
@@ -594,6 +594,7 @@ export interface ArchivePackage {
     unresolvedItemIds: readonly OpaqueId[];
     unclosedContributions: readonly ArchiveUnclosedContribution[];
     identityProvenance: readonly ArchiveIdentityProvenance[];
+    controlActorProvenance: readonly { actorId: OpaqueId; kind: "captain" }[];
     exportMaterials: readonly ArchiveMaterial[];
 }
 

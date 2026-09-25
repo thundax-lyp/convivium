@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const id = z.string().trim().min(1);
 const version = z.string().trim().min(1);
-const role = z.enum(["captain", "manager", "contributor", "evidence_reviewer"]);
+const role = z.enum(["manager", "contributor", "evidence_reviewer"]);
 const versionedRef = z.object({ id, version });
 const capability = z.object({
     kind: z.enum(["preset", "skill", "tool", "mcp", "model", "sandbox", "approval"]),
@@ -38,7 +38,6 @@ export interface MeetingAgentCatalog {
 export interface ReadCatalogRequest {
     protocolVersion: 1;
     meetingId: string;
-    captainSessionId: string;
     managerSessionId: string;
 }
 export type ReadCatalogResult =
@@ -57,14 +56,9 @@ const snapshotSchema = z.object({
 export async function readMeetingRoleCatalog(
     port: RoleCatalogPort,
     meetingId: string,
-    captainSessionId: string,
     managerSessionId: string
 ): Promise<ReadCatalogResult> {
-    if (
-        ![meetingId, captainSessionId, managerSessionId].every(
-            (value) => id.safeParse(value).success
-        )
-    )
+    if (![meetingId, managerSessionId].every((value) => id.safeParse(value).success))
         return {
             kind: "rejected",
             error: { code: "INVALID_ARGUMENT", message: "Catalog request is invalid" }
@@ -72,7 +66,6 @@ export async function readMeetingRoleCatalog(
     const result = await port.readSnapshot({
         protocolVersion: 1,
         meetingId,
-        captainSessionId,
         managerSessionId
     });
     if (result.kind !== "available") return result;

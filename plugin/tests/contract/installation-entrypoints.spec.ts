@@ -28,14 +28,14 @@ async function fixture() {
     const packageRoot = join(root, "artifact", "package");
     const fakeBin = join(root, "bin");
     const calls = join(root, "pnpm-calls");
-    await mkdir(join(packageRoot, "meeting-roles"), { recursive: true });
+    await mkdir(join(packageRoot, "config"), { recursive: true });
     await mkdir(join(packageRoot, "scripts"));
     await mkdir(fakeBin);
     await writeFile(
         join(packageRoot, "package.json"),
         JSON.stringify({ name: "@convivium/dsh-plugin", version: "1.2.3" })
     );
-    await writeFile(join(packageRoot, "meeting-roles", "cordis.patch.yml"), "- id: roles\n");
+    await writeFile(join(packageRoot, "config", "cordis.patch.yml"), "- id: roles\n");
     await copyFile(
         resolve(import.meta.dirname, "../../scripts/start.sh"),
         join(packageRoot, "scripts", "start.sh")
@@ -46,7 +46,7 @@ async function fixture() {
     await executable(
         join(fakeBin, "pnpm"),
         `#!/bin/sh
-printf '%s\\n' "DSH_HOME=$DSH_HOME PWD=$PWD ARGS=$*" >> "$CALLS_FILE"
+printf '%s\\n' "DSH_HOME=$DSH_HOME ROLES=$CONVIVIUM_MEETING_ROLES_ROOT PWD=$PWD ARGS=$*" >> "$CALLS_FILE"
 mkdir -p "$DSH_HOME/profiles/web"
 if [ ! -f "$DSH_HOME/profiles/web/package.json" ]; then
     printf '%s\\n' '{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"],"patchReload":"live"}}}' > "$DSH_HOME/profiles/web/package.json"
@@ -226,6 +226,16 @@ describe("user installation entrypoints", () => {
         await writeFile(join(installRoot, "dev.env"), "DEEPSEEK_API_KEY=secret\n");
         await writeFile(calls, "");
 
+        const installedPackage = join(
+            workspace,
+            "dsh-home/profiles/web/node_modules/@convivium/dsh-plugin"
+        );
+        await mkdir(join(installedPackage, "config"), { recursive: true });
+        await copyFile(
+            join(root, "artifact/package/config/cordis.patch.yml"),
+            join(installedPackage, "config/cordis.patch.yml")
+        );
+
         const result = spawnSync(join(installRoot, "start.sh"), [], {
             cwd: root,
             encoding: "utf8",
@@ -236,8 +246,9 @@ describe("user installation entrypoints", () => {
         const recordedCall = await readFile(calls, "utf8");
         expect(recordedCall).toContain(`DSH_HOME=${workspace}/dsh-home`);
         expect(recordedCall).toContain(`PWD=${workspace}`);
+        expect(recordedCall).toContain(`ROLES=${await realpath(join(installedPackage, "config"))}`);
         expect(recordedCall).toContain(
-            `--patch ${join(installRoot, "releases", "1.2.3", "package", "meeting-roles", "cordis.patch.yml")}`
+            `--patch ${await realpath(join(installedPackage, "config", "cordis.patch.yml"))}`
         );
     });
 
@@ -265,7 +276,7 @@ describe("user installation entrypoints", () => {
         await writeFile(sessionRecord, "existing-session-data");
 
         await writeFile(
-            join(root, "artifact", "package", "meeting-roles", "cordis.patch.yml"),
+            join(root, "artifact", "package", "config", "cordis.patch.yml"),
             "- id: updated-roles\n"
         );
         const packed = spawnSync("tar", [
@@ -292,7 +303,7 @@ describe("user installation entrypoints", () => {
                     "releases",
                     firstRelease,
                     "package",
-                    "meeting-roles",
+                    "config",
                     "cordis.patch.yml"
                 ),
                 "utf8"
@@ -305,7 +316,7 @@ describe("user installation entrypoints", () => {
                     "releases",
                     secondRelease,
                     "package",
-                    "meeting-roles",
+                    "config",
                     "cordis.patch.yml"
                 ),
                 "utf8"

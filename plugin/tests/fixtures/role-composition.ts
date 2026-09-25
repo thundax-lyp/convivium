@@ -7,9 +7,13 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
         roleDefinitionId: "meeting_manager",
         displayName: "fr14-manager",
         summary: "fr14-manager",
-        roleDescription: "FR14_MANAGER_V1",
+        agentInstructions: {
+            roleDefinitionId: "meeting_manager",
+            version: "2.0.0",
+            sha256: "a".repeat(64)
+        },
         dshPresetId: "minimal",
-        requiredSkillNames: ["fr14-fixture"],
+        requiredSkillNames: ["repository-analysis"],
         expertiseTags: ["fixture"],
         evidenceScopes: []
     },
@@ -19,9 +23,13 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
         roleDefinitionId: "domain_architect",
         displayName: "fr14-participant",
         summary: "fr14-participant",
-        roleDescription: "FR14_PARTICIPANT_V1",
+        agentInstructions: {
+            roleDefinitionId: "domain_architect",
+            version: "2.0.0",
+            sha256: "b".repeat(64)
+        },
         dshPresetId: "minimal",
-        requiredSkillNames: ["fr14-fixture"],
+        requiredSkillNames: ["repository-analysis"],
         toolFilter: { deny: ["convivium_role_probe"] },
         expertiseTags: ["fixture"],
         evidenceScopes: []

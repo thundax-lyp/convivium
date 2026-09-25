@@ -6,8 +6,9 @@
 
 当前只支持：
 
-- `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立 continuable child Session。
+- `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立平级 AgentSession。
 - `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer 逐版本 worker/Review、Publication、Archive 和 SQLite cold reopen。
+- `peer-meeting-agents`：验证七个独立 Preset/Session、精确 Skill 隔离、用户控制、真实 GitHub/arXiv 读取、Reviewer worker 和同绑定冷恢复。
 
 Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会在 Host 启动前失败，不能作为 Browser 验收证据。
 
@@ -19,7 +20,7 @@ Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会
 
 - `dsh-workspace/web-ui/convivium-user/` 是人工 Web 调试安装根，保存 release、artifact、角色资源、运行配置以及 Convivium 会议存储；会议 SQLite 的固定路径是 `dsh-workspace/web-ui/convivium-user/convivium-storage.sqlite`，运行期间可能同时出现同路径前缀的 `-wal` 和 `-shm` 文件。
 - `dsh-workspace/dsh-home/` 是该人工调试环境共享的 `DSH_HOME`，保存 DSH profile、Session 和设置；DSH Session 不存入上述会议 SQLite。
-- `dsh-workspace/projects/meetings-view/` 是 DSH Web 的 Choose workspace 所选择的项目工作目录，用于限定 Captain Session 操作的项目上下文；它不是插件安装根，也不保存 Convivium 会议 SQLite。
+- `dsh-workspace/projects/meetings-view/` 是 DSH Web 的 Choose workspace 所选择的项目工作目录，用于限定普通用户 Session 的项目上下文；它不是插件安装根，也不保存 Convivium 会议 SQLite。
 - `dsh-workspace/convivium-user/convivium-storage.sqlite` 属于普通持久安装流程，不是人工 Web 调试数据库；两套安装根不得混用。
 
 从仓库根执行；首次安装创建固定目录，后续源码刷新复用它们，只新增以构建物 SHA-256 标识的 release 和 artifact，不覆盖旧 release、Session 或会议 SQLite：
@@ -39,7 +40,7 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
   ./scripts/install-from-source.sh --workspace "$web_ui_workspace" --dev-refresh
 ```
 
-按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再新建 Captain Session 建立人工 fixture；若无法选择该项目目录，停止并记录实际入口。已存在的 Captain Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
+按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再从 `Meetings` 面板创建人工 fixture；若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
 
 ## Prerequisites
 
@@ -49,7 +50,7 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
 - 仓库根目录存在不入 Git 的 `dev.env`，其中 `DEEPSEEK_API_KEY` 存在且去除空白后非空。文件可以包含其他本地条目；冒烟脚本只读取该 key。
 - 不使用开发者常用的 DSH profile。脚本为每个场景创建独立临时 `DSH_HOME`、workspace、profile 和端口；默认也创建临时 SQLite，只有下述显式持久存储入口例外。
 
-`DEEPSEEK_API_KEY` 只注入真实 DSH Host。脚本从传给构建、打包、插件安装和 `dump-config` 的环境中删除该变量，不得把值写入输出、临时 profile、记录或构建产物。`identity-admission` 不调用远程 LLM；只有 `meeting-business-loop` 的 Reviewer worker 成功才能证明本次 LLM 链路可用。
+`DEEPSEEK_API_KEY` 只注入真实 DSH Host。脚本从传给构建、打包、插件安装和 `dump-config` 的环境中删除该变量，不得把值写入输出、临时 profile、记录或构建产物。动态准入可能触发模型通知处理；业务场景的真实 Reviewer worker 和平级场景的来源工具调用分别提供对应链路证据。
 
 ## Execute
 
@@ -63,7 +64,7 @@ CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
   pnpm --dir plugin smoke:profile --json
 ```
 
-按固定顺序运行两个场景：
+按固定顺序运行三个场景：
 
 ```sh
 pnpm --dir plugin smoke:profile --json
@@ -78,7 +79,7 @@ pnpm --dir plugin smoke:profile --json
 
 ### 显式保留 business-loop Meeting
 
-只有用户明确授权把 smoke Meeting 写入持久存储时，才设置 `CONVIVIUM_SMOKE_STORAGE_PATH`。该值必须是已存在普通文件的绝对路径，并且只能与精确的 `meeting-business-loop` selector 同时使用；默认双场景、`--all`、`identity-admission`、相对路径、目录和不存在的路径都会在构建或 Host 启动前失败。
+只有用户明确授权把 smoke Meeting 写入持久存储时，才设置 `CONVIVIUM_SMOKE_STORAGE_PATH`。该值必须是已存在普通文件的绝对路径，并且只能与精确的 `meeting-business-loop` selector 同时使用；默认三场景、`--all`、其他 selector、相对路径、目录和不存在的路径都会在构建或 Host 启动前失败。
 
 运行前必须停止所有使用同一 SQLite 的 Host。以下示例把完整会议及 archive 保留在正式 SQLite 中：
 
@@ -96,13 +97,13 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 场景必须满足：
 
-- Host Loader 能加载非空且 model-invocable 的 `verification-review` Skill。
+- Host Loader 能在准入角色 scope 加载非空且 model-invocable 的 `repository-analysis` Skill。
 - Catalog 含一个 admit candidate 和一个 reject candidate。
-- admit candidate 创建独立 child `smoke-identity-admit`。
-- child 可以被 interrupt 并 drain。
+- admit candidate 创建独立且无 parent 的 Session，同 requestId 重放返回原身份。
+- reject candidate 不产生新身份，准入 Session 与 Manager 独立。
 - 结果通过 `validateIdentityAdmissionResult` 的精确字段校验。
 
-该场景不证明模型质量、远程 LLM、完整 Meeting command surface 或动态准入的所有失败分支。
+该场景不证明模型质量、完整 Meeting command surface 或动态准入的所有失败分支。
 
 ### meeting-business-loop
 
@@ -125,6 +126,10 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 结果必须通过 `validateMeetingBusinessLoopHotResult`、`completeMeetingBusinessLoopResult` 和最终 `validateScenarioResult`，不能仅以 Agent idle、Host ready 或进程退出判定成功。
 
+### peer-meeting-agents
+
+真实 Loader 创建七个无 parent 的 Session，逐角色比较 Skill 列表并逐名称验证可加载边界；输入 Session 在创建前关闭，notice 仍投递。研究角色实际读取 GitHub 固定 ref 和 arXiv 固定版本并提交证据，Reviewer 运行真实 one-shot worker。Agent 调用用户创建入口被拒绝，独立用户连接可以暂停；冷 Host 使用同一 DSH_HOME/SQLite 继续，并逐项核对原 Session、Preset、Skills、资源与模型绑定。八项 observed 必须通过精确结果校验。
+
 ## Review Records
 
 默认运行会删除隔离环境。需要保留可复盘记录时，先创建专用目录，再传入其现有路径：
@@ -142,9 +147,9 @@ CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
 - `dump-config.yml`；
 - Host stdout/stderr；
 - Agent prompt/inbox 摘要；
-- business-loop 的 initial 与 cold-reopen 分阶段日志。
+- business-loop 与 peer-meeting-agents 的 initial 与 cold-reopen 分阶段日志；失败时保留脱敏 Host 日志和失败摘要。
 
-记录不会复制 SQLite、workspace、profile 或 `dev.env`。写入前会替换 `DEEPSEEK_API_KEY` 的精确值；记录仍可能包含会议主题、fixture 文本和 Agent 收件消息，应只保存在受控本地目录。
+记录不会复制 SQLite、workspace、profile 或 `dev.env`。写入前会替换 `DEEPSEEK_API_KEY` 的精确值和 Host URL token；记录仍可能包含会议主题、fixture 文本和 Agent 收件消息，应只保存在受控本地目录。
 
 ## Success, Failure And Restore
 
@@ -165,7 +170,7 @@ CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
 ## Not Covered
 
 - Browser 人工交互与断线恢复；
-- 真实 arXiv、GitHub、Web 检索及研究结论质量；
+- 任意来源的普遍可用性及研究结论质量（平级场景只证明当次固定 GitHub/arXiv 来源读取）；
 - 任意第三方 Tool/MCP 的生产可用性；
 - 多 Host writer、远程文件系统和生产发布；
 - 开发期旧存储格式迁移、fallback、双写或回写。

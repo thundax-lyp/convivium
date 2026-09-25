@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { UnsupportedMeetingStateFormatError } from "./projection.js";
 import { defineDomain, domainTable, type Domain } from "@deepseek-ai/dsh-storage-domain";
 import {
     CheckpointPageSchema,
@@ -29,7 +31,18 @@ export function createMeetingDomainSpec(name: string) {
         name,
         version: 1,
         tables: {
-            creation: domainTable<"current", CreationRecord>(CreationRecordSchema),
+            creation: domainTable<"current", CreationRecord>(
+                z.preprocess((value) => {
+                    if (
+                        value &&
+                        typeof value === "object" &&
+                        "formatVersion" in value &&
+                        value.formatVersion !== 2
+                    )
+                        throw new UnsupportedMeetingStateFormatError(value.formatVersion);
+                    return value;
+                }, CreationRecordSchema)
+            ),
             commits: domainTable<SeqKey, CommitRecord>(CommitRecordSchema),
             checkpoint_pages: domainTable<string, CheckpointPage>(CheckpointPageSchema),
             checkpoint_roots: domainTable<string, CheckpointRoot>(CheckpointRootSchema),

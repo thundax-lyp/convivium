@@ -1,60 +1,67 @@
-import { describe, expect, it, vi } from "vitest";
-import { followupMeetingIdentitySession } from "@/dsh/index.js";
+import { expect, it, vi } from "vitest";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.js";
 
-const ownership = {
-    id: "owner-1",
-    meetingId: "meeting-1",
-    identityId: "identity-1",
-    sessionId: "child-1",
-    parentSessionId: "captain-1",
-    sessionLabel: "convivium:meeting-identity:participant:meeting-1:identity-1",
-    provider: "spawn",
-    role: "participant" as const,
-    lifecycleStatus: "active" as const,
-    capabilityStatus: "active" as const,
-    createdAt: 1,
-    updatedAt: 1
-};
-
-describe("meeting identity notice adapter", () => {
-    it("sends through the exact parent and persisted child without adding business facts", async () => {
-        const sendMessage = vi.fn().mockResolvedValue("message-1");
-        await expect(
-            followupMeetingIdentitySession({
-                runtime: { sendMessage },
-                parent: { id: "captain-1" } as never,
-                ownership,
-                meetingId: "meeting-1",
-                identityId: "identity-1",
-                prompt: [{ type: "text", text: "notice" }],
-                signal: new AbortController().signal
+it.each(["flush-false", "post-revoke", "after-flush-crash"])(
+    "keeps %s retryable using the original delivery id",
+    async (mode) => {
+        const state = makeRunningMeetingStateV1();
+        state.identities[0].sessionOwnershipId = "owner";
+        const ownership = {
+            id: "owner",
+            meetingId: state.id,
+            identityId: state.identities[0].id,
+            sessionId: "peer-session",
+            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            role: "manager",
+            lifecycleStatus: "active",
+            capabilityStatus: "active"
+        };
+        const owner = {
+            resume: vi.fn(async () => {}),
+            deliver: vi.fn(async ({ authorize }) => {
+                await authorize();
+                if (mode === "post-revoke") ownership.capabilityStatus = "revoked";
+                await authorize();
+                if (mode === "after-flush-crash") throw new Error("crash after persisted input");
+                return false;
             })
-        ).resolves.toBe("message-1");
-        expect(sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ id: "captain-1" }),
-            "child-1",
-            [{ type: "text", text: "notice" }],
-            { signal: expect.any(AbortSignal) }
-        );
-    });
-
-    it.each([
-        ["wrong parent", { parent: { id: "captain-other" } }],
-        ["wrong identity", { identityId: "identity-other" }],
-        ["wrong label", { ownership: { ...ownership, sessionLabel: "invalid" } }],
-        ["closed", { ownership: { ...ownership, lifecycleStatus: "closed" } }]
-    ])("rejects %s", async (_name, override) => {
-        await expect(
-            followupMeetingIdentitySession({
-                runtime: { sendMessage: vi.fn() },
-                parent: { id: "captain-1" } as never,
-                ownership,
-                meetingId: "meeting-1",
-                identityId: "identity-1",
-                prompt: [{ type: "text", text: "notice" }],
-                signal: new AbortController().signal,
-                ...override
-            } as never)
-        ).rejects.toThrow("active owned Meeting identity Session");
-    });
-});
+        };
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner,
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: { meetingId: state.id, state },
+                    sessionOwnership: [ownership]
+                })
+            }
+        });
+        const input = {
+            outboxItem: {
+                id: "effect",
+                deliveryId: "stable-delivery",
+                kind: "dispatch",
+                payload: {
+                    kind: "agent_notice",
+                    noticeKind: "meeting_started",
+                    recipientId: ownership.identityId,
+                    agendaId: "agenda-v1"
+                }
+            },
+            signal: new AbortController().signal
+        };
+        await expect(dispatcher.dispatch(input)).rejects.toThrow();
+        ownership.capabilityStatus = "active";
+        owner.deliver.mockImplementation(async ({ authorize }) => {
+            await authorize();
+            await authorize();
+            return true;
+        });
+        await expect(dispatcher.dispatch(input)).resolves.toBeUndefined();
+        expect(owner.deliver.mock.calls.map(([value]) => value.deliveryId)).toEqual([
+            "stable-delivery",
+            "stable-delivery"
+        ]);
+    }
+);

@@ -9,7 +9,6 @@ import {
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import type { ResolvedMeetingCaller } from "@/dsh/index.js";
 import {
-    CreateMeetingActionSchema,
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
     ReadMeetingRequestSchema,
@@ -46,17 +45,12 @@ export interface MeetingCommandToolDependencies {
     readonly reviewWorkers: Pick<SubagentRuntime, "start">;
     readonly callers: TargetMeetingToolCallerResolver;
     readonly reader: TargetMeetingToolReader;
-    readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
 }
 
 const requiredString = (description: string) =>
     ({ type: "string", required: true, description }) as const;
 const optionalString = (description: string) => ({ type: "string", description }) as const;
-const requiredInteger = (description: string) =>
-    ({ type: "integer", required: true, description }) as const;
 const optionalInteger = (description: string) => ({ type: "integer", description }) as const;
-const requiredBoolean = (description: string) =>
-    ({ type: "boolean", required: true, description }) as const;
 const requiredStringArray = (description: string) =>
     ({ type: "array", required: true, items: { type: "string" }, description }) as const;
 const exactObject = (properties: ParameterSchemaSpec, description?: string) =>
@@ -76,10 +70,6 @@ const requiredObjectArray = (properties: ParameterSchemaSpec, description: strin
         description
     }) as const;
 
-const targetSchema = {
-    id: requiredString("Stable target identifier."),
-    text: requiredString("Target text.")
-};
 const evidenceTextSchema = {
     value: requiredString("Evidence statement."),
     reason: optionalString("Optional qualification or reason.")
@@ -99,65 +89,6 @@ const reviewDimensionSchema = {
 } satisfies ParameterSchemaSpec;
 
 const actionSchemas = {
-    create_meeting: exactObject({
-        kind: { type: "string", const: "create_meeting", required: true },
-        objective: requiredObject({
-            statement: requiredString("Meeting objective statement."),
-            requiredOutputs: requiredObjectArray(targetSchema, "Required output targets."),
-            acceptanceCriteria: requiredObjectArray(targetSchema, "Acceptance criteria."),
-            hardConstraints: requiredObjectArray(targetSchema, "Hard constraints."),
-            acceptableRiskLevel: {
-                type: "string",
-                enum: ["low", "medium", "high"],
-                required: true
-            }
-        }),
-        identities: requiredObjectArray(
-            {
-                identityKey: requiredString("Identity key unique within the creation request."),
-                definitionId: requiredString("Versioned Agent definition identifier."),
-                definitionVersion: requiredString("Agent definition version."),
-                displayName: requiredString("Identity display name."),
-                roles: {
-                    type: "array",
-                    required: true,
-                    items: {
-                        type: "string",
-                        enum: ["captain", "manager", "contributor", "evidence_reviewer"]
-                    }
-                },
-                agendaResponsibilityIds: requiredStringArray(
-                    "Agenda identifiers assigned to this identity."
-                ),
-                riskAuthority: requiredBoolean("Whether this identity can accept risk."),
-                required: requiredBoolean("Whether this identity is required.")
-            },
-            "Initial Meeting identities."
-        ),
-        managerIdentityKey: requiredString("Identity key for the Manager."),
-        evidenceReviewerIdentityKey: requiredString("Identity key for the Evidence Reviewer."),
-        initialAgenda: requiredObjectArray(
-            {
-                id: requiredString("Agenda identifier."),
-                title: requiredString("Agenda title."),
-                question: requiredString("Agenda question."),
-                requiredOutputIds: requiredStringArray("Required output identifiers."),
-                ownerIdentityKey: optionalString("Optional owner identity key.")
-            },
-            "Initial agenda items."
-        ),
-        initialActiveAgendaId: requiredString("Initially active agenda identifier."),
-        limits: requiredObject({
-            maxFormalMessages: requiredInteger("Maximum formal message count."),
-            maxDurationMs: requiredInteger("Maximum Meeting duration in milliseconds."),
-            taskDeadlineMs: requiredInteger("Contribution deadline duration in milliseconds."),
-            reviewDeadlineMs: requiredInteger("Review deadline duration in milliseconds.")
-        }),
-        continuation: exactObject({
-            sourceArchiveId: requiredString("Source archive identifier."),
-            selectedMaterialIds: requiredStringArray("Selected source material identifiers.")
-        })
-    }),
     open_round: exactObject({
         kind: { type: "string", const: "open_round", required: true },
         agendaId: requiredString("Active agenda identifier returned by read_meeting."),
@@ -326,26 +257,14 @@ const commandToolParameters = (kind: keyof typeof actionSchemas): ParameterSchem
         required: true,
         description: "Meeting protocol version."
     },
-    meetingId:
-        kind === "create_meeting"
-            ? {
-                  type: "string" as const,
-                  const: "new",
-                  required: true as const,
-                  description: 'Use the literal "new".'
-              }
-            : requiredString("Target Meeting identifier."),
+    meetingId: requiredString("Target Meeting identifier."),
     ...(kind === "submit_evidence_review"
         ? {}
         : {
               expectedMeetingVersion: {
                   type: "integer" as const,
-                  ...(kind === "create_meeting" ? { const: 0 as const } : {}),
                   required: true as const,
-                  description:
-                      kind === "create_meeting"
-                          ? "Use 0 when creating a Meeting."
-                          : "Current version returned by convivium_read_meeting."
+                  description: "Current version returned by convivium_read_meeting."
               }
           }),
     requestId: requiredString(
@@ -395,19 +314,6 @@ function registerTool(
                         "UNAUTHORIZED",
                         "A Meeting tool requires an Agent caller."
                     ) as unknown as JsonValue;
-                if (definition.kind === "create_meeting") {
-                    const result = await dependencies.application.execute(
-                        command,
-                        {
-                            caller: { channel: "dsh_tool", principalId: String(exec.agent.id) },
-                            captainParent: exec.agent
-                        },
-                        exec.signal
-                    );
-                    if (result.kind === "accepted")
-                        dependencies.onMeetingCreated?.(result.meetingId, exec.agent);
-                    return result as unknown as JsonValue;
-                }
                 const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
                 if (caller === undefined)
                     return rejected(
@@ -570,11 +476,6 @@ export function registerMeetingTools(
     dependencies: MeetingCommandToolDependencies
 ): readonly (() => void)[] {
     const definitions: readonly ToolDefinition[] = [
-        {
-            name: "convivium_create_meeting",
-            kind: "create_meeting",
-            schema: CreateMeetingActionSchema
-        },
         { name: "convivium_open_round", kind: "open_round", schema: OpenRoundActionSchema },
         {
             name: "convivium_submit_manager_plan",
@@ -608,11 +509,9 @@ export function registerMeetingTools(
             schema: RecommendIdentityActionSchema
         }
     ];
-    const [create, ...commands] = definitions;
     return [
-        registerTool(dependencies, create!),
         registerReadTool(dependencies),
         registerReviewWorkerTool(dependencies),
-        ...commands.map((definition) => registerTool(dependencies, definition))
+        ...definitions.map((definition) => registerTool(dependencies, definition))
     ];
 }

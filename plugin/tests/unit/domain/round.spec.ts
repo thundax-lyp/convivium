@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.js";
@@ -180,7 +181,7 @@ describe("round transitions", () => {
         };
         const result = abortRound(state, {
             roundId: "round-v1",
-            actor: { kind: "local_controller", id: "local-v1" },
+            actor: { kind: "captain_user", id: captainActorIdFor("meeting-v1") },
             reason: "无法继续",
             now: 3
         });

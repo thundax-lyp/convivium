@@ -15,6 +15,8 @@ export function validateScenarioResult(value, expectedScenario) {
         validateIdentityAdmissionResult(value);
     } else if (expectedScenario === "meeting-business-loop") {
         validateMeetingBusinessLoopResult(value);
+    } else if (expectedScenario === "peer-meeting-agents") {
+        validatePeerMeetingAgentsResult(value);
     } else {
         throw new Error("Unsupported smoke result scenario: " + expectedScenario);
     }
@@ -151,7 +153,9 @@ function validateIdentityAdmissionResult(value) {
             "ok",
             "scenario",
             "catalog",
-            "admittedChildId",
+            "admittedIdentityId",
+            "admittedSessionId",
+            "ownershipId",
             "rejectedCandidateId",
             "nativeSkillLoaded",
             "sessionIndependent"
@@ -167,10 +171,83 @@ function validateIdentityAdmissionResult(value) {
             "candidates"
         ]) ||
         value.catalog.candidates.length !== 2 ||
-        value.admittedChildId !== "smoke-identity-admit" ||
+        ![value.admittedIdentityId, value.admittedSessionId, value.ownershipId].every(
+            (item) => typeof item === "string" && item.length > 0
+        ) ||
         value.rejectedCandidateId !== "candidate-reject" ||
         value.nativeSkillLoaded !== true ||
         value.sessionIndependent !== true
     )
         throw new Error("Identity admission smoke result is invalid.");
+}
+
+export const PEER_SKILLS = Object.freeze({
+    meeting_manager: ["meeting-facilitation"],
+    domain_architect: ["repository-analysis"],
+    runtime_engineer: ["repository-analysis"],
+    protocol_ui_engineer: ["repository-analysis"],
+    verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
+    github_research_analyst: ["github"],
+    arxiv_research_analyst: ["arxiv"]
+});
+export const PEER_ASSERTIONS = [
+    "seven-peer-sessions",
+    "role-skill-isolation",
+    "input-session-independent-delivery",
+    "user-control-authorization",
+    "github-source",
+    "arxiv-source",
+    "reviewer-worker",
+    "cold-recovery"
+];
+export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
+    const roles = Object.keys(PEER_SKILLS);
+    const nonempty = (value) => typeof value === "string" && value.trim().length > 0;
+    const observed = value?.observed;
+    if (
+        !exact(value, ["ok", "scenario", "meetingId", "assertions", "observed"]) ||
+        value.ok !== true ||
+        value.scenario !== "peer-meeting-agents" ||
+        !nonempty(value.meetingId) ||
+        !isDeepStrictEqual(value.assertions, PEER_ASSERTIONS) ||
+        !exact(observed, [
+            "sessionIds",
+            "presetIds",
+            "skills",
+            "userControl",
+            "github",
+            "arxiv",
+            "review",
+            "coldRecovery"
+        ]) ||
+        !exact(observed.sessionIds, roles) ||
+        !Object.values(observed.sessionIds).every(nonempty) ||
+        new Set(Object.values(observed.sessionIds)).size !== 7 ||
+        !exact(observed.presetIds, roles) ||
+        roles.some(
+            (role) =>
+                observed.presetIds[role] !==
+                `convivium-${role.replace(/^meeting_/, "").replaceAll("_", "-")}`
+        ) ||
+        !exact(observed.skills, roles) ||
+        roles.some((role) => !isDeepStrictEqual(observed.skills[role], PEER_SKILLS[role])) ||
+        !exact(observed.userControl, [
+            "inputSessionIndependent",
+            "agentRejected",
+            "reconnectedUserAccepted"
+        ]) ||
+        Object.values(observed.userControl).some((value) => value !== true) ||
+        !exact(observed.github, ["url", "ref"]) ||
+        observed.github.url !== "https://github.com/deepseek-ai/deepseek-harness" ||
+        observed.github.ref !== "dsh-v0.1.2-rc.1" ||
+        !exact(observed.arxiv, ["url", "id", "version"]) ||
+        observed.arxiv.url !== "https://arxiv.org/abs/1706.03762v7" ||
+        observed.arxiv.id !== "1706.03762" ||
+        observed.arxiv.version !== "v7" ||
+        !exact(observed.review, ["versionId", "reviewId"]) ||
+        !Object.values(observed.review).every(nonempty) ||
+        observed.coldRecovery !== coldRecovery
+    )
+        throw new Error("Peer meeting agents smoke result is invalid.");
+    return value;
 }

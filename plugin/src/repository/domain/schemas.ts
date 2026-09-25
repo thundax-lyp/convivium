@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { abilityNames } from "@/role-composition/model.js";
 import type {
     CommandAuthorization,
     CreateMeetingResult,
@@ -55,78 +56,71 @@ export const AgentDefinitionBindingSchema = z.strictObject({
     definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
 });
 
-const sessionOwnership = z
-    .object({
-        id: z.string().optional(),
-        meetingId: z.string().optional(),
-        identityId: z.string().optional(),
-        lastClosureFailureCode: z.string().optional(),
-        agentDefinition: AgentDefinitionBindingSchema.optional(),
-        sessionId: z.string(),
-        parentSessionId: z.string(),
-        sessionLabel: z.string(),
-        provider: z.string(),
-        initialMessageId: z.string().optional(),
-        supersededBySessionId: z.string().min(1).optional(),
-        role: z.enum(["manager", "evidence_reviewer", "participant"]),
-        participantId: z.string().optional(),
-        lifecycleStatus: z.enum(["provisioning", "active", "closed"]),
-        capabilityStatus: z.enum(["active", "revoked"]),
-        createdAt: z.number().int(),
-        updatedAt: z.number().int()
-    })
-    .strict() satisfies z.ZodType<SessionOwnership>;
-const sessionOwnershipMap = safeRecord(sessionOwnership).superRefine((ownerships, ctx) => {
-    const successors = new Set<string>();
-    for (const [id, ownership] of Object.entries(ownerships)) {
-        const successorId = ownership.supersededBySessionId;
-        if (successorId === undefined) continue;
-        const successor = ownerships[successorId];
-        if (
-            id !== ownership.sessionId ||
-            successor === undefined ||
-            successors.has(successorId) ||
-            ownership.lifecycleStatus !== "closed" ||
-            ownership.capabilityStatus !== "revoked" ||
-            successor.sessionId !== successorId ||
-            successor.id !== ownership.id ||
-            successor.meetingId !== ownership.meetingId ||
-            successor.identityId !== ownership.identityId ||
-            successor.lastClosureFailureCode !== ownership.lastClosureFailureCode ||
-            successor.parentSessionId !== ownership.parentSessionId ||
-            successor.sessionLabel !== ownership.sessionLabel ||
-            successor.provider !== ownership.provider ||
-            successor.role !== ownership.role ||
-            successor.participantId !== ownership.participantId ||
-            successor.agentDefinition?.agentDefinitionId !==
-                ownership.agentDefinition?.agentDefinitionId ||
-            successor.agentDefinition?.definitionVersion !==
-                ownership.agentDefinition?.definitionVersion ||
-            successor.agentDefinition?.definitionHash !== ownership.agentDefinition?.definitionHash
-        ) {
-            ctx.addIssue({
-                code: "custom",
-                path: [id],
-                message: "Invalid Session supersession identity"
-            });
-            continue;
-        }
-        successors.add(successorId);
-        const visited = new Set([id]);
-        let next: string | undefined = successorId;
-        while (next !== undefined) {
-            if (visited.has(next)) {
-                ctx.addIssue({
-                    code: "custom",
-                    path: [id],
-                    message: "Cyclic Session supersession"
-                });
-                break;
-            }
-            visited.add(next);
-            next = ownerships[next]?.supersededBySessionId;
-        }
-    }
+const nonempty = z.string().trim().min(1);
+const sha = z.string().regex(/^[a-f0-9]{64}$/);
+const epoch = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const EffectiveAgentOptionsSchema = z.strictObject({
+    provider: nonempty,
+    model: nonempty,
+    reasoningEffort: nonempty.optional()
+});
+export const ResourceBindingSchema = z.strictObject({
+    instructions: z.strictObject({
+        roleDefinitionId: z.enum([
+            "meeting_manager",
+            "domain_architect",
+            "runtime_engineer",
+            "protocol_ui_engineer",
+            "verification_reviewer",
+            "github_research_analyst",
+            "arxiv_research_analyst"
+        ]),
+        version: nonempty,
+        sha256: sha
+    }),
+    presetId: nonempty,
+    presetSha256: sha,
+    skills: z
+        .array(z.strictObject({ name: z.enum(abilityNames), sha256: sha }))
+        .refine((values) => new Set(values.map((v) => v.name)).size === values.length),
+    compositionHash: sha
+});
+export const PreparedDescriptorSchema = z.strictObject({
+    descriptorId: nonempty,
+    meetingId: nonempty,
+    identityId: nonempty,
+    sessionId: nonempty,
+    definition: AgentDefinitionBindingSchema,
+    resources: ResourceBindingSchema,
+    agentOptions: EffectiveAgentOptionsSchema,
+    descriptorHash: sha,
+    expiresAt: epoch
+});
+export const SessionOwnershipSchema = z.strictObject({
+    id: nonempty,
+    meetingId: nonempty,
+    identityId: nonempty,
+    sessionId: nonempty,
+    admissionId: nonempty.optional(),
+    definition: AgentDefinitionBindingSchema,
+    resources: ResourceBindingSchema,
+    agentOptions: EffectiveAgentOptionsSchema,
+    descriptorId: nonempty,
+    descriptorHash: sha,
+    sessionLabel: nonempty,
+    role: z.enum(["manager", "evidence_reviewer", "participant"]),
+    lifecycleStatus: z.enum(["provisioning", "active", "closed"]),
+    capabilityStatus: z.enum(["active", "revoked"]),
+    createdAt: epoch,
+    updatedAt: epoch
+}) satisfies z.ZodType<SessionOwnership>;
+const sessionOwnershipMap = safeRecord(SessionOwnershipSchema).refine((values) =>
+    Object.entries(values).every(([key, value]) => key === value.sessionId)
+);
+const creator = z.strictObject({
+    kind: z.literal("local_user"),
+    principalId: z.literal("local-controller"),
+    sourceSessionId: nonempty.optional()
 });
 const createResult = z
     .object({
@@ -187,6 +181,7 @@ const meetingSnapshot = z
     .strict() satisfies z.ZodType<MeetingSnapshot>;
 const meetingBootstrap = z
     .object({
+        creator,
         status: z.enum(["creating", "ready", "creation_failed"]),
         createRequestId: z.string(),
         requestHash: z.string(),
@@ -252,12 +247,14 @@ export const CatalogMeetingRecordSchema = z
     .strict();
 export const CreationRecordSchema = z
     .object({
-        formatVersion: z.literal(1),
+        formatVersion: z.literal(2),
         meetingId: z.string(),
         status: z.enum(["creating", "ready", "creation_failed"]),
         requestId: z.string(),
         requestHash: z.string(),
         authorization,
+        creator,
+        preparedDescriptors: z.array(PreparedDescriptorSchema),
         initialState: JsonObjectSchema,
         createResult: createResult.nullable(),
         initialOutbox: z.array(outboxSeed),
@@ -314,9 +311,10 @@ export const PersistedOutboxSchema = z
     .strict();
 export const PersistenceProjectionSchema = z
     .object({
-        formatVersion: z.literal(1),
+        formatVersion: z.literal(2),
         snapshot: meetingSnapshot.nullable(),
         bootstrap: meetingBootstrap,
+        preparedDescriptors: z.array(PreparedDescriptorSchema),
         receipts: safeRecord(PersistedReceiptSchema),
         facts: safeRecord(CommittedFactRecordSchema),
         events: safeRecord(PersistedEventSchema),

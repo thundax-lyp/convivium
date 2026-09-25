@@ -14,7 +14,7 @@ import type { MeetingTransitionResult } from "./result.js";
 import { rejectedTransition } from "./result.js";
 
 export type OutcomeActor =
-    { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
+    { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
 export interface RecordProposalRevisionInput {
     revisionId: OpaqueId;
     proposalId: OpaqueId;
@@ -161,19 +161,18 @@ const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     evidenceOk(s, ids) && requiredReviewOk(s, ids);
 const currentRevision = (s: MeetingState, proposalId: string) =>
     s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
-const actorRole = (s: MeetingState, actor: OutcomeActor, role: "contributor" | "captain") =>
+const actorRole = (s: MeetingState, actor: OutcomeActor, role: "contributor") =>
     actor.kind === "identity" &&
     s.identities.some((i) => i.id === actor.id && i.roles.includes(role));
-const captainActor = (s: MeetingState, actor: OutcomeActor) =>
-    actor.kind === "local_controller" || actorRole(s, actor, "captain");
+const captainActor = (_s: MeetingState, actor: OutcomeActor) => actor.kind === "captain_user";
 const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
     (s[key] as readonly { id: string }[]).some((x) => x.id === id);
 
-export function recalculateMeetingCompletion(
+export const recalculateMeetingCompletion = (
     state: MeetingState,
     actorId: OpaqueId,
     now: EpochMs
-): MeetingState {
+): MeetingState => {
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const validDecision = (id: string) => {
         const d = state.decisions.find((x) => x.id === id);
@@ -233,12 +232,12 @@ export function recalculateMeetingCompletion(
         lifecycle,
         ...(enteringConverging ? { pendingHandRaises: [], opportunityRequests: [] } : {})
     };
-}
+};
 
-export function recordProposalRevision(
+export const recordProposalRevision = (
     state: MeetingState,
     input: RecordProposalRevisionInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -251,8 +250,7 @@ export function recordProposalRevision(
     )
         return bad(state, "INVALID_ARGUMENT");
     const a = identity(state, input.actor);
-    if (!a || (!a.roles.includes("contributor") && !a.roles.includes("captain")))
-        return bad(state, "UNAUTHORIZED");
+    if (!a || !a.roles.includes("contributor")) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     if (
@@ -312,12 +310,12 @@ export function recordProposalRevision(
         ],
         effectRequests: []
     };
-}
+};
 
-export function recordPosition(
+export const recordPosition = (
     state: MeetingState,
     input: RecordPositionInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -328,8 +326,7 @@ export function recordPosition(
         !validArray(input.evidenceIds)
     )
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
-        return bad(state, "UNAUTHORIZED");
+    if (!actorRole(state, input.actor, "contributor")) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     const missingEvidence = input.evidenceIds.find(
@@ -365,11 +362,11 @@ export function recordPosition(
         relatedIds: [position.id, position.proposalRevisionId, ...position.evidenceIds],
         effectRequests: []
     };
-}
-export function recordDecisionCandidate(
+};
+export const recordDecisionCandidate = (
     state: MeetingState,
     input: RecordDecisionCandidateInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -381,8 +378,7 @@ export function recordDecisionCandidate(
         !validArray(input.evidenceIds)
     )
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
-        return bad(state, "UNAUTHORIZED");
+    if (!actorRole(state, input.actor, "contributor")) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     const missingEvidence = input.evidenceIds.find(
@@ -434,16 +430,16 @@ export function recordDecisionCandidate(
         ],
         effectRequests: []
     };
-}
-export function pendingDecisionCandidates(state: MeetingState): readonly DecisionCandidate[] {
+};
+export const pendingDecisionCandidates = (state: MeetingState): readonly DecisionCandidate[] => {
     if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") return [];
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const used = new Set(state.decisions.map((d) => d.candidateId));
     return state.decisionCandidates.filter(
         (c) => current.has(c.proposalRevisionId) && !used.has(c.id)
     );
-}
-export function decide(state: MeetingState, _input: DecideInput): MeetingTransitionResult {
+};
+export const decide = (state: MeetingState, _input: DecideInput): MeetingTransitionResult => {
     const input = _input;
     const e = base(state, input.actor, input.now);
     if (e) return e;
@@ -489,11 +485,11 @@ export function decide(state: MeetingState, _input: DecideInput): MeetingTransit
         relatedIds: [decision.id, decision.candidateId],
         effectRequests: []
     };
-}
-export function changeDecision(
+};
+export const changeDecision = (
     state: MeetingState,
     input: ChangeDecisionInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds))
@@ -588,8 +584,11 @@ export function changeDecision(
         relatedIds: [old.id, replacement.id, replacement.candidateId, ...input.evidenceIds],
         effectRequests: []
     };
-}
-export function disposeRisk(state: MeetingState, input: DisposeRiskInput): MeetingTransitionResult {
+};
+export const disposeRisk = (
+    state: MeetingState,
+    input: DisposeRiskInput
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -605,12 +604,7 @@ export function disposeRisk(state: MeetingState, input: DisposeRiskInput): Meeti
         return bad(state, "INVALID_ARGUMENT");
     if (uniqueEntity(state, input.dispositionId, "riskDispositions"))
         return bad(state, "INVALID_ARGUMENT");
-    if (
-        input.actor.kind === "identity"
-            ? !state.identities.some((i) => i.id === input.actor.id && i.roles.includes("captain"))
-            : input.actor.kind !== "local_controller"
-    )
-        return bad(state, "UNAUTHORIZED");
+    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     const issue = state.issues.find((i) => i.id === input.issueId);
@@ -670,11 +664,11 @@ export function disposeRisk(state: MeetingState, input: DisposeRiskInput): Meeti
         relatedIds: [disposition.id, disposition.issueId, ...disposition.evidenceIds],
         effectRequests: []
     };
-}
-export function submitCompletionDeclaration(
+};
+export const submitCompletionDeclaration = (
     state: MeetingState,
     input: SubmitCompletionDeclarationInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -745,11 +739,11 @@ export function submitCompletionDeclaration(
         ],
         effectRequests: []
     };
-}
-export function recordCompletionFact(
+};
+export const recordCompletionFact = (
     state: MeetingState,
     input: RecordCompletionFactInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (
@@ -762,7 +756,7 @@ export function recordCompletionFact(
         (input.criterionId !== undefined && !validId(input.criterionId))
     )
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     if (uniqueEntity(state, input.factId, "completionFacts")) return bad(state, "INVALID_ARGUMENT");
@@ -834,11 +828,11 @@ export function recordCompletionFact(
         ],
         effectRequests: []
     };
-}
-export function changeCompletionFact(
+};
+export const changeCompletionFact = (
     state: MeetingState,
     input: ChangeCompletionFactInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (!validId(input.factId) || !validId(input.rationale)) return bad(state, "INVALID_ARGUMENT");
@@ -848,7 +842,7 @@ export function changeCompletionFact(
         return bad(state, "INVALID_ARGUMENT");
     if (input.status === "superseded" && input.replacement === undefined)
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
     const lifecycleCode = lifecycle(state);
     if (lifecycleCode) return bad(state, lifecycleCode);
     const old = state.completionFacts.find((f) => f.id === input.factId);
@@ -959,8 +953,8 @@ export function changeCompletionFact(
         ],
         effectRequests: []
     };
-}
-export function isObjectiveSatisfied(state: MeetingState): boolean {
+};
+export const isObjectiveSatisfied = (state: MeetingState): boolean => {
     const recalculated = recalculateMeetingCompletion(
         { ...state, lifecycle: { ...state.lifecycle, status: "paused" } },
         state.lifecycle.changedBy,
@@ -972,4 +966,4 @@ export function isObjectiveSatisfied(state: MeetingState): boolean {
         recalculated.objective.hardConstraints.every((t) => t.status === "satisfied") &&
         !state.issues.some((i) => i.blocking)
     );
-}
+};

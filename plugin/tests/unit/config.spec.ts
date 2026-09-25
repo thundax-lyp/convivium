@@ -25,9 +25,13 @@ describe("Convivium runtime config", () => {
             roleDefinitionId: "meeting_manager",
             displayName: "A",
             summary: "A",
-            roleDescription: "private persona",
+            agentInstructions: {
+                roleDefinitionId: "meeting_manager",
+                version: "2.0.0",
+                sha256: "a".repeat(64)
+            },
             dshPresetId: "minimal",
-            requiredSkillNames: ["skill"],
+            requiredSkillNames: ["meeting-facilitation"],
             expertiseTags: ["tag"],
             evidenceScopes: []
         };
@@ -51,8 +55,8 @@ describe("Convivium runtime config", () => {
             );
         }
         expect(Config({ ...validConfig, agentModelOverrides: {} }).agentModelOverrides).toEqual({});
-        definition.roleDescription = "changed";
-        expect(config.agentDefinitions?.[0].roleDescription).toBe("private persona");
+        definition.agentInstructions.sha256 = "b".repeat(64);
+        expect(config.agentDefinitions?.[0].agentInstructions.sha256).toBe("a".repeat(64));
         expect(Object.isFrozen(config.agentDefinitions)).toBe(true);
         expect(() =>
             Config({ ...validConfig, agentDefinitions: [{ ...definition, extra: true }] })

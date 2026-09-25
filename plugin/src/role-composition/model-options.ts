@@ -1,6 +1,6 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { z } from "zod";
-import type { MeetingAgentDefinition } from "./model.js";
+import type { MeetingAgentDefinition, EffectiveAgentOptions } from "./model.js";
 
 export type MeetingAgentModelOverrides = Readonly<
     Record<string, Readonly<Pick<AgentOptions, "provider" | "model" | "reasoningEffort">>>
@@ -41,3 +41,19 @@ export function parseAgentModelOverrides(
         throw new TypeError("Invalid meeting agent model overrides.");
     }
 }
+
+export const resolveEffectiveAgentOptions = (
+    selection: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">,
+    override?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">
+): EffectiveAgentOptions => {
+    const candidate = { ...selection, ...override };
+    try {
+        return Object.freeze(
+            z
+                .strictObject({ provider: text, model: text, reasoningEffort: text.optional() })
+                .parse(candidate)
+        );
+    } catch {
+        throw new TypeError("Meeting model selection is unavailable.");
+    }
+};

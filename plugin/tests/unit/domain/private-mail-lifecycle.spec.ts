@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import {
     cancelPrivateMail,
@@ -311,6 +312,7 @@ describe("private mail recipient gate", () => {
             unclosedContributionIds: []
         };
         const archive = {
+            controlActorProvenance: [{ actorId: captainActorIdFor(base.id), kind: "captain" }],
             id: "archive-1",
             status: "complete" as const,
             createdAt: 0,

@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { validateMeetingState } from "@/domain/meeting-state-validation.js";
@@ -199,6 +200,7 @@ describe("canonical MeetingState validation", () => {
             unclosedContributionIds: []
         };
         const archive = {
+            controlActorProvenance: [{ actorId: captainActorIdFor(state.id), kind: "captain" }],
             id: "archive-v1",
             status: "complete" as const,
             createdAt: 11,

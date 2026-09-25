@@ -127,7 +127,6 @@ describe("target Meeting tool registration", () => {
         });
 
         expect(definitions.map(({ name }) => name)).toEqual([
-            "convivium_create_meeting",
             "convivium_read_meeting",
             "convivium_run_review_worker",
             "convivium_open_round",

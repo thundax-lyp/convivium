@@ -1,5 +1,3 @@
-import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
     EvidenceReview,
     EvidenceVersion,
@@ -8,7 +6,8 @@ import type {
     Publication
 } from "@/domain/index.js";
 import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.js";
-import { followupMeetingIdentitySession } from "@/dsh/index.js";
+import type { MeetingAgentOwner } from "@/dsh/index.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import { ReviewWorkerOutputSchema } from "@/protocol/index.js";
@@ -71,8 +70,7 @@ function findOwnership(
     ownerships: readonly SessionOwnership[],
     identity: MeetingIdentity,
     meetingId: string,
-    role: "evidence_reviewer" | "participant",
-    parent: Agent
+    role: "evidence_reviewer" | "participant"
 ): SessionOwnership {
     const matches = ownerships.filter(
         (candidate) =>
@@ -81,8 +79,7 @@ function findOwnership(
             candidate.identityId === identity.id &&
             candidate.role === role &&
             candidate.lifecycleStatus === "active" &&
-            candidate.capabilityStatus === "active" &&
-            candidate.parentSessionId === String(parent.id)
+            candidate.capabilityStatus === "active"
     );
     if (matches.length !== 1) fail("REVIEW_OWNERSHIP_INVALID");
     return matches[0]!;
@@ -141,16 +138,53 @@ function pendingReviews(state: MeetingState) {
 
 interface DispatchEvidenceReviewInput {
     readonly outboxItem: OutboxItem;
-    readonly parent: Agent;
     readonly signal: AbortSignal;
 }
 
 interface EvidenceReviewDispatcherDependencies {
-    readonly sessions: Pick<SubagentRuntime, "sendMessage">;
+    readonly owner: MeetingAgentOwner;
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
     readonly application: MeetingCommandApplication;
     readonly clock: { now(): number };
 }
+
+const deliverReviewNotice = async (
+    dependencies: Pick<EvidenceReviewDispatcherDependencies, "owner" | "definitions">,
+    input: {
+        ownership: SessionOwnership;
+        meetingId: string;
+        identityId: string;
+        prompt: { type: string; text: string }[];
+        signal: AbortSignal;
+        deliveryId: string;
+        authorize: () => Promise<void>;
+    }
+): Promise<void> => {
+    await input.authorize();
+    const definition = dependencies.definitions.find(
+        (d) =>
+            d.agentDefinitionId === input.ownership.definition.agentDefinitionId &&
+            d.definitionVersion === input.ownership.definition.definitionVersion
+    );
+    if (!definition) retry("RECOVERY_UNAVAILABLE", false);
+    await dependencies.owner.resume({
+        ownership: input.ownership,
+        definition,
+        purpose: "delivery",
+        signal: input.signal
+    });
+    if (
+        !(await dependencies.owner.deliver({
+            ownership: input.ownership,
+            deliveryId: input.deliveryId,
+            text: input.prompt.map((p) => p.text).join("\n"),
+            authorize: input.authorize,
+            signal: input.signal
+        }))
+    )
+        retry("SESSION_FLUSH_FAILED", false);
+};
 
 export function createEvidenceReviewDispatcher(
     dependencies: EvidenceReviewDispatcherDependencies
@@ -194,7 +228,7 @@ export function createEvidenceReviewDispatcher(
     }
 
     return {
-        async dispatch({ outboxItem, parent, signal }) {
+        async dispatch({ outboxItem, signal }) {
             const payload = outboxItem.payload as Record<string, unknown>;
             if (
                 outboxItem.kind !== "dispatch" ||
@@ -209,7 +243,9 @@ export function createEvidenceReviewDispatcher(
             if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             const { state } = recovered.snapshot;
             if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
-            if (state.lifecycle.status === "paused") return;
+            if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+                fail("INVALID_STATE");
+            if (state.lifecycle.status !== "running") retry("INVALID_STATE", false);
             const existingClaim = state.reviewClaims.find(
                 (claim) => claim.versionId === requestedVersionId
             );
@@ -251,8 +287,7 @@ export function createEvidenceReviewDispatcher(
                 recovered.sessionOwnership,
                 identity,
                 recovered.snapshot.meetingId,
-                "evidence_reviewer",
-                parent
+                "evidence_reviewer"
             );
             const claim = await dependencies.application.execute(
                 {
@@ -297,12 +332,48 @@ export function createEvidenceReviewDispatcher(
             const claimId = claim.relatedIds?.[0];
             if (!claimId) retry("REVIEW_CLAIM_UNAVAILABLE");
             try {
-                await followupMeetingIdentitySession({
-                    runtime: dependencies.sessions,
-                    parent,
+                await deliverReviewNotice(dependencies, {
+                    deliveryId: outboxItem.deliveryId,
                     ownership,
                     meetingId: recovered.snapshot.meetingId,
                     identityId: identity.id,
+                    authorize: async () => {
+                        const latest = await dependencies.repository.recover();
+                        if (
+                            !latest.snapshot ||
+                            latest.snapshot.meetingId !== recovered.snapshot!.meetingId
+                        )
+                            retry("REVIEW_STATE_UNAVAILABLE");
+                        const current = latest.snapshot.state;
+                        if (current.lifecycle.status !== "running") retry("INVALID_STATE", false);
+                        const currentIdentity = findIdentity(
+                            current,
+                            recipientId,
+                            "evidence_reviewer"
+                        );
+                        const currentOwner = findOwnership(
+                            latest.sessionOwnership,
+                            currentIdentity,
+                            latest.snapshot.meetingId,
+                            "evidence_reviewer"
+                        );
+                        if (
+                            currentOwner.id !== ownership.id ||
+                            currentOwner.sessionId !== ownership.sessionId
+                        )
+                            fail("REVIEW_OWNERSHIP_INVALID");
+                        if (
+                            current.evidenceReviewerId !== recipientId ||
+                            !current.reviewClaims.some(
+                                (c) =>
+                                    c.id === claimId &&
+                                    c.versionId === requestedVersionId &&
+                                    c.sourceEffectId === outboxItem.id &&
+                                    c.expiresAt > dependencies.clock.now()
+                            )
+                        )
+                            retry("REVIEW_CLAIM_UNAVAILABLE", false);
+                    },
                     prompt: [
                         {
                             type: "text",
@@ -478,7 +549,7 @@ export function createReviewDeliveryDispatcher(
 
     return {
         async dispatch(input) {
-            const { outboxItem, parent, signal } = input;
+            const { outboxItem, signal } = input;
             const payload = outboxItem.payload as Record<string, unknown>;
             if (outboxItem.kind !== "dispatch" || payload.kind !== "review_delivery")
                 fail("OUTBOX_ROUTE_UNAVAILABLE");
@@ -501,15 +572,47 @@ export function createReviewDeliveryDispatcher(
                     recovered.sessionOwnership,
                     identity,
                     recovered.snapshot.meetingId,
-                    "participant",
-                    parent
+                    "participant"
                 );
-                await followupMeetingIdentitySession({
-                    runtime: dependencies.sessions,
-                    parent,
+                await deliverReviewNotice(dependencies, {
+                    deliveryId: outboxItem.deliveryId,
                     ownership,
                     meetingId: recovered.snapshot.meetingId,
                     identityId: authorId,
+                    authorize: async () => {
+                        const latest = await dependencies.repository.recover();
+                        if (
+                            !latest.snapshot ||
+                            latest.snapshot.meetingId !== recovered.snapshot!.meetingId
+                        )
+                            retry("REVIEW_STATE_UNAVAILABLE");
+                        const current = latest.snapshot.state;
+                        if (current.lifecycle.status !== "running") retry("INVALID_STATE", false);
+                        const currentIdentity = findIdentity(current, authorId, "contributor");
+                        const currentOwner = findOwnership(
+                            latest.sessionOwnership,
+                            currentIdentity,
+                            latest.snapshot.meetingId,
+                            "participant"
+                        );
+                        if (
+                            currentOwner.id !== ownership.id ||
+                            currentOwner.sessionId !== ownership.sessionId
+                        )
+                            fail("REVIEW_OWNERSHIP_INVALID");
+                        if (
+                            alreadySent(current, reviewId) ||
+                            !current.reviews.some(
+                                (r) => r.id === reviewId && r.versionId === review.versionId
+                            ) ||
+                            !current.evidencePackages.some(
+                                (p) =>
+                                    p.authorId === authorId &&
+                                    p.versions.some((v) => v.id === review.versionId)
+                            )
+                        )
+                            fail("REVIEW_VISIBILITY_INVALID");
+                    },
                     prompt: [
                         {
                             type: "text",

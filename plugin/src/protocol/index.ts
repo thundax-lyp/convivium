@@ -58,6 +58,16 @@ export {
 } from "./schema.js";
 export * from "./types.js";
 export {
+    ActivateAgendaActionSchema,
+    DisposeAgendaCandidateActionSchema,
+    ResolveQuestionActionSchema,
+    DisposeIssueActionSchema,
+    AbortRoundActionSchema,
+    DecideActionSchema,
+    ChangeDecisionActionSchema,
+    DisposeRiskActionSchema,
+    RecordCompletionFactActionSchema,
+    ChangeCompletionFactActionSchema,
     MeetingActionSchema,
     CreateMeetingActionSchema,
     OpenRoundActionSchema,

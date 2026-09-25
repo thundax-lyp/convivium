@@ -1,16 +1,15 @@
+import { fileURLToPath } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
-import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
+import { resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import {
     activateTargetMeetingApplication,
     getLocalMeetingWebRuntime,
     getMeetingIdentityReader,
-    getMeetingCommandApplication,
-    ensureTargetMeetingDelivery
+    getMeetingCommandApplication
 } from "./runtime/index.js";
 import { registerMeetingTools } from "./tools/index.js";
 
@@ -20,16 +19,20 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-const meetingServices = ["agents", "sessions", "subagents", "systemPrompt", "tools"] as const;
+const meetingServices = [
+    "agents",
+    "sessions",
+    "sessionPersistence",
+    "agentPresets",
+    "agentDefaultModel",
+    "skills",
+    "llm",
+    "subagents",
+    "systemPrompt",
+    "tools"
+] as const;
 
 export const inject = [] as const;
-
-export function assertContinuableProvider(
-    ctx: Pick<Context, "subagents">,
-    providerName: string
-): SubagentProvider {
-    return requireContinuableProvider(ctx.subagents, providerName);
-}
 
 const meetingConsumerPlugin = {
     name: "convivium-meeting-consumer",
@@ -47,8 +50,9 @@ const meetingConsumerPlugin = {
             });
         });
         async function activate(): Promise<void> {
-            assertContinuableProvider(ctx, config.provider);
-            const disposeTarget = await activateTargetMeetingApplication(ctx, config);
+            const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
+                rolePackageRoot: fileURLToPath(new URL("../", import.meta.url))
+            });
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
             const runtime = getLocalMeetingWebRuntime(ctx);
             const reader = getMeetingIdentityReader(ctx);
@@ -67,9 +71,6 @@ const meetingConsumerPlugin = {
                         const resolved = await resolveMeetingCaller(agent, runtime, signal);
                         return resolved;
                     }
-                },
-                onMeetingCreated(meetingId, parent) {
-                    ensureTargetMeetingDelivery(ctx, meetingId, parent);
                 }
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {

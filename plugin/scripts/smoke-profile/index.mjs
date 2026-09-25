@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
-import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+    access,
+    cp,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    stat,
+    writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +21,8 @@ import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import {
     completeMeetingBusinessLoopResult,
     validateMeetingBusinessLoopHotResult,
-    validateScenarioResult
+    validateScenarioResult,
+    validatePeerMeetingAgentsResult
 } from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
@@ -29,8 +40,16 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "600000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-export const SMOKE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
-export const CORE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
+export const SMOKE_SCENARIOS = [
+    "identity-admission",
+    "meeting-business-loop",
+    "peer-meeting-agents"
+];
+export const CORE_SCENARIOS = [
+    "identity-admission",
+    "meeting-business-loop",
+    "peer-meeting-agents"
+];
 
 export function selectScenarios(args, scenario, browserMode) {
     if (args.some((arg) => !["--all", "--json"].includes(arg)))
@@ -151,7 +170,8 @@ async function createRecordRoot(recordDirectory) {
 }
 
 function redact(text, deepSeekApiKey) {
-    return deepSeekApiKey === "" ? text : text.split(deepSeekApiKey).join("[REDACTED]");
+    const withoutKey = deepSeekApiKey === "" ? text : text.split(deepSeekApiKey).join("[REDACTED]");
+    return withoutKey.replace(/token=[^\s"&]+/g, "token=[REDACTED]");
 }
 
 async function copyRecordedText(source, destination, deepSeekApiKey) {
@@ -164,7 +184,7 @@ export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
     if (recordRoot === undefined) return;
     const files = [
         [result.dumpConfig, "dump-config.yml"],
-        ...(result.scenario === "meeting-business-loop"
+        ...(["meeting-business-loop", "peer-meeting-agents"].includes(result.scenario)
             ? [
                   [result.bootLogs.initial.stdoutPath, "initial/boot.stdout.log"],
                   [result.bootLogs.initial.stderrPath, "initial/boot.stderr.log"],
@@ -195,8 +215,11 @@ export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
         agentPrompts: undefined,
         recordScope: {
             source: "target-runtime-smoke",
-            secretRedaction: "DEEPSEEK_API_KEY values are replaced",
-            externalResearch: "not performed; fixture evidence only"
+            secretRedaction: "DEEPSEEK_API_KEY and Host URL tokens are replaced",
+            externalResearch:
+                result.scenario === "peer-meeting-agents"
+                    ? "actual GitHub and arXiv tool reads required"
+                    : "not performed; fixture evidence only"
         }
     };
     await writeFile(
@@ -264,7 +287,7 @@ async function packArtifact(artifactDir) {
 
 export async function writeSmokePatch(path, _scenario, storagePath) {
     const targetDefinitions = JSON.parse(
-        await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
+        await readFile(join(pluginRoot, "config", "definitions.json"), "utf8")
     ).definitions;
     const targetModelOverrides = Object.fromEntries(
         targetDefinitions
@@ -404,7 +427,7 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
 
     bootProcess = spawn(dsh.command, dsh.args, {
         cwd: workspaceDir,
-        env,
+        env: { ...env, CONVIVIUM_SMOKE_REMOTE_PORT: String(port) },
         stdio: ["ignore", "pipe", "pipe"],
         shell: false
     });
@@ -444,6 +467,10 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
 async function waitForJson(path, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+        if (bootProcess && (bootProcess.exitCode !== null || bootProcess.signalCode !== null))
+            throw new Error(
+                `DSH Host exited before probe result: ${bootProcess.exitCode ?? bootProcess.signalCode}`
+            );
         if (await pathExists(path)) {
             try {
                 const content = await readFile(path, "utf8");
@@ -531,7 +558,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
             env: createSmokeEnvironment(process.env)
         });
-        roleAssetRoot = join(unpackRoot, "package", "meeting-roles");
+        roleAssetRoot = join(unpackRoot, "package", "config");
         await access(join(roleAssetRoot, "cordis.patch.yml"), constants.R_OK);
     }
     const env = createSmokeEnvironment(process.env, {
@@ -541,12 +568,22 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
         CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH: agentPromptsPath,
-        CONVIVIUM_SMOKE_SCENARIO: scenario
+        CONVIVIUM_SMOKE_SCENARIO: scenario,
+        CONVIVIUM_SMOKE_PEER_CHECKPOINT: join(tempRoot, "peer-checkpoint.json")
     });
     const port = await allocatePort();
     activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
+    roleAssetRoot = await realpath(
+        join(dshHome, "profiles", PROFILE, "node_modules", CONVIVIUM_PACKAGE, "config")
+    );
+    env.CONVIVIUM_MEETING_ROLES_ROOT = roleAssetRoot;
+    // This static acceptance profile is restarted explicitly; it does not reload patches live.
+    const profileManifestPath = join(dshHome, "profiles", PROFILE, "package.json");
+    const profileManifest = JSON.parse(await readFile(profileManifestPath, "utf8"));
+    profileManifest.dsh.profile.patchReload = "startup";
+    await writeFile(profileManifestPath, JSON.stringify(profileManifest, null, 2) + "\n");
     const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
@@ -562,8 +599,11 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
                 `stderr tail:\n${stderrTail}`
         );
     }
-    if (scenario === "meeting-business-loop") {
-        probeResult = validateMeetingBusinessLoopHotResult(probeResult);
+    if (["meeting-business-loop", "peer-meeting-agents"].includes(scenario)) {
+        probeResult =
+            scenario === "meeting-business-loop"
+                ? validateMeetingBusinessLoopHotResult(probeResult)
+                : validatePeerMeetingAgentsResult(probeResult, false);
         await stopHost();
         await assertPortReleased(port);
         activePort = undefined;
@@ -594,7 +634,10 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
                     `stderr tail:\n${stderrTail}`
             );
         }
-        probeResult = completeMeetingBusinessLoopResult(probeResult, coldResult);
+        probeResult =
+            scenario === "meeting-business-loop"
+                ? completeMeetingBusinessLoopResult(probeResult, coldResult)
+                : validateScenarioResult(coldResult, scenario);
     } else {
         probeResult = validateScenarioResult(probeResult, scenario);
     }
@@ -609,10 +652,9 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         artifact: basename(artifact),
         probe: probeResult,
         dumpConfig: dumpPath,
-        bootLogs:
-            scenario === "meeting-business-loop"
-                ? { initial: bootLogs, coldReopen: finalBootLogs }
-                : finalBootLogs,
+        bootLogs: ["meeting-business-loop", "peer-meeting-agents"].includes(scenario)
+            ? { initial: bootLogs, coldReopen: finalBootLogs }
+            : finalBootLogs,
         agentPrompts: agentPromptsPath,
         ...(storagePath === undefined ? {} : { storagePersistence: "PRESERVED" })
     };
@@ -667,7 +709,26 @@ async function main() {
                     storagePath
                 );
             } catch (error) {
-                throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
+                if (recordRoot !== undefined && tempRoot !== undefined) {
+                    for (const file of ["boot.stdout.log", "boot.stderr.log", "dump-config.yml"]) {
+                        const source = join(tempRoot, "logs", file);
+                        if (await pathExists(source))
+                            await copyRecordedText(
+                                source,
+                                join(recordRoot, scenario, "failure", file),
+                                deepSeekApiKey
+                            );
+                    }
+                    await writeScenarioRecord(
+                        join(recordRoot, scenario),
+                        { ok: false, scenario, error: redact(error.message, deepSeekApiKey) },
+                        deepSeekApiKey
+                    );
+                }
+                throw new Error(
+                    `Smoke ${scenario} failed: ${redact(error.message, deepSeekApiKey)}`,
+                    { cause: error }
+                );
             } finally {
                 await restore();
                 tempRoot = undefined;

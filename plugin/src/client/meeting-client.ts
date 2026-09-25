@@ -1,8 +1,10 @@
+import { useCallback, useRef, useState } from "react";
 import type { ClientRemote, RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 import type {} from "@convivium/dsh-plugin/remote";
 import {
     MeetingCommandResultSchema,
+    MeetingCommandSchema,
     MeetingListResultSchema,
     MeetingReadResultSchema,
     ReadMeetingRequestSchema,
@@ -120,5 +122,87 @@ export const createMeetingClient = (remote: ClientRemote): MeetingClient => {
                 carrierFailed: callbacks.carrierFailed
             });
         }
+    };
+};
+
+/** Keeps the exact command only while its delivery outcome is uncertain. */
+export const useMeetingSubmission = (
+    client: MeetingClient,
+    disabled: boolean,
+    onCommitted: (meetingId: string) => void
+) => {
+    const [pending, setPending] = useState(false);
+    const [message, setMessage] = useState<string>();
+    const [uncertain, setUncertain] = useState<MeetingCommand>();
+    const inFlight = useRef(false);
+    const generation = useRef(0);
+    const edit = useCallback(() => {
+        generation.current += 1;
+        setUncertain(undefined);
+        setMessage(undefined);
+    }, []);
+    const send = async (command: MeetingCommand) => {
+        if (disabled || inFlight.current) return;
+        const sentGeneration = generation.current;
+        inFlight.current = true;
+        setPending(true);
+        setMessage(undefined);
+        let result: MeetingCommandResult;
+        try {
+            result = await client.control(command);
+        } catch {
+            if (generation.current === sentGeneration) {
+                setUncertain(command);
+                setMessage("uncertain");
+            }
+            inFlight.current = false;
+            setPending(false);
+            return;
+        }
+        if (generation.current === sentGeneration) setUncertain(undefined);
+        try {
+            if (result.kind === "accepted") {
+                if (generation.current === sentGeneration) setMessage("committed");
+                await Promise.all([
+                    client.list(),
+                    client.read({ protocolVersion: 1, meetingId: result.meetingId })
+                ]);
+                onCommitted(result.meetingId);
+            } else {
+                if (generation.current === sentGeneration) setMessage(result.error.code);
+                if (result.error.code === "VERSION_CONFLICT") {
+                    await client.read({ protocolVersion: 1, meetingId: command.meetingId });
+                    onCommitted(command.meetingId);
+                }
+            }
+        } catch {
+            if (generation.current === sentGeneration) setMessage("refresh_failed");
+        } finally {
+            inFlight.current = false;
+            setPending(false);
+        }
+    };
+    return {
+        pending,
+        message,
+        uncertain: uncertain !== undefined,
+        edit,
+        invalid: () => setMessage("invalid"),
+        submit: (meetingId: string, version: number, action: MeetingCommand["action"]) => {
+            if (disabled || inFlight.current) return;
+            const parsed = MeetingCommandSchema.safeParse({
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: version,
+                requestId: crypto.randomUUID(),
+                action
+            });
+            if (!parsed.success) {
+                setMessage("invalid");
+                return;
+            }
+            return send(parsed.data);
+        },
+        retry: () => uncertain && send(uncertain)
     };
 };

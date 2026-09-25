@@ -9,7 +9,11 @@ const definitions = parseAgentDefinitions([
         roleDefinitionId: "domain_architect",
         displayName: "Architect",
         summary: "summary",
-        roleDescription: "role",
+        agentInstructions: {
+            roleDefinitionId: "domain_architect",
+            version: "2.0.0",
+            sha256: "a".repeat(64)
+        },
         dshPresetId: "meeting",
         requiredSkillNames: [],
         expertiseTags: ["evidence"],

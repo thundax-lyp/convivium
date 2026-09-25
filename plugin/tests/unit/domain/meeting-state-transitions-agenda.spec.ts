@@ -15,7 +15,7 @@ it("raises a candidate for an existing identity", () => {
     const result = transitionMeetingState(
         current,
         { kind: "raise_agenda_candidate", title: "new agenda", reason: "needed" },
-        captain,
+        { kind: "identity", id: "identity-1" },
         10,
         "fact-3",
         "candidate-1"
@@ -98,7 +98,7 @@ it("accepts a candidate source message when it belongs to the meeting", () => {
             reason: "needed",
             sourceMessageId: "message-1"
         },
-        captain,
+        { kind: "identity", id: "identity-1" },
         10,
         "fact-3",
         "candidate-1"
@@ -115,7 +115,7 @@ it.each([
     ],
     [
         "missing source",
-        captain,
+        { kind: "identity", id: "identity-1" },
         {
             kind: "raise_agenda_candidate",
             title: "x",
@@ -126,7 +126,7 @@ it.each([
     ],
     [
         "invalid source id",
-        captain,
+        { kind: "identity", id: "identity-1" },
         { kind: "raise_agenda_candidate", title: "x", reason: "x", sourceMessageId: " " },
         "INVALID_ARGUMENT"
     ]
@@ -296,7 +296,7 @@ it("promotes a candidate atomically with a pending agenda and reviewer responsib
     expect(result.facts[0]).toEqual({
         id: "fact-3",
         kind: "dispose_agenda_candidate",
-        actorId: "identity-1",
+        actorId: captain.id,
         occurredAt: 10,
         relatedIds: ["meeting-1", "candidate-1", "agenda-2"],
         payload: {
@@ -331,46 +331,49 @@ it.each([
     expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
 });
 
-it.each([captain, manager, reviewer])("records a question for each allowed identity", (actor) => {
-    const current = publishedQuestionState(false);
-    const result = transitionMeetingState(
-        current,
-        {
-            kind: "record_question",
+it.each([{ kind: "identity", id: "identity-1" }, manager, reviewer] as const)(
+    "records a question for each allowed identity",
+    (actor) => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingState(
+            current,
+            {
+                kind: "record_question",
+                agendaId: "agenda-1",
+                text: "clarify",
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: [],
+                affectedConstraintIds: [],
+                blocking: true
+            },
+            actor,
+            10,
+            "fact-5",
+            `question-${actor.id}`
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        const questionId = `question-${actor.id}`;
+        expect(result.state.questions[1]).toEqual({
+            id: questionId,
+            actorId: actor.id,
             agendaId: "agenda-1",
             text: "clarify",
             affectedOutputIds: ["output-1"],
             affectedCriterionIds: [],
             affectedConstraintIds: [],
-            blocking: true
-        },
-        actor,
-        10,
-        "fact-5",
-        `question-${actor.id}`
-    );
-    expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
-    const questionId = `question-${actor.id}`;
-    expect(result.state.questions[1]).toEqual({
-        id: questionId,
-        actorId: actor.id,
-        agendaId: "agenda-1",
-        text: "clarify",
-        affectedOutputIds: ["output-1"],
-        affectedCriterionIds: [],
-        affectedConstraintIds: [],
-        blocking: true,
-        status: "open"
-    });
-    expect(result.facts).toEqual([
-        {
-            id: "fact-5",
-            kind: "record_question",
-            actorId: actor.id,
-            occurredAt: 10,
-            relatedIds: ["meeting-1", questionId],
-            payload: { kind: "references", relatedIds: ["meeting-1", questionId] }
-        }
-    ]);
-});
+            blocking: true,
+            status: "open"
+        });
+        expect(result.facts).toEqual([
+            {
+                id: "fact-5",
+                kind: "record_question",
+                actorId: actor.id,
+                occurredAt: 10,
+                relatedIds: ["meeting-1", questionId],
+                payload: { kind: "references", relatedIds: ["meeting-1", questionId] }
+            }
+        ]);
+    }
+);

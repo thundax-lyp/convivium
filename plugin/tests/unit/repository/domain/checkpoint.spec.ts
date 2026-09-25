@@ -14,12 +14,14 @@ const makeProjection = (requestId = "r") =>
     createProjection({
         snapshot: null,
         bootstrap: {
+            creator: { kind: "local_user" as const, principalId: "local-controller" as const },
             status: "ready",
             createRequestId: requestId,
             requestHash: "h",
             createdAt: 1,
             updatedAt: 1
         },
+        preparedDescriptors: [],
         sessionOwnership: {}
     });
 const commit = (

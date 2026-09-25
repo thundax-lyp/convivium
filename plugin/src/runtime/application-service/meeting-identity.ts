@@ -16,11 +16,12 @@ export interface MeetingIdentityEffectHandlerDependencies {
             definitionVersion: string;
             definitionHash?: string;
             identityId?: string;
-            childSessionId?: string;
+            sessionId?: string;
         };
         meetingId: string;
         signal: AbortSignal;
     }) => Promise<IdentityProvisionResult>;
+    readonly activateProvisioned: (recommendationId: string, signal: AbortSignal) => Promise<void>;
     readonly cleanupProvisioned: (recommendationId: string) => Promise<void>;
 }
 
@@ -41,6 +42,12 @@ export function createMeetingIdentityEffectHandler(
             const recommendation = snapshot.state.identityRecommendations.find(
                 (item) => item.id === recommendationId
             );
+            if (recommendation?.status === "active" && recommendation.decision === "admit") {
+                if (snapshot.state.lifecycle.status !== "running") throw new Error("INVALID_STATE");
+                await dependencies.activateProvisioned(recommendationId, signal);
+                return;
+            }
+            if (recommendation?.status === "failed") return;
             if (
                 !recommendation ||
                 recommendation.decision !== "admit" ||
@@ -98,7 +105,11 @@ export function createMeetingIdentityEffectHandler(
                 },
                 signal
             );
-            if (committed.kind === "accepted") return;
+            if (committed.kind === "accepted") {
+                if (result.kind === "admitted")
+                    await dependencies.activateProvisioned(recommendationId, signal);
+                return;
+            }
             const afterCommit = await dependencies.repository.read();
             const afterRecommendation = afterCommit.state.identityRecommendations.find(
                 (item) => item.id === recommendationId

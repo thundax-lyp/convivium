@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { expect } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { recordPosition } from "@/domain/transitions/outcome.js";
@@ -20,7 +21,7 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             {
                 id: "captain",
                 displayName: "Captain",
-                roles: ["captain", "contributor"],
+                roles: ["contributor"],
                 agendaResponsibilityIds: ["a"],
                 riskAuthority: true,
                 required: true
@@ -234,6 +235,7 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             unresolvedItemIds: [],
             unclosedContributions: [],
             identityProvenance: [],
+            controlActorProvenance: [{ actorId: captainActorIdFor(state.id), kind: "captain" }],
             exportMaterials: []
         };
     }
@@ -296,7 +298,10 @@ export function completionReadyState(): MeetingState {
 }
 
 export function completionInput(
-    actor: { kind: "identity"; id: string } = { kind: "identity", id: "captain" }
+    actor: { kind: "identity" | "captain_user"; id: string } = {
+        kind: "captain_user",
+        id: captainActorIdFor("m")
+    }
 ) {
     return {
         factId: "fact",

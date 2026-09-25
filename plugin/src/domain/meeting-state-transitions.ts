@@ -14,7 +14,7 @@ import { z } from "zod";
 import { recalculateMeetingCompletion } from "@/domain/transitions/outcome.js";
 
 export type TargetDomainActor =
-    { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
+    { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
 
 export type TargetAgendaInput = {
     id: OpaqueId;
@@ -280,11 +280,11 @@ type TransitionContext = {
     factId: OpaqueId;
 };
 
-function completeTransition(
+const completeTransition = (
     context: TransitionContext,
     action: TargetMeetingAction,
     changes: TransitionChanges
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state, actor, now, factId } = context;
     let nextState: MeetingState = {
         ...state,
@@ -324,24 +324,24 @@ function completeTransition(
             }
         ]
     };
-}
+};
 
-function hasRole(state: MeetingState, actorId: OpaqueId, role: MeetingRole): boolean {
+const hasRole = (state: MeetingState, actorId: OpaqueId, role: MeetingRole): boolean => {
     return state.identities.some(
         (identity) => identity.id === actorId && identity.roles.includes(role)
     );
-}
+};
 
-function validateActionRequest(
+const validateActionRequest = (
     state: MeetingState,
     action: TargetMeetingAction,
     actor: TargetDomainActor,
     generatedId?: OpaqueId
-): RejectionCode | undefined {
+): RejectionCode | undefined => {
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
         if (typeof action.reason !== "string" || action.reason.trim().length === 0)
             return "INVALID_ARGUMENT";
-        return actor.kind === "local_controller" ? undefined : "UNAUTHORIZED";
+        return actor.kind === "captain_user" ? undefined : "UNAUTHORIZED";
     }
     if (action.kind === "activate_agenda") {
         if (
@@ -351,9 +351,7 @@ function validateActionRequest(
             !["completed", "deferred", "closed"].includes(action.previousDisposition)
         )
             return "INVALID_ARGUMENT";
-        return actor.kind === "identity" && hasRole(state, actor.id, "captain")
-            ? undefined
-            : "UNAUTHORIZED";
+        return actor.kind === "captain_user" ? undefined : "UNAUTHORIZED";
     }
     const requiresGeneratedId = [
         "raise_agenda_candidate",
@@ -374,27 +372,27 @@ function validateActionRequest(
     const schema = schemas[action.kind as keyof typeof schemas];
     if (!schema.safeParse(action).success || (requiresGeneratedId && !validId(generatedId)))
         return "INVALID_ARGUMENT";
-    if (actor.kind !== "identity" || !state.identities.some((identity) => identity.id === actor.id))
-        return "UNAUTHORIZED";
     const captainActions: readonly TargetMeetingAction["kind"][] = [
         "dispose_agenda_candidate",
         "resolve_question",
         "dispose_issue"
     ];
-    if (captainActions.includes(action.kind) && !hasRole(state, actor.id, "captain"))
+    if (captainActions.includes(action.kind))
+        return actor.kind === "captain_user" ? undefined : "UNAUTHORIZED";
+    if (actor.kind !== "identity" || !state.identities.some((identity) => identity.id === actor.id))
         return "UNAUTHORIZED";
     if (action.kind === "plan_next_step" && !hasRole(state, actor.id, "manager"))
         return "UNAUTHORIZED";
     return undefined;
-}
+};
 
-function transitionMeetingControl(
+const transitionMeetingControl = (
     context: TransitionContext,
     action: Extract<
         TargetMeetingAction,
         { kind: "pause_meeting" | "resume_meeting" | "activate_agenda" }
     >
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state, actor, now } = context;
     if (action.kind !== "activate_agenda") {
         const expected = action.kind === "pause_meeting" ? "running" : "paused";
@@ -447,16 +445,16 @@ function transitionMeetingControl(
         ),
         relatedIds: [state.id, old.id, target.id]
     });
-}
+};
 
-function transitionAgendaCandidate(
+const transitionAgendaCandidate = (
     context: TransitionContext,
     action: Extract<
         TargetMeetingAction,
         { kind: "raise_agenda_candidate" | "dispose_agenda_candidate" }
     >,
     generatedId: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state } = context;
     if (action.kind === "raise_agenda_candidate") {
         if (state.agendaCandidates.some((candidate) => candidate.id === generatedId))
@@ -512,16 +510,16 @@ function transitionAgendaCandidate(
         ),
         relatedIds
     });
-}
+};
 
-function affectedObjectiveExists(
+const affectedObjectiveExists = (
     state: MeetingState,
     action: {
         affectedOutputIds: readonly OpaqueId[];
         affectedCriterionIds: readonly OpaqueId[];
         affectedConstraintIds: readonly OpaqueId[];
     }
-): boolean {
+): boolean => {
     const outputIds = new Set(state.objective.requiredOutputs.map((item) => item.id));
     const criterionIds = new Set(state.objective.acceptanceCriteria.map((item) => item.id));
     const constraintIds = new Set(state.objective.hardConstraints.map((item) => item.id));
@@ -530,16 +528,16 @@ function affectedObjectiveExists(
         action.affectedCriterionIds.every((id) => criterionIds.has(id)) &&
         action.affectedConstraintIds.every((id) => constraintIds.has(id))
     );
-}
+};
 
-function hasUnsatisfiedAffectedObjective(
+const hasUnsatisfiedAffectedObjective = (
     state: MeetingState,
     action: {
         affectedOutputIds: readonly OpaqueId[];
         affectedCriterionIds: readonly OpaqueId[];
         affectedConstraintIds: readonly OpaqueId[];
     }
-): boolean {
+): boolean => {
     const affected = new Set([
         ...action.affectedOutputIds,
         ...action.affectedCriterionIds,
@@ -550,13 +548,13 @@ function hasUnsatisfiedAffectedObjective(
         ...state.objective.acceptanceCriteria,
         ...state.objective.hardConstraints
     ].some((target) => affected.has(target.id) && target.status !== "satisfied");
-}
+};
 
-function transitionQuestion(
+const transitionQuestion = (
     context: TransitionContext,
     action: Extract<TargetMeetingAction, { kind: "record_question" | "resolve_question" }>,
     generatedId: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state, actor } = context;
     if (action.kind === "record_question") {
         if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
@@ -616,13 +614,13 @@ function transitionQuestion(
             evidenceIds: action.evidenceIds
         }
     });
-}
+};
 
-function transitionIssue(
+const transitionIssue = (
     context: TransitionContext,
     action: Extract<TargetMeetingAction, { kind: "record_issue" | "dispose_issue" }>,
     generatedId: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state, actor } = context;
     if (action.kind === "record_issue") {
         if (!state.agenda.some((item) => item.id === action.agendaId))
@@ -694,13 +692,13 @@ function transitionIssue(
         },
         recalculateCompletion: true
     });
-}
+};
 
-function transitionManagerPlan(
+const transitionManagerPlan = (
     context: TransitionContext,
     action: Extract<TargetMeetingAction, { kind: "plan_next_step" }>,
     generatedId: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     const { state, actor, now } = context;
     if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
         return invalid(state, "NOT_FOUND");
@@ -732,13 +730,13 @@ function transitionManagerPlan(
         ],
         relatedIds: [state.id, generatedId, action.agendaId, ...(oldPlan ? [oldPlan.id] : [])]
     });
-}
+};
 
-function dispatchTransition(
+const dispatchTransition = (
     context: TransitionContext,
     action: TargetMeetingAction,
     generatedId?: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     switch (action.kind) {
         case "pause_meeting":
         case "resume_meeting":
@@ -756,23 +754,23 @@ function dispatchTransition(
         case "plan_next_step":
             return transitionManagerPlan(context, action, generatedId as OpaqueId);
     }
-}
+};
 
-export function transitionMeetingState(
+export const transitionMeetingState = (
     state: MeetingState,
     action: TargetMeetingAction,
     actor: TargetDomainActor,
     now: EpochMs,
     factId: OpaqueId,
     generatedId?: OpaqueId
-): TargetTransitionResult {
+): TargetTransitionResult => {
     if (
         validateMeetingState(state).kind !== "valid" ||
         !record(action) ||
         !validId(factId) ||
         !validTime(now) ||
         !record(actor) ||
-        !["local_controller", "identity"].includes(actor.kind as string) ||
+        !["captain_user", "identity"].includes(actor.kind as string) ||
         !validId(actor.id)
     )
         return invalid(state, "INVALID_ARGUMENT");
@@ -781,4 +779,4 @@ export function transitionMeetingState(
     if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
         return invalid(state, "MEETING_TERMINAL");
     return dispatchTransition({ state, actor, now, factId }, action, generatedId);
-}
+};

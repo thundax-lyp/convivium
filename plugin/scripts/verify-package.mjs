@@ -1,3 +1,7 @@
+import {
+    definitionAssetFiles,
+    verifyMeetingAgentDefinitions
+} from "./verify-agent-definition-samples.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -40,20 +44,12 @@ const requiredArtifacts = [
     "lib/protocol/types.js",
     "lib/types/protocol/types.d.ts",
     "cordis.patch.yml",
-    "meeting-roles/definitions.json",
-    "meeting-roles/README.md",
-    "meeting-roles/cordis.patch.yml",
+    "config/definitions.json",
+    "config/README.md",
+    "config/cordis.patch.yml",
     "scripts/install.sh",
     "scripts/start.sh",
-    "meeting-roles/presets/convivium/preset.yml",
-    "meeting-roles/presets/convivium/agent.cordis.yml",
-    "meeting-roles/presets/convivium/skills/meeting-management/SKILL.md",
-    "meeting-roles/presets/convivium/skills/domain-architecture/SKILL.md",
-    "meeting-roles/presets/convivium/skills/dsh-runtime-engineering/SKILL.md",
-    "meeting-roles/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
-    "meeting-roles/presets/convivium/skills/verification-review/SKILL.md",
-    "meeting-roles/presets/convivium/skills/github-source-research/SKILL.md",
-    "meeting-roles/presets/convivium/skills/arxiv-paper-analysis/SKILL.md"
+    ...definitionAssetFiles.map((file) => `config/${file}`)
 ];
 const expectedExports = {
     ".": { types: "./lib/types/index.d.ts", default: "./lib/index.js" },
@@ -79,7 +75,7 @@ const expectedExports = {
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
-    "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
+    "./config/cordis.patch.yml": "./config/cordis.patch.yml"
 };
 const forbiddenPublishedPaths = files.filter((path) => /^(src|tests|docs)(\/|$)|\*\*/.test(path));
 if (existsSync(resolve(packageRoot, "storage-plugin")))
@@ -102,7 +98,7 @@ const result = {
         JSON.stringify([
             "lib",
             "cordis.patch.yml",
-            "meeting-roles",
+            "config",
             "scripts/install.sh",
             "scripts/start.sh",
             "lib/typert.host.js",
@@ -136,7 +132,8 @@ const result = {
         (specifier) => !clientBundle.includes(specifier)
     ),
     forbiddenPublishedPaths,
-    missingArtifacts
+    missingArtifacts,
+    definitionAssetErrors: await verifyMeetingAgentDefinitions(resolve(packageRoot, "config"))
 };
 
 console.log(JSON.stringify(result, null, 2));
@@ -153,6 +150,7 @@ if (
     !result.bundlePatchDoesNotConfigureStorage ||
     !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||
+    result.definitionAssetErrors.length > 0 ||
     result.missingArtifacts.length > 0
 ) {
     process.exitCode = 1;

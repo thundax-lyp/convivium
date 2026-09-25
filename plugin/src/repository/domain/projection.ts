@@ -1,3 +1,4 @@
+import type { PreparedDescriptor } from "@/role-composition/model.js";
 import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/types.js";
 import { applyPatch } from "./json-patch.js";
 import {
@@ -47,14 +48,16 @@ function emptyMaps(): Pick<
 export function createProjection(input: {
     readonly snapshot: MeetingSnapshot | null;
     readonly bootstrap: MeetingBootstrap;
+    readonly preparedDescriptors: readonly PreparedDescriptor[];
     readonly sessionOwnership: Readonly<Record<string, SessionOwnership>>;
 }): PersistenceProjection {
     const maps = emptyMaps();
     for (const [key, value] of Object.entries(input.sessionOwnership))
         maps.sessionOwnership[key] = value;
     return PersistenceProjectionSchema.parse({
-        formatVersion: 1,
+        formatVersion: 2,
         snapshot: input.snapshot,
+        preparedDescriptors: input.preparedDescriptors,
         bootstrap: structuredClone(input.bootstrap),
         ...maps,
         nextEventSeq: 1
@@ -69,7 +72,10 @@ export function encodeProjection(projection: PersistenceProjection): Uint8Array 
 }
 
 export function decodeProjection(bytes: Uint8Array): PersistenceProjection {
-    const projection = PersistenceProjectionSchema.parse(decodeCanonicalJson(bytes));
+    const value = decodeCanonicalJson(bytes);
+    if (value && typeof value === "object" && !Array.isArray(value) && value.formatVersion !== 2)
+        throw new UnsupportedMeetingStateFormatError(value.formatVersion);
+    const projection = PersistenceProjectionSchema.parse(value);
     const state = projection.snapshot?.state;
     if (state === undefined || !Object.prototype.hasOwnProperty.call(state, "formatVersion")) {
         return projection;
