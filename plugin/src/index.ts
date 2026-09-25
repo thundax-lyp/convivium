@@ -26,6 +26,7 @@ const meetingServices = [
     "sessions",
     "sessionPersistence",
     "agentPresets",
+    "agentDefaultModel",
     "skills",
     "llm",
     "subagents",

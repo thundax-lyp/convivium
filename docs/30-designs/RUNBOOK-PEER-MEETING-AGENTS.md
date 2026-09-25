@@ -676,3 +676,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T5 前置补齐：模型 route 不可用时曾错误返回 ready（已观察 RED）。预检现调用 Host llm.resolveCallConfig，校验 provider/model 与显式 reasoningEffort；入口注入 llm，owner 测试同步注册模型替身。预检与 owner 共 3 文件、22 项通过；该验证不发起真实模型请求。
 
 - T8 第一笔：application 创建门禁改为 loopback_remote/local-controller 且无 sessionBindingId，移除 captainParent；既有 command contract 测试同步可信用户并覆盖伪造 Agent、错误 principal 和附带绑定的拒绝。先观察合法用户被旧门禁拒绝的 RED，修复后 11 项通过。允许该既有 contract 测试随 T8 修改；coordinator 与 Remote 接线尚待迁移，不能记 T8 PASS。
+
+- T8 创建 coordinator 已替换为七份预检、原子 creating 绑定、逐份 owner 创建/CAS 与 ready 后 delivery scope 恢复；相同 Meeting 创建串行化，重放不再读取 Host 默认值。真实 Repository + owner 替身覆盖创建中第 1/4/7 个失败全撤权清理、ready 后恢复失败不回滚、预检无副作用和并发同值重放。原生工厂证据复用 T7。新增同版 agent-default-model 直接 dev/optional peer，入口注入该 Host 服务；冷恢复/实际 outbox 调度仍依赖 T10/T11 接线，T8 不记整步 PASS。

@@ -120,7 +120,9 @@ describe("target Meeting list", () => {
             outboxPollMs: 1_000,
             agentDefinitions: roleResources.definitions
         };
-        const dispose = await activateTargetMeetingApplication(owner as never, config);
+        const dispose = await activateTargetMeetingApplication(owner as never, config, {
+            rolePackageRoot: "/fixture"
+        });
 
         try {
             await expect(

@@ -17,7 +17,11 @@ import {
 } from "./application-service/meeting-command.js";
 import { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinator } from "./meeting-runtime.js";
-import { requireContinuableProvider, type RoleCatalogPort } from "@/dsh/index.js";
+import {
+    createMeetingAgentOwner,
+    requireContinuableProvider,
+    type RoleCatalogPort
+} from "@/dsh/index.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
@@ -331,6 +335,7 @@ export async function activateTargetMeetingApplication(
             ownership
         };
     };
+    const agentOwner = createMeetingAgentOwner({ ctx, packageRoot: rolePackageRoot });
     const application = createMeetingCommandApplication({
         registry,
         ids,
@@ -341,9 +346,10 @@ export async function activateTargetMeetingApplication(
             registry,
             definitions,
             agentModelOverrides: config.agentModelOverrides,
-            continuable: ctx.subagents,
-            provider: config.provider,
-            ids
+            ctx,
+            owner: agentOwner,
+            packageRoot: rolePackageRoot,
+            cwd: process.cwd()
         })
     });
     const identityReader = createMeetingIdentityReader({
@@ -524,6 +530,7 @@ export async function activateTargetMeetingApplication(
         identityReaders.delete(ctx);
         applications.delete(ctx);
         refreshListeners.clear();
+        await agentOwner.disposeAll();
         await registry.close();
     };
 }
