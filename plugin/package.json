@@ -37,12 +37,12 @@
         },
         "./cordis.patch.yml": "./cordis.patch.yml",
         "./package.json": "./package.json",
-        "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
+        "./config/cordis.patch.yml": "./config/cordis.patch.yml"
     },
     "files": [
         "lib",
         "cordis.patch.yml",
-        "meeting-roles",
+        "config",
         "scripts/install.sh",
         "scripts/start.sh",
         "lib/typert.host.js",

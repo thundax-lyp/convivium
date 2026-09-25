@@ -23,8 +23,8 @@
 ```sh
 (
     set -eu
-    test -f plugin/meeting-roles/definitions.json
-    test -f plugin/meeting-roles/cordis.patch.yml
+    test -f plugin/config/definitions.json
+    test -f plugin/config/cordis.patch.yml
     test ! -e dsh-workspace/meeting-roles-deployment
     pnpm verify
     mkdir -p dsh-workspace/meeting-roles-deployment/artifacts
@@ -37,7 +37,7 @@
     role_pack_name="$(pnpm pack --json --pack-destination "$role_deploy_root/artifacts" | node -e 'let text = ""; process.stdin.on("data", value => text += value); process.stdin.on("end", () => { const result = JSON.parse(text); process.stdout.write((Array.isArray(result) ? result[0] : result).filename); });')"
     role_artifact="$role_deploy_root/artifacts/$(basename "$role_pack_name")"
     tar -xzf "$role_artifact" -C "$role_deploy_root/resources"
-    test -f "$role_deploy_root/resources/package/meeting-roles/cordis.patch.yml"
+    test -f "$role_deploy_root/resources/package/config/cordis.patch.yml"
     DSH_HOME="$role_deploy_root/dsh-home" pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add "$role_artifact"
 )
 ```
@@ -53,7 +53,7 @@
     set -eu
     role_repo_root="$PWD"
     role_deploy_root="$PWD/dsh-workspace/meeting-roles-deployment"
-    role_patch="$role_deploy_root/resources/package/meeting-roles/cordis.patch.yml"
+    role_patch="$role_deploy_root/resources/package/config/cordis.patch.yml"
     test -f "$role_patch"
     set -a
     . "$role_repo_root/dev.env"

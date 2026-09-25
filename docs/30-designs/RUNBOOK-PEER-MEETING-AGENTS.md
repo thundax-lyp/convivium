@@ -15,7 +15,7 @@
 | 边界         | 已确认目标                                                                                                                                                                                                                                               | 当前实现与断点                                                                                                                                                                                                                                  |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 身份         | [MO-FR-2](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-2会议与身份隔离)、[MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-14平级-meeting-agent-与独立能力组合)：七个平级 Session，各自 Preset 与分配的 Skills | `plugin/src/runtime/meeting-runtime.ts` 的 `createMeetingCreationCoordinator` 调用 `plugin/src/dsh/session-adapter.ts` 的 `startMeetingIdentitySession`，使用 `ctx.subagents.startContinuable` 和 Captain parent。                              |
-| 能力         | Definition 引用角色 Preset 和可复用能力 Skill；未分配 Skill 对该角色不可列出、不可加载                                                                                                                                                                   | `plugin/meeting-roles/definitions.json` 一角色一 Skill；`plugin/meeting-roles/presets/convivium/agent.cordis.yml` 向共享 Preset 挂载整个 Skill 根。`validateSharedRoleCapabilities` 只验证父 scope 的必需 Skill。                               |
+| 能力         | Definition 引用角色 Preset 和可复用能力 Skill；未分配 Skill 对该角色不可列出、不可加载                                                                                                                                                                   | `plugin/config/definitions.json` 一角色一 Skill；`plugin/config/presets/convivium/agent.cordis.yml` 向共享 Preset 挂载整个 Skill 根。`validateSharedRoleCapabilities` 只验证父 scope 的必需 Skill。                               |
 | 数据         | Captain 是创建来源，不是 DSH parent；Session ownership 要能跨重启定位并撤权                                                                                                                                                                              | `plugin/src/repository/types.ts` 的 `SessionOwnership.parentSessionId/provider/initialMessageId`、`plugin/src/dsh/meeting-identity-admission.ts` 的 `PreparedDescriptor.parentSessionId`、推荐 intent 的 `childSessionId` 都表达旧 child 语义。 |
 | 效果         | 每个 effect 在 active ownership 与精确 Meeting 身份验证后投递                                                                                                                                                                                            | `plugin/src/runtime/meeting-lifecycle.ts` 的 `recoverTargetMeetingDeliveries` 与 `createIdentityProvisionOwner`、`plugin/src/dsh/session-adapter.ts` 的 followup 函数、各 dispatcher 使用 Captain–child `sendMessage`/`listChildren`。          |
 | 终态         | revoke 后不能恢复 Meeting authority；清理不依赖 Captain 存活                                                                                                                                                                                             | `plugin/src/dsh/session-ownership.ts`、`plugin/src/runtime/services/meeting-archive.ts` 使用 parent 授权的 child enumerate/interrupt/drain。                                                                                                    |
@@ -214,7 +214,7 @@ STOP：任一不匹配、基线失败或缺失依赖；不通过更新依赖/弱
 ### T1：角色身份与能力方法资源
 
 前置状态：T0 PASS；使用上述已固定的正式数据与调用链。
-允许修改：新建 `plugin/meeting-roles/agents/{meeting_manager,domain_architect,runtime_engineer,protocol_ui_engineer,verification_reviewer,github_research_analyst,arxiv_research_analyst}/2.0.0/AGENTS.md` 和 `plugin/meeting-roles/skills/{meeting-facilitation,repository-analysis,evidence-review,github,arxiv}/SKILL.md`；正文按 Peer Meeting Agents Design 的职责/工作方法，Skill frontmatter name 与目录同名且 description 非空；本步不删旧资源。
+允许修改：新建 `plugin/config/agents/{meeting_manager,domain_architect,runtime_engineer,protocol_ui_engineer,verification_reviewer,github_research_analyst,arxiv_research_analyst}/2.0.0/AGENTS.md` 和 `plugin/config/skills/{meeting-facilitation,repository-analysis,evidence-review,github,arxiv}/SKILL.md`；正文按 Peer Meeting Agents Design 的职责/工作方法，Skill frontmatter name 与目录同名且 description 非空；本步不删旧资源。
 禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
 
 执行：
@@ -225,7 +225,7 @@ STOP：任一不匹配、基线失败或缺失依赖；不通过更新依赖/弱
 验证：
 
 ```bash
-pnpm --dir plugin exec prettier meeting-roles --check
+pnpm --dir plugin exec prettier config --check
 ```
 
 PASS：所有命令退出 0；七个 AGENTS、五个 Skill 均存在、正文非空、无其他角色 AGENTS 内联、Skill 不声明 Meeting authority。资源语义不符 STOP，删除本步未提交新文件后重做，不碰旧资源
@@ -256,7 +256,7 @@ STOP：任一断言失败、指定契约不符或必须引入未列出的行为�
 ### T3：七个独立 Preset 装配
 
 前置状态：T2 PASS；使用上述已固定的正式数据与调用链。
-允许修改：新建 `plugin/meeting-roles/presets/<七个 roleDefinitionId>/{preset.yml,agent.cordis.yml}`，修改 `plugin/meeting-roles/cordis.patch.yml`、`definitions.json`，新增 `plugin/tests/contract/meeting-roles-target.spec.ts`；七个 Definition 固定 2.0.0、能力映射与 toolFilter 精确数组，default=`standard`，每个 Preset 只挂本角色能力目录；旧共享资源暂保留但不得被新 Definition 引用。
+允许修改：新建 `plugin/config/presets/<七个 roleDefinitionId>/{preset.yml,agent.cordis.yml}`，修改 `plugin/config/cordis.patch.yml`、`definitions.json`，新增 `plugin/tests/contract/meeting-roles-target.spec.ts`；七个 Definition 固定 2.0.0、能力映射与 toolFilter 精确数组，default=`standard`，每个 Preset 只挂本角色能力目录；旧共享资源暂保留但不得被新 Definition 引用。
 禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
 
 执行：
@@ -636,7 +636,7 @@ STOP：旧业务场景只能靠降低断言跑通，或来源/模型能力缺失
 
 执行：
 
-1. 删除旧发行目录 `plugin/meeting-roles/presets/convivium/`（仅含 preset.yml、agent.cordis.yml 与其 skills 下七角色 Skill）；七旧能力为 meeting-management、domain-architecture、dsh-runtime-engineering、protocol-ui-engineering、verification-review、github-source-research、arxiv-paper-analysis。
+1. 删除旧发行目录 `plugin/config/presets/convivium/`（仅含 preset.yml、agent.cordis.yml 与其 skills 下七角色 Skill）；七旧能力为 meeting-management、domain-architecture、dsh-runtime-engineering、protocol-ui-engineering、verification-review、github-source-research、arxiv-paper-analysis。
 2. 删除 `plugin/src/dsh/session-adapter.ts`、`session-ownership.ts`、`meeting-identity-admission.ts`、`provisioning.ts`；删除已由 owner/creation 测试覆盖的 `plugin/tests/unit/dsh/session-adapter.spec.ts`、`provisioning.spec.ts`。T8 已将 integration/dsh/session-adapter.spec.ts 改名为 meeting-creation.spec.ts，不保留旧副本。
 3. labels.ts 删除 ManagerSessionLabel/ParticipantSessionLabel/MeetingSessionLabel 及其 encode/decode，只保留目标 MeetingIdentitySessionLabel；caller-resolver.ts 删除 resolveLabeledMeetingCaller，resolveMeetingCaller 使用新 ownership。Repository 删除 replaceMissingSession 接口/实现；Runtime 删除 rebindCaptainParent，禁止替代 Session 身份继承。
 4. 两个 verifier 和 deployment test 使用七 Preset、七 AGENTS、五 Skills 的目标闭集；打包必须含全部引用文件，不能靠容许未知资产保留旧方案。保留 Reviewer worker 的真实 one-shot parent 参数；下列旧会议生命周期专用关键词则要求零命中（不设模糊例外）。
@@ -644,7 +644,7 @@ STOP：旧业务场景只能靠降低断言跑通，或来源/模型能力缺失
 验证：
 
 ```bash
-rg -n -e startContinuable -e sendMessage -e listChildren -e listDescendants -e drainContinuableChildren -e parentSessionId -e childSessionId -e captainParent -e rebindCaptainParent -e validateSharedRoleCapabilities -e replaceMissingSession plugin/src plugin/meeting-roles plugin/scripts/smoke-profile/probe
+rg -n -e startContinuable -e sendMessage -e listChildren -e listDescendants -e drainContinuableChildren -e parentSessionId -e childSessionId -e captainParent -e rebindCaptainParent -e validateSharedRoleCapabilities -e replaceMissingSession plugin/src plugin/config plugin/scripts/smoke-profile/probe
 pnpm --dir plugin exec vitest run --project contract tests/contract/meeting-roles-target.spec.ts tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin exec vitest run --project host tests/unit/dsh/labels.spec.ts tests/unit/dsh/caller-resolver.spec.ts
 pnpm --dir plugin build

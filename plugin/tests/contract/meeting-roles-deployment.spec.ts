@@ -8,12 +8,12 @@ import { describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 
 const deployed = JSON.parse(
-    readFileSync(new URL("../../meeting-roles/definitions.json", import.meta.url), "utf8")
+    readFileSync(new URL("../../config/definitions.json", import.meta.url), "utf8")
 );
 
-const roleSkills = new URL("../../meeting-roles/presets/convivium/skills/", import.meta.url);
+const roleSkills = new URL("../../config/presets/convivium/skills/", import.meta.url);
 const roleAgentComposition = new URL(
-    "../../meeting-roles/presets/convivium/agent.cordis.yml",
+    "../../config/presets/convivium/agent.cordis.yml",
     import.meta.url
 );
 
@@ -145,8 +145,8 @@ describe("native deployment patch composition", () => {
         const { load } = nativeRequire("js-yaml");
         const root = await mkdtemp(join(tmpdir(), "convivium-role-composition-"));
         try {
-            const assets = join(root, "resources/meeting-roles");
-            await cp(fileURLToPath(new URL("../../meeting-roles", import.meta.url)), assets, {
+            const assets = join(root, "resources/config");
+            await cp(fileURLToPath(new URL("../../config", import.meta.url)), assets, {
                 recursive: true
             });
             const deployment = load(readFileSync(join(assets, "cordis.patch.yml"), "utf8"), {

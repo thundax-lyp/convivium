@@ -32,14 +32,14 @@ if (!pkg.files?.includes("lib")) failures.push("package files must include lib")
 if (!pkg.files?.includes("cordis.patch.yml"))
     failures.push("package files must include cordis.patch.yml");
 
-if (!pkg.files?.includes("meeting-roles"))
-    failures.push("package files must include meeting-roles");
-if (pkg.exports?.["./meeting-roles/cordis.patch.yml"] !== "./meeting-roles/cordis.patch.yml")
-    failures.push("meeting-roles patch export is required");
+if (!pkg.files?.includes("config"))
+    failures.push("package files must include config");
+if (pkg.exports?.["./config/cordis.patch.yml"] !== "./config/cordis.patch.yml")
+    failures.push("config patch export is required");
 try {
-    await readFile(join(root, "meeting-roles/cordis.patch.yml"), "utf8");
+    await readFile(join(root, "config/cordis.patch.yml"), "utf8");
 } catch {
-    failures.push("meeting-roles patch asset is missing");
+    failures.push("config patch asset is missing");
 }
 
 const patchName = patch.match(/^\s*name:\s*['"]?([^'"\s]+)['"]?\s*$/m)?.[1];

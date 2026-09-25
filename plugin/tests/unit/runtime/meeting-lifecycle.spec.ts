@@ -7,7 +7,7 @@ import {
 } from "@/runtime/meeting-lifecycle.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import roleResources from "../../../meeting-roles/definitions.json" with { type: "json" };
+import roleResources from "../../../config/definitions.json" with { type: "json" };
 
 const item = (kind: string) =>
     ({

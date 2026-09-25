@@ -12,7 +12,7 @@ import {
     getMeetingCommandApplication
 } from "@/runtime/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
-import roleResources from "../../meeting-roles/definitions.json" with { type: "json" };
+import roleResources from "../../config/definitions.json" with { type: "json" };
 
 const config = {
     provider: "spawn",

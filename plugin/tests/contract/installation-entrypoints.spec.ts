@@ -28,14 +28,14 @@ async function fixture() {
     const packageRoot = join(root, "artifact", "package");
     const fakeBin = join(root, "bin");
     const calls = join(root, "pnpm-calls");
-    await mkdir(join(packageRoot, "meeting-roles"), { recursive: true });
+    await mkdir(join(packageRoot, "config"), { recursive: true });
     await mkdir(join(packageRoot, "scripts"));
     await mkdir(fakeBin);
     await writeFile(
         join(packageRoot, "package.json"),
         JSON.stringify({ name: "@convivium/dsh-plugin", version: "1.2.3" })
     );
-    await writeFile(join(packageRoot, "meeting-roles", "cordis.patch.yml"), "- id: roles\n");
+    await writeFile(join(packageRoot, "config", "cordis.patch.yml"), "- id: roles\n");
     await copyFile(
         resolve(import.meta.dirname, "../../scripts/start.sh"),
         join(packageRoot, "scripts", "start.sh")
@@ -237,7 +237,7 @@ describe("user installation entrypoints", () => {
         expect(recordedCall).toContain(`DSH_HOME=${workspace}/dsh-home`);
         expect(recordedCall).toContain(`PWD=${workspace}`);
         expect(recordedCall).toContain(
-            `--patch ${join(installRoot, "releases", "1.2.3", "package", "meeting-roles", "cordis.patch.yml")}`
+            `--patch ${join(installRoot, "releases", "1.2.3", "package", "config", "cordis.patch.yml")}`
         );
     });
 
@@ -265,7 +265,7 @@ describe("user installation entrypoints", () => {
         await writeFile(sessionRecord, "existing-session-data");
 
         await writeFile(
-            join(root, "artifact", "package", "meeting-roles", "cordis.patch.yml"),
+            join(root, "artifact", "package", "config", "cordis.patch.yml"),
             "- id: updated-roles\n"
         );
         const packed = spawnSync("tar", [
@@ -292,7 +292,7 @@ describe("user installation entrypoints", () => {
                     "releases",
                     firstRelease,
                     "package",
-                    "meeting-roles",
+                    "config",
                     "cordis.patch.yml"
                 ),
                 "utf8"
@@ -305,7 +305,7 @@ describe("user installation entrypoints", () => {
                     "releases",
                     secondRelease,
                     "package",
-                    "meeting-roles",
+                    "config",
                     "cordis.patch.yml"
                 ),
                 "utf8"

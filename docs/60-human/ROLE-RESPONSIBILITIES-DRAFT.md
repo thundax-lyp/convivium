@@ -83,4 +83,4 @@ Convivium 需要区分四类概念，避免把模型、工具权限和会议职�
 - [证据轮次需求](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)
 - [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)
 - [Domain Design](../30-designs/DOMAIN-DESIGN.md)
-- [当前角色 Definition](../../plugin/meeting-roles/definitions.json)
+- [当前角色 Definition](../../plugin/config/definitions.json)

@@ -108,7 +108,7 @@ fi
 mkdir -p "$temporary_root/inspect"
 tar -xzf "$artifact_path" -C "$temporary_root/inspect"
 manifest="$temporary_root/inspect/package/package.json"
-roles_patch="$temporary_root/inspect/package/meeting-roles/cordis.patch.yml"
+roles_patch="$temporary_root/inspect/package/config/cordis.patch.yml"
 start_script="$temporary_root/inspect/package/scripts/start.sh"
 [ -f "$manifest" ] || fail "artifact is missing package/package.json"
 [ -f "$roles_patch" ] || fail "artifact is missing meeting role resources"

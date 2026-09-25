@@ -192,7 +192,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                   : 0
     );
 }
-const defaultRoot = fileURLToPath(new URL("../meeting-roles/", import.meta.url));
+const defaultRoot = fileURLToPath(new URL("../config/", import.meta.url));
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     const errors = await verifyMeetingAgentDefinitions(defaultRoot);
     if (errors.length) {

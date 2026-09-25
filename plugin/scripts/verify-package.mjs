@@ -40,20 +40,20 @@ const requiredArtifacts = [
     "lib/protocol/types.js",
     "lib/types/protocol/types.d.ts",
     "cordis.patch.yml",
-    "meeting-roles/definitions.json",
-    "meeting-roles/README.md",
-    "meeting-roles/cordis.patch.yml",
+    "config/definitions.json",
+    "config/README.md",
+    "config/cordis.patch.yml",
     "scripts/install.sh",
     "scripts/start.sh",
-    "meeting-roles/presets/convivium/preset.yml",
-    "meeting-roles/presets/convivium/agent.cordis.yml",
-    "meeting-roles/presets/convivium/skills/meeting-management/SKILL.md",
-    "meeting-roles/presets/convivium/skills/domain-architecture/SKILL.md",
-    "meeting-roles/presets/convivium/skills/dsh-runtime-engineering/SKILL.md",
-    "meeting-roles/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
-    "meeting-roles/presets/convivium/skills/verification-review/SKILL.md",
-    "meeting-roles/presets/convivium/skills/github-source-research/SKILL.md",
-    "meeting-roles/presets/convivium/skills/arxiv-paper-analysis/SKILL.md"
+    "config/presets/convivium/preset.yml",
+    "config/presets/convivium/agent.cordis.yml",
+    "config/presets/convivium/skills/meeting-management/SKILL.md",
+    "config/presets/convivium/skills/domain-architecture/SKILL.md",
+    "config/presets/convivium/skills/dsh-runtime-engineering/SKILL.md",
+    "config/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
+    "config/presets/convivium/skills/verification-review/SKILL.md",
+    "config/presets/convivium/skills/github-source-research/SKILL.md",
+    "config/presets/convivium/skills/arxiv-paper-analysis/SKILL.md"
 ];
 const expectedExports = {
     ".": { types: "./lib/types/index.d.ts", default: "./lib/index.js" },
@@ -79,7 +79,7 @@ const expectedExports = {
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
-    "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
+    "./config/cordis.patch.yml": "./config/cordis.patch.yml"
 };
 const forbiddenPublishedPaths = files.filter((path) => /^(src|tests|docs)(\/|$)|\*\*/.test(path));
 if (existsSync(resolve(packageRoot, "storage-plugin")))
@@ -102,7 +102,7 @@ const result = {
         JSON.stringify([
             "lib",
             "cordis.patch.yml",
-            "meeting-roles",
+            "config",
             "scripts/install.sh",
             "scripts/start.sh",
             "lib/typert.host.js",

@@ -264,7 +264,7 @@ async function packArtifact(artifactDir) {
 
 export async function writeSmokePatch(path, _scenario, storagePath) {
     const targetDefinitions = JSON.parse(
-        await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
+        await readFile(join(pluginRoot, "config", "definitions.json"), "utf8")
     ).definitions;
     const targetModelOverrides = Object.fromEntries(
         targetDefinitions
@@ -531,7 +531,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
             env: createSmokeEnvironment(process.env)
         });
-        roleAssetRoot = join(unpackRoot, "package", "meeting-roles");
+        roleAssetRoot = join(unpackRoot, "package", "config");
         await access(join(roleAssetRoot, "cordis.patch.yml"), constants.R_OK);
     }
     const env = createSmokeEnvironment(process.env, {

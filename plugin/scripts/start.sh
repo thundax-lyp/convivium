@@ -23,7 +23,7 @@ case "$release_version" in
 esac
 
 release_root="$install_root/releases/$release_version"
-roles_root="$release_root/package/meeting-roles"
+roles_root="$release_root/package/config"
 workspace_root=$(sed -n '1p' "$workspace_path_file")
 case "$workspace_root" in
     /*) ;;
