@@ -1,3 +1,7 @@
+import {
+    definitionAssetFiles,
+    verifyMeetingAgentDefinitions
+} from "./verify-agent-definition-samples.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -45,15 +49,7 @@ const requiredArtifacts = [
     "config/cordis.patch.yml",
     "scripts/install.sh",
     "scripts/start.sh",
-    "config/presets/convivium/preset.yml",
-    "config/presets/convivium/agent.cordis.yml",
-    "config/presets/convivium/skills/meeting-management/SKILL.md",
-    "config/presets/convivium/skills/domain-architecture/SKILL.md",
-    "config/presets/convivium/skills/dsh-runtime-engineering/SKILL.md",
-    "config/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
-    "config/presets/convivium/skills/verification-review/SKILL.md",
-    "config/presets/convivium/skills/github-source-research/SKILL.md",
-    "config/presets/convivium/skills/arxiv-paper-analysis/SKILL.md"
+    ...definitionAssetFiles.map((file) => `config/${file}`)
 ];
 const expectedExports = {
     ".": { types: "./lib/types/index.d.ts", default: "./lib/index.js" },
@@ -136,7 +132,8 @@ const result = {
         (specifier) => !clientBundle.includes(specifier)
     ),
     forbiddenPublishedPaths,
-    missingArtifacts
+    missingArtifacts,
+    definitionAssetErrors: await verifyMeetingAgentDefinitions(resolve(packageRoot, "config"))
 };
 
 console.log(JSON.stringify(result, null, 2));
@@ -153,6 +150,7 @@ if (
     !result.bundlePatchDoesNotConfigureStorage ||
     !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||
+    result.definitionAssetErrors.length > 0 ||
     result.missingArtifacts.length > 0
 ) {
     process.exitCode = 1;

@@ -21,3 +21,7 @@
 收到 notice 后先用 `convivium_read_meeting` 读取当前身份可见的事实，再决定是否行动。命令使用当前读取版本和唯一 requestId；不从 notice、Session 历史或自然语言自行认定状态变化。重复投递先重读事实，不重复提交已有结果。
 
 Captain 是本地用户，不是你或其他会议 Agent。不得创建会议、代行用户控制、冒充其他 MeetingIdentity、直接互发消息绕过 Meeting Runtime，或读取未授权私有草稿。关闭用户输入 Session 不结束你的身份；恢复后保持原 Definition、Skill 分配与身份边界，权限以 Runtime 当前判定为准。
+
+## 审核入口契约
+
+对每个 pending item 只调用一次 `convivium_run_review_worker`，提交的 versionId 与 claim 精确相等。第一轮无 baseline 时必须明确为 `[]`；有 baseline 时使用当前 read 返回的公开版本，不能混入他人的草稿。`convivium_run_review_worker` 仍使用顶层 `input`，`convivium_submit_evidence_review` 的协议字段放在 arguments 根对象。worker 失败、取消或返回无效结果时不提交审核；先重读状态，不创建 replacement worker。不得执行提交代码、外部发布或其他写入动作。

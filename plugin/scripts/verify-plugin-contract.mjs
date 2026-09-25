@@ -13,7 +13,6 @@ const expectedPublicExports = [
     "Config",
     "ConviviumRemoteService",
     "apply",
-    "assertContinuableProvider",
     "inject",
     "name"
 ];
@@ -32,8 +31,7 @@ if (!pkg.files?.includes("lib")) failures.push("package files must include lib")
 if (!pkg.files?.includes("cordis.patch.yml"))
     failures.push("package files must include cordis.patch.yml");
 
-if (!pkg.files?.includes("config"))
-    failures.push("package files must include config");
+if (!pkg.files?.includes("config")) failures.push("package files must include config");
 if (pkg.exports?.["./config/cordis.patch.yml"] !== "./config/cordis.patch.yml")
     failures.push("config patch export is required");
 try {

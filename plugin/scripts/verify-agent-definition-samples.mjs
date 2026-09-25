@@ -3,25 +3,34 @@ import { lstat, readdir, readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { join } from "node:path";
 import process from "node:process";
+import { createHash } from "node:crypto";
 
 const roles = [
-    ["meeting_manager", "meeting-management"],
-    ["domain_architect", "domain-architecture"],
-    ["runtime_engineer", "dsh-runtime-engineering"],
-    ["protocol_ui_engineer", "protocol-ui-engineering"],
-    ["verification_reviewer", "verification-review"],
-    ["github_research_analyst", "github-source-research"],
-    ["arxiv_research_analyst", "arxiv-paper-analysis"]
+    ["meeting_manager", "manager", ["meeting-facilitation"]],
+    ["domain_architect", "domain-architect", ["repository-analysis"]],
+    ["runtime_engineer", "runtime-engineer", ["repository-analysis"]],
+    ["protocol_ui_engineer", "protocol-ui-engineer", ["repository-analysis"]],
+    [
+        "verification_reviewer",
+        "verification-reviewer",
+        ["arxiv", "evidence-review", "github", "repository-analysis"]
+    ],
+    ["github_research_analyst", "github-research-analyst", ["github"]],
+    ["arxiv_research_analyst", "arxiv-research-analyst", ["arxiv"]]
 ];
-const preset = "presets/convivium";
-const files = [
+const skills = [...new Set(roles.flatMap(([, , assigned]) => assigned))].sort();
+export const definitionAssetFiles = [
     "README.md",
     "definitions.json",
     "cordis.patch.yml",
-    `${preset}/preset.yml`,
-    `${preset}/agent.cordis.yml`,
-    ...roles.map(([, skill]) => `${preset}/skills/${skill}/SKILL.md`)
+    ...roles.flatMap(([role, preset]) => [
+        `agents/${role}/2.0.0/AGENTS.md`,
+        `presets/convivium-${preset}/preset.yml`,
+        `presets/convivium-${preset}/agent.cordis.yml`
+    ]),
+    ...skills.map((skill) => `skills/${skill}/SKILL.md`)
 ];
+const files = definitionAssetFiles;
 const directories = new Set(
     files.flatMap((file) => {
         const parts = file.split("/");
@@ -36,7 +45,7 @@ const fields = [
     "roleDefinitionId",
     "displayName",
     "summary",
-    "roleDescription",
+    "agentInstructions",
     "dshPresetId",
     "requiredSkillNames",
     "expertiseTags",
@@ -95,9 +104,8 @@ export async function verifyMeetingAgentDefinitions(root) {
                 add("DEFINITION_INVALID", "definitions.json");
             else
                 doc.definitions.forEach((d, i) => {
-                    const [role, skill] = roles[i];
+                    const [role, preset, assigned] = roles[i];
                     const contributorDeny = [
-                        "convivium_create_meeting",
                         "convivium_submit_manager_plan",
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
@@ -135,16 +143,17 @@ export async function verifyMeetingAgentDefinitions(root) {
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
-                        d.definitionVersion !==
-                            (role === "meeting_manager"
-                                ? "1.3.2"
-                                : role === "verification_reviewer"
-                                  ? "1.2.6"
-                                  : "1.0.3") ||
-                        d.dshPresetId !== "convivium" ||
-                        !same(d.requiredSkillNames, [skill]) ||
-                        ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||
-                        d.roleDescription.includes("{{") ||
+                        d.definitionVersion !== "2.0.0" ||
+                        d.dshPresetId !== `convivium-${preset}` ||
+                        !same(d.requiredSkillNames, assigned) ||
+                        ![d.displayName, d.summary].every(nonempty) ||
+                        !same(d.agentInstructions, {
+                            roleDefinitionId: role,
+                            version: "2.0.0",
+                            sha256: createHash("sha256")
+                                .update(contents.get(`agents/${role}/2.0.0/AGENTS.md`) ?? "")
+                                .digest("hex")
+                        }) ||
                         !Array.isArray(d.expertiseTags) ||
                         !d.expertiseTags.length ||
                         !d.expertiseTags.every(nonempty) ||
@@ -161,8 +170,8 @@ export async function verifyMeetingAgentDefinitions(root) {
                 });
         }
     }
-    for (const [, skill] of roles) {
-        const location = `${preset}/skills/${skill}/SKILL.md`;
+    for (const skill of skills) {
+        const location = `skills/${skill}/SKILL.md`;
         const text = contents.get(location);
         if (text === undefined) continue;
         const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
@@ -173,12 +182,25 @@ export async function verifyMeetingAgentDefinitions(root) {
             !body ||
             !new RegExp(`^name: ['"]?${skill}['"]?$`, "m").test(meta) ||
             !/^description: ['"]?\S.+$/m.test(meta) ||
-            !/^disable-model-invocation: false$/m.test(meta) ||
-            !/^user-invocable: true$/m.test(meta) ||
             !/^# \S.+$/m.test(body) ||
             ![1, 2, 3, 4].every((n) => new RegExp(`^${n}\\. \\S.+$`, "m").test(body))
         )
             add("SKILL_INVALID", location);
+    }
+    for (const [role, preset, assigned] of roles) {
+        const path = `presets/convivium-${preset}/agent.cordis.yml`;
+        const config = contents.get(path) ?? "";
+        const visible = [...config.matchAll(/skills\/([a-z-]+)\//g)]
+            .map((match) => match[1])
+            .sort();
+        if (
+            !same(visible, assigned) ||
+            !config.includes("includeDefaultRoots: false") ||
+            !config.includes(`providerName: convivium-${preset}`)
+        )
+            add("PRESET_INVALID", path);
+        if (!nonempty(contents.get(`agents/${role}/2.0.0/AGENTS.md`)))
+            add("DEFINITION_INVALID", `agents/${role}/2.0.0/AGENTS.md`);
     }
     return errors.sort((a, b) =>
         a.location < b.location

@@ -25,7 +25,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
                 "version": "2.0.0",
-                "sha256": "02f6de00fce5f84bf7d49e987860e9bf4055b40d984b7e7fe93a67b0d741297b"
+                "sha256": "4810e6fdac1019104a86dcd9665b16fd63ed0696c9c90e3f780b67e2bd80db2e"
             }
         },
         {
@@ -130,7 +130,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "verification_reviewer",
                 "version": "2.0.0",
-                "sha256": "728f331cf7f0ea7e91fbfb4db0c41c09fb14937def7b0046f71150c131d6a666"
+                "sha256": "dd19108590e63e59890a75e5edde7c4592976d36382ebee3b47c2798ca006de4"
             }
         },
         {

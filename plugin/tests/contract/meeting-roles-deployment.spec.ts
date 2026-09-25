@@ -11,12 +11,6 @@ const deployed = JSON.parse(
     readFileSync(new URL("../../config/definitions.json", import.meta.url), "utf8")
 );
 
-const roleSkills = new URL("../../config/presets/convivium/skills/", import.meta.url);
-const roleAgentComposition = new URL(
-    "../../config/presets/convivium/agent.cordis.yml",
-    import.meta.url
-);
-
 it("publishes one Manager, one Evidence Reviewer and five Contributor definitions", () => {
     const definitions = parseAgentDefinitions(deployed.definitions);
     expect(definitions.map(({ roleDefinitionId }) => roleDefinitionId)).toEqual([
@@ -40,7 +34,7 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.3.2",
+        definitionVersion: "2.0.0",
         toolFilter: {
             allow: [
                 "skill",
@@ -50,24 +44,23 @@ it("publishes only the current contribution tools for Manager", () => {
                 "convivium_dispose_hand_raise",
                 "convivium_publish_round",
                 "convivium_recommend_identity"
-            ]
+            ].sort()
         }
     });
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "1.2.6",
+        definitionVersion: "2.0.0",
         toolFilter: {
             allow: [
                 "skill",
                 "convivium_read_meeting",
                 "convivium_run_review_worker",
                 "convivium_submit_evidence_review"
-            ]
+            ].sort()
         }
     });
     const contributorDeniedTools = [
-        "convivium_create_meeting",
         "convivium_submit_manager_plan",
         "convivium_open_round",
         "convivium_dispose_hand_raise",
@@ -85,20 +78,26 @@ it("publishes only the current contribution tools for Manager", () => {
             )
             .every(
                 ({ definitionVersion, toolFilter }) =>
-                    definitionVersion === "1.0.3" &&
-                    JSON.stringify(toolFilter) === JSON.stringify({ deny: contributorDeniedTools })
+                    definitionVersion === "2.0.0" &&
+                    JSON.stringify(toolFilter) ===
+                        JSON.stringify({ deny: contributorDeniedTools.sort() })
             )
     ).toBe(true);
 
     const currentGuidance = [
-        "meeting-management/SKILL.md",
-        "verification-review/SKILL.md",
-        "domain-architecture/SKILL.md",
-        "dsh-runtime-engineering/SKILL.md",
-        "protocol-ui-engineering/SKILL.md",
-        "github-source-research/SKILL.md",
-        "arxiv-paper-analysis/SKILL.md"
-    ].map((path) => readFileSync(new URL(path, roleSkills), "utf8"));
+        "meeting_manager",
+        "verification_reviewer",
+        "domain_architect",
+        "runtime_engineer",
+        "protocol_ui_engineer",
+        "github_research_analyst",
+        "arxiv_research_analyst"
+    ].map((role) =>
+        readFileSync(
+            new URL(`../../config/agents/${role}/2.0.0/AGENTS.md`, import.meta.url),
+            "utf8"
+        )
+    );
     expect(currentGuidance.every((guidance) => guidance.includes("convivium_read_meeting"))).toBe(
         true
     );
@@ -124,13 +123,22 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("只调用一次");
 });
 
-it("exposes the native foreground one-shot worker tool to Meeting roles", () => {
-    const composition = readFileSync(roleAgentComposition, "utf8");
-    expect(composition).toContain('name: "@deepseek-ai/dsh-tool-subagent"');
-    expect(composition).toContain("provider: spawn");
-    expect(composition).toContain("backgroundMode: one-shot");
-    expect(composition).toContain("enableRunInBackground: false");
-    expect(composition).toMatch(/toolFilter:\n\s+allow: \[\]/);
+it("exposes the schema-checked review worker only to the Reviewer", () => {
+    const reviewer = deployed.definitions.find(
+        (d) => d.roleDefinitionId === "verification_reviewer"
+    );
+    expect(reviewer.toolFilter.allow).toContain("convivium_run_review_worker");
+    for (const definition of deployed.definitions) {
+        const composition = readFileSync(
+            new URL(
+                `../../config/presets/${definition.dshPresetId}/agent.cordis.yml`,
+                import.meta.url
+            ),
+            "utf8"
+        );
+        expect(composition).not.toContain("@deepseek-ai/dsh-tool-subagent");
+        expect(composition).toContain("includeDefaultRoots: false");
+    }
 });
 
 describe("native deployment patch composition", () => {
@@ -187,10 +195,13 @@ describe("native deployment patch composition", () => {
                 rows.find((row) => row.id === "agent-presets").config
             );
             const meeting = interpolate(context, rows.find((row) => row.id === "convivium").config);
-            expect(preset.default).toBe("convivium");
+            expect(preset.default).toBe("standard");
             expect(preset.roots).toEqual([{ path: join(assets, "presets"), trust: "system" }]);
             expect(
-                readFileSync(join(preset.roots[0].path, "convivium/agent.cordis.yml"), "utf8")
+                readFileSync(
+                    join(preset.roots[0].path, "convivium-manager/agent.cordis.yml"),
+                    "utf8"
+                )
             ).toContain("skill-filesystem");
             expect(meeting).toEqual({
                 provider: "spawn",
