@@ -1,6 +1,6 @@
 # RUNBOOK: Peer Meeting Agents
 
-状态：**Not Executable，逐步 dry run 尚未完整通过**。建立于 2026-09-24，文档检查于 2026-09-25；执行分支 `feat/peer-meeting-agents`。已有结构、路径、链接和部分步骤推演证据，尚未逐步核实全部前置依赖、调用接线与测试可执行性；产品实现、聚焦测试和真实 DSH 验收尚未执行。当前任务只交付文档，代码实施须在用户要求执行本 RUNBOOK 后开始。
+状态：**执行中，按用户授权边执行边修复**。建立于 2026-09-24，文档检查于 2026-09-25；执行分支 `feat/peer-meeting-agents`。已有结构、路径、链接和部分步骤推演证据，尚未逐步核实全部前置依赖、调用接线与测试可执行性；已开始产品实现与聚焦测试，真实 DSH 验收尚未执行。2026-09-25 用户明确授权实施并在执行中修复步骤缺口；不得跳过验证或把未通过步骤记为 PASS。
 
 ## 执行者契约
 
@@ -185,119 +185,11 @@ T12–T18 的 Remote `control` command 根对象仍是 `{protocolVersion:1,meeti
 
 所有新测试按 [Test Rules](../00-governance/TEST-RULES.md) 与仓库 TDD Skill 实施；先证明新断言在旧行为下失败，再实施，不把模块导入失败当作行为红灯。当前文档审计不执行未来测试。
 
-### T0：核对执行基线
-
-前置状态：用户已要求实施本 RUNBOOK；工作目录为仓库根。
-允许修改：无；保存工作树状态和测试输出作为执行记录。
-禁止修改：产品文件、依赖、人工环境。
-
-执行：
-
-1. 读取本文件正式依据；确认分支为 `feat/peer-meeting-agents`，记录现有修改，不切换或丢弃它们。
-2. 核对 `plugin/package.json` 中 DSH 依赖均为 `0.1.2-rc.1`，所列现存文件/符号存在；新增项按后续指定路径建立。
-3. 运行旧实现基线，仅作为回归起点，不作为平级 Agent 验收。
-
-验证：
-
-```bash
-git branch --show-current
-git status --short
-pnpm --dir plugin verify
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：分支和依赖匹配，全部检查退出 0；现有工作树差异已记录。
-STOP：任一不匹配、基线失败或缺失依赖；不通过更新依赖/弱化测试解阻。
-失败恢复：只保留输出；基线 build 生成物可由同一生成器重建，不改业务文件。
-
-### T1：角色身份与能力方法资源
-
-前置状态：T0 PASS；使用上述已固定的正式数据与调用链。
-允许修改：新建 `plugin/config/agents/{meeting_manager,domain_architect,runtime_engineer,protocol_ui_engineer,verification_reviewer,github_research_analyst,arxiv_research_analyst}/2.0.0/AGENTS.md` 和 `plugin/config/skills/{meeting-facilitation,repository-analysis,evidence-review,github,arxiv}/SKILL.md`；正文按 Peer Meeting Agents Design 的职责/工作方法，Skill frontmatter name 与目录同名且 description 非空；本步不删旧资源。
-禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
-
-执行：
-
-1. 依据 DSH Role Interface 的七角色及五能力表逐文件编写；身份文件只写职责/边界，Skill 只写可复用工作方法。首发只需 SKILL.md，不新增未要求的脚本或外部服务。
-2. 在本步列出的测试文件中加入下述可观察断言，再实现生产接线；固定字段同步仅限前述机械规则。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier config --check
-```
-
-PASS：所有命令退出 0；七个 AGENTS、五个 Skill 均存在、正文非空、无其他角色 AGENTS 内联、Skill 不声明 Meeting authority。资源语义不符 STOP，删除本步未提交新文件后重做，不碰旧资源
-STOP：任一断言失败、指定契约不符或必须引入未列出的行为；按执行者契约报告证据，不放宽断言。
-失败恢复：保留本步差异并修正同一范围；测试创建的 handle 由测试 finally 释放，临时 Repository 关闭，不回滚用户文件或已经提交的 Meeting 事实。
-
-### T2：Definition 与模型绑定
-
-前置状态：T1 PASS；使用上述已固定的正式数据与调用链。
-允许修改：`plugin/src/role-composition/model.ts::parseAgentDefinitions` 删除 `roleDescription`/`meeting_scribe`，加入 `agentInstructions`；`plugin/src/role-composition/resolve.ts::resolveMeetingRoles` 按 canonical hash 固定 Definition；`plugin/src/role-composition/model-options.ts` 固定 `EffectiveAgentOptions`；更新 `plugin/tests/unit/role-composition/{resolve,model-options}.spec.ts` 与 `plugin/tests/fixtures/role-composition.ts`。
-禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
-
-执行：
-
-1. 保持现有 parser/resolve 公共入口，Definition hash 排序规则精确遵守接口；Host 当前模型选择仅在首次预检读取，恢复不得读取新默认值。
-2. 在本步列出的测试文件中加入下述可观察断言，再实现生产接线；固定字段同步仅限前述机械规则。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project host tests/unit/role-composition/resolve.spec.ts tests/unit/role-composition/model-options.spec.ts
-```
-
-PASS：所有命令退出 0；同 id/version 内容漂移、缺 provider/model、Caller 指定模型与旧字段均拒绝。失败只改本步类型/fixture，不修改 DSH owner
-STOP：任一断言失败、指定契约不符或必须引入未列出的行为；按执行者契约报告证据，不放宽断言。
-失败恢复：保留本步差异并修正同一范围；测试创建的 handle 由测试 finally 释放，临时 Repository 关闭，不回滚用户文件或已经提交的 Meeting 事实。
-
-### T3：七个独立 Preset 装配
-
-前置状态：T2 PASS；使用上述已固定的正式数据与调用链。
-允许修改：新建 `plugin/config/presets/<七个 roleDefinitionId>/{preset.yml,agent.cordis.yml}`，修改 `plugin/config/cordis.patch.yml`、`definitions.json`，新增 `plugin/tests/contract/meeting-roles-target.spec.ts`；七个 Definition 固定 2.0.0、能力映射与 toolFilter 精确数组，default=`standard`，每个 Preset 只挂本角色能力目录；旧共享资源暂保留但不得被新 Definition 引用。
-禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
-
-执行：
-
-1. 严格写出各角色 allow/deny 清单、AGENTS 引用与能力目录；每个 customSkillDirs 指向单能力目录。新 target 测试只核对目标资源，旧闭集 verifier 在 T20 替换。
-2. 在本步列出的测试文件中加入下述可观察断言，再实现生产接线；固定字段同步仅限前述机械规则。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project contract tests/contract/meeting-roles-target.spec.ts
-```
-
-PASS：所有命令退出 0；新角色精确装配、额外/缺失能力、错角色 AGENTS、共享父 Skill 根、错误 default 均被拒绝。旧闭集验证脚本留至 T20 统一替换，失败只修正本步资源/测试
-STOP：任一断言失败、指定契约不符或必须引入未列出的行为；按执行者契约报告证据，不放宽断言。
-失败恢复：保留本步差异并修正同一范围；测试创建的 handle 由测试 finally 释放，临时 Repository 关闭，不回滚用户文件或已经提交的 Meeting 事实。
-
-### T4：私有持久化 v2 结构
-
-前置状态：T3 PASS；使用上述已固定的正式数据与调用链。
-允许修改：`plugin/src/repository/types.ts`、`plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/meeting-state-codec.ts` 改成正式 `MeetingBootstrap`、`PreparedDescriptor`、`SessionOwnership` 字段，creation/projection `formatVersion:2`，拒读旧字段组合；新增 `plugin/tests/contract/peer-ownership-schema.spec.ts`，直接验证导出的 v2 私有 Schema/codec；Repository 行为验证在 T6。
-禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
-
-执行：
-
-1. SessionOwnershipInput 精确为 Omit<SessionOwnership,"createdAt"|"updatedAt">；CreateMeetingInput/creation record/projection/recovery result 增加私有 preparedDescriptors 集合，首次 provisioning 写入与 ownership 同事务；PreparedDescriptor/ResourceBinding/EffectiveAgentOptions 归 `plugin/src/role-composition/model.ts`（本步允许修改），Repository 只持有绑定和 hash。旧 v1 先判版本再解析字段：内部 RepositoryError("SCHEMA_VERSION_UNSUPPORTED",false,meetingId,...)，application 保留现有到 INCOMPATIBLE_VERSION 的映射；v2 畸形字段仍为 CORRUPT_DATABASE，禁止把所有解析错误伪装成版本错误。
-2. 在本步列出的测试文件中加入下述可观察断言，再实现生产接线；固定字段同步仅限前述机械规则。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project contract tests/contract/peer-ownership-schema.spec.ts
-```
-
-PASS：所有命令退出 0；新 v2 字段 round-trip；旧 v1 在 Schema/codec 边界拒绝，Repository 错误映射留 T6；v2 非法字段拒绝且不写回；公开 DTO 不泄漏资源/Session。
-STOP：任一断言失败、指定契约不符或必须引入未列出的行为；按执行者契约报告证据，不放宽断言。
-失败恢复：保留本步差异并修正同一范围；测试创建的 handle 由测试 finally 释放，临时 Repository 关闭，不回滚用户文件或已经提交的 Meeting 事实。
+T0–T4 已完成，其执行步骤已按用户要求删除；验证证据保留在文末执行记录，原步骤可从 Git 历史 `c37fa413` 查阅。后续编号保持不变，从 T5 继续核对并执行。T4 的 Schema/codec 改动仍在工作区，尚未提交；该步完成不代表 T6 Repository 行为或整包验证完成。
 
 ### T5：资源哈希与角色能力预检
 
-前置状态：T4 PASS；使用上述已固定的正式数据与调用链。
+前置状态：T4 Schema/codec 聚焦验证已通过（见执行记录），对应工作区改动须保留；使用上述已固定的正式数据与调用链。
 允许修改：`plugin/src/role-composition/dsh-capabilities.ts` 用 `standingKeyFor`、`skills.list/get`、资源 SHA 与 300000ms descriptor 替代 `validateSharedRoleCapabilities` 和 parent preflight；新增 `plugin/src/role-composition/resource-binding.ts`；更新 `plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`。
 禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
 
@@ -741,12 +633,30 @@ STOP：scope/gate 未全通过、存在未迁移唯一内容或删除后检查�
 | 废弃旧方案；MO-FR-14                                               | T19/T20；probe、旧代码与资产删除                                      | 零旧生命周期关键词、目标资产闭集、build/package；旧业务场景通过条件保留                                                 |
 | 完整交付                                                           | T21–T23                                                               | verify 与三个真实 profile 全 PASS；readiness/operations 迁移，删除后链接通过                                            |
 
-全部 scope 汇总以 T21 的 `verify` 与 `smoke:profile --all --json` 为完整门禁；选择依据是跨身份授权、持久化恢复与真实模型/工具组合同时变化。文档作者本轮只做结构、路径/符号/命令与文档链接/格式/diff 审计；未来代码测试与外部 lane **尚未执行**，不能从 Executable 推断产品可用。
+全部 scope 汇总以 T21 的 `verify` 与 `smoke:profile --all --json` 为完整门禁；选择依据是跨身份授权、持久化恢复与真实模型/工具组合同时变化。已执行的聚焦验证见文末记录；完整回归与真实外部 lane 尚未通过，不能从局部 PASS 推断产品可用。
 
 Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨 Host 和外部发布均不在范围；MeetingTask/session_mail 生产能力及人工 Browser 仍由 readiness 记录 Not Covered。七角色不开放直接互发工具；Reviewer 的 one-shot subagent 明确保留。
 
 ## 作者审计记录（2026-09-25）
 
-结论：Not Executable。此前标记过早；结构和路径检查不能代替完整逐步 dry run，必须继续核对每一步是否仅依赖此前已完成的接口、所有直接调用点是否包含在允许修改范围，以及聚焦测试是否能在该步状态下运行。用户已确认 Captain 为用户控制身份；原 Session 授权限制已从正式需求、接口、设计和本 RUNBOOK 移除。24 个步骤均具备前置状态、允许/禁止范围、执行动作、固定命令、PASS/STOP 与失败恢复；新增文件和接口有唯一落点，旧代码删除在替代链聚焦通过之后，最终删除 RUNBOOK 在完整验证和证据迁移之后。
+结论：Not Executable。此前标记过早；结构和路径检查不能代替完整逐步 dry run，必须继续核对每一步是否仅依赖此前已完成的接口、所有直接调用点是否包含在允许修改范围，以及聚焦测试是否能在该步状态下运行。用户已确认 Captain 为用户控制身份；原 Session 授权限制已从正式需求、接口、设计和本 RUNBOOK 移除。原 24 个步骤均具备前置状态、允许/禁止范围、执行动作、固定命令、PASS/STOP 与失败恢复；新增文件和接口有唯一落点，旧代码删除在替代链聚焦通过之后，最终删除 RUNBOOK 在完整验证和证据迁移之后。
 
 本轮只修改文档。已执行本地文件链接检查、修改文档的锚点核对、24 步结构/路径检查、Prettier 与 diff whitespace 检查；未执行产品测试、构建、真实 Loader/profile 或人工 Browser，以上未来验收不得记为 PASS。readiness 继续区分当前旧实现与目标未实现范围。
+
+## 执行记录（2026-09-25）
+
+- 用户授权边执行边修复步骤、依赖和接线缺口；产品范围仍以正式需求和接口为准。
+- T0 PASS：基线 b2822a3d，工作区干净，分支和 DSH 版本符合；verify 全通过（88 文件、735 测试），文档链接 501/0，diff 检查通过。
+- T1 修订：删除不存在的“本步列出的测试文件”要求；本步仅创建七 AGENTS 和五能力 SKILL，行为装配在 T2/T3 验证。
+
+- T1 PASS：七 AGENTS 和五能力 Skill 内容/格式核对通过。
+- T2 PASS：Definition/模型绑定聚焦测试 2 文件、29 测试；已观察新身份格式拒绝和模型快照失败后修复。旧 runtime 接线在 T8 迁移，中间全包不可发布。
+- T3 修订：DSH scanRoot 按 PRESET_ID 正则跳过点号/下划线目录，Preset ID 与目录统一使用 convivium-<role 去掉 meeting_ 前缀后的连字符形式>；Definition ID 保持原值。
+
+- 用户命名修订：Preset 使用 convivium-xxxx，Manager 为 convivium-manager；资源根改为 plugin/config，同步安装/启动/打包及测试资源路径。
+- T3 PASS：发行装配测试通过（实际 YAML 插值与精确 Skill 目录），未宣称真实 Loader 验收。
+- T4 修订：v2 projection 编解码位于 repository/domain/projection.ts，而非 meeting-state-codec.ts；本步同步该入口。T4 PASS：9 项私有 Schema/codec 测试通过，完整 Repository 行为待 T6。
+
+- 小步提交：`babc248a` 迁移 config 资源路径；`acd44e46` 分离身份与能力资源；`dcaa3a82` 固定身份引用和模型绑定契约；`388e7823` 装配七个独立 Preset。T2/T3 复验共 3 文件、30 测试通过。
+- 工作区后续实现仍在进行：T5 预检聚焦测试 8 项通过；T6 Repository facts 与 SQLite recovery 共 10 项通过，状态转换边界仍待核对；T7 owner 单元测试 4 项通过，真实工厂集成和 Runtime 注入未完成。以上不等于 T6/T7 整步 PASS。
+- 当前 Host typecheck 未通过：旧 Runtime、Session adapter 和投递服务仍引用旧 ownership/parent 字段及已替换的接口。整体验证与真实 profile 为 Not Covered；当前分支属于不可发布的迁移中间状态。
