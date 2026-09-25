@@ -79,7 +79,7 @@ export type IdentityRecommendation = IdentityRecommendationCore &
               status: "rejected";
               resolvedAt: number;
               identityId?: never;
-              childSessionId?: never;
+              sessionId?: never;
               definitionHash?: never;
               failureCode?: never;
           }
@@ -87,7 +87,7 @@ export type IdentityRecommendation = IdentityRecommendationCore &
               decision: "admit";
               status: "provisioning" | "active" | "failed";
               identityId: string;
-              childSessionId: string;
+              sessionId: string;
               definitionHash: string;
               resolvedAt?: number;
               failureCode?: string;

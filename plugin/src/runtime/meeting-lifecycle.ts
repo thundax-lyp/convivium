@@ -1,3 +1,4 @@
+import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
 import dshAgentPackage from "@deepseek-ai/dsh-agent/package.json" with { type: "json" };
 import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
@@ -128,80 +129,62 @@ export async function recoverTargetMeetingDeliveries(dependencies: {
     }
 }
 
-function createIdentityProvisionOwner(dependencies: {
-    readonly repository: MeetingRepositoryPort<MeetingState>;
-    readonly sessions: Context["subagents"];
-    readonly parent: Agent;
-}): MeetingIdentityProvisionDependencies["owner"] {
-    const { repository, sessions, parent } = dependencies;
+const createIdentityProvisionOwner = (dependencies: {
+    repository: MeetingRepositoryPort<MeetingState>;
+    agents: import("@/dsh/index.js").MeetingAgentOwner;
+    definitions: readonly import("@/role-composition/model.js").MeetingAgentDefinition[];
+}): MeetingIdentityProvisionDependencies["owner"] => {
+    const { repository, agents, definitions } = dependencies;
+    const inputOwnership = ({
+        createdAt: _created,
+        updatedAt: _updated,
+        ...input
+    }: import("@/repository/types.js").SessionOwnership) => input;
     return {
-        async readOwnership(admissionId) {
-            return (await repository.recover()).sessionOwnership.find(
-                (candidate) => candidate.id === `session-ownership:${admissionId}`
+        readOwnership: async (admissionId) =>
+            (await repository.recover()).sessionOwnership.find(
+                (o) => o.admissionId === admissionId
+            ),
+        readDescriptor: async (descriptorId) =>
+            (await repository.recover()).preparedDescriptors.find(
+                (d) => d.descriptorId === descriptorId
+            ),
+        putProvisioning: (owner, descriptor) =>
+            repository.recordSessionOwnership(owner, Date.now(), descriptor),
+        markActive: (owner, descriptor) =>
+            repository.recordSessionOwnership(
+                { ...inputOwnership(owner), lifecycleStatus: "active" },
+                Date.now(),
+                descriptor
+            ),
+        revokeAndDrainOwned: async (owner) => {
+            const revoked = await repository.recordSessionOwnership(
+                { ...inputOwnership(owner), capabilityStatus: "revoked" },
+                Date.now()
             );
-        },
-        async putProvisioning(owner) {
-            const current = (await repository.recover()).sessionOwnership.find(
-                (candidate) => candidate.sessionId === owner.sessionId
+            const definition = definitions.find(
+                (d) =>
+                    d.agentDefinitionId === owner.definition.agentDefinitionId &&
+                    d.definitionVersion === owner.definition.definitionVersion
             );
-            if (current !== undefined)
-                return current.id === owner.id &&
-                    current.meetingId === owner.meetingId &&
-                    current.identityId === owner.identityId &&
-                    current.parentSessionId === owner.parentSessionId &&
-                    current.sessionLabel === owner.sessionLabel &&
-                    current.provider === owner.provider
-                    ? { kind: "same" as const, owner: current }
-                    : { kind: "conflict" as const };
-            return {
-                kind: "created" as const,
-                owner: await repository.recordSessionOwnership(owner)
-            };
-        },
-        async inspectOwnedChild(owner) {
+            if (!definition) throw new Error("RECOVERY_UNAVAILABLE");
             try {
-                const entries = await sessions.listChildren(parent.id as never);
-                const entry = entries.find((candidate) => String(candidate.id) === owner.sessionId);
-                if (entry === undefined) return "absent" as const;
-                return entry.kind === "child" &&
-                    entry.mode === "continuable" &&
-                    entry.label === owner.sessionLabel
-                    ? ("present" as const)
-                    : ("unavailable" as const);
-            } catch {
-                return "unavailable" as const;
+                await agents.stop({
+                    ownership: revoked,
+                    definition,
+                    reason: "admission_failed",
+                    signal: new AbortController().signal
+                });
+            } catch (error) {
+                if (!(error instanceof SessionPersistenceNotFoundError)) throw error;
             }
-        },
-        async markActive(owner) {
-            if (owner.initialMessageId === undefined) throw new Error("RECOVERY_UNAVAILABLE");
-            return repository.recordSessionOwnership({
-                ...owner,
-                lifecycleStatus: "active"
-            });
-        },
-        async revokeAndDrainOwned(owner) {
-            const entries = await sessions.listChildren(parent.id as never);
-            const present = entries.some(
-                (candidate) =>
-                    candidate.kind === "child" &&
-                    String(candidate.id) === owner.sessionId &&
-                    candidate.mode === "continuable" &&
-                    candidate.label === owner.sessionLabel
+            await repository.recordSessionOwnership(
+                { ...inputOwnership(revoked), lifecycleStatus: "closed" },
+                Date.now()
             );
-            await repository.recordSessionOwnership({
-                ...owner,
-                lifecycleStatus: "closed",
-                capabilityStatus: "revoked"
-            });
-            if (!present) return;
-            sessions.interrupt(owner.sessionId as never, {
-                kind: "ancestor",
-                agent: parent
-            });
-            await sessions.drainContinuableChildren(parent, [owner.sessionId as never]);
         }
     };
-}
+};
 
 const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
@@ -386,8 +369,8 @@ export async function activateTargetMeetingApplication(
         });
         const identityOwner = createIdentityProvisionOwner({
             repository,
-            sessions: ctx.subagents,
-            parent
+            agents: agentOwner,
+            definitions
         });
         const identity = createMeetingIdentityEffectHandler({
             application,
@@ -397,12 +380,33 @@ export async function activateTargetMeetingApplication(
                 provisionMeetingIdentity(input, {
                     definitions,
                     agentModelOverrides: config.agentModelOverrides,
-                    parent,
-                    runtime: ctx.subagents,
-                    provider: config.provider,
+                    ctx,
+                    packageRoot: rolePackageRoot,
+                    cwd: process.cwd(),
+                    agents: agentOwner,
                     now: Date.now,
                     owner: identityOwner
                 }),
+            activateProvisioned: async (recommendationId, signal) => {
+                const ownership = await identityOwner.readOwnership(recommendationId);
+                const state = await repository.read();
+                if (
+                    !ownership ||
+                    state.state.lifecycle.status !== "running" ||
+                    !state.state.identities.some(
+                        (i) =>
+                            i.id === ownership.identityId && i.sessionOwnershipId === ownership.id
+                    )
+                )
+                    throw new Error("INVALID_STATE");
+                const definition = definitions.find(
+                    (d) =>
+                        d.agentDefinitionId === ownership.definition.agentDefinitionId &&
+                        d.definitionVersion === ownership.definition.definitionVersion
+                );
+                if (!definition) throw new Error("RECOVERY_UNAVAILABLE");
+                await agentOwner.resume({ ownership, definition, purpose: "delivery", signal });
+            },
             cleanupProvisioned: async (recommendationId) => {
                 const ownership = await identityOwner.readOwnership(recommendationId);
                 if (ownership !== undefined) await identityOwner.revokeAndDrainOwned(ownership);

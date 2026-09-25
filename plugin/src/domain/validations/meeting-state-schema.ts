@@ -138,7 +138,7 @@ const identityRecommendationSchema = withDefinedOptionals(
         evidenceGap: textSchema,
         createdAt: epochSchema,
         identityId: opaqueIdSchema.optional(),
-        childSessionId: opaqueIdSchema.optional(),
+        sessionId: opaqueIdSchema.optional(),
         definitionHash: z
             .string()
             .regex(/^[a-f0-9]{64}$/)
@@ -146,13 +146,13 @@ const identityRecommendationSchema = withDefinedOptionals(
         resolvedAt: epochSchema.optional(),
         failureCode: textSchema.optional()
     }),
-    ["identityId", "childSessionId", "definitionHash", "resolvedAt", "failureCode"]
+    ["identityId", "sessionId", "definitionHash", "resolvedAt", "failureCode"]
 ).superRefine((value, ctx) => {
     if (value.decision === "reject") {
         if (
             value.status !== "rejected" ||
             value.identityId !== undefined ||
-            value.childSessionId !== undefined ||
+            value.sessionId !== undefined ||
             value.definitionHash !== undefined ||
             value.failureCode !== undefined ||
             value.resolvedAt === undefined
@@ -160,7 +160,7 @@ const identityRecommendationSchema = withDefinedOptionals(
             ctx.addIssue({ code: "custom", path: ["status"] });
     } else if (
         value.identityId === undefined ||
-        value.childSessionId === undefined ||
+        value.sessionId === undefined ||
         value.definitionHash === undefined ||
         value.status === "rejected"
     ) {

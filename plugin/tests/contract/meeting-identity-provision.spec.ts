@@ -1,41 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMeetingIdentityEffectHandler } from "@/runtime/application-service/meeting-identity.js";
 import { provisionMeetingIdentity } from "@/runtime/services/meeting-identity-provision.js";
-import { resolveMeetingRoles } from "@/role-composition/resolve.js";
-
-const dynamicDefinition = {
-    agentDefinitionId: "architect-definition",
-    definitionVersion: "1",
-    roleDefinitionId: "domain_architect" as const,
-    displayName: "Architect",
-    summary: "Architecture",
-    roleDescription: "Architecture persona",
-    dshPresetId: "minimal",
-    requiredSkillNames: ["architecture-skill"],
-    toolFilter: { deny: ["unsafe-tool"] },
-    expertiseTags: ["architecture"],
-    evidenceScopes: ["repository" as const]
-};
-
-async function dynamicRecommendation() {
-    const roles = await resolveMeetingRoles(
-        {
-            definitions: [dynamicDefinition],
-            participants: [
-                { participantKey: "identity-1", agentDefinitionId: "architect-definition" }
-            ]
-        },
-        async () => undefined
-    );
-    return {
-        id: "rec-1",
-        definitionId: "architect-definition",
-        definitionVersion: "1",
-        definitionHash: roles.participants["identity-1"]!.agentDefinition.definitionHash,
-        identityId: "identity-1",
-        childSessionId: "child-1"
-    };
-}
+import { definitionHash } from "@/role-composition/resolve.js";
+import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 const effect = (payload: Record<string, unknown>) => ({
     id: "effect-1",
@@ -52,6 +22,9 @@ const effect = (payload: Record<string, unknown>) => ({
 describe("identity provision effect handler", () => {
     it("uses the committed admission id and commits through the command application", async () => {
         const execute = vi.fn(async () => ({ kind: "accepted" as const }));
+        const activateProvisioned = vi.fn(async () => {
+            expect(execute).toHaveBeenCalledOnce();
+        });
         const provision = vi.fn(async () => ({
             kind: "admitted" as const,
             result: {
@@ -59,7 +32,7 @@ describe("identity provision effect handler", () => {
                 admissionId: "rec-1",
                 meetingId: "meeting-1",
                 identityId: "identity-1",
-                childSessionId: "child-1",
+                sessionId: "child-1",
                 ownershipId: "owner-1",
                 descriptorId: "descriptor:rec-1",
                 displayName: "Architect",
@@ -85,7 +58,7 @@ describe("identity provision effect handler", () => {
                                 definitionVersion: "1",
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
-                                childSessionId: "child-1"
+                                sessionId: "child-1"
                             }
                         ]
                     }
@@ -93,6 +66,7 @@ describe("identity provision effect handler", () => {
             } as never,
             definitions: [],
             provision,
+            activateProvisioned,
             cleanupProvisioned: vi.fn()
         });
         await handler.dispatch(
@@ -104,6 +78,7 @@ describe("identity provision effect handler", () => {
             new AbortController().signal
         );
         expect(provision).toHaveBeenCalledWith(expect.objectContaining({ meetingId: "meeting-1" }));
+        expect(activateProvisioned).toHaveBeenCalledWith("rec-1", expect.any(AbortSignal));
         expect(execute).toHaveBeenCalledWith(
             expect.objectContaining({ requestId: "identity-admission:effect-1" }),
             expect.objectContaining({
@@ -118,6 +93,7 @@ describe("identity provision effect handler", () => {
             repository: { read: vi.fn() } as never,
             definitions: [],
             provision: vi.fn() as never,
+            activateProvisioned: vi.fn(async () => {}),
             cleanupProvisioned: vi.fn()
         });
         await expect(
@@ -151,7 +127,7 @@ describe("identity provision effect handler", () => {
                                 definitionVersion: "1",
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
-                                childSessionId: "child-1"
+                                sessionId: "child-1"
                             }
                         ]
                     }
@@ -162,6 +138,7 @@ describe("identity provision effect handler", () => {
                 kind: "rejected" as const,
                 failureCode: "RECOVERY_UNAVAILABLE"
             })),
+            activateProvisioned: vi.fn(async () => {}),
             cleanupProvisioned: vi.fn()
         });
 
@@ -201,7 +178,7 @@ describe("identity provision effect handler", () => {
                                 definitionVersion: "1",
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
-                                childSessionId: "child-1"
+                                sessionId: "child-1"
                             }
                         ]
                     }
@@ -209,6 +186,7 @@ describe("identity provision effect handler", () => {
             } as never,
             definitions: [],
             provision,
+            activateProvisioned: vi.fn(async () => {}),
             cleanupProvisioned: vi.fn()
         });
 
@@ -248,7 +226,7 @@ describe("identity provision effect handler", () => {
                                     definitionVersion: "1",
                                     definitionHash: "a".repeat(64),
                                     identityId: "identity-1",
-                                    childSessionId: "child-1"
+                                    sessionId: "child-1"
                                 }
                             ]
                         }
@@ -263,7 +241,7 @@ describe("identity provision effect handler", () => {
                     admissionId: "rec-1",
                     meetingId: "meeting-1",
                     identityId: "identity-1",
-                    childSessionId: "child-1",
+                    sessionId: "child-1",
                     ownershipId: "owner-1",
                     descriptorId: "descriptor:rec-1",
                     displayName: "Architect",
@@ -272,6 +250,7 @@ describe("identity provision effect handler", () => {
                     definitionHash: "a".repeat(64)
                 }
             })),
+            activateProvisioned: vi.fn(async () => {}),
             cleanupProvisioned
         });
 
@@ -316,7 +295,7 @@ describe("identity provision effect handler", () => {
                                     definitionVersion: "1",
                                     definitionHash: "a".repeat(64),
                                     identityId: "identity-1",
-                                    childSessionId: "child-1"
+                                    sessionId: "child-1"
                                 }
                             ]
                         }
@@ -331,7 +310,7 @@ describe("identity provision effect handler", () => {
                     admissionId: "rec-1",
                     meetingId: "meeting-1",
                     identityId: "identity-1",
-                    childSessionId: "child-1",
+                    sessionId: "child-1",
                     ownershipId: "owner-1",
                     descriptorId: "descriptor:rec-1",
                     displayName: "Architect",
@@ -340,6 +319,7 @@ describe("identity provision effect handler", () => {
                     definitionHash: "a".repeat(64)
                 }
             })),
+            activateProvisioned: vi.fn(async () => {}),
             cleanupProvisioned
         });
 
@@ -356,146 +336,131 @@ describe("identity provision effect handler", () => {
     });
 });
 
-describe("dynamic identity provisioning", () => {
-    function dependencies(skillAvailable: boolean) {
-        const startContinuable = vi.fn(async (input) => ({
-            childId: input.childId,
-            messageId: "message-1"
-        }));
-        const putProvisioning = vi.fn(async (owner) => ({ kind: "created" as const, owner }));
-        const parent = {
-            id: "captain-1",
-            session: { header: { cwd: "/fixture" } },
-            ctx: {
-                get: (key: string) =>
-                    key === "agentPresets"
-                        ? { composedPreset: () => "minimal" }
-                        : {
-                              get: async () =>
-                                  skillAvailable
-                                      ? {
-                                            content: "architecture instructions",
-                                            invocation: { modelInvocable: true }
-                                        }
-                                      : undefined
-                          }
-            }
-        };
-        return {
-            startContinuable,
-            putProvisioning,
-            value: {
-                definitions: [dynamicDefinition],
-                parent,
-                runtime: { startContinuable },
-                provider: "fixture",
-                owner: {
-                    readOwnership: async () => undefined,
-                    putProvisioning,
-                    inspectOwnedChild: async () => "absent" as const,
-                    markActive: async (owner) => ({ ...owner, lifecycleStatus: "active" as const }),
-                    revokeAndDrainOwned: vi.fn()
-                },
-                now: () => 1
-            }
-        };
-    }
-
-    it("fails before ownership or Session creation when a required Skill is unavailable", async () => {
-        const fixture = dependencies(false);
-        const result = await provisionMeetingIdentity(
-            {
-                recommendation: await dynamicRecommendation(),
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            fixture.value as never
+describe("dynamic peer identity provisioning", () => {
+    const fixture = async () => {
+        const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
+        const definitions = parseAgentDefinitions(
+            JSON.parse(await readFile(join(packageRoot, "config/definitions.json"), "utf8"))
+                .definitions
         );
-
-        expect(result).toEqual({ kind: "rejected", failureCode: "CAPABILITY_MISSING" });
-        expect(fixture.putProvisioning).not.toHaveBeenCalled();
-        expect(fixture.startContinuable).not.toHaveBeenCalled();
+        const definition = definitions.find((d) => d.roleDefinitionId === "domain_architect")!;
+        const path = join(packageRoot, "config/skills/repository-analysis/SKILL.md");
+        const skill = {
+            name: "repository-analysis",
+            path,
+            invocation: { modelInvocable: true },
+            resourceBase: {
+                kind: "directory",
+                path: join(packageRoot, "config/skills/repository-analysis")
+            },
+            content: (await readFile(path, "utf8"))
+                .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+                .trim()
+        };
+        let stored;
+        let proof;
+        const agents = { create: vi.fn(async () => {}), resume: vi.fn(async () => {}) };
+        const ctx = {
+            agentDefaultModel: {
+                currentSelection: vi.fn(() => ({ provider: "fixture", model: "model" }))
+            },
+            llm: { resolveCallConfig: async (config) => config },
+            agentPresets: { standingKeyFor: vi.fn(async () => ({})) },
+            skills: {
+                snapshot: vi.fn(async () => ({ complete: true, skills: [skill] })),
+                get: async (name) => (name === skill.name ? skill : undefined)
+            }
+        };
+        const owner = {
+            readOwnership: async () => stored,
+            readDescriptor: async () => proof,
+            putProvisioning: vi.fn(async (ownership, descriptor) => {
+                proof = descriptor;
+                stored = { ...ownership, createdAt: Date.now(), updatedAt: Date.now() };
+                return stored;
+            }),
+            markActive: vi.fn(async (ownership) => {
+                stored = { ...ownership, lifecycleStatus: "active" };
+                return stored;
+            }),
+            revokeAndDrainOwned: vi.fn(async () => {
+                stored = { ...stored, capabilityStatus: "revoked", lifecycleStatus: "closed" };
+            })
+        };
+        const input = {
+            meetingId: "meeting",
+            signal: new AbortController().signal,
+            recommendation: {
+                id: "admission",
+                definitionId: definition.agentDefinitionId,
+                definitionVersion: definition.definitionVersion,
+                definitionHash: definitionHash(definition),
+                identityId: "identity",
+                sessionId: "session"
+            }
+        };
+        const dependencies = {
+            ctx,
+            agents,
+            owner,
+            definitions,
+            packageRoot,
+            cwd: packageRoot,
+            now: Date.now
+        };
+        return { ctx, agents, owner, input, dependencies };
+    };
+    it("refuses a missing Skill before storing ownership or creating a Session", async () => {
+        const f = await fixture();
+        f.ctx.skills.snapshot.mockResolvedValue({ complete: true, skills: [] });
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toEqual({
+            kind: "rejected",
+            failureCode: "CAPABILITY_MISSING"
+        });
+        expect(f.owner.putProvisioning).not.toHaveBeenCalled();
+        expect(f.agents.create).not.toHaveBeenCalled();
     });
-
-    it("starts the Session with the preflighted Definition composition", async () => {
-        const fixture = dependencies(true);
-        const result = await provisionMeetingIdentity(
-            {
-                recommendation: await dynamicRecommendation(),
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            fixture.value as never
-        );
-
+    it("creates the preflighted peer and leaves delivery activation to the committed result", async () => {
+        const f = await fixture();
+        const result = await provisionMeetingIdentity(f.input, f.dependencies);
         expect(result.kind).toBe("admitted");
-        expect(fixture.startContinuable).toHaveBeenCalledWith(
+        expect(f.agents.create).toHaveBeenCalledWith(
             expect.objectContaining({
-                request: expect.objectContaining({
-                    persona: expect.stringContaining("Architecture persona"),
-                    toolFilter: { deny: ["unsafe-tool"] }
-                })
+                ownership: expect.objectContaining({
+                    sessionId: "session",
+                    admissionId: "admission",
+                    lifecycleStatus: "provisioning"
+                }),
+                descriptor: expect.objectContaining({ sessionId: "session" })
             })
         );
+        expect(f.agents.resume).not.toHaveBeenCalled();
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toEqual(result);
+        expect(f.agents.create).toHaveBeenCalledTimes(1);
+        expect(f.ctx.agentDefaultModel.currentSelection).toHaveBeenCalledTimes(1);
     });
-
-    it("recovers an existing child without repeating capability preflight", async () => {
-        const initial = dependencies(true);
-        const recommendation = await dynamicRecommendation();
-        await provisionMeetingIdentity(
-            {
-                recommendation,
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            initial.value as never
+    it("resumes the original provisioning Session without replacing resources or refreshing proof", async () => {
+        const f = await fixture();
+        f.owner.markActive.mockImplementationOnce(async (o) => o);
+        await provisionMeetingIdentity(f.input, f.dependencies);
+        f.ctx.agentPresets.standingKeyFor.mockRejectedValue(new Error("new default unavailable"));
+        expect((await provisionMeetingIdentity(f.input, f.dependencies)).kind).toBe("admitted");
+        expect(f.agents.resume).toHaveBeenCalledWith(
+            expect.objectContaining({
+                purpose: "provisioning",
+                ownership: expect.objectContaining({ sessionId: "session" })
+            })
         );
-        const owner = initial.putProvisioning.mock.calls[0]![0];
-        const recovered = dependencies(false);
-        recovered.value.owner.readOwnership = async () => owner;
-        recovered.value.owner.inspectOwnedChild = async () => "present" as const;
-
-        const result = await provisionMeetingIdentity(
-            {
-                recommendation,
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            recovered.value as never
-        );
-
-        expect(result.kind).toBe("admitted");
-        expect(recovered.startContinuable).not.toHaveBeenCalled();
-        expect(recovered.value.owner.revokeAndDrainOwned).not.toHaveBeenCalled();
+        expect(f.agents.create).toHaveBeenCalledTimes(1);
     });
-
-    it("revokes existing provisioning ownership when a missing child cannot be recreated", async () => {
-        const initial = dependencies(true);
-        const recommendation = await dynamicRecommendation();
-        await provisionMeetingIdentity(
-            {
-                recommendation,
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            initial.value as never
-        );
-        const owner = initial.putProvisioning.mock.calls[0]![0];
-        const recovered = dependencies(false);
-        recovered.value.owner.readOwnership = async () => owner;
-        recovered.value.owner.inspectOwnedChild = async () => "absent" as const;
-
-        const result = await provisionMeetingIdentity(
-            {
-                recommendation,
-                meetingId: "meeting-1",
-                signal: new AbortController().signal
-            },
-            recovered.value as never
-        );
-
-        expect(result).toEqual({ kind: "rejected", failureCode: "CAPABILITY_MISSING" });
-        expect(recovered.startContinuable).not.toHaveBeenCalled();
-        expect(recovered.value.owner.revokeAndDrainOwned).toHaveBeenCalledWith(owner);
+    it("revokes a failed first factory and never substitutes another Session", async () => {
+        const f = await fixture();
+        f.agents.create.mockRejectedValue(new Error("factory failure"));
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toEqual({
+            kind: "rejected",
+            failureCode: "ADMISSION_FAILED"
+        });
+        expect(f.owner.revokeAndDrainOwned).toHaveBeenCalledOnce();
+        expect(f.owner.markActive).not.toHaveBeenCalled();
     });
 });

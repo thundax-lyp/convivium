@@ -1,3 +1,4 @@
+import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import {
     closeContribution,
     claimEvidenceReview,
@@ -617,6 +618,8 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             break;
         }
         case "recommend_identity": {
+            const identityId =
+                action.decision === "admit" ? generated("meeting_identity") : undefined;
             const result = recommendIdentity(
                 snapshot.state,
                 action,
@@ -625,8 +628,8 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                     recommendationId: generated("identity_recommendation"),
                     ...(action.decision === "admit"
                         ? {
-                              identityId: generated("meeting_identity"),
-                              childSessionId: generated("child_session"),
+                              identityId,
+                              sessionId: `meeting_agent_session-${sha256Hex(encodeCanonicalJson([snapshot.state.id, "meeting_agent_session", identityId!])).slice(0, 32)}`,
                               definitionHash: catalogDefinitionHash
                           }
                         : {})

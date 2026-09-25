@@ -19,7 +19,7 @@ export type IdentityAdmissionResultContext =
           admissionId: string;
           meetingId: string;
           identityId: string;
-          childSessionId: string;
+          sessionId: string;
           ownershipId: string;
           descriptorId: string;
           displayName: string;
@@ -76,7 +76,7 @@ export function recommendIdentity(
     ids: {
         recommendationId: string;
         identityId?: string;
-        childSessionId?: string;
+        sessionId?: string;
         definitionHash?: string;
     },
     now: EpochMs
@@ -134,7 +134,7 @@ export function recommendIdentity(
                     createdAt: now,
                     status: "provisioning",
                     identityId: ids.identityId ?? "",
-                    childSessionId: ids.childSessionId ?? "",
+                    sessionId: ids.sessionId ?? "",
                     definitionHash: ids.definitionHash ?? ""
                 }
               : {
@@ -145,13 +145,13 @@ export function recommendIdentity(
                     createdAt: now,
                     status: "active",
                     identityId: active.identityId,
-                    childSessionId: active.childSessionId,
+                    sessionId: active.sessionId,
                     definitionHash: active.definitionHash,
                     resolvedAt: now
                 };
     if (action.decision === "admit" && !/^[a-f0-9]{64}$/.test(ids.definitionHash ?? ""))
         return reject(state, "INVALID_ARGUMENT");
-    if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.childSessionId)))
+    if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.sessionId)))
         if (active === undefined) return reject(state, "INVALID_ARGUMENT");
     const nextState = {
         ...state,
@@ -202,7 +202,7 @@ export function recordIdentityAdmissionResult(
         (result.admissionId !== intent.id ||
             result.meetingId !== state.id ||
             result.identityId !== intent.identityId ||
-            result.childSessionId !== intent.childSessionId ||
+            result.sessionId !== intent.sessionId ||
             result.definitionId !== intent.definitionId ||
             result.definitionVersion !== intent.definitionVersion ||
             result.definitionHash !== intent.definitionHash ||
