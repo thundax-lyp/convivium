@@ -12,7 +12,7 @@ const roots: string[] = [];
 afterEach(async () => {
     await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
-const fixture = async () => {
+const fixture = async (role = "domain_architect") => {
     const packageRoot = await mkdtemp(join(tmpdir(), "peer-preflight-"));
     roots.push(packageRoot);
     await cp(
@@ -23,7 +23,7 @@ const fixture = async () => {
     const definitions = parseAgentDefinitions(
         JSON.parse(await readFile(join(packageRoot, "config/definitions.json"), "utf8")).definitions
     );
-    const definition = definitions.find((d) => d.roleDefinitionId === "domain_architect")!;
+    const definition = definitions.find((d) => d.roleDefinitionId === role)!;
     const path = join(packageRoot, "config/skills/repository-analysis/SKILL.md");
     const content = (await readFile(path, "utf8"))
         .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
@@ -95,6 +95,49 @@ describe("role resource preflight", () => {
             "meeting-facilitation",
             "repository-analysis"
         ]);
+    });
+    it.each([
+        "meeting_manager",
+        "domain_architect",
+        "runtime_engineer",
+        "protocol_ui_engineer",
+        "verification_reviewer",
+        "github_research_analyst",
+        "arxiv_research_analyst"
+    ])("checks the exact allocation of %s", async (role) => {
+        const f = await fixture(role);
+        const allocated = await Promise.all(
+            f.input.definition.requiredSkillNames.map(async (name) => {
+                const path = join(f.input.packageRoot, "config/skills", name, "SKILL.md");
+                return {
+                    name,
+                    description: name,
+                    provider: f.input.definition.dshPresetId,
+                    source: "custom",
+                    path,
+                    resourceBase: {
+                        kind: "directory" as const,
+                        path: join(f.input.packageRoot, "config/skills", name)
+                    },
+                    invocation: { modelInvocable: true, userInvocable: true },
+                    content: (await readFile(path, "utf8"))
+                        .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+                        .trim()
+                };
+            })
+        );
+        f.skills.snapshot.mockResolvedValue({ complete: true, skills: allocated });
+        f.skills.get.mockImplementation(async (name) =>
+            allocated.find((skill) => skill.name === name)
+        );
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "ready" });
+        f.skills.get.mockImplementation(async (name) => {
+            const skill = allocated.find((value) => value.name === name);
+            return skill
+                ? { ...skill, invocation: { modelInvocable: false, userInvocable: true } }
+                : undefined;
+        });
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });
     });
     it.each(["extra", "missing", "incomplete", "override", "hidden-load"])(
         "rejects %s skills without publishing a descriptor",
