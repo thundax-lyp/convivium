@@ -27,9 +27,8 @@ function fixture() {
             meetingId: state.id,
             identityId: identity.id,
             sessionId: `session:${identity.id}`,
-            parentSessionId: "captain-1",
+            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
             sessionLabel: `convivium:meeting-identity:${role}:${state.id}:${identity.id}`,
-            provider: "spawn",
             role,
             lifecycleStatus: "active",
             capabilityStatus: "active",
@@ -49,9 +48,10 @@ describe("meeting notice dispatcher v1", () => {
         "delivers meeting_started to the active owned identity %s",
         async (recipientId, sessionId) => {
             const { state, ownership } = fixture();
-            const sendMessage = vi.fn().mockResolvedValue("message-1");
+            const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
-                sessions: { sendMessage },
+                owner: { deliver, resume: vi.fn(async () => {}) },
+                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -73,14 +73,13 @@ describe("meeting notice dispatcher v1", () => {
                     recipientId,
                     agendaId: "agenda-v1"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             });
 
-            expect(sendMessage).toHaveBeenCalledTimes(1);
-            expect(sendMessage.mock.calls[0]?.[1]).toBe(sessionId);
-            const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ type: string; text: string }>;
-            expect(JSON.parse(prompt[0]!.text)).toEqual({
+            expect(deliver).toHaveBeenCalledTimes(1);
+            expect(deliver.mock.calls[0]?.[0].ownership.sessionId).toBe(sessionId);
+            const text = deliver.mock.calls[0]?.[0].text;
+            expect(JSON.parse(text)).toEqual({
                 effectId: "effect-1",
                 meetingId: "meeting-v1",
                 noticeKind: "meeting_started",
@@ -91,9 +90,10 @@ describe("meeting notice dispatcher v1", () => {
 
     it("accepts a committed disposition after its pending source was removed", async () => {
         const { state, ownership } = fixture();
-        const sendMessage = vi.fn().mockResolvedValue("message-2");
+        const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
-            sessions: { sendMessage },
+            owner: { deliver, resume: vi.fn(async () => {}) },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -118,11 +118,10 @@ describe("meeting notice dispatcher v1", () => {
                 disposition: "rejected",
                 reason: "Out of scope"
             }),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
 
-        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(deliver).toHaveBeenCalledOnce();
     });
 
     it("validates and delivers the remaining committed notice shapes", async () => {
@@ -178,9 +177,10 @@ describe("meeting notice dispatcher v1", () => {
                 createdAt: 3
             }
         ];
-        const sendMessage = vi.fn().mockResolvedValue("accepted");
+        const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
-            sessions: { sendMessage },
+            owner: { deliver, resume: vi.fn(async () => {}) },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -226,11 +226,10 @@ describe("meeting notice dispatcher v1", () => {
         for (const notice of notices) {
             await dispatcher.dispatch({
                 outboxItem: item({ kind: "agent_notice", agendaId: "agenda-v1", ...notice }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             });
         }
-        expect(sendMessage).toHaveBeenCalledTimes(4);
+        expect(deliver).toHaveBeenCalledTimes(4);
     });
 
     it.each([
@@ -244,7 +243,8 @@ describe("meeting notice dispatcher v1", () => {
             candidate.identityId === "contributor-v1" ? { ...candidate, ...override } : candidate
         );
         const dispatcher = createMeetingNoticeDispatcher({
-            sessions: { sendMessage: vi.fn() },
+            owner: { deliver: vi.fn(), resume: vi.fn() },
+            definitions: [],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -266,7 +266,6 @@ describe("meeting notice dispatcher v1", () => {
                     recipientId: "contributor-v1",
                     agendaId: "agenda-v1"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
         ).rejects.toThrow("NOTICE_OWNERSHIP_INVALID");
@@ -275,7 +274,8 @@ describe("meeting notice dispatcher v1", () => {
     it("fails closed for review_request and unknown notice kinds", async () => {
         const { state, ownership } = fixture();
         const dispatcher = createMeetingNoticeDispatcher({
-            sessions: { sendMessage: vi.fn() },
+            owner: { deliver: vi.fn(), resume: vi.fn() },
+            definitions: [],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -298,7 +298,6 @@ describe("meeting notice dispatcher v1", () => {
                         recipientId: "reviewer-v1",
                         agendaId: "agenda-v1"
                     }),
-                    parent: { id: "captain-1" } as never,
                     signal: new AbortController().signal
                 })
             ).rejects.toMatchObject({ code: "OUTBOX_ROUTE_UNAVAILABLE", retryable: false });
@@ -324,9 +323,10 @@ describe("public transcript notice dispatch", () => {
                     createdAt: 3
                 }
             ];
-            const sendMessage = vi.fn().mockResolvedValue("accepted");
+            const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
-                sessions: { sendMessage },
+                owner: { deliver, resume: vi.fn(async () => {}) },
+                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -349,12 +349,11 @@ describe("public transcript notice dispatch", () => {
                     agendaId: "agenda-v1",
                     publicMessageId: "message-1"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             });
 
-            expect(sendMessage).toHaveBeenCalledOnce();
-            expect(sendMessage.mock.calls[0]?.[1]).toBe(`session:${recipientId}`);
+            expect(deliver).toHaveBeenCalledOnce();
+            expect(deliver.mock.calls[0]?.[0].ownership.sessionId).toBe(`session:${recipientId}`);
         }
     );
 });

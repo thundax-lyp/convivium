@@ -681,3 +681,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 
 - 依赖修订：T8 的完整生产投递依赖 T10/T11，T9 Catalog 来源依赖 T17；先完成相应步骤的独立语义与聚焦测试，再在接线完成后联合复验，不把部分实现记为整步 PASS。T9 同步 application-service/meeting-command.ts 的稳定 Session ID 与 unit/domain/meeting-identity.spec.ts。
 - T9 迁移动态 intent 为 sessionId，peer provision 固定 descriptor/ownership 后 create 或恢复原 Session，业务结果提交成功后才开启 delivery scope；20 项聚焦测试通过。领域字段迁移已观察 RED；provision service 改写未完整遵循测试先行，已如实保留实现并补验：临时移除提交后 activation 会令合同断言失败（1 项），恢复后再验证。Catalog 旧 parent 请求留到 T17 替换。
+
+- T10 消息 dispatcher 改用 MeetingAgentOwner 的 resume/deliver，投递使用持久 deliveryId，pre/post 回调重新读当前 Meeting/identity/ownership；普通通知 flush false 抛出可重试错误，暂停审核请求不再直接返回成功。4 文件 26 项通过，覆盖六种 notice 与审核请求/结果；崩溃窗口 dispatcher 测试使用 owner 替身，真实 followup/flush 证据仍由 owner 与 T21 提供。统一 effect 路由已删 parent，归档 dispatcher 与冷恢复接线待 T11 完成后联合验证。

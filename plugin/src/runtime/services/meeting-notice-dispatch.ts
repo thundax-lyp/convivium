@@ -1,7 +1,6 @@
-import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
-import { followupMeetingIdentitySession, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.js";
+import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
@@ -17,7 +16,8 @@ const supported = new Set([
 class NoticeDispatchError extends Error {
     constructor(
         readonly code: string,
-        readonly retryable: boolean
+        readonly retryable: boolean,
+        readonly terminalOnAttemptLimit = !retryable
     ) {
         super(code);
     }
@@ -219,28 +219,31 @@ function findOwnership(
 }
 
 export interface MeetingNoticeDispatcherDependencies {
-    readonly sessions: Pick<SubagentRuntime, "sendMessage">;
+    readonly owner: MeetingAgentOwner;
+    readonly definitions: readonly MeetingAgentDefinition[];
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
 }
-
-export function createMeetingNoticeDispatcher(dependencies: MeetingNoticeDispatcherDependencies): {
-    dispatch(input: { outboxItem: OutboxItem; parent: Agent; signal: AbortSignal }): Promise<void>;
-} {
-    return {
-        async dispatch({ outboxItem, parent, signal }) {
-            const payload = outboxItem.payload as Record<string, unknown>;
-            if (outboxItem.kind !== "dispatch" || payload.kind !== "agent_notice")
-                fail("OUTBOX_ROUTE_UNAVAILABLE");
-            const noticeKind = stringField(payload, "noticeKind");
-            if (!supported.has(noticeKind)) fail("OUTBOX_ROUTE_UNAVAILABLE");
+export const createMeetingNoticeDispatcher = (
+    dependencies: MeetingNoticeDispatcherDependencies
+): {
+    dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
+} => ({
+    async dispatch({ outboxItem, signal }) {
+        const payload = outboxItem.payload as Record<string, unknown>;
+        if (outboxItem.kind !== "dispatch" || payload.kind !== "agent_notice")
+            fail("OUTBOX_ROUTE_UNAVAILABLE");
+        const noticeKind = stringField(payload, "noticeKind");
+        if (!supported.has(noticeKind)) fail("OUTBOX_ROUTE_UNAVAILABLE");
+        const recipientId = stringField(payload, "recipientId");
+        const agendaId = stringField(payload, "agendaId");
+        const resolve = async () => {
+            signal.throwIfAborted();
             const recovered = await dependencies.repository.recover();
             const snapshot = recovered.snapshot;
             if (!snapshot) throw new NoticeDispatchError("NOTICE_STATE_UNAVAILABLE", true);
-            const recipientId = stringField(payload, "recipientId");
-            const agendaId = stringField(payload, "agendaId");
-            const identity = snapshot.state.identities.find(
-                (candidate) => candidate.id === recipientId
-            );
+            if (snapshot.state.lifecycle.status !== "running")
+                throw new NoticeDispatchError("INVALID_STATE", true);
+            const identity = snapshot.state.identities.find((i) => i.id === recipientId);
             if (!identity) fail("NOTICE_VISIBILITY_INVALID");
             const ownership = findOwnership(
                 recovered.sessionOwnership,
@@ -248,7 +251,6 @@ export function createMeetingNoticeDispatcher(dependencies: MeetingNoticeDispatc
                 snapshot.meetingId,
                 roleFor(identity)
             );
-            if (ownership.parentSessionId !== String(parent.id)) fail("NOTICE_OWNERSHIP_INVALID");
             const details = assertNoticeReferences(
                 snapshot.state,
                 identity,
@@ -256,27 +258,43 @@ export function createMeetingNoticeDispatcher(dependencies: MeetingNoticeDispatc
                 noticeKind,
                 agendaId
             );
-            const prompt = [
-                {
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        effectId: outboxItem.id,
-                        meetingId: snapshot.meetingId,
-                        noticeKind,
-                        agendaId,
-                        ...details
-                    })
-                }
-            ];
-            await followupMeetingIdentitySession({
-                runtime: dependencies.sessions,
-                parent,
-                ownership,
-                meetingId: snapshot.meetingId,
-                identityId: identity.id,
-                prompt,
-                signal
-            });
-        }
-    };
-}
+            return { ownership, details, meetingId: snapshot.meetingId };
+        };
+        const initial = await resolve();
+        const definition = dependencies.definitions.find(
+            (d) =>
+                d.agentDefinitionId === initial.ownership.definition.agentDefinitionId &&
+                d.definitionVersion === initial.ownership.definition.definitionVersion
+        );
+        if (!definition) throw new NoticeDispatchError("RECOVERY_UNAVAILABLE", true);
+        const authorize = async () => {
+            const current = await resolve();
+            if (
+                current.meetingId !== initial.meetingId ||
+                current.ownership.id !== initial.ownership.id ||
+                current.ownership.sessionId !== initial.ownership.sessionId
+            )
+                fail("NOTICE_OWNERSHIP_INVALID");
+        };
+        await dependencies.owner.resume({
+            ownership: initial.ownership,
+            definition,
+            purpose: "delivery",
+            signal
+        });
+        const flushed = await dependencies.owner.deliver({
+            ownership: initial.ownership,
+            deliveryId: outboxItem.deliveryId,
+            text: JSON.stringify({
+                effectId: outboxItem.id,
+                meetingId: initial.meetingId,
+                noticeKind,
+                agendaId,
+                ...initial.details
+            }),
+            authorize,
+            signal
+        });
+        if (!flushed) throw new NoticeDispatchError("SESSION_FLUSH_FAILED", true);
+    }
+});

@@ -29,9 +29,7 @@ describe("target Meeting effect routing", () => {
         const archive = { dispatch: vi.fn(async () => undefined) };
         const review = { dispatch: vi.fn(async () => undefined) };
         const reviewDelivery = { dispatch: vi.fn(async () => undefined) };
-        const parent = { id: "captain-1" };
         const dispatch = createTargetMeetingEffectDispatcher({
-            parent: parent as never,
             identity,
             notice,
             archive,

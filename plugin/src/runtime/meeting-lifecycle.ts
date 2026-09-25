@@ -43,35 +43,18 @@ import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 
 export function createTargetMeetingEffectDispatcher(dependencies: {
-    readonly parent: Agent;
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
     readonly notice: {
-        dispatch(input: {
-            outboxItem: OutboxItem;
-            parent: Agent;
-            signal: AbortSignal;
-        }): Promise<void>;
+        dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
     };
     readonly archive: {
-        dispatch(input: {
-            outboxItem: OutboxItem;
-            parent: Agent;
-            signal: AbortSignal;
-        }): Promise<void>;
+        dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
     };
     readonly review: {
-        dispatch(input: {
-            outboxItem: OutboxItem;
-            parent: Agent;
-            signal: AbortSignal;
-        }): Promise<void>;
+        dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
     };
     readonly reviewDelivery: {
-        dispatch(input: {
-            outboxItem: OutboxItem;
-            parent: Agent;
-            signal: AbortSignal;
-        }): Promise<void>;
+        dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
     };
 }): (item: OutboxItem, signal: AbortSignal) => Promise<void> {
     return async (item, signal) => {
@@ -81,25 +64,21 @@ export function createTargetMeetingEffectDispatcher(dependencies: {
         if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
             return dependencies.review.dispatch({
                 outboxItem: item,
-                parent: dependencies.parent,
                 signal
             });
         if (payload.kind === "agent_notice")
             return dependencies.notice.dispatch({
                 outboxItem: item,
-                parent: dependencies.parent,
                 signal
             });
         if (payload.kind === "archive")
             return dependencies.archive.dispatch({
                 outboxItem: item,
-                parent: dependencies.parent,
                 signal
             });
         if (payload.kind === "review_delivery")
             return dependencies.reviewDelivery.dispatch({
                 outboxItem: item,
-                parent: dependencies.parent,
                 signal
             });
         throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
@@ -348,7 +327,8 @@ export async function activateTargetMeetingApplication(
             return;
         }
         const notice = createMeetingNoticeDispatcher({
-            sessions: ctx.subagents,
+            owner: agentOwner,
+            definitions,
             repository
         });
         const archive = createMeetingArchiveDispatcher({
@@ -357,13 +337,15 @@ export async function activateTargetMeetingApplication(
             application
         });
         const review = createEvidenceReviewDispatcher({
-            sessions: ctx.subagents,
+            owner: agentOwner,
+            definitions,
             repository,
             application,
             clock: { now: Date.now }
         });
         const reviewDelivery = createReviewDeliveryDispatcher({
-            sessions: ctx.subagents,
+            owner: agentOwner,
+            definitions,
             repository,
             application
         });
@@ -413,7 +395,6 @@ export async function activateTargetMeetingApplication(
             }
         });
         const dispatch = createTargetMeetingEffectDispatcher({
-            parent,
             identity,
             notice,
             archive,

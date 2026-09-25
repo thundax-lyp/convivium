@@ -76,9 +76,8 @@ function reviewedState() {
             meetingId: state.id,
             identityId: "contributor-v1",
             sessionId: "session:contributor-v1",
-            parentSessionId: "captain-1",
+            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
             sessionLabel: "convivium:meeting-identity:participant:meeting-v1:contributor-v1",
-            provider: "spawn",
             role: "participant" as const,
             lifecycleStatus: "active" as const,
             capabilityStatus: "active" as const,
@@ -92,10 +91,11 @@ function reviewedState() {
 describe("review delivery dispatcher v1", () => {
     it("sends only to the author and records sent through the command application", async () => {
         const { state, ownership } = reviewedState();
-        const sendMessage = vi.fn().mockResolvedValue("message-1");
+        const deliver = vi.fn().mockResolvedValue(true);
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: { execute } as never,
             repository: {
                 recover: async () => ({
@@ -113,11 +113,10 @@ describe("review delivery dispatcher v1", () => {
 
         await dispatcher.dispatch({
             outboxItem: item,
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
 
-        expect(sendMessage.mock.calls[0]?.[1]).toBe("session:contributor-v1");
+        expect(deliver.mock.calls[0]?.[0].ownership.sessionId).toBe("session:contributor-v1");
         expect(execute).toHaveBeenCalledWith(
             expect.objectContaining({
                 requestId: "review-delivery:effect-delivery-1:2:sent",
@@ -133,36 +132,30 @@ describe("review delivery dispatcher v1", () => {
 
     it("re-reads and retries a sent record after a concurrent Meeting version change", async () => {
         const { state, ownership } = reviewedState();
-        const recover = vi
-            .fn()
-            .mockResolvedValueOnce({
-                snapshot: { meetingId: state.id, version: 8, state, createdAt: 0, updatedAt: 2 },
-                sessionOwnership: ownership
-            })
-            .mockResolvedValueOnce({
-                snapshot: { meetingId: state.id, version: 8, state, createdAt: 0, updatedAt: 2 },
-                sessionOwnership: ownership
-            })
-            .mockResolvedValue({
-                snapshot: { meetingId: state.id, version: 9, state, createdAt: 0, updatedAt: 3 },
-                sessionOwnership: ownership
-            });
+        let version = 8;
+        const recover = vi.fn(async () => ({
+            snapshot: { meetingId: state.id, version, state, createdAt: 0, updatedAt: version },
+            sessionOwnership: ownership
+        }));
         const execute = vi
             .fn()
-            .mockResolvedValueOnce({
-                kind: "rejected",
-                error: { code: "VERSION_CONFLICT", message: "retry" }
+            .mockImplementationOnce(async () => {
+                version = 9;
+                return { kind: "rejected", error: { code: "VERSION_CONFLICT", message: "retry" } };
             })
             .mockResolvedValueOnce({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: vi.fn().mockResolvedValue(true)
+            },
             application: { execute } as never,
             repository: { recover } as never
         });
 
         await dispatcher.dispatch({
             outboxItem: item,
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
 
@@ -176,7 +169,11 @@ describe("review delivery dispatcher v1", () => {
         const { state, ownership } = reviewedState();
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            sessions: { sendMessage: vi.fn().mockRejectedValue(new Error("secret transport")) },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: vi.fn().mockRejectedValue(new Error("secret transport"))
+            },
             application: { execute } as never,
             repository: {
                 recover: async () => ({
@@ -194,7 +191,6 @@ describe("review delivery dispatcher v1", () => {
         await expect(
             dispatcher.dispatch({
                 outboxItem: item,
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({ code: "REVIEW_DELIVERY_FAILED", retryable: true });
@@ -225,10 +221,11 @@ describe("review delivery dispatcher v1", () => {
                 sentAt: 3
             }
         ];
-        const sendMessage = vi.fn();
+        const deliver = vi.fn();
         const execute = vi.fn();
         const dispatcher = createReviewDeliveryDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: { execute } as never,
             repository: {
                 recover: async () => ({
@@ -245,10 +242,9 @@ describe("review delivery dispatcher v1", () => {
         });
         await dispatcher.dispatch({
             outboxItem: item,
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
-        expect(sendMessage).not.toHaveBeenCalled();
+        expect(deliver).not.toHaveBeenCalled();
         expect(execute).not.toHaveBeenCalled();
     });
 });

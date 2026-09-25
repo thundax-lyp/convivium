@@ -153,9 +153,8 @@ function stateWithPendingReview() {
             meetingId: state.id,
             identityId: "reviewer-v1",
             sessionId: "session:reviewer-v1",
-            parentSessionId: "captain-1",
+            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
             sessionLabel: "convivium:meeting-identity:evidence_reviewer:meeting-v1:reviewer-v1",
-            provider: "spawn",
             role: "evidence_reviewer" as const,
             lifecycleStatus: "active" as const,
             capabilityStatus: "active" as const,
@@ -248,7 +247,7 @@ describe("evidence review request dispatcher v1", () => {
     it("delivers immutable pending versions and ordered publication baselines to the coordinator", async () => {
         const { state, ownership, pendingVersion, baselineVersion } = stateWithPendingReview();
         const application = claimApplication(state);
-        const sendMessage = vi.fn(async () => {
+        const deliver = vi.fn(async () => {
             state.reviews.push({
                 ...state.reviews[0]!,
                 id: "review-pending",
@@ -257,10 +256,11 @@ describe("evidence review request dispatcher v1", () => {
             });
             pendingVersion.status = "validated";
             state.reviewClaims = [];
-            return "message-1";
+            return true;
         });
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -285,7 +285,6 @@ describe("evidence review request dispatcher v1", () => {
                 agendaId: "agenda-v1",
                 versionId: "version-pending"
             }),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
         await dispatcher.dispatch({
@@ -296,11 +295,10 @@ describe("evidence review request dispatcher v1", () => {
                 agendaId: "agenda-v1",
                 versionId: "version-pending"
             }),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
 
-        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(deliver).toHaveBeenCalledOnce();
         expect(application.execute).toHaveBeenCalledOnce();
         expect(application.execute.mock.calls[0]?.[0]).toMatchObject({
             expectedMeetingVersion: 6,
@@ -312,7 +310,7 @@ describe("evidence review request dispatcher v1", () => {
                 versionId: "version-pending"
             }
         });
-        const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ text: string }>;
+        const prompt = [{ text: deliver.mock.calls[0]?.[0].text }];
         const envelope = JSON.parse(prompt[0]!.text);
         expect(envelope).toMatchObject({
             effectId: "effect-review-1",
@@ -432,7 +430,11 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: vi.fn().mockResolvedValue(true)
+            },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -458,7 +460,6 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                     agendaId: "agenda-v1",
                     versionId: "version-pending"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({
@@ -481,8 +482,10 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: {
-                sendMessage: vi.fn().mockRejectedValue(new Error("review turn timed out"))
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: vi.fn().mockRejectedValue(new Error("review turn timed out"))
             },
             application: application as never,
             clock: { now: () => 6 },
@@ -509,7 +512,6 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                     agendaId: "agenda-v1",
                     versionId: "version-pending"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({
@@ -563,13 +565,15 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             })
         } as never;
         const first = createEvidenceReviewDispatcher({
-            sessions: { sendMessage: firstSend },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver: firstSend },
             application: application as never,
             clock: { now: () => 6 },
             repository
         });
         const second = createEvidenceReviewDispatcher({
-            sessions: { sendMessage: secondSend },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver: secondSend },
             application: application as never,
             clock: { now: () => 6 },
             repository
@@ -582,7 +586,6 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 agendaId: "agenda-v1",
                 versionId: "version-pending"
             }),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         };
 
@@ -625,7 +628,7 @@ describe("evidence review request dispatcher recovery", () => {
             }
         ];
         const application = claimApplication(state);
-        const sendMessage = vi.fn(async () => {
+        const deliver = vi.fn(async () => {
             state.reviews.push({
                 ...state.reviews[0]!,
                 id: "review-pending",
@@ -633,10 +636,11 @@ describe("evidence review request dispatcher recovery", () => {
                 baselinePublicationIds: ["publication-baseline"]
             });
             state.reviewClaims = [];
-            return "message-1";
+            return true;
         });
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -662,7 +666,6 @@ describe("evidence review request dispatcher recovery", () => {
                     agendaId: "agenda-v1",
                     versionId: pendingVersion.id
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({
@@ -671,7 +674,7 @@ describe("evidence review request dispatcher recovery", () => {
             terminalOnAttemptLimit: false
         });
 
-        expect(sendMessage).not.toHaveBeenCalled();
+        expect(deliver).not.toHaveBeenCalled();
         expect(application.execute).toHaveBeenCalledOnce();
         expect(application.execute.mock.calls[0]?.[0]).toMatchObject({
             requestId: "review-claim-release:review-claim-expired:review_timeout",
@@ -690,10 +693,11 @@ describe("evidence review request dispatcher recovery", () => {
             { ...state.reviews[0]!, id: "review-pending", versionId: "version-pending" }
         ];
         state.evidencePackages[1]!.versions[0]!.status = "validated";
-        const sendMessage = vi.fn();
+        const deliver = vi.fn();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -717,10 +721,9 @@ describe("evidence review request dispatcher recovery", () => {
                 agendaId: "agenda-v1",
                 versionId: "version-pending"
             }),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
-        expect(sendMessage).not.toHaveBeenCalled();
+        expect(deliver).not.toHaveBeenCalled();
         expect(application.execute).not.toHaveBeenCalled();
     });
 
@@ -728,9 +731,10 @@ describe("evidence review request dispatcher recovery", () => {
         const { state, ownership } = stateWithPendingReview();
         state.lifecycle = { status: "paused", changedAt: 6, reason: "人工暂停" };
         const application = claimApplication(state);
-        const sendMessage = vi.fn();
+        const deliver = vi.fn();
         const dispatcher = createEvidenceReviewDispatcher({
-            sessions: { sendMessage },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -756,11 +760,14 @@ describe("evidence review request dispatcher recovery", () => {
                     agendaId: "agenda-v1",
                     versionId: "version-pending"
                 }),
-                parent: { id: "captain-1" } as never,
                 signal: new AbortController().signal
             })
-        ).resolves.toBeUndefined();
+        ).rejects.toMatchObject({
+            code: "INVALID_STATE",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
         expect(application.execute).not.toHaveBeenCalled();
-        expect(sendMessage).not.toHaveBeenCalled();
+        expect(deliver).not.toHaveBeenCalled();
     });
 });
