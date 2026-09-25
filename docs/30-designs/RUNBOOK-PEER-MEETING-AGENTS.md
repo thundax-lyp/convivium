@@ -185,11 +185,11 @@ T12–T18 的 Remote `control` command 根对象仍是 `{protocolVersion:1,meeti
 
 所有新测试按 [Test Rules](../00-governance/TEST-RULES.md) 与仓库 TDD Skill 实施；先证明新断言在旧行为下失败，再实施，不把模块导入失败当作行为红灯。当前文档审计不执行未来测试。
 
-T0–T4 已完成，其执行步骤已按用户要求删除；验证证据保留在文末执行记录，原步骤可从 Git 历史 `c37fa413` 查阅。后续编号保持不变，从 T5 继续核对并执行。T4 的 Schema/codec 改动仍在工作区，尚未提交；该步完成不代表 T6 Repository 行为或整包验证完成。
+T0–T4 已完成，其执行步骤已按用户要求删除；验证证据保留在文末执行记录，原步骤可从 Git 历史 `c37fa413` 查阅。后续编号保持不变，从 T5 继续核对并执行。T4 的 Schema/codec 已提交于 `8655599c`；该步完成不代表 T6 Repository 行为或整包验证完成。
 
 ### T5：资源哈希与角色能力预检
 
-前置状态：T4 Schema/codec 聚焦验证已通过（见执行记录），对应工作区改动须保留；使用上述已固定的正式数据与调用链。
+前置状态：T4 Schema/codec 聚焦验证已通过（见执行记录），对应实现已提交于 `8655599c`；使用上述已固定的正式数据与调用链。
 允许修改：`plugin/src/role-composition/dsh-capabilities.ts` 用 `standingKeyFor`、`skills.list/get`、资源 SHA 与 300000ms descriptor 替代 `validateSharedRoleCapabilities` 和 parent preflight；新增 `plugin/src/role-composition/resource-binding.ts`；更新 `plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`。
 禁止修改：本步以外的业务语义；旧资源删除留到 T20，人工环境始终禁止改动。
 
@@ -658,5 +658,9 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T4 修订：v2 projection 编解码位于 repository/domain/projection.ts，而非 meeting-state-codec.ts；本步同步该入口。T4 PASS：9 项私有 Schema/codec 测试通过，完整 Repository 行为待 T6。
 
 - 小步提交：`babc248a` 迁移 config 资源路径；`acd44e46` 分离身份与能力资源；`dcaa3a82` 固定身份引用和模型绑定契约；`388e7823` 装配七个独立 Preset。T2/T3 复验共 3 文件、30 测试通过。
-- 工作区后续实现仍在进行：T5 预检聚焦测试 8 项通过；T6 Repository facts 与 SQLite recovery 共 10 项通过，状态转换边界仍待核对；T7 owner 单元测试 4 项通过，真实工厂集成和 Runtime 注入未完成。以上不等于 T6/T7 整步 PASS。
+- 后续实现仍在进行：T5 预检聚焦测试 8 项通过；T6 Repository facts 与 SQLite recovery 共 10 项通过，状态转换边界仍待核对；T7 owner 单元测试 4 项通过，真实工厂集成和 Runtime 注入未完成。以上不等于 T6/T7 整步 PASS。
 - 当前 Host typecheck 未通过：旧 Runtime、Session adapter 和投递服务仍引用旧 ownership/parent 字段及已替换的接口。整体验证与真实 profile 为 Not Covered；当前分支属于不可发布的迁移中间状态。
+
+- 后续小步提交：`8655599c` 为 T4 私有结构；`373a232a` 为角色资源预检；`4ccfe888` 为 Repository 中间实现。复验 Schema、预检、Repository facts、SQLite recovery、owner 共 5 文件、31 测试通过。
+- T6 未完成核对：动态准入激活时重新检查 Meeting/intent 状态、归档关闭前撤权、初始 ownership 与领域角色一致性、旧 creation record 的版本错误映射。T7 仍缺真实工厂集成与 Runtime 注入，不能据上述单测记为整步 PASS。
+- T7 直接声明现有同版 `@deepseek-ai/dsh-llm@0.1.2-rc.1`，仅用于公开 `MessageId`/`ReasoningEffortId` 构造器；允许修改 `plugin/package.json` 与 `plugin/pnpm-lock.yaml`，不升级 DSH 版本。
