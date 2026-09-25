@@ -327,7 +327,7 @@ describe("target Meeting command application transitions", () => {
         } as unknown as MeetingRepositoryPort<MeetingState>;
         const caller = {
             channel: "dsh_tool" as const,
-            principalId: "manager-session",
+            principalId: "manager-v1",
             sessionBindingId: "ownership-v1"
         };
         const app = createMeetingCommandApplication({
@@ -343,10 +343,10 @@ describe("target Meeting command application transitions", () => {
                 identityId: "manager-v1",
                 role: "manager" as const,
                 ownership: {
+                    role: "manager",
                     id: "ownership-v1",
                     meetingId: state.id,
                     identityId: "manager-v1",
-                    parentSessionId: "captain-session",
                     sessionId: "manager-session",
                     lifecycleStatus: "active",
                     capabilityStatus: "active"
@@ -402,7 +402,7 @@ describe("target Meeting command application transitions", () => {
             resolveCallerScope: async ({ caller }) => ({
                 caller,
                 meetingId: state.id,
-                role: "local"
+                role: "captain"
             })
         });
 

@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { decide, changeDecision } from "@/domain/transitions/outcome.js";
@@ -14,7 +15,7 @@ describe("decision change corrective gates", () => {
         const result = decide(state, {
             decisionId: "old-decision",
             candidateId: "cand",
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
         if (result.kind !== "accepted") throw new Error("fixture decision failed");
@@ -26,7 +27,7 @@ describe("decision change corrective gates", () => {
             status: "revoked",
             rationale: "x",
             evidenceIds: ["v"],
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 2,
             ...overrides
         } as never);
@@ -191,8 +192,8 @@ describe("decision change corrective gates", () => {
     );
     it("keeps Captain and local revoke independent and immutable", () => {
         for (const actor of [
-            { kind: "identity", id: "captain" },
-            { kind: "local_controller", id: "captain" }
+            { kind: "captain_user", id: captainActorIdFor("m") },
+            { kind: "captain_user", id: captainActorIdFor("m") }
         ] as const) {
             const state = decidedState();
             const before = structuredClone(state);
@@ -238,7 +239,7 @@ describe("decision change corrective gates", () => {
                 status: "revoked",
                 rationale: "x",
                 evidenceIds: ["v"],
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             })
         ).toMatchObject({

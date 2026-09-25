@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import {
     recordProposalRevision,
@@ -45,7 +46,7 @@ describe("risk disposition gates", () => {
         return state;
     };
     const input = (
-        actor: { kind: "identity"; id: string } | { kind: "local_controller"; id: string },
+        actor: { kind: "identity"; id: string } | { kind: "captain_user"; id: string },
         overrides: Record<string, unknown> = {}
     ) => ({
         dispositionId: "rd",
@@ -59,8 +60,8 @@ describe("risk disposition gates", () => {
         ...overrides
     });
     it.each([
-        ["captain", { kind: "identity", id: "captain" }],
-        ["local", { kind: "local_controller", id: "local" }]
+        ["captain", { kind: "captain_user", id: captainActorIdFor("m") }],
+        ["local", { kind: "captain_user", id: captainActorIdFor("m") }]
     ] as const)("accept succeeds with %s", (_name, actor) => {
         const state = riskState();
         const before = structuredClone(state);
@@ -97,7 +98,10 @@ describe("risk disposition gates", () => {
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];
         state.issues[0].affectedConstraintIds = ["c"];
         expect(
-            disposeRisk(state, input({ kind: "identity", id: "captain" }, { action: "reject" }))
+            disposeRisk(
+                state,
+                input({ kind: "captain_user", id: captainActorIdFor("m") }, { action: "reject" })
+            )
         ).toMatchObject({
             kind: "accepted",
             relatedIds: ["rd", "issue", "v"],
@@ -108,7 +112,9 @@ describe("risk disposition gates", () => {
         const state = riskState();
         state.objective.acceptableRiskLevel = level;
         state.issues[0].riskLevel = level;
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             kind: "accepted"
         });
     });
@@ -118,7 +124,9 @@ describe("risk disposition gates", () => {
         state.issues[0].riskLevel = "high";
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];
         state.issues[0].affectedConstraintIds = ["c"];
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             error: { code: "PRECONDITION_FAILED" },
             state,
             relatedIds: [],
@@ -129,7 +137,9 @@ describe("risk disposition gates", () => {
         const state = riskState();
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status }];
         state.issues[0].affectedConstraintIds = ["c"];
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             error: { code: "PRECONDITION_FAILED" },
             state,
             relatedIds: [],
@@ -150,7 +160,9 @@ describe("risk disposition gates", () => {
         state.issues[0].status = status;
         if (status === "resolved" || status === "out_of_scope") state.issues[0].blocking = false;
         if (status === "out_of_scope") state.issues[0].classification = "out_of_scope";
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             error: { code: "PRECONDITION_FAILED" },
             state,
             relatedIds: [],
@@ -166,7 +178,10 @@ describe("risk disposition gates", () => {
         const state = riskState();
         if (_name === "duplicate disposition") state.riskDispositions = [{ id: "rd" } as never];
         expect(
-            disposeRisk(state, input({ kind: "identity", id: "captain" }, overrides))
+            disposeRisk(
+                state,
+                input({ kind: "captain_user", id: captainActorIdFor("m") }, overrides)
+            )
         ).toMatchObject({ error: { code }, state, relatedIds: [], effectRequests: [] });
     });
     it("distinguishes an unpublished evidence version", () => {
@@ -178,7 +193,10 @@ describe("risk disposition gates", () => {
             status: "submitted"
         });
         expect(
-            disposeRisk(state, input({ kind: "identity", id: "captain" }, { evidenceIds: ["v2"] }))
+            disposeRisk(
+                state,
+                input({ kind: "captain_user", id: captainActorIdFor("m") }, { evidenceIds: ["v2"] })
+            )
         ).toMatchObject({
             error: { code: "PRECONDITION_FAILED" },
             state,
@@ -188,13 +206,16 @@ describe("risk disposition gates", () => {
     });
     it("preserves risk history across accept reject accept", () => {
         const state = riskState();
-        const first = disposeRisk(state, input({ kind: "identity", id: "captain" }));
+        const first = disposeRisk(
+            state,
+            input({ kind: "captain_user", id: captainActorIdFor("m") })
+        );
         expect(first.kind).toBe("accepted");
         if (first.kind !== "accepted") return;
         const second = disposeRisk(
             first.state,
             input(
-                { kind: "identity", id: "captain" },
+                { kind: "captain_user", id: captainActorIdFor("m") },
                 { dispositionId: "rd2", action: "reject", now: 2 }
             )
         );
@@ -202,7 +223,10 @@ describe("risk disposition gates", () => {
         if (second.kind !== "accepted") return;
         const third = disposeRisk(
             second.state,
-            input({ kind: "identity", id: "captain" }, { dispositionId: "rd3", now: 3 })
+            input(
+                { kind: "captain_user", id: captainActorIdFor("m") },
+                { dispositionId: "rd3", now: 3 }
+            )
         );
         expect(third).toMatchObject({ kind: "accepted" });
         if (third.kind !== "accepted") return;
@@ -219,7 +243,9 @@ describe("risk disposition gates", () => {
     it.each(["paused"] as const)("rejects lifecycle %s", (status) => {
         const state = riskState();
         state.lifecycle = { ...state.lifecycle, status };
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             error: { code: "INVALID_STATE" },
             state,
             relatedIds: [],
@@ -229,7 +255,9 @@ describe("risk disposition gates", () => {
     it.each(["terminal"] as const)("rejects terminal lifecycle %s", (status) => {
         const state = validState(status);
         state.issues = riskState().issues;
-        expect(disposeRisk(state, input({ kind: "identity", id: "captain" }))).toMatchObject({
+        expect(
+            disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
+        ).toMatchObject({
             error: { code: "MEETING_TERMINAL" },
             state,
             relatedIds: [],
@@ -244,7 +272,10 @@ describe("risk disposition gates", () => {
             state
         });
         expect(
-            disposeRisk(state, input({ kind: "identity", id: "captain" }, { dispositionId: "" }))
+            disposeRisk(
+                state,
+                input({ kind: "captain_user", id: captainActorIdFor("m") }, { dispositionId: "" })
+            )
         ).toMatchObject({ error: { code: "INVALID_ARGUMENT" }, state });
     });
 });
@@ -326,9 +357,9 @@ describe("completion declaration gates", () => {
             effectRequests: []
         });
     });
-    it("rejects captain without contributor role and local controller", () => {
+    it("rejects non-contributor identity and external control actor", () => {
         const state = declarationState();
-        state.identities[0].roles = ["captain"];
+        state.identities[0].roles = ["manager"];
         expect(
             submitCompletionDeclaration(
                 state,
@@ -523,7 +554,7 @@ it("records a fully reviewed completion fact and converges without termination",
         rationale: "accepted decision",
         evidenceIds: ["v"],
         decisionIds: ["dec"],
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 7
     });
     expect(result.kind).toBe("accepted");
@@ -533,7 +564,7 @@ it("records a fully reviewed completion fact and converges without termination",
     expect(result.state.lifecycle).toMatchObject({
         status: "converging",
         changedAt: 7,
-        changedBy: "captain",
+        changedBy: captainActorIdFor("m"),
         reason: "objective_satisfied"
     });
     expect(result.state.termination).toBeUndefined();
@@ -607,7 +638,7 @@ it("records a fact but remains running while a blocking issue exists", () => {
         rationale: "accepted decision",
         evidenceIds: ["v"],
         decisionIds: ["dec"],
-        actor: { kind: "identity", id: "captain" },
+        actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 7
     });
     expect(result.kind).toBe("accepted");
@@ -665,7 +696,7 @@ it("makes an active fact basis stale when a new proposal revision is recorded", 
         {
             id: "fact",
             outputId: "o",
-            actorId: "captain",
+            actorId: captainActorIdFor("m"),
             status: "active",
             statement: "complete",
             rationale: "x",

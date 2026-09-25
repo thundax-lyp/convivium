@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { MeetingViewSchema, type MeetingView } from "@/protocol/meeting-view.js";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
 
@@ -225,6 +226,9 @@ export function archiveTimelineFixture(
         ...active,
         lifecycle: { status: "archived", changedAt: 100 },
         archive: {
+            controlActorProvenance: [
+                { actorId: captainActorIdFor(active.meetingId), kind: "captain" }
+            ],
             id: "archive-1",
             status,
             createdAt: 50,

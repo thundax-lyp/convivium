@@ -12,6 +12,7 @@ import {
 import { CommitRecordSchema } from "@/repository/domain/schemas.js";
 describe("domain projection", () => {
     const bootstrap = {
+        creator: { kind: "local_user" as const, principalId: "local-controller" as const },
         status: "ready" as const,
         createRequestId: "r",
         requestHash: "h",
@@ -19,13 +20,23 @@ describe("domain projection", () => {
         updatedAt: 1
     };
     it("constructs the required seq-one projection defaults", () => {
-        const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const p = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         expect(p.nextEventSeq).toBe(1);
         for (const map of [p.receipts, p.events, p.outbox, p.sessionOwnership, p.privateMail])
             expect(Object.getPrototypeOf(map)).toBeNull();
     });
     it("encodes and decodes a deterministic null-prototype projection", () => {
-        const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const p = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         expect(decodeProjection(encodeProjection(p))).toEqual(p);
     });
     it("creates and verifies a bounded deterministic commit", () => {
@@ -39,27 +50,44 @@ describe("domain projection", () => {
                 {
                     op: "set",
                     path: [],
-                    value: createProjection({ snapshot: null, bootstrap, sessionOwnership: {} })
+                    value: createProjection({
+                        snapshot: null,
+                        bootstrap,
+                        preparedDescriptors: [],
+                        sessionOwnership: {}
+                    })
                 }
             ],
             committedAt: 1
         });
         expect(CommitRecordSchema.parse(c)).toEqual(c);
         expect(
-            encodeProjection(createProjection({ snapshot: null, bootstrap, sessionOwnership: {} }))
-                .byteLength
+            encodeProjection(
+                createProjection({
+                    snapshot: null,
+                    bootstrap,
+                    preparedDescriptors: [],
+                    sessionOwnership: {}
+                })
+            ).byteLength
         ).toBeLessThan(MAX_COMMIT_VALUE_BYTES);
     });
     it("rejects oversized commit and checkpoint projection values", () => {
         const huge = createProjection({
             snapshot: null,
             bootstrap: { ...bootstrap, requestHash: "x".repeat(MAX_APPLICATION_CHECKPOINT_BYTES) },
+            preparedDescriptors: [],
             sessionOwnership: {}
         });
         expect(() => encodeProjection(huge)).toThrow();
     });
     it("folds seq one and a continuous commit tail", () => {
-        const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const p = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         const c = createCommitRecord({
             formatVersion: 1,
             seq: 1,
@@ -78,7 +106,12 @@ describe("domain projection", () => {
         ).toEqual(p);
     });
     it("rejects commit key, sequence gap, previous-link and digest conflicts", () => {
-        const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const p = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         const c = createCommitRecord({
             formatVersion: 1,
             seq: 1,
@@ -167,7 +200,12 @@ describe("domain projection", () => {
         ).toEqual(p);
     });
     it("anchors the first post-checkpoint commit to the checkpoint projection digest", () => {
-        const base = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const base = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         const firstPostCheckpoint = createCommitRecord({
             formatVersion: 1,
             seq: 2,
@@ -186,7 +224,12 @@ describe("domain projection", () => {
         ).toBe(2);
     });
     it("rejects a post-checkpoint predecessor that references a reclaimed commit", () => {
-        const base = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const base = createProjection({
+            snapshot: null,
+            bootstrap,
+            preparedDescriptors: [],
+            sessionOwnership: {}
+        });
         const reclaimed = createCommitRecord({
             formatVersion: 1,
             seq: 1,

@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import { changeCompletionFact } from "@/domain/transitions/outcome.js";
@@ -15,7 +16,7 @@ describe("CompletionFact change", () => {
                 id: "old",
                 outputId: "o",
                 criterionId: "criterion",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 status: "active",
                 statement: "old",
                 rationale: "old",
@@ -41,7 +42,7 @@ describe("CompletionFact change", () => {
             status: "superseded",
             rationale: "replace",
             replacement,
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1,
             ...overrides
         } as never);
@@ -52,7 +53,7 @@ describe("CompletionFact change", () => {
             factId: "old",
             status: "revoked",
             rationale: "revoke",
-            actor: { kind: "identity", id: "captain" },
+            actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
         expect(result).toMatchObject({ kind: "accepted", relatedIds: ["old"], effectRequests: [] });
@@ -85,7 +86,7 @@ describe("CompletionFact change", () => {
                 factId: mode === "missing" ? "missing" : "old",
                 status: "revoked",
                 rationale: "x",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             })
         ).toMatchObject({ error: { code }, state, relatedIds: [], effectRequests: [] });
@@ -111,7 +112,7 @@ describe("CompletionFact change", () => {
                 evidenceIds: ["v"],
                 decisionIds: ["dec"],
                 status: "active",
-                actorId: "captain",
+                actorId: captainActorIdFor("m"),
                 supersedesFactId: "old",
                 createdAt: 1
             }
@@ -175,7 +176,7 @@ describe("CompletionFact change", () => {
                 factId: "missing",
                 status: "revoked",
                 rationale: "x",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             })
         ).toMatchObject({
@@ -207,7 +208,7 @@ describe("CompletionFact change", () => {
                 factId: "",
                 status: "revoked",
                 rationale: "x",
-                actor: { kind: "identity", id: "captain" },
+                actor: { kind: "captain_user", id: captainActorIdFor("m") },
                 now: 1
             })
         ).toMatchObject({

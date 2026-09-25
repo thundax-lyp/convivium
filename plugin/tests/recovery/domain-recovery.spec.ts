@@ -1,3 +1,7 @@
+import { createCommitRecord } from "@/repository/domain/projection.js";
+import { peerBindings } from "../fixtures/peer-ownership.js";
+import { meetingDomainName } from "@/repository/domain/keys.js";
+import type { MeetingDomain } from "@/repository/domain/specs.js";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
@@ -37,14 +41,19 @@ describe("target Domain repository recovery", () => {
             codec
         });
         const state = makeRunningMeetingStateV1();
+        for (let i = 0; i < 4; i++)
+            state.identities.push({ ...state.identities[1], id: `extra-${i}` });
         const create = {
             requestId: "create-target",
             requestHash: "create-target-hash",
             authorization,
             initialState: state,
+            ...peerBindings(state.id, state.identities),
             createdAt: 1
         };
         const created = await first.openMeeting({ meetingId: state.id, create });
+        for (const binding of create.initialOwnership)
+            await created.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
         await created.completeCreate(create);
 
         const reopened = await DomainRepositoryRegistry.open({
@@ -64,14 +73,21 @@ describe("target Domain repository recovery", () => {
             storageDomain: facility,
             authorizationValidator: allow
         });
+        const identities = Array.from({ length: 7 }, (_, i) => ({
+            id: `identity-${i}`,
+            roles: ["contributor"]
+        }));
         const create = {
             requestId: "create-legacy",
             requestHash: "create-legacy-hash",
             authorization,
-            initialState: { count: 0 },
+            initialState: { count: 0, identities },
+            ...peerBindings("meeting-legacy", identities),
             createdAt: 1
         };
         const repository = await legacy.openMeeting({ meetingId: "meeting-legacy", create });
+        for (const binding of create.initialOwnership)
+            await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
         await repository.completeCreate(create);
 
         const target = await DomainRepositoryRegistry.open({
@@ -93,24 +109,42 @@ describe("target Domain repository recovery", () => {
             codec
         });
         const state = makeRunningMeetingStateV1();
+        for (let i = 0; i < 4; i++)
+            state.identities.push({ ...state.identities[1], id: `extra-${i}` });
         const create = {
             requestId: "create-ownership",
             requestHash: "create-ownership-hash",
             authorization,
             initialState: state,
+            ...peerBindings(state.id, state.identities),
             createdAt: 1
         };
         const repository = await first.openMeeting({ meetingId: state.id, create });
-        await repository.recordSessionOwnership({
-            sessionId: "session-1",
-            parentSessionId: "captain-1",
-            sessionLabel: "convivium:meeting-manager:legacy:meeting-v1",
-            provider: "spawn",
-            role: "manager",
-            lifecycleStatus: "provisioning",
-            capabilityStatus: "active"
-        });
+        for (const binding of create.initialOwnership)
+            await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
         await repository.completeCreate(create);
+        const domain = (await facility.open({
+            name: meetingDomainName(state.id)
+        } as never)) as MeetingDomain;
+        const [key, original] = [...domain.table("commits").entries()][0];
+        const broken = structuredClone(original);
+        const projection = broken.patch[0].value as unknown as {
+            sessionOwnership: Record<string, object>;
+        };
+        Reflect.deleteProperty(Object.values(projection.sessionOwnership)[0], "identityId");
+        await domain.table("commits").put(
+            key,
+            createCommitRecord({
+                formatVersion: broken.formatVersion,
+                seq: broken.seq,
+                previousSeq: broken.previousSeq,
+                previousDigest: broken.previousDigest,
+                operation: broken.operation,
+                patch: broken.patch,
+                committedAt: broken.committedAt
+            })
+        );
+        const before = [...domain.table("commits").entries()];
 
         const target = await DomainRepositoryRegistry.open({
             storageDomain: facility,
@@ -118,9 +152,9 @@ describe("target Domain repository recovery", () => {
             codec
         });
         await expect(target.openMeeting({ meetingId: state.id })).rejects.toMatchObject({
-            code: "RECOVERY_UNAVAILABLE"
+            code: "CORRUPT_DATABASE"
         });
-        expect((await repository.recover()).sessionOwnership[0]).not.toHaveProperty("identityId");
+        expect([...domain.table("commits").entries()]).toEqual(before);
         await target.close();
     });
 });
