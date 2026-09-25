@@ -709,3 +709,6 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T21 正式启动同步：安装脚本生成的 start.sh 原先指向另一份解包资源，违反 T5 同 package 路径绑定；先观察启动合同 RED，再改为已安装 profile package/config realpath，6 项安装合同 PASS。允许范围补入 scripts/start.sh、installation-entrypoints.spec.ts；未操作人工环境。
 
 - T21 真实业务失败与修复：四轮八个 worker 已 completed，但旧 review_request 在终态无限重试并饿死 archive；原 SQLite 与 Session 已保留诊断。terminal/archiving/archived 三项先 RED，改为终止过时审核投递，paused 仍可重试；review/outbox 20 项 PASS。真实全场景仍须复跑，不将该失败记为 PASS。
+
+- T21 专项真实 PASS：peer-meeting-agents 173137ms、Restore PASS；七个独立 Session/Preset、精确 Skill list/get、关闭输入 Session 后投递、Agent 创建拒绝、用户重连暂停、GitHub dsh-v0.1.2-rc.1 与 arXiv 1706.03762v7 实读、Reviewer completed/Review、同 DSH_HOME/SQLite 冷恢复全部 observed 通过。最新 verify 全 PASS（94 文件、821 项，lint 0 errors/8 warnings）。三场景串行总验收仍在运行。
+- 稳定操作同步允许范围补入 HOW-TO-INSTALL-AND-RUN.md、HOW-TO-DSH-SMOKE.md 与 config/README.md：它们仍指向已删除的共享 Preset、Captain tool 或另一份解包根，必须随当前部署入口修正。文档链接 499/0 与 diff 检查 PASS，未宣称人工 Browser 已执行。

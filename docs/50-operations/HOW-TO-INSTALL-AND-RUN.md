@@ -59,22 +59,22 @@ DEEPSEEK_API_KEY=
 ./dsh-workspace/convivium-user/start.sh
 ```
 
-该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，将 `DSH_HOME` 设为该 workspace 下的 `dsh-home/`，设置角色资源根，再启动固定版本的 DSH Web。
+该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，将 `DSH_HOME` 设为该 workspace 下的 `dsh-home/`，将角色资源根设置为 profile 已安装插件的 `config/` 真实路径，再启动固定版本的 DSH Web。
 
-DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium` Preset。Meeting 只由该 Captain Session 的 `convivium_create_meeting` tool 创建；创建成功后进入 `Meetings` view 查看和执行已提供的本地控制。Remote/Meetings view 不提供创建入口。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
+DSH 打开 Browser UI 后，进入 `Meetings` view 填写结构化表单创建会议，并执行用户控制。Captain 就是本地用户，无须新建 Session 或选择角色 Preset；七个会议 Agent 自动选择各自 Preset。输入 Session 关闭不影响投递或用户权限。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
 
 ## Assert
 
 - Host 只监听 `127.0.0.1:31828`，Browser 可以打开 DSH UI。
-- 新 Captain 明确使用 `convivium` Preset，`Meetings` view 可见。
-- 通过 Captain tool 创建会议时，Manager、Evidence Reviewer 和五个 Contributor Definition 可用；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
+- `Meetings` view 可见，用户可以填写创建表单。
+- 通过用户表单创建会议时，Manager、Evidence Reviewer 和五个 Contributor Definition 可用，各自独立 Session/Preset/Skills；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
 - 重启同一命令后仍使用相同 `DSH_HOME`、workspace 和 SQLite 文件，已提交会议可以恢复。
 
 ## Stop, Upgrade, And Failure Handling
 
 停止发起新操作并等待当前写入完成后，在 Host 终端按 `Ctrl-C`。当前 DSH 没有已验证的固定安全等待时长；页面显示完成不等于所有排队持久化都已完成。不要删除 `dsh-workspace/convivium-user/`，它是用户持久数据根。
 
-升级时重新执行原安装入口；入口自动取得并记录新的实际版本。版本对应 release 已存在时安装停止，不覆盖原资源。项目当前不提供数据或 schema migration；升级前不得假定旧数据兼容，也不得自动删除或覆盖 SQLite。
+升级时重新执行原安装入口；入口自动取得并记录新的实际版本。版本对应 release 已存在时安装停止，不覆盖原资源。私有持久化为 v2，旧 v1 返回 `SCHEMA_VERSION_UNSUPPORTED`，损坏 v2 返回 `CORRUPT_DATABASE`。项目当前不提供数据或 schema migration；升级前不得假定旧数据兼容，也不得自动删除或覆盖 SQLite。
 
 安装失败时保留精确命令和 DSH 错误，并直接重跑同一安装命令。安装器会删除本次新建的 release 目录和 artifact，避免半成品阻断重试；已有的 `dev.env`、storage patch 与 workspace 数据保持不变。缺少 SQLite provider、`spawn` provider、角色资源、模型或凭据都应 fail closed；不得改用 smoke profile、测试 patch、旧 tarball 或其他用户 profile 继续宣称安装成功。
 
