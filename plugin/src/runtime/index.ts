@@ -23,13 +23,10 @@ export {
     activateTargetMeetingApplication,
     getMeetingCommandApplication,
     getMeetingIdentityReader,
-    getLocalMeetingWebRuntime,
-    ensureTargetMeetingDelivery
+    getLocalMeetingWebRuntime
 } from "./meeting-lifecycle.js";
 export { createOutboxWorker } from "./outbox-worker.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
-export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
-export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export {
     createMeetingCommandApplication,
     type MeetingCommandApplication

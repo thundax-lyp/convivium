@@ -385,7 +385,6 @@ async function prepareIdentityCatalog(
     const catalog = await readMeetingRoleCatalog(
         deps.catalog,
         command.meetingId,
-        scope.ownership.parentSessionId,
         scope.ownership.sessionId
     );
     if (catalog.kind !== "available")

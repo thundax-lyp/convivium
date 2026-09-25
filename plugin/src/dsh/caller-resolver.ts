@@ -1,59 +1,27 @@
-import type { AgentDefinitionBinding } from "@/role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-
-import type { ProtocolError } from "@/protocol/index.js";
-import { decodeMeetingSessionLabel } from "./labels.js";
-import { isActiveMeetingIdentityOwnership } from "./session-ownership.js";
-
-export interface LabeledMeetingCaller {
-    readonly kind: "manager" | "evidence_reviewer" | "participant";
-    readonly sessionId: string;
-    readonly teamId: string;
-    readonly meetingId: string;
-    readonly participantId?: string;
-    readonly identityId?: string;
+import type { SessionOwnership } from "@/repository/types.js";
+import { decodeMeetingIdentitySessionLabel } from "./labels.js";
+export type MeetingOwnershipRecord = SessionOwnership;
+const isActiveMeetingIdentityOwnership = (input: {
     readonly ownership: MeetingOwnershipRecord;
-}
-
-/**
- * The read-only shape supplied by the runtime's repository adapter. It is
- * structurally compatible with the repository's canonical SessionOwnership,
- * while keeping this DSH boundary independent of repository implementation.
- */
-export interface MeetingOwnershipRecord {
-    readonly id?: string;
-    readonly meetingId?: string;
-    readonly identityId?: string;
-    readonly lastClosureFailureCode?: string;
-    readonly agentDefinition?: AgentDefinitionBinding;
+    readonly meetingId: string;
     readonly sessionId: string;
-    readonly parentSessionId: string;
-    readonly sessionLabel: string;
-    readonly provider: string;
-    readonly initialMessageId?: string;
-    readonly supersededBySessionId?: string;
-    readonly role: "manager" | "evidence_reviewer" | "participant";
-    readonly participantId?: string;
-    readonly lifecycleStatus: "provisioning" | "active" | "closed";
-    readonly capabilityStatus: "active" | "revoked";
-    readonly createdAt: number;
-    readonly updatedAt: number;
-}
-
-export interface LabeledMeetingOwnershipLookup {
-    findBySessionId(
-        sessionId: string,
-        signal: AbortSignal
-    ): Promise<
-        | {
-              readonly teamId: string;
-              readonly meetingId: string;
-              readonly ownership: MeetingOwnershipRecord;
-          }
-        | undefined
-    >;
-}
-
+}): boolean => {
+    const { ownership } = input;
+    const label = decodeMeetingIdentitySessionLabel(ownership.sessionLabel);
+    return (
+        label !== undefined &&
+        ownership.id !== undefined &&
+        ownership.meetingId === input.meetingId &&
+        ownership.identityId !== undefined &&
+        ownership.sessionId === input.sessionId &&
+        ownership.role === label.role &&
+        ownership.meetingId === label.meetingId &&
+        ownership.identityId === label.identityId &&
+        ownership.lifecycleStatus === "active" &&
+        ownership.capabilityStatus === "active"
+    );
+};
 export interface MeetingOwnershipLookup {
     findBySessionId(
         sessionId: string,
@@ -79,12 +47,12 @@ export interface ResolvedMeetingCaller {
     readonly ownership: MeetingOwnershipRecord;
 }
 
-export async function resolveMeetingCaller(
+export const resolveMeetingCaller = async (
     agent: Agent,
     lookup: MeetingOwnershipLookup,
     signal: AbortSignal
-): Promise<ResolvedMeetingCaller | undefined> {
-    const sessionId = sessionIdOf(agent);
+): Promise<ResolvedMeetingCaller | undefined> => {
+    const sessionId = String(agent.id);
     const found = await lookup.findBySessionId(sessionId, signal);
     if (
         !found ||
@@ -108,74 +76,4 @@ export async function resolveMeetingCaller(
         role: found.ownership.role,
         ownership: found.ownership
     };
-}
-
-function unauthorized(message: string): ProtocolError {
-    return {
-        protocolVersion: 1,
-        ok: false,
-        code: "UNAUTHORIZED_CALLER",
-        message,
-        retryable: false
-    };
-}
-
-function sessionIdOf(agent: Agent): string {
-    return String(agent.id);
-}
-
-export async function resolveLabeledMeetingCaller(
-    agent: Agent,
-    lookup: LabeledMeetingOwnershipLookup,
-    signal: AbortSignal
-): Promise<LabeledMeetingCaller | ProtocolError> {
-    const sessionId = sessionIdOf(agent);
-    const found = await lookup.findBySessionId(sessionId, signal);
-    if (found === undefined || found.ownership.sessionId !== sessionId) {
-        return unauthorized("The caller is not an owned meeting Session.");
-    }
-
-    const { ownership } = found;
-    const hasTargetOwnership =
-        ownership.id !== undefined ||
-        ownership.meetingId !== undefined ||
-        ownership.identityId !== undefined;
-    if (hasTargetOwnership) {
-        if (
-            ownership.id === undefined ||
-            ownership.meetingId === undefined ||
-            ownership.identityId === undefined ||
-            ownership.meetingId !== found.meetingId ||
-            ownership.identityId.trim() === ""
-        )
-            return unauthorized("The caller Session ownership cannot be verified.");
-    } else {
-        const label = decodeMeetingSessionLabel(ownership.sessionLabel);
-        if (
-            label === undefined ||
-            label.teamId !== found.teamId ||
-            label.meetingId !== found.meetingId ||
-            label.role !== ownership.role ||
-            (label.role === "participant" && label.participantId !== ownership.participantId) ||
-            (label.role === "manager" && ownership.participantId !== undefined)
-        ) {
-            return unauthorized("The caller Session ownership cannot be verified.");
-        }
-    }
-    if (ownership.lifecycleStatus !== "active") {
-        return unauthorized("The caller Session is not active.");
-    }
-    if (ownership.capabilityStatus !== "active") {
-        return unauthorized("The caller Session capability has been revoked.");
-    }
-
-    return {
-        kind: ownership.role,
-        sessionId,
-        teamId: found.teamId,
-        meetingId: found.meetingId,
-        ...(hasTargetOwnership ? { identityId: ownership.identityId } : {}),
-        ...(ownership.role === "participant" ? { participantId: ownership.participantId } : {}),
-        ownership
-    };
-}
+};

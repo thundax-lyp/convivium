@@ -18,11 +18,7 @@ import {
 } from "./application-service/meeting-command.js";
 import { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
 import { createMeetingCreationCoordinator } from "./meeting-runtime.js";
-import {
-    createMeetingAgentOwner,
-    requireContinuableProvider,
-    type RoleCatalogPort
-} from "@/dsh/index.js";
+import { createMeetingAgentOwner, type RoleCatalogPort } from "@/dsh/index.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
@@ -310,23 +306,9 @@ const createIdentityProvisionOwner = (dependencies: {
 const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const identityReaders = new WeakMap<object, MeetingIdentityReader>();
-const deliveryEnsurers = new WeakMap<
-    object,
-    (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => void
->();
-
-export function ensureTargetMeetingDelivery(
-    owner: object,
-    meetingId: string,
-    parent: import("@deepseek-ai/dsh-agent").Agent
-): void {
-    deliveryEnsurers.get(owner)?.(meetingId, parent);
-}
-
 function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">): void {
     if (dshAgentPackage.version !== "0.1.2-rc.1")
         throw new Error("Convivium requires DSH version 0.1.2-rc.1.");
-    requireContinuableProvider(ctx.subagents, config.provider);
     const spawn = ctx.subagents.getProvider("spawn");
     if (!spawn || spawn.name !== "spawn" || spawn.capabilities.outputSchema !== true)
         throw new Error('Convivium requires one-shot provider "spawn" with outputSchema.');
@@ -580,9 +562,6 @@ export async function activateTargetMeetingApplication(
                 ctx.logger("convivium:meeting").error("Meeting %s recovery failed %o", id, error);
             }
         });
-    deliveryEnsurers.set(ctx, (meetingId) => {
-        void reconcile(meetingId);
-    });
     await reconcile();
     const runtime = {
         async list(signal: AbortSignal) {
@@ -604,7 +583,24 @@ export async function activateTargetMeetingApplication(
             return projectMeetingView(snapshot, { kind: "local" });
         },
         async control(command: MeetingCommand, signal: AbortSignal) {
-            if (!["pause_meeting", "resume_meeting", "end_meeting"].includes(command.action.kind))
+            if (
+                ![
+                    "create_meeting",
+                    "activate_agenda",
+                    "dispose_agenda_candidate",
+                    "resolve_question",
+                    "dispose_issue",
+                    "abort_round",
+                    "decide",
+                    "change_decision",
+                    "dispose_risk",
+                    "record_completion_fact",
+                    "change_completion_fact",
+                    "pause_meeting",
+                    "resume_meeting",
+                    "end_meeting"
+                ].includes(command.action.kind)
+            )
                 return MeetingCommandResultSchema.parse({
                     kind: "rejected",
                     error: {
@@ -619,7 +615,7 @@ export async function activateTargetMeetingApplication(
                 },
                 signal
             );
-            if (result.kind === "accepted") await reconcile(command.meetingId);
+            if (result.kind === "accepted") await reconcile(result.meetingId);
             return result;
         },
         async *subscribeRefresh(signal: AbortSignal) {
@@ -663,7 +659,6 @@ export async function activateTargetMeetingApplication(
         for (const worker of deliveryWorkers.values()) worker.stop();
         await Promise.all([...deliveryWorkers.values()].map((worker) => worker.wait()));
         deliveryWorkers.clear();
-        deliveryEnsurers.delete(ctx);
         runtimes.delete(ctx);
         identityReaders.delete(ctx);
         applications.delete(ctx);

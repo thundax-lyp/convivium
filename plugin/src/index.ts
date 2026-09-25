@@ -2,16 +2,14 @@ import { fileURLToPath } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
-import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
+import { resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import {
     activateTargetMeetingApplication,
     getLocalMeetingWebRuntime,
     getMeetingIdentityReader,
-    getMeetingCommandApplication,
-    ensureTargetMeetingDelivery
+    getMeetingCommandApplication
 } from "./runtime/index.js";
 import { registerMeetingTools } from "./tools/index.js";
 
@@ -36,13 +34,6 @@ const meetingServices = [
 
 export const inject = [] as const;
 
-export function assertContinuableProvider(
-    ctx: Pick<Context, "subagents">,
-    providerName: string
-): SubagentProvider {
-    return requireContinuableProvider(ctx.subagents, providerName);
-}
-
 const meetingConsumerPlugin = {
     name: "convivium-meeting-consumer",
     inject: [...meetingServices, "storageDomain"] as const,
@@ -59,7 +50,6 @@ const meetingConsumerPlugin = {
             });
         });
         async function activate(): Promise<void> {
-            assertContinuableProvider(ctx, config.provider);
             const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
                 rolePackageRoot: fileURLToPath(new URL("../", import.meta.url))
             });
@@ -81,9 +71,6 @@ const meetingConsumerPlugin = {
                         const resolved = await resolveMeetingCaller(agent, runtime, signal);
                         return resolved;
                     }
-                },
-                onMeetingCreated(meetingId, parent) {
-                    ensureTargetMeetingDelivery(ctx, meetingId, parent);
                 }
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {

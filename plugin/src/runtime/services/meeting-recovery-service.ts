@@ -1,9 +1,6 @@
-import type { Agent } from "@deepseek-ai/dsh-agent";
-import { inspectOwnedSessions, type OwnedSessionInspection } from "@/dsh/index.js";
-import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/meeting-repository-port.js";
-import type { MeetingBootstrap, MeetingSnapshot, RecoveryResult } from "@/repository/types.js";
+import type { MeetingBootstrap, MeetingSnapshot } from "@/repository/types.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
     readonly name = "LocalMeetingRecoveryUnavailableError";
@@ -138,27 +135,3 @@ export const createMeetingRehydrationService = (
         }
     };
 };
-
-export interface CaptainRebindDependencies {
-    readonly parent: Agent;
-    readonly expectedParentSessionId: string;
-    readonly meetingId: string;
-    readonly ownerships: RecoveryResult["sessionOwnership"];
-    readonly inspection: Pick<SubagentRuntime, "listDescendants">;
-    readonly signal: AbortSignal;
-}
-
-export async function rebindCaptainParent(
-    dependencies: CaptainRebindDependencies
-): Promise<OwnedSessionInspection> {
-    if (String(dependencies.parent.id) !== dependencies.expectedParentSessionId) {
-        throw new Error("Captain parent rebind requires the exact persisted parent Session.");
-    }
-    return inspectOwnedSessions({
-        runtime: dependencies.inspection,
-        parentSessionId: dependencies.expectedParentSessionId as never,
-        meetingId: dependencies.meetingId,
-        ownerships: dependencies.ownerships,
-        signal: dependencies.signal
-    });
-}

@@ -46,7 +46,7 @@ export function validatePrivateMailSend(
     const recipientOwned = ownerships.some(
         (ownership) =>
             ownership.role === "participant" &&
-            ownership.participantId === input.mail.recipientParticipantId &&
+            ownership.identityId === input.mail.recipientParticipantId &&
             ownership.lifecycleStatus === "active" &&
             ownership.capabilityStatus === "active"
     );

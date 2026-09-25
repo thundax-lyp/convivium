@@ -78,7 +78,6 @@ export const createMeetingIdentityReader = (
                 ? await readMeetingRoleCatalog(
                       dependencies.catalog,
                       request.meetingId,
-                      ownership.parentSessionId,
                       ownership.sessionId
                   )
                 : undefined;
