@@ -553,6 +553,9 @@ export const ArchiveViewSchema = z
                 definitionHash: text.optional()
             })
         ),
+        controlActorProvenance: z
+            .array(z.object({ actorId: id, kind: z.literal("captain") }))
+            .length(1),
         exportMaterials: z.array(ArchiveMaterialViewSchema)
     })
     .superRefine((value, ctx) => {
@@ -595,6 +598,16 @@ export const ManagerCatalogViewSchema = z.object({
     )
 });
 export const AllowedControlSchema = z.enum([
+    "activate_agenda",
+    "dispose_agenda_candidate",
+    "resolve_question",
+    "dispose_issue",
+    "abort_round",
+    "decide",
+    "change_decision",
+    "dispose_risk",
+    "record_completion_fact",
+    "change_completion_fact",
     "create_meeting",
     "submit_manager_plan",
     "open_round",

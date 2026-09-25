@@ -692,3 +692,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T15：十项 action 显式映射纯 transition，统一 captainActorId；问题/风险处置保留结构化 disposition fact payload。ID 分配移入 Repository transition，使 receipt 重放不再额外消耗事实/业务 ID。真实 Repository + 故障存储替身测试覆盖十项各自 success/stale/terminal/replay/payload conflict、提交前失败重开零半提交，另验决策/完成事实 supersede 的旧记录与 ID 分离。20 项新事务断言先失败，修复后连同鉴权与 Repository facts 共 46 PASS。补出 abortRound 的现有 Domain 公共导出（未绕过模块入口）。
 
 - T16 入口子链：删除 Agent create 工具（先观察注册断言 RED），十四用户 action 经真实 Remote/Runtime 到 application.execute 边界，固定 loopback 用户来源；5 项 Remote/工具合同与 9 项 Host 装载测试通过。为解除 Typert 生成依赖阻塞，提前执行 T17 Catalog 参数移除及 T20 已替代 Session adapter/provisioning/admission/旧 caller 导出的清理；允许范围追加 index.ts、private-mail-validation.ts 的 identityId 字段迁移、host-plugin-lifecycle.spec.ts。旧 child 创建测试由 T8 原生 owner/creation 测试替代，旧 continuable 能力门禁删除，非 loopback/延迟 provider 门禁保留。17 项 owner/caller/labels 测试及 host typecheck、Typert 生成通过；T17/T20 整步尚未完成，十四业务事务证据仍以 T15 为准。
+
+- T17：合并 local/captain 为用户投影视图，保留私有证据、风险和候选可见性；身份视图继续过滤。新增控制按生命周期/目标存在性输出（领域仍为最终授权与业务校验），归档投影保留脱敏 controlActorProvenance；Catalog 合同测试同步移除 Captain Session 参数，允许范围补入该测试。2 项新视图断言先 RED，修复后与 Catalog 共 10 项、身份 read/归档 8 项通过。

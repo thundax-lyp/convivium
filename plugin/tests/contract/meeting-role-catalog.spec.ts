@@ -26,18 +26,12 @@ describe("meeting role catalog port", () => {
             expect(request).toEqual({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
-                captainSessionId: "captain-session",
                 managerSessionId: "manager-session"
             });
             return { kind: "available" as const, snapshot };
         });
         expect(
-            await readMeetingRoleCatalog(
-                { readSnapshot },
-                "meeting-1",
-                "captain-session",
-                "manager-session"
-            )
+            await readMeetingRoleCatalog({ readSnapshot }, "meeting-1", "manager-session")
         ).toEqual({ kind: "available", snapshot });
         expect(readSnapshot).toHaveBeenCalledTimes(1);
     });
@@ -50,7 +44,6 @@ describe("meeting role catalog port", () => {
         const result = await readMeetingRoleCatalog(
             { readSnapshot: async () => ({ kind: "available", snapshot: bad }) },
             "meeting-1",
-            "captain-session",
             "manager-session"
         );
         expect(result.kind).toBe("rejected");

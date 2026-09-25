@@ -23,7 +23,7 @@ describe("identity filtered view and archive provenance", () => {
                 createdAt: 0,
                 updatedAt: 1
             },
-            { kind: "local" }
+            { kind: "captain" }
         );
 
         expect(view.opportunityRequests).toEqual(state.opportunityRequests);
@@ -56,7 +56,7 @@ describe("identity filtered view and archive provenance", () => {
                 createdAt: 0,
                 updatedAt: 1
             },
-            { kind: "local" }
+            { kind: "captain" }
         );
 
         expect(view.rounds[0].planId).toBe("plan-1");
@@ -138,7 +138,7 @@ describe("identity filtered view and archive provenance", () => {
             candidates: []
         };
 
-        for (const caller of [{ kind: "local" as const }, { kind: "captain" as const }]) {
+        for (const caller of [{ kind: "captain" as const }]) {
             const view = projectMeetingView(snapshot, caller, catalog);
             expect(view.identityRecommendations).toHaveLength(1);
             expect(view).not.toHaveProperty("managerCatalog");
@@ -198,7 +198,7 @@ describe("identity filtered view and archive provenance", () => {
             updatedAt: 3
         };
 
-        for (const caller of [{ kind: "local" as const }, { kind: "captain" as const }])
+        for (const caller of [{ kind: "captain" as const }])
             expect(
                 projectMeetingView(snapshot, caller).outcomes.pendingDecisionCandidates?.map(
                     ({ id }) => id
@@ -207,7 +207,7 @@ describe("identity filtered view and archive provenance", () => {
 
         state.lifecycle = { status: "terminal", changedAt: 4 };
         expect(
-            projectMeetingView(snapshot, { kind: "local" }).outcomes.pendingDecisionCandidates
+            projectMeetingView(snapshot, { kind: "captain" }).outcomes.pendingDecisionCandidates
         ).toEqual([]);
     });
 
@@ -257,6 +257,7 @@ describe("identity filtered view and archive provenance", () => {
         const other = readAs("other-contributor", "contributor");
         const manager = readAs("manager-v1", "manager");
         const reviewer = readAs("reviewer-v1", "evidence_reviewer");
+        expect(projectMeetingView(snapshot, { kind: "captain" }).evidencePackages).toHaveLength(1);
         expect(author.evidencePackages).toHaveLength(1);
         expect(reviewer.evidencePackages).toHaveLength(1);
         expect(other.evidencePackages).toEqual([]);
@@ -305,9 +306,45 @@ describe("identity filtered view and archive provenance", () => {
                 createdAt: 0,
                 updatedAt: 3
             },
-            { kind: "local" }
+            { kind: "captain" }
         );
         expect(view.archive).toMatchObject({ id: "archive-1", terminationId: "termination-1" });
-        expect(JSON.stringify(view)).not.toMatch(/sessionOwnership|sessionId|capability/);
+        expect(view.archive?.controlActorProvenance).toEqual(
+            archiving.state.archive?.controlActorProvenance
+        );
+        expect(JSON.stringify(view)).not.toMatch(
+            /sessionOwnership|sessionId|capability|agentOptions|compositionHash|local-controller/
+        );
     });
+});
+
+it("projects user controls from lifecycle and available targets", () => {
+    const state = makeRunningMeetingStateV1();
+    const view = () =>
+        projectMeetingView(
+            { meetingId: state.id, version: state.version, state, createdAt: 0, updatedAt: 1 },
+            { kind: "captain" }
+        );
+    expect(view().controls).toEqual(["pause_meeting", "end_meeting"]);
+    state.agenda.push({
+        id: "next",
+        title: "next",
+        question: "next",
+        requiredOutputIds: [],
+        status: "pending"
+    });
+    state.agendaCandidates.push({
+        id: "candidate",
+        title: "next",
+        reason: "next",
+        status: "pending"
+    });
+    expect(view().controls).toEqual(
+        expect.arrayContaining(["activate_agenda", "dispose_agenda_candidate"])
+    );
+    state.lifecycle.status = "paused";
+    expect(view().controls).toEqual(expect.arrayContaining(["resume_meeting", "end_meeting"]));
+    expect(view().controls).not.toContain("activate_agenda");
+    state.lifecycle.status = "terminal";
+    expect(view().controls).toEqual([]);
 });

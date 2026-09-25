@@ -580,7 +580,7 @@ export async function activateTargetMeetingApplication(
             const repository = await registry.openMeeting({ meetingId: request.meetingId });
             const snapshot = (await repository.recover()).snapshot;
             if (!snapshot) throw new Error("Meeting is not ready.");
-            return projectMeetingView(snapshot, { kind: "local" });
+            return projectMeetingView(snapshot, { kind: "captain" });
         },
         async control(command: MeetingCommand, signal: AbortSignal) {
             if (
