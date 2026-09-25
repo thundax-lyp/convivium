@@ -165,7 +165,8 @@ describe("peer meeting archive", () => {
         f.stop.mockRejectedValueOnce(new Error("private transport detail"));
         await expect(f.dispatch()).rejects.toMatchObject({
             code: "SESSION_CLOSE_FAILED",
-            retryable: true
+            retryable: true,
+            terminalOnAttemptLimit: false
         });
         expect(f.getOwners().every((o) => o.capabilityStatus === "revoked")).toBe(true);
         expect(JSON.stringify(f.execute.mock.calls)).not.toContain("private transport detail");

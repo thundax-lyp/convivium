@@ -11,6 +11,7 @@ import {
 } from "@/runtime/application-service/meeting-command.js";
 
 class MeetingArchiveDispatchError extends Error {
+    readonly terminalOnAttemptLimit = false;
     constructor(
         readonly code: string,
         readonly retryable: boolean
