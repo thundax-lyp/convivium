@@ -61,7 +61,8 @@ const fixture = async () => {
         agentPresets: { standingKeyFor: async () => ({}), mount: vi.fn(async () => {}) },
         skills,
         agents: { get: vi.fn(() => undefined), create: vi.fn(factory), resume: vi.fn(factory) },
-        sessions: { flush: vi.fn(async () => true) }
+        sessions: { flush: vi.fn(async () => true) },
+        sessionPersistence: { ensureMaterialized: vi.fn(async () => {}) }
     };
     const signal = new AbortController().signal;
     const preflight = await preflightMeetingIdentity({
@@ -109,6 +110,7 @@ const fixture = async () => {
         restrictions,
         instructions,
         handles,
+        header,
         owner: createMeetingAgentOwner({ ctx, packageRoot })
     };
 };
@@ -193,6 +195,19 @@ describe("meeting Agent owner", () => {
             })
         ).rejects.toThrow("RECOVERY_UNAVAILABLE");
         expect(f.ctx.agents.resume).not.toHaveBeenCalled();
+        await f.owner.disposeAll();
+    });
+    it("rejects a parent-bound Session during unpublished setup", async () => {
+        const f = await fixture();
+        Object.assign(f.header, { parentSession: "old-captain" });
+        await expect(
+            f.owner.resume({
+                ...f,
+                ownership: { ...f.ownership, lifecycleStatus: "active" },
+                purpose: "delivery"
+            })
+        ).rejects.toThrow("RECOVERY_UNAVAILABLE");
+        expect(f.handles).toHaveLength(0);
         await f.owner.disposeAll();
     });
     it("suspends without recovery and requires revocation before stop", async () => {

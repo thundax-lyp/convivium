@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
@@ -20,7 +21,16 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-const meetingServices = ["agents", "sessions", "subagents", "systemPrompt", "tools"] as const;
+const meetingServices = [
+    "agents",
+    "sessions",
+    "sessionPersistence",
+    "agentPresets",
+    "skills",
+    "subagents",
+    "systemPrompt",
+    "tools"
+] as const;
 
 export const inject = [] as const;
 
@@ -48,7 +58,9 @@ const meetingConsumerPlugin = {
         });
         async function activate(): Promise<void> {
             assertContinuableProvider(ctx, config.provider);
-            const disposeTarget = await activateTargetMeetingApplication(ctx, config);
+            const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
+                rolePackageRoot: fileURLToPath(new URL("../", import.meta.url))
+            });
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
             const runtime = getLocalMeetingWebRuntime(ctx);
             const reader = getMeetingIdentityReader(ctx);

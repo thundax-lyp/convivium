@@ -68,3 +68,5 @@ export {
     type PreparedDescriptor,
     type SessionOwnership
 } from "./meeting-identity-admission.js";
+
+export { createMeetingAgentOwner, type MeetingAgentOwner } from "./meeting-agent-owner.js";

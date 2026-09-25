@@ -668,3 +668,7 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T5 补证：逐七角色验证精确能力集合及 modelInvocable 拒绝，共 15 项通过；属于已有行为的保护补测，未伪称新增 RED。descriptor 过期拒绝仍由 Repository CAS/owner 创建处验证；预检负责生成固定 TTL，不接收旧 descriptor。
 - T6 修复：先观察未撤权归档、初始角色错配、动态意图失效仍激活、旧 creation 格式错误分类的行为 RED，再修复；facts/recovery 共 16 项通过。真实 SQLite 验证 v1 拒读为 SCHEMA_VERSION_UNSUPPORTED，v2 畸形为 CORRUPT_DATABASE，失败后原存储字节不变。
 - T6 依赖修订：允许修改 domain-meeting-repository.ts 的归档结果校验、specs.ts 的 creation 版本预检和 domain-repository-registry.ts 的 DomainError 映射；它们是撤权及旧格式拒读的实际边界。T7 增加同版开发依赖 @deepseek-ai/dsh-agent-loop-testkit，用真实工厂组合验证，不替代 T21 Loader/真实模型验收。
+
+- T7 原生组合验证：真实 Loader/Preset、Skill filesystem、AgentLoop、Session JSONL 在临时目录中创建并恢复七角色，身份正文、能力集合、工具过滤及同 ID scope 切换通过。测试 Preset 仅装配 native Skill provider，工具为作用域测试注册项；发行全工具与真实模型仍由 T21 验证。
+- T7 修复已观察 RED：发布前拒绝带 parent 的 Session；使用 owner 已注入的 skills 配合 Agent scope；创建后调用公开 sessionPersistence.ensureMaterialized 再 flush，避免空 Session 未落盘即释放。入口新增 skills/agentPresets/sessionPersistence 依赖与 rolePackageRoot 透传。owner 单元 5 项及原生组合 1 项通过。
+- T7 测试依赖补全：同版 agent-loop、session-projection、session-persistence、session-persistence-jsonl、skill-filesystem，以及与已安装版本一致的 cordis-plugin-loader@1.0.3；仅 session-persistence 同时作为产品 peer 声明。T8 才把 owner 接入创建 coordinator，T10/T11 接入投递及恢复。

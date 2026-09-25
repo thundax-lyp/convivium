@@ -3,6 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { AgentHandle, AgentSetup } from "@deepseek-ai/dsh-agent";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import type {} from "@deepseek-ai/dsh-system-prompt";
+import type {} from "@deepseek-ai/dsh-session-persistence";
 import type {} from "@deepseek-ai/dsh-tools";
 import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/model.js";
 import { definitionHash } from "@/role-composition/resolve.js";
@@ -121,6 +122,13 @@ export const createMeetingAgentOwner = ({
         ): AgentSetup =>
         async (agentCtx) => {
             signal.throwIfAborted();
+            const header = agentCtx.agent?.session.header;
+            if (
+                !header ||
+                header.agentPreset !== ownership.resources.presetId ||
+                header.parentSession !== undefined
+            )
+                throw new Error("RECOVERY_UNAVAILABLE: Session header differs before publication");
             await verifyResources(ownership, definition);
             await ctx.agentPresets.mount(agentCtx, definition.dshPresetId);
             const ref = definition.agentInstructions;
@@ -135,7 +143,7 @@ export const createMeetingAgentOwner = ({
             if (purpose !== "delivery") agentCtx.tools.restrict({ allow: [] });
             if (!agentCtx.agent) throw new Error("RECOVERY_UNAVAILABLE: missing scoped Agent");
             await validateRoleSkills({
-                skills: agentCtx.skills,
+                skills: ctx.skills,
                 definition,
                 packageRoot,
                 view: { scope: agentCtx.agent, cwd: agentCtx.agent.session.header.cwd, signal }
@@ -222,6 +230,14 @@ export const createMeetingAgentOwner = ({
                     signal,
                     setup: setup(ownership, definition, "provisioning", signal)
                 });
+                try {
+                    await ctx.sessionPersistence.ensureMaterialized(handle.agent.session);
+                    if (!(await ctx.sessions.flush(handle.agent.session)))
+                        throw new Error("RECOVERY_UNAVAILABLE: Session was not persisted");
+                } catch (error) {
+                    await handle.dispose();
+                    throw error;
+                }
                 await remember(ownership, handle, "provisioning");
             }),
         resume: (input) => serial(input.ownership.id, () => resume(input)),

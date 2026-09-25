@@ -262,8 +262,11 @@ export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader =
 
 export async function activateTargetMeetingApplication(
     ctx: Context,
-    config: Config
+    config: Config,
+    options: { rolePackageRoot: string }
 ): Promise<() => Promise<void>> {
+    const { rolePackageRoot } = options;
+    if (!rolePackageRoot) throw new Error("Meeting role package root is required.");
     assertTargetLifecycle(config, ctx);
     let sequence = 0;
     const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
