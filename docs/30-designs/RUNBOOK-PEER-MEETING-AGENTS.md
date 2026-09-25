@@ -707,3 +707,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T21 真实 Host 接线修复：自动 profile 固定 startup reload；通过 Host authenticatedUrl 取得用户 cookie 后走真实 loopback Remote；角色根采用已安装 package/config 的 realpath，原生 Skill 调用使用已注入服务与 Agent scope。identity-admission 已真实 PASS（12.4s）；业务 fixture 明确由探针驱动 Manager/Contributor、Reviewer 保留真实模型/worker。错误记录脱敏保存，Host 提前退出立即报告。首次完整 verify 已 PASS（94 文件、818 测试）。
 
 - T21 正式启动同步：安装脚本生成的 start.sh 原先指向另一份解包资源，违反 T5 同 package 路径绑定；先观察启动合同 RED，再改为已安装 profile package/config realpath，6 项安装合同 PASS。允许范围补入 scripts/start.sh、installation-entrypoints.spec.ts；未操作人工环境。
+
+- T21 真实业务失败与修复：四轮八个 worker 已 completed，但旧 review_request 在终态无限重试并饿死 archive；原 SQLite 与 Session 已保留诊断。terminal/archiving/archived 三项先 RED，改为终止过时审核投递，paused 仍可重试；review/outbox 20 项 PASS。真实全场景仍须复跑，不将该失败记为 PASS。

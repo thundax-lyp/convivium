@@ -243,6 +243,8 @@ export function createEvidenceReviewDispatcher(
             if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             const { state } = recovered.snapshot;
             if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
+            if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+                fail("INVALID_STATE");
             if (state.lifecycle.status !== "running") retry("INVALID_STATE", false);
             const existingClaim = state.reviewClaims.find(
                 (claim) => claim.versionId === requestedVersionId

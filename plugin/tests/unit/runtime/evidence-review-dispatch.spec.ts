@@ -770,4 +770,50 @@ describe("evidence review request dispatcher recovery", () => {
         expect(application.execute).not.toHaveBeenCalled();
         expect(deliver).not.toHaveBeenCalled();
     });
+
+    it.each(["terminal", "archiving", "archived"] as const)(
+        "settles obsolete review requests in %s without blocking archive",
+        async (status) => {
+            const { state, ownership } = stateWithPendingReview();
+            state.lifecycle = { status, changedAt: 6, reason: "会议已结束" };
+            const application = claimApplication(state);
+            const deliver = vi.fn();
+            const dispatcher = createEvidenceReviewDispatcher({
+                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                owner: { resume: vi.fn(async () => {}), deliver },
+                application: application as never,
+                clock: { now: () => 6 },
+                repository: {
+                    recover: async () => ({
+                        snapshot: {
+                            meetingId: state.id,
+                            version: 6,
+                            state,
+                            createdAt: 0,
+                            updatedAt: 5
+                        },
+                        sessionOwnership: ownership
+                    })
+                } as never
+            });
+
+            await expect(
+                dispatcher.dispatch({
+                    outboxItem: outboxItem({
+                        kind: "agent_notice",
+                        noticeKind: "review_request",
+                        recipientId: "reviewer-v1",
+                        agendaId: "agenda-v1",
+                        versionId: "version-pending"
+                    }),
+                    signal: new AbortController().signal
+                })
+            ).rejects.toMatchObject({
+                code: "INVALID_STATE",
+                retryable: false
+            });
+            expect(application.execute).not.toHaveBeenCalled();
+            expect(deliver).not.toHaveBeenCalled();
+        }
+    );
 });
