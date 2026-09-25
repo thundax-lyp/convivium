@@ -714,3 +714,6 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - 稳定操作同步允许范围补入 HOW-TO-INSTALL-AND-RUN.md、HOW-TO-DSH-SMOKE.md 与 config/README.md：它们仍指向已删除的共享 Preset、Captain tool 或另一份解包根，必须随当前部署入口修正。文档链接 499/0 与 diff 检查 PASS，未宣称人工 Browser 已执行。
 
 - T21 第二次业务复验仍停在归档：普通 agent_notice 也在 terminal 无限重试，已保留本次 SQLite/Session。新增 paused 与三终态用例，三终态先 RED；终态现不可重试，暂停仍等待恢复。notice/review/archive/outbox 共 4 文件 40 项 PASS；四轮八审核四发布的门禁未放宽，继续完整复验。
+
+- T21 最终 PASS：ddd57953，Node v24.19.0、DSH 0.1.2-rc.1；verify 退出 0，94 文件/825 测试、format/lint/typecheck/build/contract/package 全通过。设置 BOOT_TIMEOUT_MS=900000 的 --all --json 退出 0：identity-admission 12226ms、business-loop 456282ms、peer-meeting-agents 177099ms，三个 Restore PASS；实际来源、七绑定冷恢复、四轮八 Review/四发布/归档全部通过。business-loop 一次 claim 失效后额外 worker 重试亦已在 readiness 如实记录。
+- T22：覆盖矩阵、分层证据、失败与修复、来源 observed、未覆盖项及稳定操作已迁移到正式 readiness/operations。只保留人工 Browser、跨 Host、MeetingTask/session_mail 等范围外缺口；本次 scope 无剩余未验收门禁。
