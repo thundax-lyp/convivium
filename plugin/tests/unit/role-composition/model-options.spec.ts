@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseAgentModelOverrides } from "@/role-composition/model-options.js";
+import {
+    parseAgentModelOverrides,
+    resolveEffectiveAgentOptions
+} from "@/role-composition/model-options.js";
 import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
 
 describe("meeting role Host model overrides", () => {
@@ -42,5 +45,25 @@ describe("meeting role Host model overrides", () => {
         expect(() => parseAgentModelOverrides(value, roleCompositionDefinitions)).toThrow(
             expect.objectContaining({ message: "Invalid meeting agent model overrides." })
         );
+    });
+});
+
+describe("effective meeting model binding", () => {
+    it("freezes the resolved Host selection and rejects incomplete bindings", () => {
+        const selection = { provider: "host", model: "original", reasoningEffort: "high" };
+        const result = resolveEffectiveAgentOptions(selection, { model: "selected" });
+        selection.model = "changed";
+        expect(result).toEqual({ provider: "host", model: "selected", reasoningEffort: "high" });
+        expect(Object.isFrozen(result)).toBe(true);
+        for (const invalid of [
+            {},
+            { provider: "host" },
+            { model: "model" },
+            { provider: " ", model: "model" }
+        ]) {
+            expect(() => resolveEffectiveAgentOptions(invalid)).toThrow(
+                "Meeting model selection is unavailable."
+            );
+        }
     });
 });
