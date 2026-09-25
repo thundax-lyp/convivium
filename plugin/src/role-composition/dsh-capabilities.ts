@@ -147,3 +147,36 @@ export const preflightMeetingIdentity = async (input: {
         };
     }
 };
+
+/** Validate the original persisted creation binding before materializing its Session. */
+export const matchesPreparedDescriptor = (
+    descriptor: PreparedDescriptor,
+    binding: Pick<
+        PreparedDescriptor,
+        | "descriptorId"
+        | "descriptorHash"
+        | "meetingId"
+        | "identityId"
+        | "sessionId"
+        | "definition"
+        | "resources"
+        | "agentOptions"
+    >,
+    now: number
+): boolean => {
+    const { descriptorHash, ...body } = descriptor;
+    return (
+        now < descriptor.expiresAt &&
+        descriptorHash === sha256Hex(encodeCanonicalJson(body)) &&
+        descriptorHash === binding.descriptorHash &&
+        descriptor.descriptorId === binding.descriptorId &&
+        descriptor.meetingId === binding.meetingId &&
+        descriptor.identityId === binding.identityId &&
+        descriptor.sessionId === binding.sessionId &&
+        (["definition", "resources", "agentOptions"] as const).every(
+            (key) =>
+                sha256Hex(encodeCanonicalJson(descriptor[key])) ===
+                sha256Hex(encodeCanonicalJson(binding[key]))
+        )
+    );
+};

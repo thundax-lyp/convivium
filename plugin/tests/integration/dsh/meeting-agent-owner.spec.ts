@@ -53,7 +53,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
         }
         await mountAgentLoopTestDependencies(ctx);
         class FixtureAdapter extends LlmAdapter {
-            async *stream() {
+            stream(): ReturnType<LlmAdapter["stream"]> {
                 throw new Error("This test must not invoke a model");
             }
         }

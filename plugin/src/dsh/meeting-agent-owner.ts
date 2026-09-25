@@ -8,8 +8,11 @@ import type {} from "@deepseek-ai/dsh-tools";
 import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/model.js";
 import { definitionHash } from "@/role-composition/resolve.js";
 import { resolveResourceBinding, readRoleResource } from "@/role-composition/resource-binding.js";
-import { validateRoleSkills } from "@/role-composition/dsh-capabilities.js";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import {
+    validateRoleSkills,
+    matchesPreparedDescriptor
+} from "@/role-composition/dsh-capabilities.js";
+import { isDeepStrictEqual } from "node:util";
 import type { SessionOwnership } from "@/repository/types.js";
 
 type Purpose = "provisioning" | "delivery" | "cleanup";
@@ -107,10 +110,7 @@ export const createMeetingAgentOwner = ({
             definition,
             agentOptions: ownership.agentOptions
         });
-        if (
-            sha256Hex(encodeCanonicalJson(resources)) !==
-            sha256Hex(encodeCanonicalJson(ownership.resources))
-        )
+        if (!isDeepStrictEqual(resources, ownership.resources))
             throw new Error("RECOVERY_UNAVAILABLE: resources differ");
     };
     const setup =
@@ -201,22 +201,10 @@ export const createMeetingAgentOwner = ({
             serial(input.ownership.id, async () => {
                 const { ownership, descriptor, definition, signal } = input;
                 signal.throwIfAborted();
-                const { descriptorHash, ...body } = descriptor;
                 if (
                     ownership.lifecycleStatus !== "provisioning" ||
                     ownership.capabilityStatus !== "active" ||
-                    Date.now() >= descriptor.expiresAt ||
-                    descriptorHash !== sha256Hex(encodeCanonicalJson(body)) ||
-                    descriptorHash !== ownership.descriptorHash ||
-                    descriptor.descriptorId !== ownership.descriptorId ||
-                    descriptor.meetingId !== ownership.meetingId ||
-                    descriptor.identityId !== ownership.identityId ||
-                    descriptor.sessionId !== ownership.sessionId ||
-                    !["definition", "resources", "agentOptions"].every(
-                        (key) =>
-                            sha256Hex(encodeCanonicalJson(Reflect.get(descriptor, key))) ===
-                            sha256Hex(encodeCanonicalJson(Reflect.get(ownership, key)))
-                    )
+                    !matchesPreparedDescriptor(descriptor, ownership, Date.now())
                 )
                     throw new Error("PREFLIGHT_EXPIRED: invalid creation binding");
                 if (entry(ownership)) return;
