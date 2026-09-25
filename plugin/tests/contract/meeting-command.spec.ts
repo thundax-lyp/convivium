@@ -493,3 +493,135 @@ describe("target Meeting command application transitions", () => {
         expect(recover).not.toHaveBeenCalled();
     });
 });
+
+const captainActions = [
+    { kind: "activate_agenda", agendaId: "a", previousDisposition: "completed", reason: "next" },
+    { kind: "dispose_agenda_candidate", candidateId: "c", disposition: "parked", reason: "later" },
+    {
+        kind: "resolve_question",
+        questionId: "q",
+        status: "deferred",
+        rationale: "later",
+        evidenceIds: []
+    },
+    {
+        kind: "dispose_issue",
+        issueId: "i",
+        status: "resolved",
+        rationale: "fixed",
+        evidenceIds: []
+    },
+    { kind: "abort_round", roundId: "r", reason: "stop" },
+    { kind: "decide", candidateId: "c" },
+    {
+        kind: "change_decision",
+        decisionId: "d",
+        status: "revoked",
+        rationale: "invalid",
+        evidenceIds: []
+    },
+    {
+        kind: "dispose_risk",
+        issueId: "i",
+        action: "accept",
+        scope: "current",
+        rationale: "bounded",
+        evidenceIds: []
+    },
+    {
+        kind: "record_completion_fact",
+        outputId: "o",
+        statement: "done",
+        rationale: "verified",
+        evidenceIds: [],
+        decisionIds: []
+    },
+    { kind: "change_completion_fact", factId: "f", status: "revoked", rationale: "invalid" }
+];
+const controlEnvelope = {
+    protocolVersion: 1,
+    meetingId: "meeting-1",
+    expectedMeetingVersion: 1,
+    requestId: "request-1"
+};
+describe("Captain action wire contract", () => {
+    it.each(captainActions)(
+        "parses $kind and requires its fields and Meeting version",
+        (action) => {
+            expect(MeetingCommandSchema.parse({ ...controlEnvelope, action }).action).toEqual(
+                action
+            );
+            expect(
+                MeetingCommandSchema.safeParse({
+                    ...controlEnvelope,
+                    expectedMeetingVersion: undefined,
+                    action
+                }).success
+            ).toBe(false);
+            for (const key of Object.keys(action).filter((key) => key !== "kind")) {
+                const missing: Record<string, unknown> = { ...action };
+                delete missing[key];
+                expect(
+                    MeetingCommandSchema.safeParse({ ...controlEnvelope, action: missing }).success,
+                    key
+                ).toBe(false);
+            }
+            expect(
+                MeetingCommandSchema.safeParse({
+                    ...controlEnvelope,
+                    action: { kind: action.kind, json: action }
+                }).success
+            ).toBe(false);
+        }
+    );
+    it.each([
+        [
+            {
+                kind: "dispose_agenda_candidate",
+                candidateId: "c",
+                disposition: "promoted",
+                reason: "next"
+            },
+            "promotedAgenda",
+            { id: "a", title: "topic", question: "why", requiredOutputIds: [] },
+            "parked"
+        ],
+        [
+            {
+                kind: "change_decision",
+                decisionId: "d",
+                status: "superseded",
+                rationale: "new",
+                evidenceIds: []
+            },
+            "replacementCandidateId",
+            "candidate-2",
+            "revoked"
+        ],
+        [
+            { kind: "change_completion_fact", factId: "f", status: "superseded", rationale: "new" },
+            "replacement",
+            {
+                outputId: "o",
+                statement: "done",
+                rationale: "verified",
+                evidenceIds: [],
+                decisionIds: []
+            },
+            "revoked"
+        ]
+    ])("requires and forbids conditional data for %j", (action, key, value, forbiddenStatus) => {
+        const parse = (input) =>
+            MeetingCommandSchema.safeParse({ ...controlEnvelope, action: input }).success;
+        expect(parse(action)).toBe(false);
+        const complete = { ...action, [key]: value };
+        expect(parse(complete)).toBe(true);
+        expect(
+            parse({
+                ...complete,
+                [action.kind === "dispose_agenda_candidate" ? "disposition" : "status"]:
+                    forbiddenStatus
+            })
+        ).toBe(false);
+    });
+});
