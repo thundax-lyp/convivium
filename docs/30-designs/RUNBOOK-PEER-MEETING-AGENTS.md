@@ -705,3 +705,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T21 Client 修复：切换选中会议时清除上场会议的未知提交重试；发送时记录本地 generation，忽略切换后迟到响应的旧反馈。两种先失败/后失败顺序先 RED，修复后 local-controls/user-controls 两文件 22 项通过。属于 T18 当前会议显式重试边界，不更改 requestId 重放语义。
 
 - T21 真实 Host 接线修复：自动 profile 固定 startup reload；通过 Host authenticatedUrl 取得用户 cookie 后走真实 loopback Remote；角色根采用已安装 package/config 的 realpath，原生 Skill 调用使用已注入服务与 Agent scope。identity-admission 已真实 PASS（12.4s）；业务 fixture 明确由探针驱动 Manager/Contributor、Reviewer 保留真实模型/worker。错误记录脱敏保存，Host 提前退出立即报告。首次完整 verify 已 PASS（94 文件、818 测试）。
+
+- T21 正式启动同步：安装脚本生成的 start.sh 原先指向另一份解包资源，违反 T5 同 package 路径绑定；先观察启动合同 RED，再改为已安装 profile package/config realpath，6 项安装合同 PASS。允许范围补入 scripts/start.sh、installation-entrypoints.spec.ts；未操作人工环境。

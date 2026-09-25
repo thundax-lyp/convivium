@@ -22,17 +22,18 @@ case "$release_version" in
     "" | *[!0-9A-Za-z.+-]*) fail "installed release marker is invalid" ;;
 esac
 
-release_root="$install_root/releases/$release_version"
-roles_root="$release_root/package/config"
+[ -d "$install_root/releases/$release_version" ] || fail "installed release is missing"
 workspace_root=$(sed -n '1p' "$workspace_path_file")
 case "$workspace_root" in
     /*) ;;
     *) fail "saved DSH workspace path is invalid" ;;
 esac
-[ -f "$roles_root/cordis.patch.yml" ] || fail "installed meeting role resources are missing"
 [ -f "$install_root/storage.patch.yml" ] || fail "storage configuration is missing"
 [ -d "$workspace_root" ] || fail "DSH workspace is missing: $workspace_root"
 [ -d "$workspace_root/dsh-home" ] || fail "DSH_HOME is missing: $workspace_root/dsh-home"
+
+roles_root=$(node -e 'process.stdout.write(require("node:fs").realpathSync(process.argv[1]))' "$workspace_root/dsh-home/profiles/web/node_modules/@convivium/dsh-plugin/config") || fail "installed role package is missing"
+[ -f "$roles_root/cordis.patch.yml" ] || fail "installed meeting role resources are missing"
 
 set -a
 . "$environment_file"
