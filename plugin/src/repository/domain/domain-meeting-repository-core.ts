@@ -1,3 +1,11 @@
+import {
+    same,
+    immutableOwnership,
+    ownershipInput,
+    matchesPendingAdmission,
+    validateDescriptor,
+    isOwnershipUpdateAllowed
+} from "./session-ownership-validation.js";
 import type { PreparedDescriptor } from "@/role-composition/model.js";
 import { DomainError } from "@/domain/index.js";
 import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.js";
@@ -39,7 +47,7 @@ import {
 import { diff } from "./json-patch.js";
 import { catalogKey, receiptKey, seqKey } from "./keys.js";
 import { loadProjection } from "./projection.js";
-import { decodeCanonicalJson, encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
+import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.js";
 import { RepositoryError } from "@/repository/errors.js";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
@@ -55,36 +63,6 @@ function canonicalStateObject(value: unknown): JsonObject {
     const normalized = JSON.parse(JSON.stringify(value)) as unknown;
     return JsonObjectSchema.parse(normalized);
 }
-
-const same = (a: unknown, b: unknown): boolean =>
-    Buffer.from(encodeCanonicalJson(a)).equals(Buffer.from(encodeCanonicalJson(b)));
-const immutableOwnership = (value: SessionOwnershipInput) => {
-    const { lifecycleStatus: _lifecycle, capabilityStatus: _capability, ...rest } = value;
-    return rest;
-};
-const ownershipInput = (value: SessionOwnership): SessionOwnershipInput => {
-    const { createdAt: _created, updatedAt: _updated, ...input } = value;
-    return input;
-};
-const validateDescriptor = (
-    ownership: SessionOwnershipInput,
-    descriptor: PreparedDescriptor
-): boolean => {
-    const parsed = PreparedDescriptorSchema.safeParse(descriptor);
-    if (!parsed.success) return false;
-    const { descriptorHash, ...body } = parsed.data;
-    return (
-        descriptorHash === sha256Hex(encodeCanonicalJson(body)) &&
-        ownership.descriptorHash === descriptorHash &&
-        ownership.descriptorId === descriptor.descriptorId &&
-        ownership.meetingId === descriptor.meetingId &&
-        ownership.identityId === descriptor.identityId &&
-        ownership.sessionId === descriptor.sessionId &&
-        same(ownership.definition, descriptor.definition) &&
-        same(ownership.resources, descriptor.resources) &&
-        same(ownership.agentOptions, descriptor.agentOptions)
-    );
-};
 
 export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly catalogDomain: CatalogDomain;
@@ -876,44 +854,12 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const proof = source.preparedDescriptors.find(
                 (d) => d.descriptorId === input.descriptorId
             );
-            const state = this.projection?.snapshot?.state;
-            const lifecycle = state?.lifecycle;
-            const recommendations = state?.identityRecommendations;
             const admissionMatches =
                 creation.status === "ready" &&
-                lifecycle &&
-                typeof lifecycle === "object" &&
-                !Array.isArray(lifecycle) &&
-                lifecycle.status === "running" &&
-                Array.isArray(recommendations) &&
-                recommendations.some(
-                    (item) =>
-                        item &&
-                        typeof item === "object" &&
-                        !Array.isArray(item) &&
-                        item.id === input.admissionId &&
-                        item.status === "provisioning" &&
-                        item.identityId === input.identityId &&
-                        item.sessionId === input.sessionId &&
-                        item.definitionId === input.definition.agentDefinitionId &&
-                        item.definitionVersion === input.definition.definitionVersion &&
-                        item.definitionHash === input.definition.definitionHash
-                );
+                matchesPendingAdmission(this.projection?.snapshot?.state, input);
             if (existing) {
                 const previous = ownershipInput(existing);
-                const lifecycleAllowed =
-                    previous.lifecycleStatus === input.lifecycleStatus ||
-                    (previous.lifecycleStatus === "provisioning" &&
-                        input.lifecycleStatus === "active") ||
-                    (input.lifecycleStatus === "closed" && previous.capabilityStatus === "revoked");
-                if (
-                    !same(immutableOwnership(previous), immutableOwnership(input)) ||
-                    !lifecycleAllowed ||
-                    (previous.capabilityStatus === "revoked" &&
-                        input.capabilityStatus !== "revoked") ||
-                    (input.lifecycleStatus === "closed" && input.capabilityStatus !== "revoked") ||
-                    (descriptor !== undefined && !same(descriptor, proof))
-                )
+                if (!isOwnershipUpdateAllowed(previous, input, descriptor, proof))
                     throw new RepositoryError(
                         "INVALID_STATE",
                         false,
