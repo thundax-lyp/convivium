@@ -332,7 +332,8 @@ export async function activateTargetMeetingApplication(
             repository
         });
         const archive = createMeetingArchiveDispatcher({
-            sessions: ctx.subagents,
+            owner: agentOwner,
+            definitions,
             repository,
             application
         });

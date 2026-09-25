@@ -9,7 +9,7 @@ import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
 import { createMeetingArchiveDispatcher } from "@/runtime/services/meeting-archive.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 
-function terminalState(): MeetingState {
+const terminalState = (): MeetingState => {
     const running = makeRunningMeetingStateV1();
     running.identities = running.identities.map((identity) => ({
         ...identity,
@@ -28,9 +28,9 @@ function terminalState(): MeetingState {
     });
     if (result.kind !== "accepted") throw new Error("terminal fixture rejected");
     return result.state;
-}
+};
 
-function archivingState(): MeetingState {
+const archivingState = (): MeetingState => {
     const result = startMeetingArchive(terminalState(), {
         archiveId: "archive-1",
         actorId: "runtime-recovery",
@@ -39,276 +39,153 @@ function archivingState(): MeetingState {
     });
     if (result.kind !== "accepted") throw new Error("archive fixture rejected");
     return result.state;
-}
+};
 
-function ownerships(state: MeetingState) {
-    return state.identities.map((identity) => {
-        const role = identity.roles[0] === "contributor" ? "participant" : identity.roles[0]!;
-        return {
-            id: `ownership:${identity.id}`,
+const fixture = (terminal = false) => {
+    let state = terminal ? terminalState() : archivingState();
+    let current = state.identities.map((identity) => ({
+        id: identity.sessionOwnershipId!,
+        meetingId: state.id,
+        identityId: identity.id,
+        sessionId: `session:${identity.id}`,
+        definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+        sessionLabel: encodeMeetingIdentitySessionLabel({
+            role: identity.roles[0] === "contributor" ? "participant" : identity.roles[0]!,
             meetingId: state.id,
-            identityId: identity.id,
-            sessionId: `session:${identity.id}`,
-            parentSessionId: "captain-1",
-            sessionLabel: encodeMeetingIdentitySessionLabel({
-                role,
-                meetingId: state.id,
-                identityId: identity.id
-            }),
-            provider: "spawn",
-            role,
-            lifecycleStatus: "active" as const,
-            capabilityStatus: "active" as const,
-            createdAt: 1,
-            updatedAt: 1
-        };
-    });
-}
-
-const archiveItem = (attempts = 1) => ({
-    id: "effect-archive-1",
-    deliveryId: "effect-archive-1",
-    kind: "dispatch" as const,
-    priority: 1,
-    payload: { kind: "archive", archiveId: "archive-1" },
-    attempts,
-    leaseOwner: "worker",
-    leaseToken: "token",
-    leaseDeadline: 2
-});
-
-function children(current: ReturnType<typeof ownerships>) {
-    return current.map((ownership) => ({
-        kind: "child",
-        id: ownership.sessionId,
-        mode: "continuable",
-        label: ownership.sessionLabel,
-        activity: "inactive",
-        hasChildren: false
+            identityId: identity.id
+        }),
+        role: identity.roles[0] === "contributor" ? "participant" : identity.roles[0]!,
+        lifecycleStatus: "active",
+        capabilityStatus: "active",
+        createdAt: 1,
+        updatedAt: 1
     }));
-}
-
-describe("meeting archive dispatcher v1", () => {
-    it("materializes through the command application then drains the exact owned Session set", async () => {
-        let state = terminalState();
-        let current = ownerships(state);
-        const calls: string[] = [];
-        const execute = vi.fn(async (command, context) => {
-            expect(context).toMatchObject({
-                caller: { channel: "runtime_recovery", principalId: "runtime-recovery" }
+    const calls: string[] = [];
+    const execute = vi.fn(async (command, context) => {
+        expect(context.caller).toEqual({
+            channel: "runtime_recovery",
+            principalId: "runtime-recovery"
+        });
+        if (command.action.kind === "start_archive") {
+            expect(context.archiveEffect).toEqual({
+                effectId: "effect-archive-1",
+                archiveId: "archive-1"
             });
-            if (command.action.kind === "start_archive") {
-                expect(command.requestId).toBe("archive-start:effect-archive-1");
-                const started = startMeetingArchive(state, {
-                    archiveId: "archive-1",
-                    actorId: "runtime-recovery",
-                    now: 3,
-                    questionIssueDispositionFacts: []
-                });
-                if (started.kind !== "accepted") throw new Error("start rejected");
-                state = started.state;
-                return { kind: "accepted" as const };
-            }
-            const ownership = current.find(
-                (candidate) => candidate.id === command.action.sessionOwnershipId
-            )!;
-            calls.push(`commit:${ownership.sessionId}:${command.action.status}`);
-            current = current.map((candidate) =>
-                candidate.id === ownership.id
-                    ? {
-                          ...candidate,
-                          lifecycleStatus: "closed" as const,
-                          capabilityStatus: "revoked" as const
-                      }
-                    : candidate
-            );
-            state = { ...state, version: state.version + 1 };
-            if (current.every((candidate) => candidate.lifecycleStatus === "closed")) {
-                const completed = completeMeetingArchive(state, {
+            calls.push("start");
+            const result = startMeetingArchive(state, {
+                archiveId: "archive-1",
+                actorId: "runtime-recovery",
+                now: 3,
+                questionIssueDispositionFacts: []
+            });
+            if (result.kind !== "accepted") throw new Error("start rejected");
+            state = result.state;
+        } else {
+            calls.push(`commit:${command.action.sessionOwnershipId}:${command.action.status}`);
+            if (command.action.status === "closed")
+                current = current.map((o) =>
+                    o.id === command.action.sessionOwnershipId
+                        ? { ...o, lifecycleStatus: "closed" }
+                        : o
+                );
+            if (current.every((o) => o.lifecycleStatus === "closed")) {
+                const result = completeMeetingArchive(state, {
                     actorId: "runtime-recovery",
                     now: 4,
                     allSessionOwnershipClosed: true
                 });
-                if (completed.kind !== "accepted") throw new Error("complete rejected");
-                state = completed.state;
+                if (result.kind !== "accepted") throw new Error("complete rejected");
+                state = result.state;
             }
-            return { kind: "accepted" as const };
-        });
-        const dispatcher = createMeetingArchiveDispatcher({
-            repository: {
-                recover: async () => ({
-                    snapshot: {
-                        meetingId: state.id,
-                        version: state.version,
-                        state,
-                        createdAt: 0,
-                        updatedAt: state.updatedAt
-                    },
-                    sessionOwnership: current
-                })
-            } as never,
-            sessions: {
-                listChildren: async () =>
-                    [
-                        ...children(current),
-                        {
-                            kind: "child",
-                            id: "session:other-meeting",
-                            mode: "continuable",
-                            label: encodeMeetingIdentitySessionLabel({
-                                role: "participant",
-                                meetingId: "meeting-other",
-                                identityId: "identity-other"
-                            })
-                        }
-                    ] as never,
-                interrupt: (sessionId) => calls.push(`interrupt:${String(sessionId)}`),
-                drainContinuableChildren: async (parent, childIds) =>
-                    calls.push(`drain:${String(parent.id)}:${childIds.map(String).join(",")}`)
+        }
+        return { kind: "accepted" };
+    });
+    const recover = async () => ({
+        snapshot: { meetingId: state.id, version: state.version, state },
+        sessionOwnership: current
+    });
+    const recordSessionOwnership = vi.fn(async (input) => {
+        calls.push(`revoke:${input.id}`);
+        const persisted = { ...input, createdAt: 1, updatedAt: 2 };
+        current = current.map((o) => (o.id === input.id ? persisted : o));
+        return persisted;
+    });
+    const stop = vi.fn(async ({ ownership }) => {
+        expect(current.find((o) => o.id === ownership.id)?.capabilityStatus).toBe("revoked");
+        expect(ownership.meetingId).toBe(state.id);
+        calls.push(`stop:${ownership.id}`);
+    });
+    const dispatcher = createMeetingArchiveDispatcher({
+        repository: { recover, recordSessionOwnership },
+        owner: { stop },
+        definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+        application: { execute }
+    } as never);
+    const dispatch = (attempts = 1) =>
+        dispatcher.dispatch({
+            outboxItem: {
+                id: "effect-archive-1",
+                deliveryId: "effect-archive-1",
+                kind: "dispatch",
+                priority: 1,
+                payload: { kind: "archive", archiveId: "archive-1" },
+                attempts,
+                leaseOwner: "worker",
+                leaseToken: "token",
+                leaseDeadline: 2
             },
-            application: { execute } as never
-        });
-
-        await dispatcher.dispatch({
-            outboxItem: archiveItem(),
-            parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
+    return {
+        dispatch,
+        calls,
+        stop,
+        execute,
+        recordSessionOwnership,
+        getState: () => state,
+        getOwners: () => current
+    };
+};
 
-        expect(state.lifecycle.status).toBe("archived");
-        expect(calls).toEqual([
-            ...current.map((ownership) => `interrupt:${ownership.sessionId}`),
-            `drain:captain-1:${current.map((ownership) => ownership.sessionId).join(",")}`,
-            ...current.map((ownership) => `commit:${ownership.sessionId}:closed`)
+describe("peer meeting archive", () => {
+    it("materializes the archive and revokes all owned authority before stopping Sessions without a parent", async () => {
+        const f = fixture(true);
+        await f.dispatch();
+        expect(f.getState().lifecycle.status).toBe("archived");
+        const ids = f.getOwners().map((o) => o.id);
+        expect(f.calls).toEqual([
+            "start",
+            ...ids.map((id) => `revoke:${id}`),
+            ...ids.flatMap((id) => [`stop:${id}`, `commit:${id}:closed`])
         ]);
-        expect(execute).toHaveBeenCalledTimes(4);
-        expect(execute.mock.calls[0]?.[1]).toMatchObject({
-            archiveEffect: { effectId: "effect-archive-1", archiveId: "archive-1" }
-        });
+        expect(f.stop).toHaveBeenCalledTimes(ids.length);
     });
-
-    it("fails closed before touching Sessions when the Meeting child set has an extra entry", async () => {
-        const state = archivingState();
-        const current = ownerships(state);
-        const interrupt = vi.fn();
-        const execute = vi.fn();
-        const dispatcher = createMeetingArchiveDispatcher({
-            repository: {
-                recover: async () => ({
-                    snapshot: { meetingId: state.id, version: state.version, state },
-                    sessionOwnership: current
-                })
-            } as never,
-            sessions: {
-                listChildren: async () =>
-                    [
-                        ...children(current),
-                        {
-                            kind: "child",
-                            id: "foreign-session",
-                            mode: "continuable",
-                            label: encodeMeetingIdentitySessionLabel({
-                                role: "participant",
-                                meetingId: state.id,
-                                identityId: "foreign-identity"
-                            })
-                        }
-                    ] as never,
-                interrupt,
-                drainContinuableChildren: vi.fn()
-            },
-            application: { execute } as never
-        });
-        await expect(
-            dispatcher.dispatch({
-                outboxItem: archiveItem(),
-                parent: { id: "captain-1" } as never,
-                signal: new AbortController().signal
-            })
-        ).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE" });
-        expect(interrupt).not.toHaveBeenCalled();
-        expect(execute).not.toHaveBeenCalled();
-    });
-
-    it("records a safe close failure and completes on the next outbox attempt", async () => {
-        let state = archivingState();
-        let current = ownerships(state);
-        const commands: unknown[] = [];
-        let failDrain = true;
-        const execute = vi.fn(async (command) => {
-            commands.push(command);
-            const ownership = current.find(
-                (candidate) => candidate.id === command.action.sessionOwnershipId
-            )!;
-            if (command.action.status === "failed") {
-                current = current.map((candidate) =>
-                    candidate.id === ownership.id
-                        ? { ...candidate, lastClosureFailureCode: command.action.failureReason }
-                        : candidate
-                );
-            } else {
-                current = current.map((candidate) =>
-                    candidate.id === ownership.id
-                        ? {
-                              ...candidate,
-                              lifecycleStatus: "closed" as const,
-                              capabilityStatus: "revoked" as const,
-                              lastClosureFailureCode: undefined
-                          }
-                        : candidate
-                );
-            }
-            state = { ...state, version: state.version + 1 };
-            if (current.every((candidate) => candidate.lifecycleStatus === "closed"))
-                state = {
-                    ...state,
-                    version: state.version + 1,
-                    lifecycle: {
-                        status: "archived",
-                        changedAt: 5,
-                        changedBy: "runtime-recovery"
-                    }
-                };
-            return { kind: "accepted" as const };
-        });
-        const dispatcher = createMeetingArchiveDispatcher({
-            repository: {
-                recover: async () => ({
-                    snapshot: { meetingId: state.id, version: state.version, state },
-                    sessionOwnership: current
-                })
-            } as never,
-            sessions: {
-                listChildren: async () => children(current) as never,
-                interrupt: vi.fn(),
-                drainContinuableChildren: async () => {
-                    if (failDrain) {
-                        failDrain = false;
-                        throw new Error("private session transport detail");
-                    }
-                }
-            },
-            application: { execute } as never
-        });
-        const input = {
-            outboxItem: archiveItem(),
-            parent: { id: "captain-1" } as never,
-            signal: new AbortController().signal
-        };
-        await expect(dispatcher.dispatch(input)).rejects.toMatchObject({
+    it("leaves all authority revoked on a stop failure and retries only unfinished Sessions", async () => {
+        const f = fixture();
+        f.stop.mockRejectedValueOnce(new Error("private transport detail"));
+        await expect(f.dispatch()).rejects.toMatchObject({
             code: "SESSION_CLOSE_FAILED",
             retryable: true
         });
-        expect(JSON.stringify(commands)).not.toContain("private session transport detail");
-        expect(commands[0]).toMatchObject({
-            requestId: "archive:archive-1:ownership:manager-v1:1:failed",
-            action: {
-                status: "failed",
-                failureReason: "SESSION_CLOSE_FAILED"
-            }
-        });
-
-        await dispatcher.dispatch({ ...input, outboxItem: archiveItem(2) });
-        expect(state.lifecycle.status).toBe("archived");
+        expect(f.getOwners().every((o) => o.capabilityStatus === "revoked")).toBe(true);
+        expect(JSON.stringify(f.execute.mock.calls)).not.toContain("private transport detail");
+        await f.dispatch(2);
+        expect(f.getState().lifecycle.status).toBe("archived");
+        const count = f.stop.mock.calls.length;
+        await f.dispatch(3);
+        expect(f.stop).toHaveBeenCalledTimes(count);
+    });
+    it("refuses foreign ownership before revoking or stopping any Session", async () => {
+        const f = fixture();
+        f.getOwners()[0]!.meetingId = "other-meeting";
+        await expect(f.dispatch()).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE" });
+        expect(f.recordSessionOwnership).not.toHaveBeenCalled();
+        expect(f.stop).not.toHaveBeenCalled();
+    });
+    it("refuses a mismatched identity label without touching Sessions", async () => {
+        const f = fixture();
+        f.getOwners()[0]!.sessionLabel = "wrong-label";
+        await expect(f.dispatch()).rejects.toMatchObject({ code: "RECOVERY_UNAVAILABLE" });
+        expect(f.stop).not.toHaveBeenCalled();
     });
 });
