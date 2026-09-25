@@ -1,6 +1,6 @@
 - id: agent-presets
   config:
-    default: convivium
+    default: standard
     includeShippedRoot: true
     includeUserRoot: true
     roots:
