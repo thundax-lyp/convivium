@@ -46,7 +46,11 @@ const fixture = async (role = "domain_architect") => {
         snapshot: vi.fn(async () => ({ complete: true, skills: [skill] })),
         get: vi.fn(async (name: string) => (name === skill.name ? skill : undefined))
     };
-    const ctx = { agentPresets: { standingKeyFor: vi.fn(async () => scope) }, skills };
+    const ctx = {
+        llm: { resolveCallConfig: vi.fn(async (config) => config) },
+        agentPresets: { standingKeyFor: vi.fn(async () => scope) },
+        skills
+    };
     const input = {
         ctx,
         cwd: packageRoot,
@@ -67,6 +71,16 @@ const fixture = async (role = "domain_architect") => {
     return { input, skills, scope, path };
 };
 describe("role resource preflight", () => {
+    it("rejects an unavailable model route before preparing role scopes", async () => {
+        const f = await fixture();
+        f.input.ctx.llm.resolveCallConfig.mockRejectedValue(new Error("unavailable model"));
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({
+            kind: "rejected",
+            error: { code: "CAPABILITY_MISSING" }
+        });
+        expect(f.input.ctx.agentPresets.standingKeyFor).not.toHaveBeenCalled();
+    });
+
     it("binds the exact role view, immutable resources and expiring descriptor before any Session", async () => {
         const f = await fixture();
         const result = await preflightMeetingIdentity(f.input);

@@ -2,6 +2,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { LlmAdapter } from "@deepseek-ai/dsh-llm";
 import { Context } from "@deepseek-ai/cordis";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import AgentLoop from "@deepseek-ai/dsh-agent-loop";
@@ -51,6 +52,12 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
             );
         }
         await mountAgentLoopTestDependencies(ctx);
+        class FixtureAdapter extends LlmAdapter {
+            async *stream() {
+                throw new Error("This test must not invoke a model");
+            }
+        }
+        ctx.llm.registerAdapter(["fixture"], new FixtureAdapter());
         const toolNames = [
             ...new Set([
                 "fixture_host_tool",

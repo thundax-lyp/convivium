@@ -27,6 +27,7 @@ const meetingServices = [
     "sessionPersistence",
     "agentPresets",
     "skills",
+    "llm",
     "subagents",
     "systemPrompt",
     "tools"

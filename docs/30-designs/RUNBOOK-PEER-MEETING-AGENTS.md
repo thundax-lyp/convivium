@@ -672,3 +672,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T7 原生组合验证：真实 Loader/Preset、Skill filesystem、AgentLoop、Session JSONL 在临时目录中创建并恢复七角色，身份正文、能力集合、工具过滤及同 ID scope 切换通过。测试 Preset 仅装配 native Skill provider，工具为作用域测试注册项；发行全工具与真实模型仍由 T21 验证。
 - T7 修复已观察 RED：发布前拒绝带 parent 的 Session；使用 owner 已注入的 skills 配合 Agent scope；创建后调用公开 sessionPersistence.ensureMaterialized 再 flush，避免空 Session 未落盘即释放。入口新增 skills/agentPresets/sessionPersistence 依赖与 rolePackageRoot 透传。owner 单元 5 项及原生组合 1 项通过。
 - T7 测试依赖补全：同版 agent-loop、session-projection、session-persistence、session-persistence-jsonl、skill-filesystem，以及与已安装版本一致的 cordis-plugin-loader@1.0.3；仅 session-persistence 同时作为产品 peer 声明。T8 才把 owner 接入创建 coordinator，T10/T11 接入投递及恢复。
+
+- T5 前置补齐：模型 route 不可用时曾错误返回 ready（已观察 RED）。预检现调用 Host llm.resolveCallConfig，校验 provider/model 与显式 reasoningEffort；入口注入 llm，owner 测试同步注册模型替身。预检与 owner 共 3 文件、22 项通过；该验证不发起真实模型请求。

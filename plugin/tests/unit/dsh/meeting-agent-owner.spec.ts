@@ -58,6 +58,7 @@ const fixture = async () => {
         return handle;
     };
     const ctx = {
+        llm: { resolveCallConfig: async (config) => config },
         agentPresets: { standingKeyFor: async () => ({}), mount: vi.fn(async () => {}) },
         skills,
         agents: { get: vi.fn(() => undefined), create: vi.fn(factory), resume: vi.fn(factory) },

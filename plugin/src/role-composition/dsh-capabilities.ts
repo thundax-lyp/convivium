@@ -1,3 +1,5 @@
+import type LlmRuntime from "@deepseek-ai/dsh-llm";
+import { ReasoningEffortId } from "@deepseek-ai/dsh-llm";
 import type AgentPresets from "@deepseek-ai/dsh-agent-presets";
 import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
@@ -62,6 +64,7 @@ export const validateRoleSkills = async (input: {
 
 export const preflightMeetingIdentity = async (input: {
     ctx: {
+        llm: Pick<LlmRuntime, "resolveCallConfig">;
         agentPresets: Pick<AgentPresets, "standingKeyFor">;
         skills: Pick<Skills, "snapshot" | "get">;
     };
@@ -91,6 +94,18 @@ export const preflightMeetingIdentity = async (input: {
             binding.definitionHash !== definitionHash(definition)
         )
             throw new Error("Invalid preflight binding.");
+        await input.ctx.llm.resolveCallConfig(
+            {
+                provider: agentOptions.provider,
+                model: agentOptions.model,
+                ...(agentOptions.reasoningEffort === undefined
+                    ? {}
+                    : {
+                          reasoningEffort: ReasoningEffortId(agentOptions.reasoningEffort)
+                      })
+            },
+            input.signal
+        );
         const resources = await resolveResourceBinding(input);
         const scope = await input.ctx.agentPresets.standingKeyFor(definition.dshPresetId);
         await validateRoleSkills({
