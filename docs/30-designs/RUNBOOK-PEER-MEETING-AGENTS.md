@@ -703,3 +703,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T21 旧业务回归迁移：控制用例改用 captain_user 和脱敏 actor ID，贡献仍用 MeetingIdentity；归档夹具增加控制来源。私有持久化夹具补齐 creator/descriptor/七 ownership 与激活顺序；损坏用例在正确摘要的 v2 commit 内移除 identityId，验证 CORRUPT_DATABASE 且日志不改写。允许范围追加本次失败涉及的 tests/unit/domain、tests/unit/repository/domain、domain-repository-registry/meeting-command/recovery/config 和 timeline 夹具；保留业务门禁、无跳过。94 文件 816 测试通过。
 - T21 归档重试修复：先在 stop 失败用例观察缺少 terminalOnAttemptLimit=false 的 RED，再使可重试归档清理错误不因默认五次上限终结；不可重试错误仍按 retryable=false 拒绝。archive/outbox 两文件 14 项通过，已撤销权限始终保持撤销。此修复落实 T11 未完成清理持续可重试条件。
 - T21 Client 修复：切换选中会议时清除上场会议的未知提交重试；发送时记录本地 generation，忽略切换后迟到响应的旧反馈。两种先失败/后失败顺序先 RED，修复后 local-controls/user-controls 两文件 22 项通过。属于 T18 当前会议显式重试边界，不更改 requestId 重放语义。
+
+- T21 真实 Host 接线修复：自动 profile 固定 startup reload；通过 Host authenticatedUrl 取得用户 cookie 后走真实 loopback Remote；角色根采用已安装 package/config 的 realpath，原生 Skill 调用使用已注入服务与 Agent scope。identity-admission 已真实 PASS（12.4s）；业务 fixture 明确由探针驱动 Manager/Contributor、Reviewer 保留真实模型/worker。错误记录脱敏保存，Host 提前退出立即报告。首次完整 verify 已 PASS（94 文件、818 测试）。

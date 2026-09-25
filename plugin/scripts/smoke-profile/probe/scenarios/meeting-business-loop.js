@@ -200,7 +200,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         action: {
             kind: "create_meeting",
             objective: {
-                statement: MEETING_BUSINESS_LOOP_TOPIC.objective,
+                statement:
+                    MEETING_BUSINESS_LOOP_TOPIC.objective +
+                    "。这是确定性业务冒烟：Manager 与五位 Contributor 仅阅读通知后等待测试驱动调用命令，不自行开轮、提交计划、举手、写证据或发布；Reviewer 独立处理真实 review request 并运行 one-shot worker。测试驱动将完成四轮业务，正式交流只经 Runtime。",
                 requiredOutputs: [],
                 acceptanceCriteria: [],
                 hardConstraints: [],
@@ -320,7 +322,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         reviewerProvisioning.endReasons.at(-1)?.kind === "completed",
         `reviewer provisioning turn failed: ${JSON.stringify(reviewerProvisioning)}`
     );
-    let version = view.version;
+    const settled = await read();
+    assert(settled.rounds.length === 0, "fixture Manager opened an unsolicited round");
+    let version = settled.version;
     let manager = await runtime.waitForAgent(ctx, agents.manager.id);
     const knownSessionIds = new Set([...Object.values(agents).map((agent) => String(agent.id))]);
     const roundTrace = [];

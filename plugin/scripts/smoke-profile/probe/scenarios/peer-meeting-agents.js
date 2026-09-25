@@ -79,7 +79,7 @@ const observeBindings = async (runtime, meetingId, identities) => {
                 ownership.capabilityStatus === "active",
             "peer ownership mismatch"
         );
-        const snapshot = await agent.ctx.skills.snapshot({
+        const snapshot = await ctx.skills.snapshot({
             scope: agent,
             cwd: agent.session.header.cwd,
             signal: new AbortController().signal
@@ -90,7 +90,7 @@ const observeBindings = async (runtime, meetingId, identities) => {
             "role skill list differs: " + role
         );
         for (const name of abilities) {
-            const loaded = await agent.ctx.skills.get(name, {
+            const loaded = await ctx.skills.get(name, {
                 scope: agent,
                 cwd: agent.session.header.cwd,
                 signal: new AbortController().signal

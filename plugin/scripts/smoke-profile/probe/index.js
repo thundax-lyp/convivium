@@ -130,6 +130,7 @@ async function run(ctx) {
             await ctx.sessionPersistence.ensureMaterialized(inputSession.agent.session);
             await ctx.sessions.flush(inputSession.agent.session);
         }
+        let userCookie;
         // Each call establishes and closes its own real loopback user connection.
         const remote = (method, args) =>
             new Promise((resolve, reject) => {
@@ -142,7 +143,11 @@ async function run(ctx) {
                         path: `/api/${endpoint}`,
                         method: "POST",
                         agent: false,
-                        headers: { "content-type": "application/json", connection: "close" }
+                        headers: {
+                            "content-type": "application/json",
+                            connection: "close",
+                            ...(userCookie ? { cookie: userCookie } : {})
+                        }
                     },
                     (response) => {
                         let body = "";
@@ -190,6 +195,17 @@ async function run(ctx) {
         const deadline = Date.now() + 30000;
         for (;;) {
             try {
+                const auth = await fetch(
+                    ctx.connection.authenticatedUrl(
+                        `http://127.0.0.1:${process.env.CONVIVIUM_SMOKE_REMOTE_PORT}/`
+                    ),
+                    { redirect: "manual" }
+                );
+                userCookie = auth.headers
+                    .getSetCookie()
+                    .map((cookie) => cookie.split(";", 1)[0])
+                    .join("; ");
+                assert(userCookie, "Host user authentication did not issue a cookie");
                 await remote("list", {});
                 break;
             } catch (error) {

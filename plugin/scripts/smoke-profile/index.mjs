@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
-import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+    access,
+    cp,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    stat,
+    writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -160,7 +170,8 @@ async function createRecordRoot(recordDirectory) {
 }
 
 function redact(text, deepSeekApiKey) {
-    return deepSeekApiKey === "" ? text : text.split(deepSeekApiKey).join("[REDACTED]");
+    const withoutKey = deepSeekApiKey === "" ? text : text.split(deepSeekApiKey).join("[REDACTED]");
+    return withoutKey.replace(/token=[^\s"&]+/g, "token=[REDACTED]");
 }
 
 async function copyRecordedText(source, destination, deepSeekApiKey) {
@@ -204,8 +215,11 @@ export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
         agentPrompts: undefined,
         recordScope: {
             source: "target-runtime-smoke",
-            secretRedaction: "DEEPSEEK_API_KEY values are replaced",
-            externalResearch: "not performed; fixture evidence only"
+            secretRedaction: "DEEPSEEK_API_KEY and Host URL tokens are replaced",
+            externalResearch:
+                result.scenario === "peer-meeting-agents"
+                    ? "actual GitHub and arXiv tool reads required"
+                    : "not performed; fixture evidence only"
         }
     };
     await writeFile(
@@ -453,6 +467,10 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
 async function waitForJson(path, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+        if (bootProcess && (bootProcess.exitCode !== null || bootProcess.signalCode !== null))
+            throw new Error(
+                `DSH Host exited before probe result: ${bootProcess.exitCode ?? bootProcess.signalCode}`
+            );
         if (await pathExists(path)) {
             try {
                 const content = await readFile(path, "utf8");
@@ -557,6 +575,15 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
     activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
+    roleAssetRoot = await realpath(
+        join(dshHome, "profiles", PROFILE, "node_modules", CONVIVIUM_PACKAGE, "config")
+    );
+    env.CONVIVIUM_MEETING_ROLES_ROOT = roleAssetRoot;
+    // This static acceptance profile is restarted explicitly; it does not reload patches live.
+    const profileManifestPath = join(dshHome, "profiles", PROFILE, "package.json");
+    const profileManifest = JSON.parse(await readFile(profileManifestPath, "utf8"));
+    profileManifest.dsh.profile.patchReload = "startup";
+    await writeFile(profileManifestPath, JSON.stringify(profileManifest, null, 2) + "\n");
     const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
@@ -682,7 +709,26 @@ async function main() {
                     storagePath
                 );
             } catch (error) {
-                throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
+                if (recordRoot !== undefined && tempRoot !== undefined) {
+                    for (const file of ["boot.stdout.log", "boot.stderr.log", "dump-config.yml"]) {
+                        const source = join(tempRoot, "logs", file);
+                        if (await pathExists(source))
+                            await copyRecordedText(
+                                source,
+                                join(recordRoot, scenario, "failure", file),
+                                deepSeekApiKey
+                            );
+                    }
+                    await writeScenarioRecord(
+                        join(recordRoot, scenario),
+                        { ok: false, scenario, error: redact(error.message, deepSeekApiKey) },
+                        deepSeekApiKey
+                    );
+                }
+                throw new Error(
+                    `Smoke ${scenario} failed: ${redact(error.message, deepSeekApiKey)}`,
+                    { cause: error }
+                );
             } finally {
                 await restore();
                 tempRoot = undefined;

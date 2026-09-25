@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -124,8 +125,8 @@ export const runIdentityAdmissionScenario = async (runtime) => {
                 runtime.nextCall()
             );
             assert(
-                JSON.stringify(replay) === JSON.stringify(result),
-                "admission replay changed identity"
+                isDeepStrictEqual(replay, result),
+                "admission replay changed identity: " + JSON.stringify({ result, replay })
             );
         }
     }
@@ -154,7 +155,7 @@ export const runIdentityAdmissionScenario = async (runtime) => {
         agent.session.header.parentSession === undefined && agent.id !== manager.id,
         "admitted peer is not independent"
     );
-    const loaded = await agent.ctx.skills.get("repository-analysis", {
+    const loaded = await ctx.skills.get("repository-analysis", {
         scope: agent,
         cwd: agent.session.header.cwd,
         signal: new AbortController().signal
