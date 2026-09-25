@@ -694,3 +694,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T16 入口子链：删除 Agent create 工具（先观察注册断言 RED），十四用户 action 经真实 Remote/Runtime 到 application.execute 边界，固定 loopback 用户来源；5 项 Remote/工具合同与 9 项 Host 装载测试通过。为解除 Typert 生成依赖阻塞，提前执行 T17 Catalog 参数移除及 T20 已替代 Session adapter/provisioning/admission/旧 caller 导出的清理；允许范围追加 index.ts、private-mail-validation.ts 的 identityId 字段迁移、host-plugin-lifecycle.spec.ts。旧 child 创建测试由 T8 原生 owner/creation 测试替代，旧 continuable 能力门禁删除，非 loopback/延迟 provider 门禁保留。17 项 owner/caller/labels 测试及 host typecheck、Typert 生成通过；T17/T20 整步尚未完成，十四业务事务证据仍以 T15 为准。
 
 - T17：合并 local/captain 为用户投影视图，保留私有证据、风险和候选可见性；身份视图继续过滤。新增控制按生命周期/目标存在性输出（领域仍为最终授权与业务校验），归档投影保留脱敏 controlActorProvenance；Catalog 合同测试同步移除 Captain Session 参数，允许范围补入该测试。2 项新视图断言先 RED，修复后与 Catalog 共 10 项、身份 read/归档 8 项通过。
+
+- T18：结构化创建与十控制表单接入面板，固定七 Definition/version；共享提交逻辑保留网络未知请求供显式重试，双击锁、内容变化新 ID、冲突补读和断线禁写，暂停/继续/结束复用同一逻辑。首个创建表单模块缺失与入口断言已观察 RED；其余 payload/条件分支以追加回归验证，未声称全部测试先行。Client 三文件共 22 项通过（16 项新表单用例、4 项生命周期、2 项 Client）；Client typecheck 通过。执行发现 T17 MeetingView 缺 agendaCandidates，补入协议/投影必需字段；允许范围追加对应两文件及 client fixture 的 captain caller 迁移。人工 Browser 未执行。

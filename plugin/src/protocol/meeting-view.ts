@@ -637,6 +637,7 @@ export const MeetingSummarySchema = z.object({
     unavailableReason: text.optional()
 });
 export const MeetingViewSchema = z.object({
+    agendaCandidates: z.array(AgendaCandidateViewSchema),
     meetingId: id,
     version: z.number().int().nonnegative(),
     objective: ObjectiveViewSchema,

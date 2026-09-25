@@ -1,7 +1,9 @@
+import * as React from "react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import type { MeetingCommand, MeetingSummary, MeetingView } from "@/protocol/index.js";
+import type { MeetingSummary, MeetingView } from "@/protocol/index.js";
 import type { MeetingTranslate } from "./locales.js";
-import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
+import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.js";
+import { SubmissionFeedback } from "./meeting-create-form.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 import {
     INITIAL_FRESHNESS,
@@ -49,6 +51,21 @@ export const ConviviumMeetingPanel = ({
     const [listFailure, setListFailure] = useState<MeetingPanelFailure>();
     const [detailFailure, setDetailFailure] = useState<MeetingPanelFailure>();
     const [writePending, setWritePending] = useState(false);
+    const writeLock = useRef(false);
+    const controlClient: MeetingClient = {
+        ...api,
+        control: async (command, signal) => {
+            if (writeLock.current) throw new Error("A user command is already in flight.");
+            writeLock.current = true;
+            setWritePending(true);
+            try {
+                return await api.control(command, signal);
+            } finally {
+                writeLock.current = false;
+                setWritePending(false);
+            }
+        }
+    };
     const selectedRef = useRef<string>();
     const refreshGenerationRef = useRef(0);
     const carrierFailureEpochRef = useRef(0);
@@ -220,72 +237,58 @@ export const ConviviumMeetingPanel = ({
         },
         [loadDetail]
     );
-    const endMeeting = useCallback(async () => {
-        const current = detail;
-        const meetingId = selectedRef.current;
-        if (current === undefined || meetingId === undefined || writePending) return;
-        const command: MeetingCommand = {
-            protocolVersion: 1,
-            meetingId,
-            expectedMeetingVersion: current.version,
-            requestId: crypto.randomUUID(),
-            action: {
-                kind: "end_meeting",
-                outcome: "partial",
-                reason: "Ended from Meeting panel.",
-                decisionIds: [],
-                completionFactIds: [],
-                unresolvedQuestionIds: [],
-                unresolvedIssueIds: []
-            }
-        };
-        setWritePending(true);
-        setFreshness((current) => ({ ...current, detail: "loading" }));
-        setDetailFailure(undefined);
-        try {
-            await api.control(command);
-            await refreshAll({ recovery: false });
-        } catch (error) {
-            setDetailFailure(classifyFailure(error));
-            setFreshness((current) => ({ ...current, detail: "stale" }));
-        } finally {
-            setWritePending(false);
+    const localSubmission = useMeetingSubmission(
+        controlClient,
+        !controlsEnabled({
+            freshness,
+            selectedMeetingId: workspace.selectedMeetingId,
+            writePending
+        }),
+        () => {
+            void refreshAll({ recovery: false });
         }
-    }, [api, detail, refreshAll, writePending]);
-    const changePause = useCallback(
-        async (kind: "pause_meeting" | "resume_meeting") => {
-            const current = detail;
-            const meetingId = selectedRef.current;
-            if (current === undefined || meetingId === undefined || writePending) return;
-            setWritePending(true);
-            setFreshness((current) => ({ ...current, detail: "loading" }));
-            setDetailFailure(undefined);
-            try {
-                await api.control({
-                    protocolVersion: 1,
-                    meetingId,
-                    expectedMeetingVersion: current.version,
-                    requestId: crypto.randomUUID(),
-                    action: {
-                        kind,
-                        reason:
-                            kind === "pause_meeting"
-                                ? "Paused from Meeting panel."
-                                : "Resumed from Meeting panel."
-                    }
-                });
-                await refreshAll({ recovery: false });
-            } catch (error) {
-                setDetailFailure(classifyFailure(error));
-                setFreshness((current) => ({ ...current, detail: "stale" }));
-            } finally {
-                setWritePending(false);
-            }
-        },
-        [api, detail, refreshAll, writePending]
     );
+    const endMeeting = async () => {
+        if (!detail) return;
+        await localSubmission.submit(detail.meetingId, detail.version, {
+            kind: "end_meeting",
+            outcome: "partial",
+            reason: "Ended from Meeting panel.",
+            decisionIds: [],
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: []
+        });
+    };
+    const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
+        if (!detail) return;
+        await localSubmission.submit(detail.meetingId, detail.version, {
+            kind,
+            reason:
+                kind === "pause_meeting"
+                    ? "Paused from Meeting panel."
+                    : "Resumed from Meeting panel."
+        });
+    };
     return renderMeetingPanelLayout(
         {
+            client: controlClient,
+            localFeedback: (
+                <SubmissionFeedback
+                    submission={localSubmission}
+                    disabled={freshness.connection !== "connected" || writePending}
+                    t={t}
+                />
+            ),
+            createDisabled:
+                freshness.connection !== "connected" || freshness.list !== "fresh" || writePending,
+            onCreated: (meetingId) => {
+                selectMeeting(meetingId);
+                void refreshAll({ recovery: false });
+            },
+            onCommitted: () => {
+                void refreshAll({ recovery: false });
+            },
             locale,
             meetings,
             selectedId: workspace.selectedMeetingId,

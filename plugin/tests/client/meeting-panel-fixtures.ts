@@ -12,6 +12,6 @@ export function meetingProjectionFixture() {
     };
     return {
         summary: projectMeetingSummary(snapshot),
-        view: projectMeetingView(snapshot, { kind: "local" })
+        view: projectMeetingView(snapshot, { kind: "captain" })
     };
 }

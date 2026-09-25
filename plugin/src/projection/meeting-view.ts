@@ -220,6 +220,7 @@ export const projectMeetingView = (
               }
             : {}),
         agenda: copy(state.agenda),
+        agendaCandidates: copy(state.agendaCandidates),
         opportunityRequests: state.opportunityRequests.filter(
             ({ contributorId }) =>
                 caller.kind === "captain" ||
