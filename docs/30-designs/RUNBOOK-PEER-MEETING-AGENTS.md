@@ -696,3 +696,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T17：合并 local/captain 为用户投影视图，保留私有证据、风险和候选可见性；身份视图继续过滤。新增控制按生命周期/目标存在性输出（领域仍为最终授权与业务校验），归档投影保留脱敏 controlActorProvenance；Catalog 合同测试同步移除 Captain Session 参数，允许范围补入该测试。2 项新视图断言先 RED，修复后与 Catalog 共 10 项、身份 read/归档 8 项通过。
 
 - T18：结构化创建与十控制表单接入面板，固定七 Definition/version；共享提交逻辑保留网络未知请求供显式重试，双击锁、内容变化新 ID、冲突补读和断线禁写，暂停/继续/结束复用同一逻辑。首个创建表单模块缺失与入口断言已观察 RED；其余 payload/条件分支以追加回归验证，未声称全部测试先行。Client 三文件共 22 项通过（16 项新表单用例、4 项生命周期、2 项 Client）；Client typecheck 通过。执行发现 T17 MeetingView 缺 agendaCandidates，补入协议/投影必需字段；允许范围追加对应两文件及 client fixture 的 captain caller 迁移。人工 Browser 未执行。
+
+- T19 探针迁移：三个场景使用本地用户 Remote 创建/控制和 ownership Session；新增平级场景检查七 Session、精确 Skill 列表/get、真实来源调用、审核 worker、暂停后原绑定冷恢复。用户调用通过真实 loopback HTTP，每次独立连接。结果校验新增 12 项通过；本阶段仅为探针实现证据，真实模型/网络和冷恢复尚待 T21。结果校验测试为实现后补充，不宣称完整 RED。发现 Catalog producer 可晚于 Runtime 注册，改为读请求时解析服务；创建/continuation 的 actor 同步为用户控制来源。允许范围补入 meeting-lifecycle.ts、meeting-runtime.ts、host-plugin-lifecycle.spec.ts。T20 联合回归已观察 94 文件 816 项通过，完整 verify 仍在执行。

@@ -137,7 +137,6 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(10);
-        expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 

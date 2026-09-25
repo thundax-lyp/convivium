@@ -11,7 +11,8 @@ import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import {
     completeMeetingBusinessLoopResult,
     validateMeetingBusinessLoopHotResult,
-    validateScenarioResult
+    validateScenarioResult,
+    validatePeerMeetingAgentsResult
 } from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
@@ -29,8 +30,16 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "600000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-export const SMOKE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
-export const CORE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
+export const SMOKE_SCENARIOS = [
+    "identity-admission",
+    "meeting-business-loop",
+    "peer-meeting-agents"
+];
+export const CORE_SCENARIOS = [
+    "identity-admission",
+    "meeting-business-loop",
+    "peer-meeting-agents"
+];
 
 export function selectScenarios(args, scenario, browserMode) {
     if (args.some((arg) => !["--all", "--json"].includes(arg)))
@@ -164,7 +173,7 @@ export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
     if (recordRoot === undefined) return;
     const files = [
         [result.dumpConfig, "dump-config.yml"],
-        ...(result.scenario === "meeting-business-loop"
+        ...(["meeting-business-loop", "peer-meeting-agents"].includes(result.scenario)
             ? [
                   [result.bootLogs.initial.stdoutPath, "initial/boot.stdout.log"],
                   [result.bootLogs.initial.stderrPath, "initial/boot.stderr.log"],
@@ -404,7 +413,7 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
 
     bootProcess = spawn(dsh.command, dsh.args, {
         cwd: workspaceDir,
-        env,
+        env: { ...env, CONVIVIUM_SMOKE_REMOTE_PORT: String(port) },
         stdio: ["ignore", "pipe", "pipe"],
         shell: false
     });
@@ -541,7 +550,8 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
         CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH: agentPromptsPath,
-        CONVIVIUM_SMOKE_SCENARIO: scenario
+        CONVIVIUM_SMOKE_SCENARIO: scenario,
+        CONVIVIUM_SMOKE_PEER_CHECKPOINT: join(tempRoot, "peer-checkpoint.json")
     });
     const port = await allocatePort();
     activePort = port;
@@ -562,8 +572,11 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
                 `stderr tail:\n${stderrTail}`
         );
     }
-    if (scenario === "meeting-business-loop") {
-        probeResult = validateMeetingBusinessLoopHotResult(probeResult);
+    if (["meeting-business-loop", "peer-meeting-agents"].includes(scenario)) {
+        probeResult =
+            scenario === "meeting-business-loop"
+                ? validateMeetingBusinessLoopHotResult(probeResult)
+                : validatePeerMeetingAgentsResult(probeResult, false);
         await stopHost();
         await assertPortReleased(port);
         activePort = undefined;
@@ -594,7 +607,10 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
                     `stderr tail:\n${stderrTail}`
             );
         }
-        probeResult = completeMeetingBusinessLoopResult(probeResult, coldResult);
+        probeResult =
+            scenario === "meeting-business-loop"
+                ? completeMeetingBusinessLoopResult(probeResult, coldResult)
+                : validateScenarioResult(coldResult, scenario);
     } else {
         probeResult = validateScenarioResult(probeResult, scenario);
     }
@@ -609,10 +625,9 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         artifact: basename(artifact),
         probe: probeResult,
         dumpConfig: dumpPath,
-        bootLogs:
-            scenario === "meeting-business-loop"
-                ? { initial: bootLogs, coldReopen: finalBootLogs }
-                : finalBootLogs,
+        bootLogs: ["meeting-business-loop", "peer-meeting-agents"].includes(scenario)
+            ? { initial: bootLogs, coldReopen: finalBootLogs }
+            : finalBootLogs,
         agentPrompts: agentPromptsPath,
         ...(storagePath === undefined ? {} : { storagePersistence: "PRESERVED" })
     };

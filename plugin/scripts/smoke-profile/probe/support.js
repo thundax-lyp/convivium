@@ -50,7 +50,9 @@ export function createProbeSupport(outputPath) {
             result = await ctx.tools.execute({
                 callId: "convivium-target-smoke-" + index,
                 name,
-                arguments: { input },
+                arguments: ["convivium_read_meeting", "convivium_run_review_worker"].includes(name)
+                    ? { input }
+                    : input,
                 agent,
                 signal: new AbortController().signal
             });
@@ -131,3 +133,77 @@ export function createProbeSupport(outputPath) {
         messageTexts
     };
 }
+
+export const stablePeerId = (kind, meetingId, key) => {
+    const crypto = process.getBuiltinModule("node:crypto");
+    return `${kind}-${crypto
+        .createHash("sha256")
+        .update(JSON.stringify([meetingId, kind, key]))
+        .digest("hex")
+        .slice(0, 32)}`;
+};
+export const peerSessionId = (meetingId, identityId) =>
+    stablePeerId("meeting_agent_session", meetingId, identityId);
+export const peerCreateCommand = async (requestId, statement) => {
+    const fs = process.getBuiltinModule("node:fs/promises");
+    const path = process.getBuiltinModule("node:path");
+    const definitions = JSON.parse(
+        await fs.readFile(
+            path.join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, "definitions.json"),
+            "utf8"
+        )
+    ).definitions;
+    return {
+        protocolVersion: 1,
+        meetingId: "new",
+        expectedMeetingVersion: 0,
+        requestId,
+        action: {
+            kind: "create_meeting",
+            objective: {
+                statement,
+                requiredOutputs: [],
+                acceptanceCriteria: [],
+                hardConstraints: [],
+                acceptableRiskLevel: "low"
+            },
+            identities: definitions.map((d) => ({
+                identityKey: d.roleDefinitionId,
+                definitionId: d.agentDefinitionId,
+                definitionVersion: d.definitionVersion,
+                displayName: d.roleDefinitionId,
+                roles: [
+                    d.roleDefinitionId === "meeting_manager"
+                        ? "manager"
+                        : d.roleDefinitionId === "verification_reviewer"
+                          ? "evidence_reviewer"
+                          : "contributor"
+                ],
+                agendaResponsibilityIds: ["agenda"],
+                riskAuthority: false,
+                required: true
+            })),
+            managerIdentityKey: "meeting_manager",
+            evidenceReviewerIdentityKey: "verification_reviewer",
+            initialAgenda: [
+                { id: "agenda", title: statement, question: statement, requiredOutputIds: [] }
+            ],
+            initialActiveAgendaId: "agenda",
+            limits: {
+                maxFormalMessages: 100,
+                maxDurationMs: 900000,
+                taskDeadlineMs: 300000,
+                reviewDeadlineMs: 180000
+            }
+        }
+    };
+};
+export const waitUntil = async (check, message, timeout = 300000) => {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        const result = await check();
+        if (result) return result;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error(message);
+};

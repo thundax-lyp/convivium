@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/index.js";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
 import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
@@ -13,7 +14,7 @@ import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/types.js";
-import { MeetingCommandResultSchema, type MeetingCommandResult } from "@/protocol/index.js";
+import { MeetingCommandResultSchema } from "@/protocol/index.js";
 import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import {
     LOCAL_CONTROLLER_PRINCIPAL_ID,
@@ -45,7 +46,6 @@ const targetCreateState = (
         identities.map((identity) => [identity.source.identityKey, identity] as const)
     );
     const action = command.action;
-    const manager = byKey.get(action.managerIdentityKey)!;
     const reviewer = byKey.get(action.evidenceReviewerIdentityKey)!;
     return {
         id: meetingId,
@@ -58,7 +58,7 @@ const targetCreateState = (
                   continuation: {
                       ...action.continuation,
                       importedAt: now,
-                      importedBy: manager.id
+                      importedBy: captainActorIdFor(meetingId)
                   }
               }),
         objective: {
@@ -77,7 +77,7 @@ const targetCreateState = (
             })),
             acceptableRiskLevel: action.objective.acceptableRiskLevel
         },
-        lifecycle: { status: "running", changedAt: now, changedBy: manager.id },
+        lifecycle: { status: "running", changedAt: now, changedBy: captainActorIdFor(meetingId) },
         identities: identities.map(({ id, ownershipId, definitionHash, source }) => ({
             id,
             displayName: source.displayName,
@@ -470,7 +470,8 @@ export const createMeetingCreationCoordinator = (
                 if (failures.length)
                     throw new AggregateError(
                         [error, ...failures.map((r) => r.reason)],
-                        "Meeting creation and cleanup failed"
+                        "Meeting creation and cleanup failed",
+                        { cause: error }
                     );
                 throw error;
             }

@@ -373,9 +373,22 @@ export async function activateTargetMeetingApplication(
     });
     const definitions = parseAgentDefinitions(config.agentDefinitions);
     const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
-    const catalog = (ctx as Context & { get?: (key: string) => unknown }).get?.(
-        "convivium.agentCatalog"
-    ) as RoleCatalogPort | undefined;
+    const catalog: RoleCatalogPort = {
+        readSnapshot: async (request) => {
+            const producer = (ctx as Context & { get?: (key: string) => unknown }).get?.(
+                "convivium.agentCatalog"
+            ) as RoleCatalogPort | undefined;
+            return producer
+                ? producer.readSnapshot(request)
+                : {
+                      kind: "rejected",
+                      error: {
+                          code: "CATALOG_UNAVAILABLE",
+                          message: "Meeting role catalog is unavailable"
+                      }
+                  };
+        }
+    };
     const resolveCallerScope = async (input: {
         meetingId: string;
         caller: {
@@ -433,7 +446,7 @@ export async function activateTargetMeetingApplication(
         ids,
         clock: { now: Date.now },
         resolveCallerScope,
-        ...(catalog === undefined ? {} : { catalog }),
+        catalog,
         creation: createMeetingCreationCoordinator({
             registry,
             definitions,
@@ -446,7 +459,7 @@ export async function activateTargetMeetingApplication(
     });
     const identityReader = createMeetingIdentityReader({
         registry,
-        ...(catalog === undefined ? {} : { catalog })
+        catalog
     });
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {

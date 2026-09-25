@@ -1,3 +1,5 @@
+import { request as httpRequest } from "node:http";
+import { runPeerMeetingAgentsScenario } from "./scenarios/peer-meeting-agents.js";
 import { collectAgentPromptEvidence, createProbeSupport } from "./support.js";
 import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
 import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.js";
@@ -11,7 +13,10 @@ export const inject = [
     "tools",
     "webServer",
     "connection",
-    "workspaceRegistry"
+    "workspaceRegistry",
+    "typertGateway",
+    "agentPresets",
+    "skills"
 ];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
@@ -27,7 +32,7 @@ const {
     observedMessages,
     messageTexts
 } = createProbeSupport(outputPath);
-let captain;
+let inputSession;
 let nextCall = 1000;
 const observedAgents = new Map();
 const observedInboxMessages = new Map();
@@ -38,14 +43,6 @@ async function waitForAgent(ctx, id) {
     while (Date.now() < deadline) {
         const agent = ctx.agents.get(id);
         if (agent) return agent;
-        if (observedAgents.has(String(id)) && captain?.agent !== undefined) {
-            return resumeParticipantForProbe(
-                ctx,
-                captain.agent,
-                id,
-                "convivium-smoke-resume:" + id
-            );
-        }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
     throw new Error(
@@ -54,29 +51,6 @@ async function waitForAgent(ctx, id) {
             "; observed=" +
             JSON.stringify([...observedAgents.keys()].sort())
     );
-}
-
-async function waitForObservedParticipant(ctx, meetingId, participantKey) {
-    const deadline = Date.now() + 30000;
-    while (Date.now() < deadline) {
-        for (const agent of observedAgents.values()) {
-            const id = String(agent.id);
-            if (id.includes(meetingId) && id.includes("participant-" + participantKey)) {
-                const live = ctx.agents.get(agent.id);
-                if (live === agent) return agent;
-                if (captain?.agent !== undefined) {
-                    return resumeParticipantForProbe(
-                        ctx,
-                        captain.agent,
-                        agent.id,
-                        "convivium-smoke-resume:" + id
-                    );
-                }
-            }
-        }
-        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-    }
-    throw new Error("Timed out waiting for observed participant Agent " + participantKey + ".");
 }
 
 function recordInbox(agent, message) {
@@ -116,44 +90,11 @@ function waitForInbox(ctx, agentId, select) {
     });
 }
 
-function waitForContributionContext(ctx, agentId, contributionId, purpose) {
-    const prefix =
-        purpose === "manager" ? "contribution manager context: " : "contribution context: ";
-    return waitForInbox(ctx, agentId, (message) => {
-        for (const text of messageTexts(message)) {
-            if (!text.startsWith(prefix)) continue;
-            try {
-                const context = JSON.parse(text.slice(prefix.length));
-                if (
-                    context.purpose === purpose &&
-                    (purpose === "manager"
-                        ? contributionId === undefined ||
-                          context.work?.pending?.some((task) => task.id === contributionId)
-                        : context.work?.task?.id === contributionId ||
-                          context.work?.submission?.task?.id === contributionId)
-                )
-                    return context;
-            } catch {
-                // Ignore non-context text blocks.
-            }
-        }
-        return undefined;
-    });
-}
-
-async function resumeParticipantForProbe(ctx, parent, childId, marker) {
-    const delivery = waitForInbox(ctx, childId, (message) =>
-        messageTexts(message).some((text) => text.includes(marker)) ? marker : undefined
-    );
-    await ctx.subagents.sendMessage(parent, childId, [{ type: "text", text: marker }], {
-        signal: new AbortController().signal
-    });
-    return (await delivery).agent;
-}
-
 async function run(ctx) {
     if (!outputPath) return;
-    if (!["identity-admission", "meeting-business-loop"].includes(scenario)) {
+    if (
+        !["identity-admission", "meeting-business-loop", "peer-meeting-agents"].includes(scenario)
+    ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -181,26 +122,86 @@ async function run(ctx) {
             });
             return;
         }
-        captain = await ctx.agents.create({
-            sessionId:
-                scenario === "identity-admission"
-                    ? "convivium-identity-manager"
-                    : "convivium-smoke-captain",
-            agentOptions: {
-                provider: scenario === "identity-admission" ? "spawn" : "deepseek-official",
-                ...(scenario === "identity-admission" ? {} : { model: "deepseek-v4-flash" })
-            },
-            meta: { cwd: process.cwd(), agentPreset: "convivium" },
-            setup: async (agentCtx) => {
-                await ctx.get("agentPresets").mount(agentCtx, "convivium");
+        if (process.env.CONVIVIUM_SMOKE_PHASE !== "cold-reopen") {
+            inputSession = await ctx.agents.create({
+                sessionId: "convivium-smoke-input",
+                meta: { cwd: process.cwd() }
+            });
+            await ctx.sessionPersistence.ensureMaterialized(inputSession.agent.session);
+            await ctx.sessions.flush(inputSession.agent.session);
+        }
+        // Each call establishes and closes its own real loopback user connection.
+        const remote = (method, args) =>
+            new Promise((resolve, reject) => {
+                const endpoint = `conviviumMeetings/${method}`;
+                const rpcId = `probe-${nextCall++}`;
+                const request = httpRequest(
+                    {
+                        hostname: "127.0.0.1",
+                        port: Number(process.env.CONVIVIUM_SMOKE_REMOTE_PORT),
+                        path: `/api/${endpoint}`,
+                        method: "POST",
+                        agent: false,
+                        headers: { "content-type": "application/json", connection: "close" }
+                    },
+                    (response) => {
+                        let body = "";
+                        response.setEncoding("utf8");
+                        response.on("data", (chunk) => {
+                            body += chunk;
+                        });
+                        response.on("error", reject);
+                        response.on("end", () => {
+                            try {
+                                assert(
+                                    response.statusCode === 200,
+                                    `Remote HTTP ${response.statusCode}: ${body}`
+                                );
+                                const result = JSON.parse(body);
+                                assert(
+                                    result.type === "server-response" && result.rpcId === rpcId,
+                                    "Remote envelope mismatch"
+                                );
+                                assert(
+                                    result.result.ok,
+                                    "Remote rejected: " + JSON.stringify(result.result.error)
+                                );
+                                resolve(result.result.value);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                    }
+                );
+                request.on("error", reject);
+                request.setTimeout(120000, () =>
+                    request.destroy(new Error("Remote request timeout"))
+                );
+                request.end(
+                    JSON.stringify({
+                        type: "client-request",
+                        rpcId,
+                        method: endpoint,
+                        payload: { args }
+                    })
+                );
+            });
+        // Registration and the HTTP listener may settle after this plugin's effect starts.
+        const deadline = Date.now() + 30000;
+        for (;;) {
+            try {
+                await remote("list", {});
+                break;
+            } catch (error) {
+                if (Date.now() >= deadline) throw error;
+                await new Promise((resolve) => setTimeout(resolve, 100));
             }
-        });
+        }
         const runtime = {
             ctx,
             scenario,
-            get captain() {
-                return captain;
-            },
+            inputSession,
+            remote,
             nextCall() {
                 return nextCall++;
             },
@@ -211,16 +212,15 @@ async function run(ctx) {
             createInput,
             writeResult,
             waitForAgent,
-            waitForObservedParticipant,
             waitForInbox,
-            waitForContributionContext,
             messageTexts,
             observedMessages: (agent) => observedMessages(agent, observedInboxMessages),
-            observedAgents: () => [...observedAgents.values()],
-            resumeParticipantForProbe
+            observedAgents: () => [...observedAgents.values()]
         };
         if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
+        } else if (scenario === "peer-meeting-agents") {
+            await runPeerMeetingAgentsScenario(runtime);
         } else {
             await runMeetingBusinessLoopScenario(runtime);
         }
@@ -243,14 +243,14 @@ async function run(ctx) {
             );
             await fs.rename(agentPromptsPath + ".tmp", agentPromptsPath);
         }
-        await captain?.dispose();
+        await inputSession?.dispose();
     }
 }
 
 export function apply(ctx) {
     ctx.on("agent/created", ({ agent }) => {
         observedAgents.set(String(agent.id), agent);
-        if (String(agent.id).includes("-participant-")) {
+        {
             agent.ctx.on("agent/inbox/inserted", ({ message }) => recordInbox(agent, message));
         }
     });
