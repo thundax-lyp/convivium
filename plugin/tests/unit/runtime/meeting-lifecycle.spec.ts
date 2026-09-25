@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     activateTargetMeetingApplication,
     createTargetMeetingEffectDispatcher,
-    getLocalMeetingWebRuntime,
-    recoverTargetMeetingDeliveries
+    getLocalMeetingWebRuntime
 } from "@/runtime/meeting-lifecycle.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
@@ -49,28 +48,6 @@ describe("target Meeting effect routing", () => {
     });
 });
 
-describe("target Meeting delivery recovery", () => {
-    it("restarts delivery for a persisted non-archived Meeting with its exact live parent", async () => {
-        const parent = { id: "captain-1" };
-        const ensureDelivery = vi.fn(async () => undefined);
-        const recover = vi.fn(async () => ({
-            bootstrap: { status: "ready" },
-            snapshot: { state: { lifecycle: { status: "running" } } },
-            sessionOwnership: [{ parentSessionId: "captain-1" }]
-        }));
-        await recoverTargetMeetingDeliveries({
-            registry: {
-                listMeetings: () => [{ meetingId: "meeting-1" }],
-                openMeeting: async () => ({ recover })
-            } as never,
-            agents: { get: (id: string) => (id === "captain-1" ? parent : undefined) } as never,
-            ensureDelivery
-        });
-
-        expect(ensureDelivery).toHaveBeenCalledWith("meeting-1", parent);
-    });
-});
-
 describe("target Meeting list", () => {
     it("rejects the whole list when a discovered Meeting has no recoverable snapshot", async () => {
         const state = makeRunningMeetingStateV1();
@@ -102,6 +79,7 @@ describe("target Meeting list", () => {
             .mockResolvedValue(registry as never);
         const owner = {
             storageDomain: {},
+            logger: () => ({ error: vi.fn() }),
             subagents: {
                 getProvider: () => ({
                     name: "spawn",

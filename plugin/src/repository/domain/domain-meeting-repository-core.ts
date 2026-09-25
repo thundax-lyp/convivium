@@ -522,7 +522,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 requestHash: input.requestHash,
                 authorization: input.authorization,
                 initialState,
-                createResult: null,
+                createResult: input.createResult ?? null,
                 initialOutbox,
                 sessionOwnership: Object.fromEntries(
                     ownerships.map((o) => [o.sessionId, { ...o, createdAt: now, updatedAt: now }])
@@ -557,7 +557,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         });
     }
     async completeCreate(
-        input: CreateMeetingInput<TState>
+        input: Pick<CreateMeetingInput<TState>, "requestId" | "requestHash" | "authorization">
     ): Promise<CommittedResult<CreateMeetingResult>> {
         return this.enqueueMutation(async () => {
             this.authorizationValidator.validateCreate({
@@ -581,7 +581,10 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 "create_meeting",
                 input.authorization.callerBinding
             );
-            const result = input.createResult ?? { meetingId: this.meetingId, meetingVersion: 0 };
+            const result = creation.createResult ?? {
+                meetingId: this.meetingId,
+                meetingVersion: 0
+            };
             const initialVersion = result.meetingVersion;
             const existingReceipt = this.projection?.receipts[createReceiptKey];
             if (existingReceipt) {
@@ -614,7 +617,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     this.meetingId,
                     "Meeting bootstrap cannot be completed"
                 );
-            const now = input.createdAt ?? this.now();
+            const now = creation.createdAt;
             const next = createProjection({
                 snapshot: {
                     meetingId: this.meetingId,

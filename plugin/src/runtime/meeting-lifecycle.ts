@@ -38,7 +38,6 @@ import {
 } from "./services/evidence-review-dispatch.js";
 import { provisionMeetingIdentity } from "./services/meeting-identity-provision.js";
 import type { MeetingIdentityProvisionDependencies } from "./services/meeting-identity-provision.js";
-import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 
@@ -85,28 +84,171 @@ export function createTargetMeetingEffectDispatcher(dependencies: {
     };
 }
 
-export async function recoverTargetMeetingDeliveries(dependencies: {
+export const recoverTargetMeetingDeliveries = async (dependencies: {
     readonly registry: Pick<DomainRepositoryRegistry<MeetingState>, "listMeetings" | "openMeeting">;
-    readonly agents: Pick<Context["agents"], "get">;
-    readonly ensureDelivery: (meetingId: string, parent: Agent) => void | Promise<void>;
-}): Promise<void> {
+    readonly owner: import("@/dsh/index.js").MeetingAgentOwner;
+    readonly definitions: readonly import("@/role-composition/model.js").MeetingAgentDefinition[];
+    readonly ensureDelivery: (meetingId: string) => void | Promise<void>;
+    readonly stopDelivery: (meetingId: string) => void | Promise<void>;
+    readonly meetingId?: string;
+    readonly now?: () => number;
+    readonly onError?: (meetingId: string, error: unknown) => void;
+}): Promise<void> => {
+    const now = dependencies.now ?? Date.now;
+    const signal = new AbortController().signal;
+    const binding = ({
+        createdAt: _created,
+        updatedAt: _updated,
+        ...input
+    }: import("@/repository/types.js").SessionOwnership) => input;
+    const definitionFor = (ownership: import("@/repository/types.js").SessionOwnership) => {
+        const definition = dependencies.definitions.find(
+            (d) =>
+                d.agentDefinitionId === ownership.definition.agentDefinitionId &&
+                d.definitionVersion === ownership.definition.definitionVersion
+        );
+        if (!definition) throw new Error("RECOVERY_UNAVAILABLE: definition missing");
+        return definition;
+    };
     for (const record of dependencies.registry.listMeetings()) {
-        const repository = await dependencies.registry.openMeeting({ meetingId: record.meetingId });
-        const recovered = await repository.recover();
-        if (
-            recovered.bootstrap.status !== "ready" ||
-            recovered.snapshot === undefined ||
-            recovered.snapshot.state.lifecycle.status === "archived"
-        )
+        if (dependencies.meetingId !== undefined && dependencies.meetingId !== record.meetingId)
             continue;
-        const parentIds = new Set(recovered.sessionOwnership.map((item) => item.parentSessionId));
-        if (parentIds.size !== 1) continue;
-        const parentId = [...parentIds][0];
-        if (parentId === undefined) continue;
-        const parent = dependencies.agents.get(parentId as never);
-        if (parent !== undefined) await dependencies.ensureDelivery(record.meetingId, parent);
+        try {
+            const repository = await dependencies.registry.openMeeting({
+                meetingId: record.meetingId
+            });
+            let recovered = await repository.recover();
+            if (recovered.sessionOwnership.some((o) => o.meetingId !== record.meetingId))
+                throw new Error("RECOVERY_UNAVAILABLE: ownership mismatch");
+            if (recovered.bootstrap.status === "creating") {
+                try {
+                    for (const ownership of recovered.sessionOwnership) {
+                        if (ownership.lifecycleStatus === "active") continue;
+                        const descriptor = recovered.preparedDescriptors.find(
+                            (d) => d.descriptorId === ownership.descriptorId
+                        );
+                        if (!descriptor || descriptor.expiresAt <= now())
+                            throw new Error("PREFLIGHT_EXPIRED");
+                        await dependencies.owner.resume({
+                            ownership,
+                            definition: definitionFor(ownership),
+                            purpose: "provisioning",
+                            signal
+                        });
+                        await repository.recordSessionOwnership(
+                            { ...binding(ownership), lifecycleStatus: "active" },
+                            now(),
+                            descriptor
+                        );
+                    }
+                    await repository.completeCreate({
+                        requestId: recovered.bootstrap.createRequestId,
+                        requestHash: recovered.bootstrap.requestHash,
+                        authorization: {
+                            callerBinding: "loopback_remote:local-controller",
+                            capabilityId: "local-controller"
+                        }
+                    });
+                } catch {
+                    // If completion committed but its response was lost, ready remains authoritative.
+                    recovered = await repository.recover();
+                    if (recovered.bootstrap.status !== "ready")
+                        await repository.updateBootstrap({
+                            status: "creation_failed",
+                            failureCode: "RECOVERY_UNAVAILABLE",
+                            now: now()
+                        });
+                }
+                recovered = await repository.recover();
+            }
+            if (recovered.bootstrap.status === "creation_failed") {
+                await dependencies.stopDelivery(record.meetingId);
+                for (const ownership of recovered.sessionOwnership) {
+                    if (ownership.lifecycleStatus === "closed") continue;
+                    const revoked =
+                        ownership.capabilityStatus === "revoked"
+                            ? ownership
+                            : await repository.recordSessionOwnership(
+                                  { ...binding(ownership), capabilityStatus: "revoked" },
+                                  now()
+                              );
+                    try {
+                        await dependencies.owner.stop({
+                            ownership: revoked,
+                            definition: definitionFor(revoked),
+                            reason: "creation_failed",
+                            signal
+                        });
+                    } catch (error) {
+                        if (
+                            !(error instanceof SessionPersistenceNotFoundError) ||
+                            revoked.lifecycleStatus !== "provisioning"
+                        )
+                            throw error;
+                    }
+                    await repository.recordSessionOwnership(
+                        { ...binding(revoked), lifecycleStatus: "closed" },
+                        now()
+                    );
+                }
+                continue;
+            }
+            const snapshot = recovered.snapshot;
+            if (!snapshot) throw new Error("RECOVERY_UNAVAILABLE: snapshot missing");
+            const status = snapshot.state.lifecycle.status;
+            if (status === "paused" || status === "archived") {
+                await dependencies.stopDelivery(record.meetingId);
+                for (const ownership of recovered.sessionOwnership)
+                    await dependencies.owner.suspend({ ownership, reason: `Meeting ${status}` });
+                continue;
+            }
+            if (status === "terminal" || status === "archiving") {
+                for (const ownership of recovered.sessionOwnership) {
+                    if (ownership.capabilityStatus === "active")
+                        await repository.recordSessionOwnership(
+                            { ...binding(ownership), capabilityStatus: "revoked" },
+                            now()
+                        );
+                }
+            } else {
+                try {
+                    for (const identity of snapshot.state.identities) {
+                        const ownership = recovered.sessionOwnership.find(
+                            (o) =>
+                                o.id === identity.sessionOwnershipId && o.identityId === identity.id
+                        );
+                        if (
+                            !ownership ||
+                            ownership.lifecycleStatus !== "active" ||
+                            ownership.capabilityStatus !== "active"
+                        )
+                            throw new Error(
+                                "RECOVERY_UNAVAILABLE: active identity ownership missing"
+                            );
+                        await dependencies.owner.resume({
+                            ownership,
+                            definition: definitionFor(ownership),
+                            purpose: "delivery",
+                            signal
+                        });
+                    }
+                } catch (error) {
+                    await dependencies.stopDelivery(record.meetingId);
+                    for (const ownership of recovered.sessionOwnership)
+                        await dependencies.owner.suspend({
+                            ownership,
+                            reason: "Meeting recovery failed"
+                        });
+                    throw error;
+                }
+            }
+            await dependencies.ensureDelivery(record.meetingId);
+        } catch (error) {
+            if (!dependencies.onError) throw error;
+            dependencies.onError(record.meetingId, error);
+        }
     }
-}
+};
 
 const createIdentityProvisionOwner = (dependencies: {
     repository: MeetingRepositoryPort<MeetingState>;
@@ -319,7 +461,7 @@ export async function activateTargetMeetingApplication(
         ...(catalog === undefined ? {} : { catalog })
     });
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
-    const ensureDelivery = async (meetingId: string, parent: Agent): Promise<void> => {
+    const ensureDelivery = async (meetingId: string): Promise<void> => {
         const repository = await registry.openMeeting({ meetingId });
         const existing = deliveryWorkers.get(meetingId);
         if (existing) {
@@ -413,27 +555,29 @@ export async function activateTargetMeetingApplication(
         deliveryWorkers.set(meetingId, worker);
         void worker.start().catch(() => undefined);
     };
-    deliveryEnsurers.set(ctx, (meetingId, parent) => {
-        void ensureDelivery(meetingId, parent);
-    });
-    await recoverTargetMeetingDeliveries({
-        registry,
-        agents: ctx.agents,
-        ensureDelivery
-    });
-    (
-        ctx as Context & {
-            on?: (event: "agent/created", listener: (agent: Agent) => void) => unknown;
-        }
-    ).on?.("agent/created", () => {
-        void recoverTargetMeetingDeliveries({
+    const stopDelivery = async (meetingId: string) => {
+        const worker = deliveryWorkers.get(meetingId);
+        if (!worker) return;
+        worker.stop();
+        await worker.wait();
+        deliveryWorkers.delete(meetingId);
+    };
+    const reconcile = (meetingId?: string) =>
+        recoverTargetMeetingDeliveries({
             registry,
-            agents: ctx.agents,
-            ensureDelivery
-        }).catch((error: unknown) => {
-            ctx.logger("convivium:meeting").error("Meeting delivery recovery failed %o", error);
+            owner: agentOwner,
+            definitions,
+            ensureDelivery,
+            stopDelivery,
+            ...(meetingId === undefined ? {} : { meetingId }),
+            onError: (id, error) => {
+                ctx.logger("convivium:meeting").error("Meeting %s recovery failed %o", id, error);
+            }
         });
+    deliveryEnsurers.set(ctx, (meetingId) => {
+        void reconcile(meetingId);
     });
+    await reconcile();
     const runtime = {
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
@@ -462,13 +606,15 @@ export async function activateTargetMeetingApplication(
                         message: "The action is not a local Meeting control."
                     }
                 });
-            return application.execute(
+            const result = await application.execute(
                 command,
                 {
                     caller: { channel: "loopback_remote", principalId: "local-controller" }
                 },
                 signal
             );
+            if (result.kind === "accepted") await reconcile(command.meetingId);
+            return result;
         },
         async *subscribeRefresh(signal: AbortSignal) {
             const notices: { meetingId: string; committedVersion: number }[] = [];

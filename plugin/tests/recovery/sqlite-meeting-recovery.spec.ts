@@ -1,7 +1,8 @@
+import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.js";
 import { DatabaseSync } from "node:sqlite";
 import { meetingDomainName } from "@/repository/domain/keys.js";
 import { peerBindings } from "../fixtures/peer-ownership.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomain from "@deepseek-ai/dsh-storage-domain";
@@ -210,4 +211,74 @@ describe("target Meeting persistence on SQLite", () => {
         });
         await second.close();
     });
+});
+
+it("cold recovery finishes the original persisted creation and outbox without resubmitting user input", async () => {
+    const path = await databasePath();
+    const first = await open(path, true);
+    const state = makeRunningMeetingStateV1();
+    for (let i = 0; i < 4; i++)
+        state.identities.push({ ...state.identities[1]!, id: `extra-${i}` });
+    const bindings = peerBindings(state.id, state.identities);
+    state.identities = state.identities.map((i) => ({
+        ...i,
+        sessionOwnershipId: bindings.initialOwnership.find((o) => o.identityId === i.id)!.id
+    }));
+    const result = {
+        meetingId: state.id,
+        meetingVersion: 1,
+        kind: "accepted" as const,
+        committedVersion: 1,
+        receiptId: "original-receipt",
+        factIds: [],
+        effects: []
+    };
+    await first.registry.openMeeting({
+        meetingId: state.id,
+        create: {
+            requestId: "original-create",
+            requestHash: "original-hash",
+            authorization,
+            initialState: state,
+            ...bindings,
+            createResult: result,
+            outbox: [
+                {
+                    id: "original-notice",
+                    deliveryId: "original-notice",
+                    kind: "dispatch",
+                    payload: { kind: "agent_notice" }
+                }
+            ],
+            createdAt: 1
+        }
+    });
+    await first.close();
+    const second = await open(path, true);
+    try {
+        const resume = vi.fn(async () => {});
+        const ensureDelivery = vi.fn(async () => {});
+        await recoverTargetMeetingDeliveries({
+            registry: second.registry,
+            owner: { resume, stop: vi.fn(), suspend: vi.fn() },
+            definitions: bindings.initialOwnership.map((o) => o.definition),
+            ensureDelivery,
+            stopDelivery: vi.fn(),
+            now: () => 50
+        } as never);
+        const recovered = await (
+            await second.registry.openMeeting({ meetingId: state.id })
+        ).recover();
+        expect(recovered.bootstrap.status).toBe("ready");
+        expect(recovered.bootstrap.createResult).toEqual(result);
+        expect(recovered.snapshot?.state).toEqual(state);
+        expect(recovered.pendingOutbox).toBe(1);
+        expect(recovered.sessionOwnership.map((o) => o.sessionId)).toEqual(
+            bindings.initialOwnership.map((o) => o.sessionId)
+        );
+        expect(resume).toHaveBeenCalledTimes(14);
+        expect(ensureDelivery).toHaveBeenCalledWith(state.id);
+    } finally {
+        await second.close();
+    }
 });

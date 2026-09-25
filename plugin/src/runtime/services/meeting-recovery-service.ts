@@ -3,17 +3,16 @@ import { inspectOwnedSessions, type OwnedSessionInspection } from "@/dsh/index.j
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/meeting-repository-port.js";
-import type { MeetingSnapshot, RecoveryResult } from "@/repository/types.js";
+import type { MeetingBootstrap, MeetingSnapshot, RecoveryResult } from "@/repository/types.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
     readonly name = "LocalMeetingRecoveryUnavailableError";
 }
 
 export interface RecoverableMeeting {
-    readonly teamId: string;
-    readonly captainSessionId: string;
+    readonly meetingId: string;
+    readonly creator: MeetingBootstrap["creator"];
     readonly repository: MeetingRepository;
-    parent?: Agent;
 }
 
 export type RehydrateMode =
@@ -30,41 +29,35 @@ export interface MeetingRehydrationServiceOptions {
     readonly reconcile?: (
         repository: MeetingRepository,
         existing?: RecoverableMeeting
-    ) => Promise<Agent | undefined>;
+    ) => Promise<void>;
 }
 
 export interface MeetingRehydrationService {
     rehydrate(mode?: RehydrateMode): Promise<Map<string, MeetingSnapshot> | undefined>;
 }
 
-function supportsContributionRuntime(snapshot: MeetingSnapshot | undefined): boolean {
-    return (
-        snapshot !== undefined &&
-        (snapshot.state as { readonly contributions?: unknown }).contributions !== undefined
-    );
-}
-
 /** Owns catalog discovery and repository recovery; it makes no meeting command decisions. */
-export function createMeetingRehydrationService(
+export const createMeetingRehydrationService = (
     options: MeetingRehydrationServiceOptions
-): MeetingRehydrationService {
+): MeetingRehydrationService => {
     const unavailable = (error: unknown): LocalMeetingRecoveryUnavailableError =>
         error instanceof LocalMeetingRecoveryUnavailableError
             ? error
             : new LocalMeetingRecoveryUnavailableError("Local meeting recovery is unavailable.", {
                   cause: error
               });
-    async function recoverLocal(
+    const recoverLocal = async (
         snapshots: Map<string, MeetingSnapshot>,
         meetingId: string,
         existing?: RecoverableMeeting
-    ): Promise<void> {
+    ): Promise<void> => {
         if (options.isCreating?.(meetingId)) return;
         let repository = existing?.repository;
         try {
             if (repository === undefined) {
                 repository = await (await options.registry).openMeeting({ meetingId });
             }
+            await options.reconcile?.(repository, existing);
             const recovered = await repository.recover();
             if (
                 recovered.bootstrap.status === "creating" ||
@@ -73,27 +66,22 @@ export function createMeetingRehydrationService(
                 if (existing !== undefined) options.meetings.delete(meetingId);
                 return;
             }
-            const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-            if (recovered.snapshot === undefined || parentSessionId === undefined) {
+            if (recovered.snapshot === undefined) {
                 throw new Error("Ready Meeting recovery is incomplete.");
             }
-            if (!supportsContributionRuntime(recovered.snapshot)) return;
-            const parent = await options.reconcile?.(repository, existing);
             const current = await repository.read();
             if (existing === undefined) {
                 options.meetings.set(meetingId, {
-                    teamId: (recovered.snapshot.state as { readonly teamId: string }).teamId,
-                    captainSessionId: parentSessionId,
-                    parent,
+                    meetingId,
+                    creator: recovered.bootstrap.creator,
                     repository
                 });
             }
-            if (existing !== undefined && parent !== undefined) existing.parent = parent;
             snapshots.set(meetingId, current);
         } catch (error) {
             throw unavailable(error);
         }
-    }
+    };
 
     return {
         async rehydrate(mode = { kind: "agent_best_effort" }) {
@@ -134,20 +122,13 @@ export function createMeetingRehydrationService(
                     const repository = await (
                         await options.registry
                     ).openMeeting({ meetingId: record.meetingId });
+                    await options.reconcile?.(repository);
                     const recovered = await repository.recover();
-                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-                    if (
-                        recovered.bootstrap.status !== "ready" ||
-                        recovered.snapshot === undefined ||
-                        !supportsContributionRuntime(recovered.snapshot) ||
-                        parentSessionId === undefined
-                    )
+                    if (recovered.bootstrap.status !== "ready" || recovered.snapshot === undefined)
                         continue;
-                    const parent = await options.reconcile?.(repository);
                     options.meetings.set(record.meetingId, {
-                        teamId: (recovered.snapshot.state as { readonly teamId: string }).teamId,
-                        captainSessionId: parentSessionId,
-                        parent,
+                        meetingId: record.meetingId,
+                        creator: recovered.bootstrap.creator,
                         repository
                     });
                 } catch {
@@ -156,7 +137,7 @@ export function createMeetingRehydrationService(
             }
         }
     };
-}
+};
 
 export interface CaptainRebindDependencies {
     readonly parent: Agent;

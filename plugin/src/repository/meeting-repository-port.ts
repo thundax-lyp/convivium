@@ -30,7 +30,7 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     readonly meetingId: string;
     create(input: CreateMeetingInput<TState>): Promise<MeetingBootstrap>;
     completeCreate(
-        input: CreateMeetingInput<TState>
+        input: Pick<CreateMeetingInput<TState>, "requestId" | "requestHash" | "authorization">
     ): Promise<CommittedResult<CreateMeetingResult>>;
     updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
     updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;

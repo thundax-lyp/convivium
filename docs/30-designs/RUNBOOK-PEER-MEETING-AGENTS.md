@@ -685,3 +685,4 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - T10 消息 dispatcher 改用 MeetingAgentOwner 的 resume/deliver，投递使用持久 deliveryId，pre/post 回调重新读当前 Meeting/identity/ownership；普通通知 flush false 抛出可重试错误，暂停审核请求不再直接返回成功。4 文件 26 项通过，覆盖六种 notice 与审核请求/结果；崩溃窗口 dispatcher 测试使用 owner 替身，真实 followup/flush 证据仍由 owner 与 T21 提供。统一 effect 路由已删 parent，归档 dispatcher 与冷恢复接线待 T11 完成后联合验证。
 
 - T11 归档子链：先加入无 parent、全部撤权先于 stop、失败重试和跨会议/错误 label 拒绝测试；旧实现 3 FAIL / 1 PASS。替换为 MeetingAgentOwner.stop 后 4 PASS。归档包含已持久化的动态准入 ownership，关闭失败仍保留 revoked 状态；冷恢复与暂停子链尚未完成，T11 未整体 PASS。
+- T11 冷恢复与暂停子链：7 项新恢复断言先 RED，改为逐会恢复原 ownership、creating 原 descriptor、失败撤权关闭、paused 停 worker 后 suspend、终态撤权后归档。SQLite 重开新增用例发现 creation 未保存原 createResult，已修复；completeCreate 参数收窄为 requestId/hash/authorization，其余均取原 creation record，避免冷启动重建输入。这是执行中为落实原绑定恢复补齐的 T6 接口缺口，允许范围追加 Repository port/core 与接口说明。恢复 14 项、archive/lifecycle 6 项、创建与原生 owner 8 项、Repository facts 12 项通过；端到端用户入口、Catalog 和旧接口清理仍依 T16/T17/T20 联合验收，不以聚焦通过宣称全包通过。
