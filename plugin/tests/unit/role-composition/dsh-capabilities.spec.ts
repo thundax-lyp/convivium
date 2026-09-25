@@ -1,131 +1,154 @@
-import { describe, expect, it, vi } from "vitest";
-import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
+import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { definitionHash } from "@/role-composition/resolve.js";
+import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
+import { resolveResourceBinding } from "@/role-composition/resource-binding.js";
 
-const definitions = parseAgentDefinitions([
-    {
-        agentDefinitionId: "a",
-        definitionVersion: "1",
-        roleDefinitionId: "meeting_manager",
-        displayName: "A",
-        summary: "A",
-        roleDescription: "A",
-        dshPresetId: "minimal",
-        requiredSkillNames: ["fixture"],
-        expertiseTags: ["fixture"],
-        evidenceScopes: []
-    }
-]);
-const skill = {
-    name: "fixture",
-    content: "body",
-    invocation: { modelInvocable: true, userInvocable: true }
-};
-function fixture() {
-    const presets = { composedPreset: vi.fn(() => "minimal") };
-    const skills = { get: vi.fn(async (name: string) => ({ ...skill, name })) };
-    const parent = {
-        ctx: { get: vi.fn((key: string) => (key === "agentPresets" ? presets : skills)) },
-        session: { header: { cwd: "/fixture" } }
+const roots: string[] = [];
+afterEach(async () => {
+    await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+const fixture = async () => {
+    const packageRoot = await mkdtemp(join(tmpdir(), "peer-preflight-"));
+    roots.push(packageRoot);
+    await cp(
+        fileURLToPath(new URL("../../../config", import.meta.url)),
+        join(packageRoot, "config"),
+        { recursive: true }
+    );
+    const definitions = parseAgentDefinitions(
+        JSON.parse(await readFile(join(packageRoot, "config/definitions.json"), "utf8")).definitions
+    );
+    const definition = definitions.find((d) => d.roleDefinitionId === "domain_architect")!;
+    const path = join(packageRoot, "config/skills/repository-analysis/SKILL.md");
+    const content = (await readFile(path, "utf8"))
+        .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+        .trim();
+    const skill = {
+        name: "repository-analysis",
+        description: "Repository",
+        content,
+        provider: definition.dshPresetId,
+        source: "custom",
+        path,
+        resourceBase: {
+            kind: "directory" as const,
+            path: join(packageRoot, "config/skills/repository-analysis")
+        },
+        invocation: { modelInvocable: true, userInvocable: true }
     };
-    return { parent, presets, skills, signal: new AbortController().signal };
-}
-describe("shared role capabilities", () => {
-    const sharedDefinitions = parseAgentDefinitions([
-        ...definitions,
-        { ...definitions[0], agentDefinitionId: "b", requiredSkillNames: ["fixture", "second"] }
-    ]);
-    it("checks the exact parent scope and cwd with deduplicated skill names", async () => {
-        const f = fixture();
-        await validateSharedRoleCapabilities(f.parent, sharedDefinitions, f.signal);
-        expect(f.presets.composedPreset).toHaveBeenNthCalledWith(1, f.parent.ctx);
-        expect(f.presets.composedPreset).toHaveBeenCalledTimes(2);
-        expect(f.skills.get).toHaveBeenCalledTimes(2);
-        for (const name of ["fixture", "second"]) {
-            expect(f.skills.get).toHaveBeenCalledWith(name, {
-                scope: f.parent,
-                cwd: "/fixture",
-                signal: f.signal
-            });
-        }
-    });
-    it("skips all services for empty selection", async () => {
-        const f = fixture();
-        await validateSharedRoleCapabilities(f.parent, [], f.signal);
-        expect(f.parent.ctx.get).not.toHaveBeenCalled();
-    });
-    it("checks only the shared Preset when selected roles require no Skills", async () => {
-        const f = fixture();
-        const withoutSkills = parseAgentDefinitions([
-            { ...definitions[0], requiredSkillNames: [] }
+    const scope = {};
+    const skills = {
+        snapshot: vi.fn(async () => ({ complete: true, skills: [skill] })),
+        get: vi.fn(async (name: string) => (name === skill.name ? skill : undefined))
+    };
+    const ctx = { agentPresets: { standingKeyFor: vi.fn(async () => scope) }, skills };
+    const input = {
+        ctx,
+        cwd: packageRoot,
+        packageRoot,
+        definition,
+        binding: {
+            agentDefinitionId: definition.agentDefinitionId,
+            definitionVersion: definition.definitionVersion,
+            definitionHash: definitionHash(definition)
+        },
+        agentOptions: { provider: "host", model: "model" },
+        meetingId: "meeting",
+        identityId: "identity",
+        sessionId: "session",
+        now: 100,
+        signal: new AbortController().signal
+    };
+    return { input, skills, scope, path };
+};
+describe("role resource preflight", () => {
+    it("binds the exact role view, immutable resources and expiring descriptor before any Session", async () => {
+        const f = await fixture();
+        const result = await preflightMeetingIdentity(f.input);
+        expect(result.kind).toBe("ready");
+        if (result.kind !== "ready") throw new Error(result.error.code);
+        expect(result.descriptor).toMatchObject({
+            meetingId: "meeting",
+            identityId: "identity",
+            sessionId: "session",
+            expiresAt: 300100,
+            definition: f.input.binding,
+            agentOptions: f.input.agentOptions
+        });
+        expect(result.descriptor.resources.skills.map((s) => s.name)).toEqual([
+            "repository-analysis"
         ]);
-        f.parent.ctx.get.mockImplementation((key) =>
-            key === "agentPresets" ? f.presets : undefined
-        );
-        await validateSharedRoleCapabilities(f.parent, withoutSkills, f.signal);
-        expect(f.presets.composedPreset).toHaveBeenCalledTimes(2);
-        expect(f.skills.get).not.toHaveBeenCalled();
+        expect(f.skills.snapshot).toHaveBeenCalledWith({
+            scope: f.scope,
+            cwd: f.input.cwd,
+            signal: f.input.signal
+        });
+        expect(f.skills.get.mock.calls.map(([name]) => name).sort()).toEqual([
+            "arxiv",
+            "evidence-review",
+            "github",
+            "meeting-facilitation",
+            "repository-analysis"
+        ]);
     });
-    it("rejects absent services and mismatched or absent presets", async () => {
-        for (const key of ["agentPresets", "skills"]) {
-            const f = fixture();
-            f.parent.ctx.get.mockImplementation((name) =>
-                name === key ? undefined : name === "agentPresets" ? f.presets : f.skills
-            );
-            await expect(
-                validateSharedRoleCapabilities(f.parent, definitions, f.signal)
-            ).rejects.toMatchObject({
-                code: "UNSUPPORTED_CAPABILITY",
-                message: "Meeting role composition is unavailable."
+    it.each(["extra", "missing", "incomplete", "override", "hidden-load"])(
+        "rejects %s skills without publishing a descriptor",
+        async (mode) => {
+            const f = await fixture();
+            const snapshot = await f.skills.snapshot();
+            if (mode === "extra")
+                f.skills.snapshot.mockResolvedValue({
+                    complete: true,
+                    skills: [...snapshot.skills, { ...snapshot.skills[0], name: "extra" }]
+                });
+            if (mode === "missing")
+                f.skills.snapshot.mockResolvedValue({ complete: true, skills: [] });
+            if (mode === "incomplete")
+                f.skills.snapshot.mockResolvedValue({ complete: false, skills: snapshot.skills });
+            if (mode === "override")
+                f.skills.get.mockResolvedValue({ ...snapshot.skills[0], content: "replaced" });
+            if (mode === "hidden-load")
+                f.skills.get.mockImplementation(async (name) => ({ ...snapshot.skills[0], name }));
+            expect(await preflightMeetingIdentity(f.input)).toMatchObject({
+                kind: "rejected",
+                error: { code: "CAPABILITY_MISSING" }
             });
         }
-        for (const preset of ["", "other"]) {
-            const f = fixture();
-            f.presets.composedPreset.mockReturnValue(preset);
-            await expect(
-                validateSharedRoleCapabilities(f.parent, definitions, f.signal)
-            ).rejects.toThrow();
-            expect(f.skills.get).not.toHaveBeenCalled();
-        }
+    );
+    it("fingerprints scripts and rejects symlinks and changed identity instructions", async () => {
+        const f = await fixture();
+        const before = await resolveResourceBinding(f.input);
+        const script = join(f.input.packageRoot, "config/skills/repository-analysis/probe.sh");
+        await writeFile(script, "first");
+        const changed = await resolveResourceBinding(f.input);
+        expect(changed.skills[0].sha256).not.toBe(before.skills[0].sha256);
+        await rm(script);
+        await symlink(f.path, script);
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });
+        await rm(script);
+        await writeFile(
+            join(f.input.packageRoot, "config/agents/domain_architect/2.0.0/AGENTS.md"),
+            "changed"
+        );
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });
     });
-    it("rejects unavailable, non-model, empty, throwing or changed capabilities safely", async () => {
-        for (const result of [
-            undefined,
-            { ...skill, name: "second", content: " " },
-            { ...skill, name: "second", invocation: { modelInvocable: false, userInvocable: true } }
-        ]) {
-            const f = fixture();
-            f.skills.get.mockResolvedValueOnce(skill).mockResolvedValueOnce(result);
-            await expect(
-                validateSharedRoleCapabilities(f.parent, sharedDefinitions, f.signal)
-            ).rejects.toThrow("Meeting role composition is unavailable.");
-        }
-        const f = fixture();
-        f.skills.get.mockRejectedValue(new Error("secret"));
+    it("rejects stale definition bindings and propagates cancellation", async () => {
+        const f = await fixture();
+        expect(
+            await preflightMeetingIdentity({
+                ...f.input,
+                binding: { ...f.input.binding, definitionHash: "f".repeat(64) }
+            })
+        ).toMatchObject({ kind: "rejected" });
+        const controller = new AbortController();
+        controller.abort(new Error("cancelled"));
         await expect(
-            validateSharedRoleCapabilities(f.parent, definitions, f.signal)
-        ).rejects.toThrow("Meeting role composition is unavailable.");
-        const changed = fixture();
-        changed.presets.composedPreset.mockReturnValueOnce("minimal").mockReturnValue("other");
-        await expect(
-            validateSharedRoleCapabilities(changed.parent, definitions, changed.signal)
-        ).rejects.toThrow();
-    });
-    it("preserves cancellation before and during lookup", async () => {
-        for (const before of [true, false]) {
-            const f = fixture();
-            const controller = new AbortController();
-            const reason = new Error("cancelled");
-            if (before) controller.abort(reason);
-            else
-                f.skills.get.mockImplementation(async () => {
-                    controller.abort(reason);
-                    return skill;
-                });
-            await expect(
-                validateSharedRoleCapabilities(f.parent, definitions, controller.signal)
-            ).rejects.toBe(reason);
-            if (before) expect(f.skills.get).not.toHaveBeenCalled();
-        }
+            preflightMeetingIdentity({ ...f.input, signal: controller.signal })
+        ).rejects.toThrow("cancelled");
     });
 });
