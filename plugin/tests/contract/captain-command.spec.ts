@@ -171,6 +171,17 @@ import {
     validateMeetingState
 } from "@/domain/index.js";
 
+const mapBusinessAction = (action) => ({
+    ...action,
+    ...(action.kind === "activate_agenda" ? { agendaId: "next" } : {}),
+    ...(action.kind === "dispose_agenda_candidate" ? { candidateId: "candidate" } : {}),
+    ...(action.kind === "decide" ? { candidateId: "cand" } : {}),
+    ...(action.kind === "abort_round" ? { roundId: "open-round" } : {}),
+    ...(action.kind === "change_decision" ? { decisionId: "dec" } : {}),
+    ...(action.kind === "record_completion_fact" ? { decisionIds: ["dec"] } : {}),
+    ...(action.kind === "change_completion_fact" ? { factId: "fact" } : {})
+});
+
 const businessFixture = async (action, terminal = false) => {
     let state = completionReadyState();
     state.objective.requiredOutputs.push({ id: "pending", text: "remaining", status: "pending" });
@@ -308,16 +319,7 @@ const businessFixture = async (action, terminal = false) => {
         clock: { now: () => 10 },
         resolveCallerScope: async ({ caller }) => ({ caller, meetingId: "m", role: "captain" })
     } as never);
-    const mapped = {
-        ...action,
-        ...(action.kind === "activate_agenda" ? { agendaId: "next" } : {}),
-        ...(action.kind === "dispose_agenda_candidate" ? { candidateId: "candidate" } : {}),
-        ...(action.kind === "decide" ? { candidateId: "cand" } : {}),
-        ...(action.kind === "abort_round" ? { roundId: "open-round" } : {}),
-        ...(action.kind === "change_decision" ? { decisionId: "dec" } : {}),
-        ...(action.kind === "record_completion_fact" ? { decisionIds: ["dec"] } : {}),
-        ...(action.kind === "change_completion_fact" ? { factId: "fact" } : {})
-    };
+    const mapped = mapBusinessAction(action);
     const command = { ...envelope, action: mapped };
     return {
         command,

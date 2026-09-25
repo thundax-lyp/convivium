@@ -275,7 +275,9 @@ describe("identity filtered view and archive provenance", () => {
         });
         expect(other).toMatchObject({ evidenceValidationStatuses: [] });
     });
+});
 
+describe("archive provenance", () => {
     it("projects the value archive locally without identity ownership data", () => {
         const terminal = endMeeting(makeRunningMeetingStateV1(), {
             terminationId: "termination-1",

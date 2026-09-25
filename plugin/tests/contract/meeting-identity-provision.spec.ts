@@ -158,7 +158,9 @@ describe("identity provision effect handler", () => {
         });
         expect(execute).not.toHaveBeenCalled();
     });
+});
 
+describe("identity provision lifecycle races", () => {
     it("does not start provisioning while the Meeting is paused", async () => {
         const provision = vi.fn();
         const handler = createMeetingIdentityEffectHandler({
