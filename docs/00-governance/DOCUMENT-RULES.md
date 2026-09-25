@@ -75,11 +75,12 @@
 
 当前设计文档按以下职责维护，其他文档使用摘要和链接，不重复定义：
 
-| 文档 | 唯一维护的设计内容 |
-| --- | --- |
-| [Domain](../30-designs/DOMAIN-DESIGN.md) | Meeting 聚合的字段、枚举、引用、纯派生规则与领域不变量 |
-| [Meeting](../30-designs/MEETING-DESIGN.md) | 命令编排、状态转换、授权顺序、并发、提交、效果、恢复与归档边界 |
-| [DSH Plugin](../30-designs/DSH-PLUGIN-DESIGN.md) | 插件装配、角色资源、会议身份与 Session、受控入口和本地展示 |
+| 文档                                                               | 唯一维护的设计内容                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [Domain](../30-designs/DOMAIN-DESIGN.md)                           | Meeting 聚合的字段、枚举、引用、纯派生规则与领域不变量                  |
+| [Meeting](../30-designs/MEETING-DESIGN.md)                         | 命令编排、状态转换、授权顺序、并发、提交、效果、恢复与归档边界          |
+| [DSH Plugin](../30-designs/DSH-PLUGIN-DESIGN.md)                   | 插件装配、受控入口和本地展示                                            |
+| [Peer Meeting Agents](../30-designs/PEER-MEETING-AGENTS-DESIGN.md) | 平级会议 Agent 的资源装配、Session ownership、投递、恢复和 Captain 来源 |
 
 产品行为、公开字段、错误和存储 record schema 仍由需求及接口契约约束。去重时先核对唯一内容和已确认口径，再迁移或删除；不得把过时类型声明直接复制到当前真相源。
 

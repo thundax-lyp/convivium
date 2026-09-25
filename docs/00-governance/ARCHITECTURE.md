@@ -14,21 +14,22 @@
 
 ## Runtime Boundaries
 
-| 边界 | 所有权与限制 |
-| --- | --- |
-| DSH Host/profile | 提供插件加载、AgentSession、continuable provider、Tools、Web/UI 宿主和原生 Session Event；拥有 Preset、Skills、MCP、Sandbox、Approval、模型配置及其安装执行 |
-| Meeting Runtime | 插件后端内的会议领域执行者；拥有 Meeting/Participant/Turn/MeetingTask、发言 capability、Session ownership、持久化和投影，不脱离 DSH 运行 |
-| Plugin Frontend | 通过后端公开、类型化且受 Host/identity 边界约束的入口展示会议和执行用户控制；不直接管理 Session、介质、敏感配置或任意文件访问，不判定最终领域状态或权限 |
-| DSH AgentSession | 独立运行主体，拥有独立上下文和能力；其内部推理、Prompt、Skills、Tools、工作流与重试过程由 DSH/Agent 管理，不是会议领域事实源 |
+| 边界             | 所有权与限制                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DSH Host/profile | 提供插件加载、独立 AgentSession 创建与恢复、Reviewer 一次性 Subagent、Tools、Web/UI 宿主和原生 Session Event；拥有 Preset、Skills、MCP、Sandbox、Approval、模型配置及其安装执行 |
+| Meeting Runtime  | 插件后端内的会议领域执行者；拥有 Meeting/Participant/Turn/MeetingTask、发言 capability、Session ownership、持久化和投影，不脱离 DSH 运行                                        |
+| Plugin Frontend  | 通过后端公开、类型化且受 Host/identity 边界约束的入口展示会议和执行用户控制；不直接管理 Session、介质、敏感配置或任意文件访问，不判定最终领域状态或权限                         |
+| DSH AgentSession | 独立运行主体，拥有独立上下文和能力；其内部推理、Prompt、Skills、Tools、工作流与重试过程由 DSH/Agent 管理，不是会议领域事实源                                                    |
 
-会议工具和 runtime 不依赖 WebServer；Web 服务可用性只影响路由挂载，不重建会议 runtime 或工具。无 Web 的组合仍须提供核心 Session、continuable provider 和 Storage Domain 能力；边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
+会议工具和 runtime 不依赖 WebServer；Web 服务可用性只影响路由挂载，不重建会议 runtime 或工具。无 Web 的组合仍须提供核心 Agent/Session 生命周期、Reviewer 一次性 Subagent provider 和 Storage Domain 能力；边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 ## Identity And Session Isolation
 
-- 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用独立 continuable AgentSession，不跨会议、身份或授权范围共享上下文。
+- 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用平级、独立且可持续的 AgentSession，不跨会议、身份或授权范围共享上下文。Captain 是本地用户的控制身份，不是 MeetingIdentity、Participant 或这些 Session 的 DSH parent；Reviewer 的一次性审核 worker 仍可作为其 Subagent 运行。
+- Captain 是当前本地用户的会议控制身份，可信用户入口提交控制操作；Session 仅可记录输入来源，不承载 Captain 权限。七个会议 Agent 和投递独立运行，关闭或更换输入 Session、重开面板不影响用户控制。Agent 正式交流仍经 Meeting Runtime，不开放绕过记录的直接互发。
 - Manager 只读取 Catalog 安全投影，并通过结构化会议操作对当前 candidate 明确作出 `admit` 或 `reject` 决定；自然语言或目录可用性不构成决定。`admit` 形成不可调度的 provisioning 意图；只有 Runtime 完成独立 Session provisioning 与 durable ownership 后，candidate 才可调度。Manager 不能接纳自己、取得 capability secret、任意创建角色或扩大权限。
-- Convivium 拥有 Definition、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。Definition 只引用 DSH 公开角色能力，不能用 persona 或 Runtime installer 假装安装能力；创建前必须验证宿主组合，缺能力时 fail closed。
-- DSH 拥有实际运行配置与 Session 执行 descriptor；Convivium 的 `PreparedDescriptor` 只记录经公开 DSH 能力预检后的会议、父 Session、Definition 与到期约束，并保存 identity/provenance 与 Session ownership，不复制执行配置；角色资源和预检见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
+- Convivium 拥有 Definition、每角色版本化 AGENTS 身份资源、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。AGENTS 声明身份和能力范围，任务方法由可复用 Skill 提供；Definition 绑定精确 AGENTS 资源和 DSH 公开能力。身份指令不能用来假装安装能力，创建前必须验证宿主组合，缺能力时 fail closed。
+- DSH 拥有实际 Session 执行与 Host 能力；Convivium 的私有 `PreparedDescriptor` 和 `SessionOwnership` 固化会议/身份/Session、Definition、AGENTS/Preset/Skill 资源指纹及有效模型选择，供创建和冷恢复精确重装。Captain 创建来源只在该 Meeting 私有 bootstrap 保存，不进入 Agent descriptor 或 ownership。字段和失败语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
 - Convivium 只提供会议身份的授权上限，不扩大用户或 DSH 已授予的权限。代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
 - Session 创建、继续投递、interrupt、恢复与 resident Activation 释放只通过受控 DSH adapter。归档后的持久不可继续语义由 capability revoke 保证，不要求删除 DSH 持久 Session 数据；调用边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
