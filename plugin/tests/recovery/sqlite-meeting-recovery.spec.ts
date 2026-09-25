@@ -1,3 +1,5 @@
+import { DatabaseSync } from "node:sqlite";
+import { meetingDomainName } from "@/repository/domain/keys.js";
 import { peerBindings } from "../fixtures/peer-ownership.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
@@ -73,6 +75,14 @@ describe("target Meeting persistence on SQLite", () => {
         for (const item of create.initialOwnership)
             await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
         await repository.completeCreate(create);
+        await repository.recordSessionOwnership(
+            {
+                ...create.initialOwnership[0],
+                lifecycleStatus: "active",
+                capabilityStatus: "revoked"
+            },
+            2
+        );
         const resultingState = { ...state, version: 1, updatedAt: 2 };
         await repository.execute({
             requestId: "close-session",
@@ -119,6 +129,57 @@ describe("target Meeting persistence on SQLite", () => {
         });
         await second.close();
     });
+
+    it.each([1, 2])(
+        "rejects invalid creation format %s without writing storage",
+        async (version) => {
+            const path = await databasePath();
+            const first = await open(path, true);
+            const state = makeRunningMeetingStateV1();
+            for (let i = 0; i < 4; i++)
+                state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+            await first.registry.openMeeting({
+                meetingId: state.id,
+                create: {
+                    requestId: "create",
+                    requestHash: "hash",
+                    authorization,
+                    initialState: state,
+                    ...peerBindings(state.id, state.identities),
+                    createdAt: 1
+                }
+            });
+            await first.close();
+            const db = new DatabaseSync(path);
+            const table = `u_${meetingDomainName(state.id)}_creation`;
+            const original = db
+                .prepare(`SELECT value FROM "${table}" WHERE key = ?`)
+                .get("current");
+            const changed = {
+                ...JSON.parse(String(original!.value)),
+                formatVersion: version,
+                preparedDescriptors: null
+            };
+            const bytes = JSON.stringify(changed);
+            db.prepare(`UPDATE "${table}" SET value = ? WHERE key = ?`).run(bytes, "current");
+            db.close();
+            const second = await open(path, true);
+            try {
+                await expect(
+                    second.registry.openMeeting({ meetingId: state.id })
+                ).rejects.toMatchObject({
+                    code: version === 1 ? "SCHEMA_VERSION_UNSUPPORTED" : "CORRUPT_DATABASE"
+                });
+            } finally {
+                await second.close();
+            }
+            const after = new DatabaseSync(path);
+            expect(
+                after.prepare(`SELECT value FROM "${table}" WHERE key = ?`).get("current")!.value
+            ).toBe(bytes);
+            after.close();
+        }
+    );
 
     it("rejects a legacy snapshot without migration", async () => {
         const path = await databasePath();

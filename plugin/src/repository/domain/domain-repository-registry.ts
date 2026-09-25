@@ -1,3 +1,4 @@
+import { DomainError as StorageDomainError } from "@deepseek-ai/dsh-storage-domain";
 import type { DiagnosticSink } from "@/repository/diagnostics.js";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { RepositoryError } from "@/repository/errors.js";
@@ -156,7 +157,21 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
                 );
         }
         const domainName = catalog?.domainName ?? meetingDomainName(input.meetingId);
-        const domain = await this.storageDomain.open(createMeetingDomainSpec(domainName));
+        const domain = await this.storageDomain
+            .open(createMeetingDomainSpec(domainName))
+            .catch((error: unknown) => {
+                if (error instanceof StorageDomainError && error.code === "invalid-record") {
+                    if (error.cause instanceof UnsupportedMeetingStateFormatError)
+                        throw new RepositoryError(
+                            "SCHEMA_VERSION_UNSUPPORTED",
+                            false,
+                            input.meetingId,
+                            "Meeting storage format is unsupported"
+                        );
+                    throw corrupt(input.meetingId, "Meeting storage record is invalid");
+                }
+                throw error;
+            });
         try {
             if (catalog) await this.reconcile(domain, key, catalog);
             const repository = await DomainMeetingRepository.open<TState>({

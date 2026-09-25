@@ -440,7 +440,11 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                                 i &&
                                 typeof i === "object" &&
                                 !Array.isArray(i) &&
-                                i.id === o.identityId
+                                i.id === o.identityId &&
+                                Array.isArray(i.roles) &&
+                                (o.role === "participant"
+                                    ? i.roles.includes("contributor")
+                                    : i.roles.includes(o.role))
                         ) &&
                         SessionOwnershipSchema.safeParse({ ...o, createdAt: now, updatedAt: now })
                             .success &&
@@ -869,6 +873,29 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const proof = source.preparedDescriptors.find(
                 (d) => d.descriptorId === input.descriptorId
             );
+            const state = this.projection?.snapshot?.state;
+            const lifecycle = state?.lifecycle;
+            const recommendations = state?.identityRecommendations;
+            const admissionMatches =
+                creation.status === "ready" &&
+                lifecycle &&
+                typeof lifecycle === "object" &&
+                !Array.isArray(lifecycle) &&
+                lifecycle.status === "running" &&
+                Array.isArray(recommendations) &&
+                recommendations.some(
+                    (item) =>
+                        item &&
+                        typeof item === "object" &&
+                        !Array.isArray(item) &&
+                        item.id === input.admissionId &&
+                        item.status === "provisioning" &&
+                        item.identityId === input.identityId &&
+                        item.sessionId === input.sessionId &&
+                        item.definitionId === input.definition.agentDefinitionId &&
+                        item.definitionVersion === input.definition.definitionVersion &&
+                        item.definitionHash === input.definition.definitionHash
+                );
             if (existing) {
                 const previous = ownershipInput(existing);
                 const lifecycleAllowed =
@@ -897,6 +924,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     (!proof ||
                         now >= proof.expiresAt ||
                         creation.status === "creation_failed" ||
+                        (input.admissionId !== undefined && !admissionMatches) ||
                         input.capabilityStatus !== "active")
                 )
                     throw new RepositoryError(
@@ -906,9 +934,6 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                         "Peer preflight expired or activation was revoked."
                     );
             } else {
-                const state = this.projection?.snapshot?.state;
-                const recommendations = state?.identityRecommendations;
-                const lifecycle = state?.lifecycle;
                 if (
                     creation.status !== "ready" ||
                     input.lifecycleStatus !== "provisioning" ||
@@ -917,21 +942,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     !descriptor ||
                     !validateDescriptor(input, descriptor) ||
                     now >= descriptor.expiresAt ||
-                    !lifecycle ||
-                    typeof lifecycle !== "object" ||
-                    Array.isArray(lifecycle) ||
-                    lifecycle.status !== "running" ||
-                    !Array.isArray(recommendations) ||
-                    !recommendations.some(
-                        (item) =>
-                            item &&
-                            typeof item === "object" &&
-                            !Array.isArray(item) &&
-                            item.id === input.admissionId &&
-                            item.status === "provisioning" &&
-                            item.identityId === input.identityId &&
-                            item.sessionId === input.sessionId
-                    ) ||
+                    !admissionMatches ||
                     Object.values(source.sessionOwnership).some(
                         (o) => o.id === input.id || o.identityId === input.identityId
                     )
@@ -948,17 +959,15 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 ? source.preparedDescriptors
                 : [...source.preparedDescriptors, PreparedDescriptorSchema.parse(descriptor)];
             if (!this.projection) {
-                await this.meetingDomain
-                    .table("creation")
-                    .put("current", {
-                        ...creation,
-                        sessionOwnership: {
-                            ...creation.sessionOwnership,
-                            [input.sessionId]: ownership
-                        },
-                        preparedDescriptors: descriptors,
-                        updatedAt: now
-                    });
+                await this.meetingDomain.table("creation").put("current", {
+                    ...creation,
+                    sessionOwnership: {
+                        ...creation.sessionOwnership,
+                        [input.sessionId]: ownership
+                    },
+                    preparedDescriptors: descriptors,
+                    updatedAt: now
+                });
                 return ownership;
             }
             return this.commit({

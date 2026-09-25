@@ -217,7 +217,8 @@ export class DomainMeetingRepository<TState = JsonObject>
             ownership.id !== closure.sessionOwnershipId ||
             ownership.meetingId !== this.meetingId ||
             !ownership.identityId ||
-            ownership.lifecycleStatus === "closed"
+            ownership.lifecycleStatus === "closed" ||
+            ownership.capabilityStatus !== "revoked"
         )
             throw new RepositoryError(
                 "RECOVERY_UNAVAILABLE",

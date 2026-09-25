@@ -664,3 +664,7 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 - 后续小步提交：`8655599c` 为 T4 私有结构；`373a232a` 为角色资源预检；`4ccfe888` 为 Repository 中间实现。复验 Schema、预检、Repository facts、SQLite recovery、owner 共 5 文件、31 测试通过。
 - T6 未完成核对：动态准入激活时重新检查 Meeting/intent 状态、归档关闭前撤权、初始 ownership 与领域角色一致性、旧 creation record 的版本错误映射。T7 仍缺真实工厂集成与 Runtime 注入，不能据上述单测记为整步 PASS。
 - T7 直接声明现有同版 `@deepseek-ai/dsh-llm@0.1.2-rc.1`，仅用于公开 `MessageId`/`ReasoningEffortId` 构造器；允许修改 `plugin/package.json` 与 `plugin/pnpm-lock.yaml`，不升级 DSH 版本。
+
+- T5 补证：逐七角色验证精确能力集合及 modelInvocable 拒绝，共 15 项通过；属于已有行为的保护补测，未伪称新增 RED。descriptor 过期拒绝仍由 Repository CAS/owner 创建处验证；预检负责生成固定 TTL，不接收旧 descriptor。
+- T6 修复：先观察未撤权归档、初始角色错配、动态意图失效仍激活、旧 creation 格式错误分类的行为 RED，再修复；facts/recovery 共 16 项通过。真实 SQLite 验证 v1 拒读为 SCHEMA_VERSION_UNSUPPORTED，v2 畸形为 CORRUPT_DATABASE，失败后原存储字节不变。
+- T6 依赖修订：允许修改 domain-meeting-repository.ts 的归档结果校验、specs.ts 的 creation 版本预检和 domain-repository-registry.ts 的 DomainError 映射；它们是撤权及旧格式拒读的实际边界。T7 增加同版开发依赖 @deepseek-ai/dsh-agent-loop-testkit，用真实工厂组合验证，不替代 T21 Loader/真实模型验收。

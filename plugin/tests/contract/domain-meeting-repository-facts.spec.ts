@@ -180,6 +180,14 @@ describe("target repository facts contract", () => {
                 status: "closed" as const
             }
         };
+        await expect(repository.execute(input)).rejects.toMatchObject({
+            code: "RECOVERY_UNAVAILABLE"
+        });
+        const manager = (await repository.recover()).sessionOwnership.find(
+            (o) => o.identityId === "manager-v1"
+        )!;
+        const { createdAt: _created, updatedAt: _updated, ...binding } = manager;
+        await repository.recordSessionOwnership({ ...binding, capabilityStatus: "revoked" }, 3);
         meeting.failPutsInTable("commits");
         await expect(repository.execute(input)).rejects.toThrow();
         meeting.allowPutsInTable("commits");
@@ -189,7 +197,7 @@ describe("target repository facts contract", () => {
             (await repository.recover()).sessionOwnership.find((o) => o.identityId === "manager-v1")
         ).toMatchObject({
             lifecycleStatus: "active",
-            capabilityStatus: "active"
+            capabilityStatus: "revoked"
         });
         await repository.execute(input);
         expect(
@@ -242,6 +250,14 @@ describe("peer creation and ownership transaction", () => {
         await expect(
             repository.create({ ...input, initialOwnership: input.initialOwnership.slice(1) })
         ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+        await expect(
+            repository.create({
+                ...input,
+                initialOwnership: input.initialOwnership.map((o, i) =>
+                    i === 0 ? { ...o, role: "participant" as const } : o
+                )
+            })
+        ).rejects.toMatchObject({ code: "INVALID_INPUT" });
         await repository.create(input);
         await expect(repository.completeCreate(input)).rejects.toMatchObject({
             code: "INVALID_STATE"
@@ -286,6 +302,102 @@ describe("peer creation and ownership transaction", () => {
         });
         expect((await reopened.recover()).preparedDescriptors).toEqual(input.preparedDescriptors);
     });
+    it.each(["paused", "intent-failed", "definition-changed", "unchanged"])(
+        "rechecks dynamic activation against %s",
+        async (change) => {
+            const state = makeRunningMeetingStateV1();
+            for (let i = 0; i < 4; i++)
+                state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+            const dynamic = peerBindings(state.id, [{ id: "dynamic", roles: ["contributor"] }]);
+            const ownership = { ...dynamic.initialOwnership[0], admissionId: "admission" };
+            const intent = {
+                id: "admission",
+                status: "provisioning",
+                identityId: ownership.identityId,
+                sessionId: ownership.sessionId,
+                definitionId: ownership.definition.agentDefinitionId,
+                definitionVersion: ownership.definition.definitionVersion,
+                definitionHash: ownership.definition.definitionHash
+            };
+            // The generic Repository port validates private ownership against the persisted domain facts.
+            const initialState = { ...state, identityRecommendations: [intent] };
+            const repository = await DomainMeetingRepository.open({
+                catalogDomain: createFakeCatalogDomain(),
+                meetingDomain: createFakeMeetingDomain(),
+                meetingId: state.id,
+                authorizationValidator: allow,
+                now: () => 10
+            });
+            try {
+                const input = {
+                    requestId: "create",
+                    requestHash: "hash",
+                    authorization,
+                    initialState,
+                    ...peerBindings(state.id, state.identities)
+                };
+                await repository.create(input);
+                for (const item of input.initialOwnership)
+                    await repository.recordSessionOwnership(
+                        { ...item, lifecycleStatus: "active" },
+                        11
+                    );
+                await repository.completeCreate(input);
+                await repository.recordSessionOwnership(
+                    ownership,
+                    12,
+                    dynamic.preparedDescriptors[0]
+                );
+                const changed = {
+                    ...initialState,
+                    lifecycle: {
+                        ...state.lifecycle,
+                        status: change === "paused" ? "paused" : "running"
+                    },
+                    identityRecommendations: [
+                        {
+                            ...intent,
+                            status: change === "intent-failed" ? "failed" : "provisioning",
+                            definitionHash:
+                                change === "definition-changed"
+                                    ? "f".repeat(64)
+                                    : intent.definitionHash
+                        }
+                    ]
+                };
+                await repository.execute({
+                    requestId: "change",
+                    requestHash: "change",
+                    commandKind: "pause",
+                    authorization,
+                    expectedMeetingVersion: 0,
+                    transition: () => ({
+                        state: changed,
+                        result: {},
+                        events: [{ type: "meeting.changed", payload: {} }],
+                        outbox: []
+                    })
+                });
+                const activation = repository.recordSessionOwnership(
+                    { ...ownership, lifecycleStatus: "active" },
+                    13
+                );
+                if (change === "unchanged")
+                    await expect(activation).resolves.toMatchObject({ lifecycleStatus: "active" });
+                else {
+                    await expect(activation).rejects.toMatchObject({ code: "INVALID_STATE" });
+                    expect(
+                        (await repository.recover()).sessionOwnership.find(
+                            (o) => o.id === ownership.id
+                        )?.lifecycleStatus
+                    ).toBe("provisioning");
+                }
+            } finally {
+                await repository.close();
+            }
+        }
+    );
+
     it("revokes every ownership in the same failed creation record", async () => {
         const state = makeRunningMeetingStateV1();
         for (let i = 0; i < 4; i++)
