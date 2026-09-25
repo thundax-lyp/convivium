@@ -88,6 +88,45 @@ describe("meeting notice dispatcher v1", () => {
         }
     );
 
+    it.each(["paused", "terminal", "archiving", "archived"] as const)(
+        "keeps only resumable notices retryable in %s",
+        async (status) => {
+            const { state, ownership } = fixture();
+            state.lifecycle = { status, changedAt: 2, reason: "lifecycle changed" };
+            const deliver = vi.fn();
+            const resume = vi.fn();
+            const dispatcher = createMeetingNoticeDispatcher({
+                owner: { deliver, resume },
+                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                repository: {
+                    recover: async () => ({
+                        snapshot: {
+                            meetingId: state.id,
+                            version: 2,
+                            state,
+                            createdAt: 0,
+                            updatedAt: 2
+                        },
+                        sessionOwnership: ownership
+                    })
+                } as never
+            });
+            await expect(
+                dispatcher.dispatch({
+                    outboxItem: item({
+                        kind: "agent_notice",
+                        noticeKind: "meeting_started",
+                        recipientId: "manager-v1",
+                        agendaId: "agenda-v1"
+                    }),
+                    signal: new AbortController().signal
+                })
+            ).rejects.toMatchObject({ code: "INVALID_STATE", retryable: status === "paused" });
+            expect(resume).not.toHaveBeenCalled();
+            expect(deliver).not.toHaveBeenCalled();
+        }
+    );
+
     it("accepts a committed disposition after its pending source was removed", async () => {
         const { state, ownership } = fixture();
         const deliver = vi.fn().mockResolvedValue(true);

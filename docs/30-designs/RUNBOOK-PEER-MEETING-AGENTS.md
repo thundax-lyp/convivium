@@ -712,3 +712,5 @@ Not Applicable：旧数据迁移（正式契约拒读 v1）、实验 Teams、跨
 
 - T21 专项真实 PASS：peer-meeting-agents 173137ms、Restore PASS；七个独立 Session/Preset、精确 Skill list/get、关闭输入 Session 后投递、Agent 创建拒绝、用户重连暂停、GitHub dsh-v0.1.2-rc.1 与 arXiv 1706.03762v7 实读、Reviewer completed/Review、同 DSH_HOME/SQLite 冷恢复全部 observed 通过。最新 verify 全 PASS（94 文件、821 项，lint 0 errors/8 warnings）。三场景串行总验收仍在运行。
 - 稳定操作同步允许范围补入 HOW-TO-INSTALL-AND-RUN.md、HOW-TO-DSH-SMOKE.md 与 config/README.md：它们仍指向已删除的共享 Preset、Captain tool 或另一份解包根，必须随当前部署入口修正。文档链接 499/0 与 diff 检查 PASS，未宣称人工 Browser 已执行。
+
+- T21 第二次业务复验仍停在归档：普通 agent_notice 也在 terminal 无限重试，已保留本次 SQLite/Session。新增 paused 与三终态用例，三终态先 RED；终态现不可重试，暂停仍等待恢复。notice/review/archive/outbox 共 4 文件 40 项 PASS；四轮八审核四发布的门禁未放宽，继续完整复验。

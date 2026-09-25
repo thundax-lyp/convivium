@@ -241,6 +241,8 @@ export const createMeetingNoticeDispatcher = (
             const recovered = await dependencies.repository.recover();
             const snapshot = recovered.snapshot;
             if (!snapshot) throw new NoticeDispatchError("NOTICE_STATE_UNAVAILABLE", true);
+            if (["terminal", "archiving", "archived"].includes(snapshot.state.lifecycle.status))
+                fail("INVALID_STATE");
             if (snapshot.state.lifecycle.status !== "running")
                 throw new NoticeDispatchError("INVALID_STATE", true);
             const identity = snapshot.state.identities.find((i) => i.id === recipientId);
