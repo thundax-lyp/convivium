@@ -1,4 +1,9 @@
-import type { AgentDefinitionBinding } from "@/role-composition/model.js";
+import type {
+    AgentDefinitionBinding,
+    ResourceBinding,
+    EffectiveAgentOptions,
+    PreparedDescriptor
+} from "@/role-composition/model.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -97,6 +102,9 @@ export interface CreateMeetingInput<TState = JsonObject> {
     authorization: CommandAuthorization;
     requestHash: string;
     initialState: TState;
+    creator: MeetingBootstrap["creator"];
+    initialOwnership: SessionOwnershipInput[];
+    preparedDescriptors: PreparedDescriptor[];
     createResult?: CreateMeetingResult;
     outbox?: OutboxInput[];
     createdAt?: number;
@@ -198,11 +206,13 @@ export interface RecoveryResult<TState = JsonObject> {
     snapshot?: MeetingSnapshot<TState>;
     bootstrap: MeetingBootstrap;
     sessionOwnership: SessionOwnership[];
+    preparedDescriptors: PreparedDescriptor[];
     reclaimedOutbox: number;
     pendingOutbox: number;
 }
 
 export interface MeetingBootstrap {
+    creator: { kind: "local_user"; principalId: "local-controller"; sourceSessionId?: string };
     status: "creating" | "ready" | "creation_failed";
     createRequestId: string;
     requestHash: string;
@@ -213,41 +223,24 @@ export interface MeetingBootstrap {
 }
 
 export interface SessionOwnership {
-    id?: string;
-    meetingId?: string;
-    identityId?: string;
-    lastClosureFailureCode?: string;
-    agentDefinition?: AgentDefinitionBinding;
+    id: string;
+    meetingId: string;
+    identityId: string;
     sessionId: string;
-    parentSessionId: string;
+    admissionId?: string;
+    definition: AgentDefinitionBinding;
+    resources: ResourceBinding;
+    agentOptions: EffectiveAgentOptions;
+    descriptorId: string;
+    descriptorHash: string;
     sessionLabel: string;
-    provider: string;
-    initialMessageId?: string;
-    supersededBySessionId?: string;
     role: "manager" | "evidence_reviewer" | "participant";
-    participantId?: string;
     lifecycleStatus: "provisioning" | "active" | "closed";
     capabilityStatus: "active" | "revoked";
     createdAt: number;
     updatedAt: number;
 }
-
-export interface SessionOwnershipInput {
-    id?: string;
-    meetingId?: string;
-    identityId?: string;
-    agentDefinition?: AgentDefinitionBinding;
-    sessionId: string;
-    parentSessionId: string;
-    sessionLabel: string;
-    provider: string;
-    initialMessageId?: string;
-    supersededBySessionId?: string;
-    role: "manager" | "evidence_reviewer" | "participant";
-    participantId?: string;
-    lifecycleStatus: SessionOwnership["lifecycleStatus"];
-    capabilityStatus: SessionOwnership["capabilityStatus"];
-}
+export type SessionOwnershipInput = Omit<SessionOwnership, "createdAt" | "updatedAt">;
 
 export interface UpdateBootstrapInput {
     status: "creation_failed";
