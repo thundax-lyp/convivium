@@ -75,7 +75,7 @@ export interface ResolvedCallerScope {
     caller: CallerBinding;
     meetingId: string;
     identityId?: string;
-    role: "local" | "manager" | "evidence_reviewer" | "participant" | "runtime";
+    role: "captain" | "manager" | "evidence_reviewer" | "participant" | "runtime";
     ownership?: SessionOwnership;
 }
 
@@ -136,8 +136,24 @@ function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
 }
 
 function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean {
-    if (["pause_meeting", "resume_meeting", "end_meeting"].includes(action))
-        return scope.role === "local";
+    if (
+        [
+            "activate_agenda",
+            "dispose_agenda_candidate",
+            "resolve_question",
+            "dispose_issue",
+            "abort_round",
+            "decide",
+            "change_decision",
+            "dispose_risk",
+            "record_completion_fact",
+            "change_completion_fact",
+            "pause_meeting",
+            "resume_meeting",
+            "end_meeting"
+        ].includes(action)
+    )
+        return scope.role === "captain";
     if (
         action === "record_review_delivery" ||
         action === "claim_evidence_review" ||
@@ -178,6 +194,8 @@ function validScope(
         const ownership = scope.ownership;
         return (
             scope.identityId !== undefined &&
+            scope.identityId === context.caller.principalId &&
+            scope.role === ownership?.role &&
             ownership !== undefined &&
             ownership.id === context.caller.sessionBindingId &&
             ownership.meetingId === command.meetingId &&
@@ -188,7 +206,7 @@ function validScope(
     }
     if (context.caller.channel === "loopback_remote")
         return (
-            scope.role === "local" &&
+            scope.role === "captain" &&
             context.caller.principalId === LOCAL_CONTROLLER_PRINCIPAL_ID &&
             context.caller.sessionBindingId === undefined
         );
@@ -544,7 +562,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             const result = transitionMeetingState(
                 snapshot.state,
                 action,
-                { kind: "local_controller", id: actorId },
+                { kind: "captain_user", id: actorId },
                 now,
                 factId
             );

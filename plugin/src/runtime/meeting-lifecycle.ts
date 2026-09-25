@@ -402,12 +402,18 @@ export async function activateTargetMeetingApplication(
             sessionBindingId?: string;
         };
     }) => {
-        if (input.caller.channel === "loopback_remote")
+        if (input.caller.channel === "loopback_remote") {
+            if (
+                input.caller.principalId !== "local-controller" ||
+                input.caller.sessionBindingId !== undefined
+            )
+                return undefined;
             return {
                 caller: input.caller,
                 meetingId: input.meetingId,
-                role: "local" as const
+                role: "captain" as const
             };
+        }
         if (
             (input.caller.channel === "runtime_recovery" &&
                 input.caller.principalId === RUNTIME_RECOVERY_PRINCIPAL_ID) ||
