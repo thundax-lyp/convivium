@@ -7,7 +7,7 @@ export type EpochMs = number;
 export type OpaqueId = string;
 
 export type RiskLevel = "low" | "medium" | "high";
-export type MeetingRole = "captain" | "manager" | "contributor" | "evidence_reviewer";
+export type MeetingRole = "manager" | "contributor" | "evidence_reviewer";
 export type MeetingLifecycleStatus =
     | "preparing"
     | "running"
@@ -594,6 +594,7 @@ export interface ArchivePackage {
     unresolvedItemIds: readonly OpaqueId[];
     unclosedContributions: readonly ArchiveUnclosedContribution[];
     identityProvenance: readonly ArchiveIdentityProvenance[];
+    controlActorProvenance: readonly { actorId: OpaqueId; kind: "captain" }[];
     exportMaterials: readonly ArchiveMaterial[];
 }
 

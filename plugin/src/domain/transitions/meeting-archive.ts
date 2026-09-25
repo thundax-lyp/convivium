@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import type {
     ArchivePackage,
     ArchiveQuestionIssueDispositionFact,
@@ -103,14 +104,15 @@ function materializeArchive(state: MeetingState, input: StartMeetingArchiveInput
         ],
         unclosedContributions,
         identityProvenance: identityProvenance(state),
+        controlActorProvenance: [{ actorId: captainActorIdFor(state.id), kind: "captain" }],
         exportMaterials: []
     };
 }
 
-export function startMeetingArchive(
+export const startMeetingArchive = (
     state: MeetingState,
     input: StartMeetingArchiveInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (validateMeetingState(state).kind === "invalid")
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (
@@ -135,12 +137,12 @@ export function startMeetingArchive(
         relatedIds: [input.archiveId, state.termination.id],
         effectRequests: []
     };
-}
+};
 
-export function completeMeetingArchive(
+export const completeMeetingArchive = (
     state: MeetingState,
     input: CompleteMeetingArchiveInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (validateMeetingState(state).kind === "invalid")
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     if (state.lifecycle.status !== "archiving" || state.archive?.status !== "complete")
@@ -156,4 +158,4 @@ export function completeMeetingArchive(
         lifecycle: { status: "archived", changedAt: input.now, changedBy: input.actorId }
     };
     return { kind: "accepted", state: next, relatedIds: [next.id], effectRequests: [] };
-}
+};

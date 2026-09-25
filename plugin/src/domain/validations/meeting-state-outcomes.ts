@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
 import {
     checkRefs,
@@ -218,8 +219,6 @@ function validatePlansRiskAndDeclarations(parsedState: MeetingState): string | u
 }
 
 function validateCompletionFacts(parsedState: MeetingState): string | undefined {
-    const identityById = indexById(parsedState.identities);
-    const identityIds = new Set(identityById.keys());
     const publishedVersionIds = new Set(
         parsedState.publications.flatMap((item) => item.finalVersionIds)
     );
@@ -235,9 +234,7 @@ function validateCompletionFacts(parsedState: MeetingState): string | undefined 
         if (!ref(item.outputId, outputIds)) return fail(`${path}.outputId`);
         if (item.criterionId !== undefined && !ref(item.criterionId, criterionIds))
             return fail(`${path}.criterionId`);
-        if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
-        const actor = identityById.get(item.actorId);
-        if (!actor || !actor.roles.includes("captain")) return fail(`${path}.actorId`);
+        if (item.actorId !== captainActorIdFor(parsedState.id)) return fail(`${path}.actorId`);
         for (const [key, values] of [
             ["evidenceIds", publishedVersionIds],
             ["decisionIds", decisionIds]

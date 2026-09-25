@@ -3,6 +3,7 @@ import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
 import {
     local,
     captain,
+    identity,
     reviewer,
     manager,
     recordQuestion,
@@ -15,8 +16,8 @@ import {
 
 it.each([
     ["local record", local, recordQuestion(), "UNAUTHORIZED"],
-    ["missing agenda", captain, recordQuestion({ agendaId: "missing" }), "NOT_FOUND"],
-    ["local resolve", local, resolveQuestion(), "UNAUTHORIZED"],
+    ["missing agenda", identity, recordQuestion({ agendaId: "missing" }), "NOT_FOUND"],
+    ["contributor resolve", identity, resolveQuestion(), "UNAUTHORIZED"],
     ["manager resolve", manager, resolveQuestion(), "UNAUTHORIZED"],
     ["reviewer resolve", reviewer, resolveQuestion(), "UNAUTHORIZED"],
     ["missing question", captain, resolveQuestion({ questionId: "missing" }), "NOT_FOUND"],
@@ -26,16 +27,21 @@ it.each([
         resolveQuestion({ evidenceIds: ["missing-version"] }),
         "NOT_FOUND"
     ],
-    ["blocking without target", captain, recordQuestion({ blocking: true }), "PRECONDITION_FAILED"],
+    [
+        "blocking without target",
+        identity,
+        recordQuestion({ blocking: true }),
+        "PRECONDITION_FAILED"
+    ],
     [
         "missing objective target",
-        captain,
+        identity,
         recordQuestion({ affectedOutputIds: ["missing-output"] }),
         "NOT_FOUND"
     ],
     [
         "duplicate affected ids",
-        captain,
+        identity,
         recordQuestion({ affectedOutputIds: ["output-1", "output-1"] }),
         "INVALID_ARGUMENT"
     ]
@@ -108,7 +114,7 @@ it.each([
     expect(result.facts[0]).toEqual({
         id: "fact-5",
         kind: "resolve_question",
-        actorId: "identity-1",
+        actorId: captain.id,
         occurredAt: 10,
         relatedIds: ["meeting-1", "question-1", "version-1"],
         payload: {
@@ -124,7 +130,7 @@ it.each([
     });
 });
 
-it.each([captain, manager, reviewer])("records an issue for an existing identity", (actor) => {
+it.each([identity, manager, reviewer])("records an issue for an existing identity", (actor) => {
     const current = publishedQuestionState(false);
     const result = transitionMeetingState(
         current,
@@ -165,24 +171,24 @@ it.each([captain, manager, reviewer])("records an issue for an existing identity
 
 it.each([
     ["local record", local, recordIssue(), "UNAUTHORIZED"],
-    ["local dispose", local, disposeIssue(), "UNAUTHORIZED"],
+    ["contributor dispose", identity, disposeIssue(), "UNAUTHORIZED"],
     ["manager dispose", manager, disposeIssue(), "UNAUTHORIZED"],
     [
         "accepted risk",
-        captain,
+        identity,
         recordIssue({ riskLevel: "low", classification: "accepted_risk" }),
         "INVALID_ARGUMENT"
     ],
-    ["missing risk", captain, recordIssue({ riskLevel: undefined }), "INVALID_ARGUMENT"],
+    ["missing risk", identity, recordIssue({ riskLevel: undefined }), "INVALID_ARGUMENT"],
     [
         "high nonblocking",
-        captain,
+        identity,
         recordIssue({ blocking: false, classification: "follow_up" }),
         "PRECONDITION_FAILED"
     ],
     [
         "unqualified blocking",
-        captain,
+        identity,
         recordIssue({
             riskLevel: "medium",
             blocking: true,
@@ -191,11 +197,11 @@ it.each([
         }),
         "PRECONDITION_FAILED"
     ],
-    ["classification mismatch", captain, recordIssue({ blocking: false }), "PRECONDITION_FAILED"],
-    ["missing target", captain, recordIssue({ affectedOutputIds: ["missing"] }), "NOT_FOUND"],
+    ["classification mismatch", identity, recordIssue({ blocking: false }), "PRECONDITION_FAILED"],
+    ["missing target", identity, recordIssue({ affectedOutputIds: ["missing"] }), "NOT_FOUND"],
     [
         "duplicate ids",
-        captain,
+        identity,
         recordIssue({ affectedOutputIds: ["output-1", "output-1"] }),
         "INVALID_ARGUMENT"
     ],
@@ -225,7 +231,7 @@ it.each([
         {
             id: "fact-9",
             kind: "dispose_issue",
-            actorId: "identity-1",
+            actorId: captain.id,
             occurredAt: 10,
             relatedIds: ["meeting-1", "issue-1", "version-1"],
             payload: {
@@ -337,7 +343,7 @@ it("clears the final blocking issue and enters converging in the same transition
         {
             id: "fact-1",
             outputId: "output-1",
-            actorId: "identity-1",
+            actorId: captain.id,
             status: "active",
             statement: "done",
             rationale: "x",
@@ -358,7 +364,7 @@ it("clears the final blocking issue and enters converging in the same transition
     expect(result.state.lifecycle).toMatchObject({
         status: "converging",
         changedAt: 10,
-        changedBy: "identity-1",
+        changedBy: captain.id,
         reason: "objective_satisfied"
     });
     expect(result.state.termination).toBeUndefined();

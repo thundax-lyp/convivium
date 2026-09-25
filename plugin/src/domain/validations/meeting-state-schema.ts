@@ -29,7 +29,7 @@ function uniqueEntityArray<T extends z.ZodType<{ id: string }>>(schema: T) {
 const epochSchema = z.number().int().safe().nonnegative();
 const positiveIntegerSchema = z.number().int().safe().min(1);
 const integerSchema = z.number().int().safe().nonnegative();
-const roleSchema = z.enum(["captain", "manager", "contributor", "evidence_reviewer"]);
+const roleSchema = z.enum(["manager", "contributor", "evidence_reviewer"]);
 const uniqueRoleArraySchema = z.array(roleSchema).superRefine((values, ctx) => {
     const seen = new Set<string>();
     values.forEach((value, index) => {
@@ -729,6 +729,9 @@ const archiveSchema = z.lazy(() =>
         unresolvedItemIds: uniqueIdArraySchema,
         unclosedContributions: z.array(archiveUnclosedContributionSchema),
         identityProvenance: z.array(archiveIdentityProvenanceSchema),
+        controlActorProvenance: z
+            .array(z.object({ actorId: opaqueIdSchema, kind: z.literal("captain") }))
+            .length(1),
         exportMaterials: uniqueEntityArray(archiveMaterialSchema)
     })
 );

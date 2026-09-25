@@ -47,7 +47,7 @@ it("accepts a high risk issue without affected targets", () => {
     const result = transitionMeetingState(
         current,
         recordIssue({ affectedOutputIds: [], riskLevel: "high", classification: "blocking" }),
-        captain,
+        identity,
         10,
         "fact-7",
         "issue-high"
@@ -82,7 +82,7 @@ it.each([
     const result = transitionMeetingState(
         current,
         recordIssue(overrides),
-        captain,
+        identity,
         10,
         "fact-8",
         "issue-missing-ref"
@@ -112,7 +112,7 @@ it.each([
             ...current.lifecycle,
             status: to,
             changedAt: 10,
-            changedBy: "local-1",
+            changedBy: local.id,
             reason: "operator request"
         }
     });
@@ -120,7 +120,7 @@ it.each([
         {
             id: "fact-1",
             kind,
-            actorId: "local-1",
+            actorId: local.id,
             occurredAt: 10,
             relatedIds: ["meeting-1"],
             payload: { kind: "references", relatedIds: ["meeting-1"] }
@@ -198,7 +198,7 @@ it("rejects promotion with a used agenda id", () => {
     expect(result.state.version).toBe(3);
 });
 
-it("requires a Captain identity for agenda activation", () => {
+it("requires the Captain user for agenda activation", () => {
     const fixture = state();
     const current = {
         ...fixture,
@@ -313,7 +313,7 @@ it("activates a pending agenda and records both agenda references", () => {
     expect(result.facts[0]).toEqual({
         id: "fact-2",
         kind: "activate_agenda",
-        actorId: "identity-1",
+        actorId: captain.id,
         occurredAt: 10,
         relatedIds: ["meeting-1", "agenda-1", "agenda-2"],
         payload: { kind: "references", relatedIds: ["meeting-1", "agenda-1", "agenda-2"] }
@@ -323,7 +323,7 @@ it("activates a pending agenda and records both agenda references", () => {
 });
 
 it.each([
-    ["local actor", local, "running", "pending", "UNAUTHORIZED"],
+    ["identity actor", identity, "running", "pending", "UNAUTHORIZED"],
     ["missing target", captain, "running", "pending", "NOT_FOUND"],
     ["paused lifecycle", captain, "paused", "pending", "INVALID_STATE"],
     ["converging lifecycle", captain, "converging", "pending", "INVALID_STATE"],

@@ -21,3 +21,5 @@ export {
     type IdentityRecommendationDraft,
     type IdentityTransitionResult
 } from "./transitions/meeting-identity.js";
+
+export { captainActorIdFor } from "./control-actor.js";

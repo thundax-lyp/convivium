@@ -1,3 +1,4 @@
+import { captainActorIdFor } from "@/domain/control-actor.js";
 import type { MeetingState } from "@/domain/meeting-state.js";
 
 export function state(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
@@ -17,8 +18,8 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
         identities: [
             {
                 id: "identity-1",
-                displayName: "Captain",
-                roles: ["captain"],
+                displayName: "Contributor",
+                roles: ["contributor"],
                 agendaResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
@@ -77,9 +78,9 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
     };
 }
 
-export const local = { kind: "local_controller", id: "local-1" } as const;
+export const local = { kind: "captain_user", id: captainActorIdFor("meeting-1") } as const;
 export const identity = { kind: "identity", id: "identity-1" } as const;
-export const captain = identity;
+export const captain = local;
 export const nonCaptain = { kind: "identity", id: "identity-2" } as const;
 export const reviewer = { kind: "identity", id: "reviewer-1" } as const;
 export const manager = { kind: "identity", id: "manager-1" } as const;
@@ -142,6 +143,7 @@ export function terminalState(status: "terminal" | "archiving" | "archived"): Me
             unresolvedIssueIds: [],
             unresolvedItemIds: [],
             unclosedContributions: [],
+            controlActorProvenance: [{ actorId: captain.id, kind: "captain" }],
             identityProvenance: [],
             exportMaterials: []
         };

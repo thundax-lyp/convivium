@@ -30,6 +30,12 @@ describe("meeting archive", () => {
         expect(archiving.kind).toBe("accepted");
         if (archiving.kind !== "accepted") return;
         expect(archiving.state.archive?.status).toBe("complete");
+        expect(archiving.state.archive?.controlActorProvenance).toEqual([
+            { actorId: "captain_actor-be6579378dcba3083c1af7ecd7d4590f", kind: "captain" }
+        ]);
+        expect(
+            archiving.state.archive?.identityProvenance.some((i) => i.roles.includes("captain"))
+        ).toBe(false);
         expect(
             completeMeetingArchive(archiving.state, {
                 actorId: "runtime",

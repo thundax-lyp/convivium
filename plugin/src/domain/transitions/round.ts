@@ -20,13 +20,13 @@ const terminalContributionStatuses = new Set([
     "closed"
 ]);
 
-function reservedFormalMessages(state: MeetingState): number {
+const reservedFormalMessages = (state: MeetingState): number => {
     return state.rounds
         .filter((round) => round.status === "open")
         .reduce((total, round) => total + round.contributionIds.length, 0);
-}
+};
 
-export function openRound(state: MeetingState, input: OpenRoundInput): MeetingTransitionResult {
+export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTransitionResult => {
     if (
         input.roundId.trim().length === 0 ||
         input.agendaId.trim().length === 0 ||
@@ -107,16 +107,19 @@ export function openRound(state: MeetingState, input: OpenRoundInput): MeetingTr
         pendingHandRaises
     };
     return { kind: "accepted", state: next, relatedIds: [input.roundId], effectRequests: [] };
-}
+};
 
 type AbortRoundInput = {
     roundId: OpaqueId;
-    actor: { kind: "local_controller" | "identity"; id: OpaqueId };
+    actor: { kind: "captain_user" | "identity"; id: OpaqueId };
     reason: string;
     now: number;
 };
 
-export function abortRound(state: MeetingState, input: AbortRoundInput): MeetingTransitionResult {
+export const abortRound = (
+    state: MeetingState,
+    input: AbortRoundInput
+): MeetingTransitionResult => {
     if (
         input.roundId.trim() === "" ||
         input.actor.id.trim() === "" ||
@@ -133,11 +136,8 @@ export function abortRound(state: MeetingState, input: AbortRoundInput): Meeting
     if (!round) return rejected(state, "NOT_FOUND", "round not found", input.roundId);
     if (round.status !== "open")
         return rejected(state, "INVALID_STATE", "round is not open", input.roundId);
-    if (input.actor.kind === "identity") {
-        const captain = state.identities.find((identity) => identity.id === input.actor.id);
-        if (!captain?.roles.includes("captain"))
-            return rejected(state, "UNAUTHORIZED", "identity is not a captain", input.actor.id);
-    }
+    if (input.actor.kind !== "captain_user")
+        return rejected(state, "UNAUTHORIZED", "Captain user is required", input.actor.id);
     const abortedContributionIds = round.contributionIds.filter((id) => {
         const contribution = state.contributions.find((candidate) => candidate.id === id);
         return contribution !== undefined && !terminalContributionStatuses.has(contribution.status);
@@ -186,9 +186,9 @@ export function abortRound(state: MeetingState, input: AbortRoundInput): Meeting
         relatedIds: [round.id, ...abortedContributionIds],
         effectRequests: []
     };
-}
+};
 
-export function isRoundClosable(state: MeetingState, roundId: OpaqueId): boolean {
+export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean => {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     if (!round || round.status !== "open") return false;
     if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) return false;
@@ -223,4 +223,4 @@ export function isRoundClosable(state: MeetingState, roundId: OpaqueId): boolean
             return false;
     }
     return true;
-}
+};
