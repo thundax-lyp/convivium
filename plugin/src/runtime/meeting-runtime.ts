@@ -192,6 +192,26 @@ const assertInitialTargetIdentities = (
             throw new RoleCompositionError();
 };
 
+const serializeMeetingCreation = (
+    coordinator: MeetingCreationCoordinator
+): MeetingCreationCoordinator => {
+    const pending = new Map<string, Promise<unknown>>();
+    return {
+        create(command, context, meetingId, now, signal) {
+            const previous = pending.get(meetingId) ?? Promise.resolve();
+            const attempt = previous
+                .catch(() => {})
+                .then(() => coordinator.create(command, context, meetingId, now, signal));
+            pending.set(meetingId, attempt);
+            const release = () => {
+                if (pending.get(meetingId) === attempt) pending.delete(meetingId);
+            };
+            void attempt.then(release, release);
+            return attempt;
+        }
+    };
+};
+
 export const createMeetingCreationCoordinator = (
     dependencies: TargetMeetingCreationDependencies
 ): MeetingCreationCoordinator => {
@@ -200,7 +220,6 @@ export const createMeetingCreationCoordinator = (
         updatedAt: _updated,
         ...input
     }: SessionOwnership) => input;
-    const pending = new Map<string, Promise<unknown>>();
     const stableId = (kind: string, meetingId: string, key: string) =>
         `${kind}-${sha256Hex(encodeCanonicalJson([meetingId, kind, key])).slice(0, 32)}`;
     const coordinator: MeetingCreationCoordinator = {
@@ -490,18 +509,5 @@ export const createMeetingCreationCoordinator = (
             return MeetingCommandResultSchema.parse(result);
         }
     };
-    return {
-        create(command, context, meetingId, now, signal) {
-            const previous = pending.get(meetingId) ?? Promise.resolve();
-            const attempt = previous
-                .catch(() => {})
-                .then(() => coordinator.create(command, context, meetingId, now, signal));
-            pending.set(meetingId, attempt);
-            const release = () => {
-                if (pending.get(meetingId) === attempt) pending.delete(meetingId);
-            };
-            void attempt.then(release, release);
-            return attempt;
-        }
-    };
+    return serializeMeetingCreation(coordinator);
 };

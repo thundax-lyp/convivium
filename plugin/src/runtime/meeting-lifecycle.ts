@@ -350,46 +350,9 @@ export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader =
     return reader;
 };
 
-export async function activateTargetMeetingApplication(
-    ctx: Context,
-    config: Config,
-    options: { rolePackageRoot: string }
-): Promise<() => Promise<void>> {
-    const { rolePackageRoot } = options;
-    if (!rolePackageRoot) throw new Error("Meeting role package root is required.");
-    assertTargetLifecycle(config, ctx);
-    let sequence = 0;
-    const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
-    const registry = await DomainRepositoryRegistry.open<MeetingState>({
-        storageDomain: ctx.storageDomain,
-        codec: { encode: encodeMeetingState, decode: decodeMeetingState },
-        authorizationValidator: {
-            validateCreate: () => undefined,
-            validateCommand: () => undefined
-        },
-        onProjectionCommitted: (snapshot) => {
-            for (const listener of refreshListeners) listener(snapshot.meetingId, snapshot.version);
-        }
-    });
-    const definitions = parseAgentDefinitions(config.agentDefinitions);
-    const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
-    const catalog: RoleCatalogPort = {
-        readSnapshot: async (request) => {
-            const producer = (ctx as Context & { get?: (key: string) => unknown }).get?.(
-                "convivium.agentCatalog"
-            ) as RoleCatalogPort | undefined;
-            return producer
-                ? producer.readSnapshot(request)
-                : {
-                      kind: "rejected",
-                      error: {
-                          code: "CATALOG_UNAVAILABLE",
-                          message: "Meeting role catalog is unavailable"
-                      }
-                  };
-        }
-    };
-    const resolveCallerScope = async (input: {
+const createCallerScopeResolver =
+    (registry: DomainRepositoryRegistry<MeetingState>) =>
+    async (input: {
         meetingId: string;
         caller: {
             channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
@@ -440,6 +403,47 @@ export async function activateTargetMeetingApplication(
             ownership
         };
     };
+
+export const activateTargetMeetingApplication = async (
+    ctx: Context,
+    config: Config,
+    options: { rolePackageRoot: string }
+): Promise<() => Promise<void>> => {
+    const { rolePackageRoot } = options;
+    if (!rolePackageRoot) throw new Error("Meeting role package root is required.");
+    assertTargetLifecycle(config, ctx);
+    let sequence = 0;
+    const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
+    const registry = await DomainRepositoryRegistry.open<MeetingState>({
+        storageDomain: ctx.storageDomain,
+        codec: { encode: encodeMeetingState, decode: decodeMeetingState },
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        },
+        onProjectionCommitted: (snapshot) => {
+            for (const listener of refreshListeners) listener(snapshot.meetingId, snapshot.version);
+        }
+    });
+    const definitions = parseAgentDefinitions(config.agentDefinitions);
+    const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
+    const catalog: RoleCatalogPort = {
+        readSnapshot: async (request) => {
+            const producer = (ctx as Context & { get?: (key: string) => unknown }).get?.(
+                "convivium.agentCatalog"
+            ) as RoleCatalogPort | undefined;
+            return producer
+                ? producer.readSnapshot(request)
+                : {
+                      kind: "rejected",
+                      error: {
+                          code: "CATALOG_UNAVAILABLE",
+                          message: "Meeting role catalog is unavailable"
+                      }
+                  };
+        }
+    };
+    const resolveCallerScope = createCallerScopeResolver(registry);
     const agentOwner = createMeetingAgentOwner({ ctx, packageRoot: rolePackageRoot });
     const application = createMeetingCommandApplication({
         registry,
@@ -679,4 +683,4 @@ export async function activateTargetMeetingApplication(
         await agentOwner.disposeAll();
         await registry.close();
     };
-}
+};
