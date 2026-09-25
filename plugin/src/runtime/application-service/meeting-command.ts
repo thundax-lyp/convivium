@@ -1,5 +1,13 @@
 import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
 import {
+    captainActorIdFor,
+    abortRound,
+    decide,
+    changeDecision,
+    disposeRisk,
+    recordCompletionFact,
+    changeCompletionFact,
+    type TargetDomainFactPayload,
     closeContribution,
     claimEvidenceReview,
     completeMeetingArchive,
@@ -278,7 +286,7 @@ function mapRepositoryError(error: unknown): MeetingCommandResult {
     return rejected(code, error.message);
 }
 
-type CommandTransition =
+type CommandTransition = (
     | MeetingTransitionResult
     | {
           kind: "accepted";
@@ -289,7 +297,8 @@ type CommandTransition =
               recommendationId: string;
               admissionId: string;
           }[];
-      };
+      }
+) & { factPayload?: TargetDomainFactPayload };
 
 type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingState>["openMeeting"]>>;
 
@@ -412,7 +421,10 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
     } = input;
     const generated = (kind: string) => deps.ids.nextId(kind);
     const action = command.action;
-    const actorId = scope.identityId ?? scope.caller.principalId;
+    const actorId =
+        scope.role === "captain"
+            ? captainActorIdFor(command.meetingId)
+            : (scope.identityId ?? scope.caller.principalId);
     let transition: CommandTransition;
     switch (action.kind) {
         case "submit_manager_plan": {
@@ -557,6 +569,10 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             });
             break;
         }
+        case "activate_agenda":
+        case "dispose_agenda_candidate":
+        case "resolve_question":
+        case "dispose_issue":
         case "pause_meeting":
         case "resume_meeting": {
             const result = transitionMeetingState(
@@ -571,6 +587,7 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
                 kind: "accepted",
                 state: result.state,
                 relatedIds: result.facts[0].relatedIds,
+                factPayload: result.facts[0].payload,
                 effectRequests:
                     action.kind === "resume_meeting"
                         ? resumedEvidenceReviewEffects(result.state)
@@ -578,6 +595,71 @@ function runMeetingActionTransition(input: TransitionInput): CommandTransition {
             };
             break;
         }
+        case "abort_round":
+            transition = abortRound(snapshot.state, {
+                roundId: action.roundId,
+                reason: action.reason,
+                actor: { kind: "captain_user", id: actorId },
+                now
+            });
+            break;
+        case "decide":
+            transition = decide(snapshot.state, {
+                decisionId: generated("decision"),
+                candidateId: action.candidateId,
+                actor: { kind: "captain_user", id: actorId },
+                now
+            });
+            break;
+        case "change_decision":
+            transition = changeDecision(snapshot.state, {
+                decisionId: action.decisionId,
+                rationale: action.rationale,
+                evidenceIds: action.evidenceIds,
+                actor: { kind: "captain_user", id: actorId },
+                now,
+                ...(action.status === "superseded"
+                    ? {
+                          status: "superseded",
+                          replacementCandidateId: action.replacementCandidateId!,
+                          replacementDecisionId: generated("decision")
+                      }
+                    : { status: "revoked" })
+            });
+            break;
+        case "dispose_risk":
+            transition = disposeRisk(snapshot.state, {
+                ...action,
+                dispositionId: generated("risk_disposition"),
+                actor: { kind: "captain_user", id: actorId },
+                now
+            });
+            break;
+        case "record_completion_fact":
+            transition = recordCompletionFact(snapshot.state, {
+                ...action,
+                factId: generated("completion_fact"),
+                actor: { kind: "captain_user", id: actorId },
+                now
+            });
+            break;
+        case "change_completion_fact":
+            transition = changeCompletionFact(snapshot.state, {
+                factId: action.factId,
+                rationale: action.rationale,
+                actor: { kind: "captain_user", id: actorId },
+                now,
+                ...(action.status === "superseded"
+                    ? {
+                          status: "superseded",
+                          replacement: {
+                              ...action.replacement!,
+                              factId: generated("completion_fact")
+                          }
+                      }
+                    : { status: "revoked" })
+            });
+            break;
         case "end_meeting":
             transition = endMeeting(snapshot.state, {
                 ...action,
@@ -763,6 +845,11 @@ function finalizeMeetingTransition(input: {
               }
             : {})
     };
+    const payload = transition.factPayload;
+    const factPayload: JsonObject =
+        payload === undefined || payload.kind === "references"
+            ? { kind: "references", relatedIds: [...transition.relatedIds] }
+            : { ...payload, evidenceIds: [...payload.evidenceIds] };
     const facts: readonly CommittedFactRecord<MeetingState>[] = [
         {
             factId,
@@ -771,7 +858,7 @@ function finalizeMeetingTransition(input: {
             occurredAt: now,
             meetingVersion: snapshotVersion + 1,
             relatedIds: transition.relatedIds,
-            payload: { kind: "references", relatedIds: [...transition.relatedIds] },
+            payload: factPayload,
             resultingState: transition.state
         }
     ];
@@ -796,8 +883,6 @@ function createRepositoryCommand(input: {
     committedFacts: readonly CommittedFactRecord<MeetingState>[];
 }): RepositoryCommand<MeetingCommandResult, MeetingState> {
     const { deps, command, context, scope, now, catalogDefinitionHash, committedFacts } = input;
-    const factId = deps.ids.nextId("fact");
-    const receiptId = deps.ids.nextId("receipt");
     const repositoryCommand: RepositoryCommand<MeetingCommandResult, MeetingState> = {
         requestId: command.requestId,
         commandKind: command.action.kind,
@@ -816,6 +901,8 @@ function createRepositoryCommand(input: {
               }
             : {}),
         transition: (snapshot, repositoryContext = {}) => {
+            const factId = deps.ids.nextId("fact");
+            const receiptId = deps.ids.nextId("receipt");
             const transition = runMeetingActionTransition({
                 snapshot,
                 repositoryContext,
@@ -835,7 +922,10 @@ function createRepositoryCommand(input: {
                 now,
                 factId,
                 receiptId,
-                actorId: scope.identityId ?? scope.caller.principalId,
+                actorId:
+                    scope.role === "captain"
+                        ? captainActorIdFor(command.meetingId)
+                        : (scope.identityId ?? scope.caller.principalId),
                 snapshotVersion: snapshot.version
             });
             repositoryCommand.facts = finalized.facts;
