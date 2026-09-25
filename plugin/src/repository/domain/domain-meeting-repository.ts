@@ -202,9 +202,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                 "Archive Session result is invalid"
             );
         const ownershipEntry = Object.entries(this.projection!.sessionOwnership).find(
-            ([, candidate]) =>
-                candidate.id === closure.sessionOwnershipId &&
-                candidate.supersededBySessionId === undefined
+            ([, candidate]) => candidate.id === closure.sessionOwnershipId
         );
         if (!ownershipEntry)
             throw new RepositoryError(
@@ -409,14 +407,12 @@ export class DomainMeetingRepository<TState = JsonObject>
     ): void {
         const closure = command.archiveSessionResult;
         if (closure === undefined) return;
-        const failureCode = closure.failureCode?.trim();
         if (!archiveSessionOwnershipKey) throw new Error("validated ownership key is missing");
         const ownership = next.sessionOwnership[archiveSessionOwnershipKey];
         if (!ownership) throw new Error("validated ownership is missing");
         if (closure.status === "closed") {
-            const { lastClosureFailureCode: _discarded, ...identity } = ownership;
             next.sessionOwnership[archiveSessionOwnershipKey] = {
-                ...identity,
+                ...ownership,
                 lifecycleStatus: "closed",
                 capabilityStatus: "revoked",
                 updatedAt: now
@@ -425,7 +421,6 @@ export class DomainMeetingRepository<TState = JsonObject>
         }
         next.sessionOwnership[archiveSessionOwnershipKey] = {
             ...ownership,
-            lastClosureFailureCode: failureCode,
             updatedAt: now
         };
     }
@@ -808,6 +803,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                 ? structuredClone(this.projection!.bootstrap)
                 : {
                       status: creation.status,
+                      creator: creation.creator,
                       createRequestId: creation.requestId,
                       requestHash: creation.requestHash,
                       ...(creation.createResult === null
@@ -829,6 +825,9 @@ export class DomainMeetingRepository<TState = JsonObject>
                     : {}),
                 bootstrap,
                 sessionOwnership: Object.values(ownership).map((item) => structuredClone(item)),
+                preparedDescriptors: structuredClone(
+                    ready ? this.projection!.preparedDescriptors : creation.preparedDescriptors
+                ),
                 reclaimedOutbox,
                 pendingOutbox
             };

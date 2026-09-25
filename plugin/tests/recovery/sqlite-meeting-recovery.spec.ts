@@ -1,3 +1,4 @@
+import { peerBindings } from "../fixtures/peer-ownership.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
@@ -58,28 +59,20 @@ describe("target Meeting persistence on SQLite", () => {
         const path = await databasePath();
         const first = await open(path, true);
         const state = makeRunningMeetingStateV1();
+        for (let i = 0; i < 4; i++)
+            state.identities.push({ ...state.identities[1], id: `extra-${i}` });
         const create = {
             requestId: "create-target",
             requestHash: "create-target-hash",
             authorization,
             initialState: state,
+            ...peerBindings(state.id, state.identities),
             createdAt: 1
         };
         const repository = await first.registry.openMeeting({ meetingId: state.id, create });
+        for (const item of create.initialOwnership)
+            await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
         await repository.completeCreate(create);
-        await repository.recordSessionOwnership({
-            id: "ownership-1",
-            meetingId: state.id,
-            identityId: "manager-v1",
-            sessionId: "session-1",
-            parentSessionId: "captain-1",
-            sessionLabel: "convivium:meeting-manager:legacy:meeting-v1",
-            provider: "spawn",
-            role: "manager",
-            lifecycleStatus: "active",
-            capabilityStatus: "active",
-            initialMessageId: "message-1"
-        });
         const resultingState = { ...state, version: 1, updatedAt: 2 };
         await repository.execute({
             requestId: "close-session",
@@ -99,7 +92,7 @@ describe("target Meeting persistence on SQLite", () => {
                     resultingState
                 }
             ],
-            archiveSessionResult: { sessionOwnershipId: "ownership-1", status: "closed" },
+            archiveSessionResult: { sessionOwnershipId: "ownership-manager-v1", status: "closed" },
             transition: () => ({
                 state: resultingState,
                 result: { accepted: true },
@@ -114,15 +107,15 @@ describe("target Meeting persistence on SQLite", () => {
         await expect(reopened.read()).resolves.toMatchObject({ version: 1, state: resultingState });
         await expect(reopened.readCommittedFacts()).resolves.toHaveLength(1);
         await expect(reopened.recover()).resolves.toMatchObject({
-            sessionOwnership: [
-                {
-                    id: "ownership-1",
-                    sessionId: "session-1",
+            sessionOwnership: expect.arrayContaining([
+                expect.objectContaining({
+                    id: "ownership-manager-v1",
+                    sessionId: "session-manager-v1",
                     identityId: "manager-v1",
                     lifecycleStatus: "closed",
                     capabilityStatus: "revoked"
-                }
-            ]
+                })
+            ])
         });
         await second.close();
     });
@@ -130,14 +123,21 @@ describe("target Meeting persistence on SQLite", () => {
     it("rejects a legacy snapshot without migration", async () => {
         const path = await databasePath();
         const first = await open(path, false);
+        const identities = Array.from({ length: 7 }, (_, i) => ({
+            id: `identity-${i}`,
+            roles: ["contributor"]
+        }));
         const create = {
+            ...peerBindings("meeting-legacy", identities),
             requestId: "create-legacy",
             requestHash: "create-legacy-hash",
             authorization,
-            initialState: { count: 0 },
+            initialState: { count: 0, identities },
             createdAt: 1
         };
         const legacy = await first.registry.openMeeting({ meetingId: "meeting-legacy", create });
+        for (const item of create.initialOwnership)
+            await legacy.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
         await legacy.completeCreate(create);
         await first.close();
 

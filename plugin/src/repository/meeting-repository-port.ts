@@ -1,3 +1,4 @@
+import type { PreparedDescriptor } from "@/role-composition/model.js";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,
@@ -33,11 +34,10 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     ): Promise<CommittedResult<CreateMeetingResult>>;
     updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
     updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
-    recordSessionOwnership(input: SessionOwnershipInput, now?: number): Promise<SessionOwnership>;
-    replaceMissingSession(
-        previousSessionId: string,
-        replacementSessionId: string,
-        now?: number
+    recordSessionOwnership(
+        input: SessionOwnershipInput,
+        now?: number,
+        descriptor?: PreparedDescriptor
     ): Promise<SessionOwnership>;
     read(): Promise<MeetingSnapshot<TState>>;
     readCommittedFacts(): Promise<readonly CommittedFactRecord<TState>[]>;

@@ -1,8 +1,10 @@
+import type { PreparedDescriptor } from "@/role-composition/model.js";
 import { DomainError } from "@/domain/index.js";
 import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.js";
 import type { CatalogDomain, MeetingDomain } from "./specs.js";
 import {
-    AgentDefinitionBindingSchema,
+    SessionOwnershipSchema,
+    PreparedDescriptorSchema,
     CatalogMeetingRecordSchema,
     CreationRecordSchema,
     JsonObjectSchema,
@@ -37,7 +39,7 @@ import {
 import { diff } from "./json-patch.js";
 import { catalogKey, receiptKey, seqKey } from "./keys.js";
 import { loadProjection } from "./projection.js";
-import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.js";
+import { decodeCanonicalJson, encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
 import { RepositoryError } from "@/repository/errors.js";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
@@ -54,77 +56,35 @@ function canonicalStateObject(value: unknown): JsonObject {
     return JsonObjectSchema.parse(normalized);
 }
 
-function parseSessionLabel(label: string):
-    | {
-          meetingId: string;
-          role?: SessionOwnership["role"];
-          identityId?: string;
-          participantId?: string;
-      }
-    | undefined {
-    const parts = label.split(":");
-    if (parts[0] !== "convivium") return undefined;
-    if (parts[1] === "meeting-manager" && parts.length === 4 && parts[2] && parts[3])
-        return { meetingId: parts[3] };
-    if (
-        parts[1] === "meeting-identity" &&
-        parts.length === 5 &&
-        ["manager", "evidence_reviewer", "participant"].includes(parts[2] ?? "") &&
-        parts[3] &&
-        parts[4]
-    )
-        return {
-            role: parts[2] as SessionOwnership["role"],
-            meetingId: parts[3],
-            identityId: parts[4]
-        };
-    if (
-        parts[1] === "meeting-participant" &&
-        parts.length === 5 &&
-        parts[2] &&
-        parts[3] &&
-        parts[4]
-    )
-        return { meetingId: parts[3], participantId: parts[4] };
-    return undefined;
-}
-function isLifecycleTransitionAllowed(
-    from: SessionOwnership["lifecycleStatus"],
-    to: SessionOwnership["lifecycleStatus"]
-): boolean {
+const same = (a: unknown, b: unknown): boolean =>
+    Buffer.from(encodeCanonicalJson(a)).equals(Buffer.from(encodeCanonicalJson(b)));
+const immutableOwnership = (value: SessionOwnershipInput) => {
+    const { lifecycleStatus: _lifecycle, capabilityStatus: _capability, ...rest } = value;
+    return rest;
+};
+const ownershipInput = (value: SessionOwnership): SessionOwnershipInput => {
+    const { createdAt: _created, updatedAt: _updated, ...input } = value;
+    return input;
+};
+const validateDescriptor = (
+    ownership: SessionOwnershipInput,
+    descriptor: PreparedDescriptor
+): boolean => {
+    const parsed = PreparedDescriptorSchema.safeParse(descriptor);
+    if (!parsed.success) return false;
+    const { descriptorHash, ...body } = parsed.data;
     return (
-        from === to ||
-        (from === "provisioning" && (to === "active" || to === "closed")) ||
-        (from === "active" && to === "closed")
+        descriptorHash === sha256Hex(encodeCanonicalJson(body)) &&
+        ownership.descriptorHash === descriptorHash &&
+        ownership.descriptorId === descriptor.descriptorId &&
+        ownership.meetingId === descriptor.meetingId &&
+        ownership.identityId === descriptor.identityId &&
+        ownership.sessionId === descriptor.sessionId &&
+        same(ownership.definition, descriptor.definition) &&
+        same(ownership.resources, descriptor.resources) &&
+        same(ownership.agentOptions, descriptor.agentOptions)
     );
-}
-function isCapabilityTransitionAllowed(
-    from: SessionOwnership["capabilityStatus"],
-    to: SessionOwnership["capabilityStatus"]
-): boolean {
-    return from === to || (from === "active" && to === "revoked");
-}
-
-function hasInvalidOwnershipTransition(
-    existing: SessionOwnership,
-    input: SessionOwnershipInput
-): boolean {
-    return (
-        !isLifecycleTransitionAllowed(existing.lifecycleStatus, input.lifecycleStatus) ||
-        !isCapabilityTransitionAllowed(existing.capabilityStatus, input.capabilityStatus) ||
-        existing.sessionLabel !== input.sessionLabel ||
-        existing.parentSessionId !== input.parentSessionId ||
-        existing.provider !== input.provider ||
-        existing.agentDefinition?.agentDefinitionId !== input.agentDefinition?.agentDefinitionId ||
-        existing.agentDefinition?.definitionVersion !== input.agentDefinition?.definitionVersion ||
-        existing.agentDefinition?.definitionHash !== input.agentDefinition?.definitionHash ||
-        existing.role !== input.role ||
-        existing.participantId !== input.participantId ||
-        (existing.initialMessageId !== undefined &&
-            input.initialMessageId !== undefined &&
-            existing.initialMessageId !== input.initialMessageId)
-    );
-}
+};
 
 export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly catalogDomain: CatalogDomain;
@@ -454,12 +414,61 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 meetingId: this.meetingId,
                 authorization: input.authorization
             });
+            const now = input.createdAt ?? this.now();
+            const initialState = this.encodeState(input.initialState);
+            const identities = initialState.identities;
+            const ownerships = input.initialOwnership;
+            const descriptors = input.preparedDescriptors;
+            const valid =
+                Array.isArray(identities) &&
+                Array.isArray(ownerships) &&
+                Array.isArray(descriptors) &&
+                identities.length === 7 &&
+                ownerships.length === 7 &&
+                descriptors.length === 7 &&
+                new Set(ownerships.map((o) => o.id)).size === 7 &&
+                new Set(ownerships.map((o) => o.sessionId)).size === 7 &&
+                new Set(ownerships.map((o) => o.identityId)).size === 7 &&
+                ownerships.every(
+                    (o) =>
+                        o.meetingId === this.meetingId &&
+                        o.lifecycleStatus === "provisioning" &&
+                        o.capabilityStatus === "active" &&
+                        o.admissionId === undefined &&
+                        identities.some(
+                            (i) =>
+                                i &&
+                                typeof i === "object" &&
+                                !Array.isArray(i) &&
+                                i.id === o.identityId
+                        ) &&
+                        SessionOwnershipSchema.safeParse({ ...o, createdAt: now, updatedAt: now })
+                            .success &&
+                        descriptors.some((d) => validateDescriptor(o, d))
+                );
+            if (!valid)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Seven valid peer bindings are required."
+                );
             const table = this.meetingDomain.table("creation");
             const existing = table.get("current");
             if (existing) {
                 if (
                     existing.requestId !== input.requestId ||
-                    existing.requestHash !== input.requestHash
+                    existing.requestHash !== input.requestHash ||
+                    !same(existing.creator, input.creator) ||
+                    !same(existing.preparedDescriptors, input.preparedDescriptors) ||
+                    !same(
+                        Object.values(existing.sessionOwnership)
+                            .map((o) => immutableOwnership(ownershipInput(o)))
+                            .sort((a, b) => a.id.localeCompare(b.id)),
+                        input.initialOwnership
+                            .map(immutableOwnership)
+                            .sort((a, b) => a.id.localeCompare(b.id))
+                    )
                 )
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
@@ -469,6 +478,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     );
                 return {
                     status: existing.status,
+                    creator: existing.creator,
                     createRequestId: existing.requestId,
                     requestHash: existing.requestHash,
                     ...(existing.createResult === null
@@ -479,8 +489,6 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     ...(existing.failureCode === null ? {} : { failureCode: existing.failureCode })
                 };
             }
-            const now = input.createdAt ?? this.now();
-            const initialState = this.encodeState(input.initialState);
             const initialOutbox = (input.outbox ?? []).map((item) => {
                 if (item.kind !== "dispatch")
                     throw new RepositoryError(
@@ -501,7 +509,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 };
             });
             const creation = CreationRecordSchema.parse({
-                formatVersion: 1,
+                formatVersion: 2,
+                creator: input.creator,
+                preparedDescriptors: descriptors,
                 meetingId: this.meetingId,
                 status: "creating",
                 requestId: input.requestId,
@@ -510,7 +520,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 initialState,
                 createResult: null,
                 initialOutbox,
-                sessionOwnership: Object.create(null),
+                sessionOwnership: Object.fromEntries(
+                    ownerships.map((o) => [o.sessionId, { ...o, createdAt: now, updatedAt: now }])
+                ),
                 createdAt: now,
                 updatedAt: now,
                 failureCode: null
@@ -530,6 +542,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             await table.put("current", creation);
             return {
                 status: creation.status,
+                creator: creation.creator,
                 createRequestId: creation.requestId,
                 requestHash: creation.requestHash,
                 ...(creation.createResult === null ? {} : { createResult: creation.createResult }),
@@ -584,7 +597,13 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     eventSeqs: [...existingReceipt.eventSeqs]
                 };
             }
-            if (creation.status !== "creating")
+            if (
+                creation.status !== "creating" ||
+                Object.values(creation.sessionOwnership).length !== 7 ||
+                Object.values(creation.sessionOwnership).some(
+                    (o) => o.lifecycleStatus !== "active" || o.capabilityStatus !== "active"
+                )
+            )
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
@@ -602,13 +621,15 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 },
                 bootstrap: {
                     status: "ready",
+                    creator: creation.creator,
                     createRequestId: creation.requestId,
                     requestHash: creation.requestHash,
                     createResult: result,
                     createdAt: creation.createdAt,
                     updatedAt: now
                 },
-                sessionOwnership: creation.sessionOwnership
+                sessionOwnership: creation.sessionOwnership,
+                preparedDescriptors: creation.preparedDescriptors
             });
             next.events[seqKey(1)] = PersistedEventSchema.parse({
                 formatVersion: 1,
@@ -786,6 +807,12 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const next = {
                 ...creation,
                 status: "creation_failed" as const,
+                sessionOwnership: Object.fromEntries(
+                    Object.entries(creation.sessionOwnership).map(([id, o]) => [
+                        id,
+                        { ...o, capabilityStatus: "revoked" as const, updatedAt: now }
+                    ])
+                ),
                 failureCode: input.failureCode ?? null,
                 updatedAt: now
             };
@@ -800,6 +827,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 }));
             return {
                 status: next.status,
+                creator: next.creator,
                 createRequestId: next.requestId,
                 requestHash: next.requestHash,
                 createdAt: next.createdAt,
@@ -809,183 +837,146 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         });
     }
     async recordSessionOwnership(
-        _input: SessionOwnershipInput,
-        _now?: number
+        input: SessionOwnershipInput,
+        suppliedNow?: number,
+        descriptor?: PreparedDescriptor
     ): Promise<SessionOwnership> {
-        const parsedBinding = AgentDefinitionBindingSchema.optional().safeParse(
-            _input.agentDefinition
-        );
-        if (!parsedBinding.success)
-            throw new RepositoryError(
-                "INVALID_INPUT",
-                false,
-                this.meetingId,
-                "Invalid agent definition binding"
-            );
-        const { agentDefinition, ...identity } = _input;
-        const input = {
-            ...identity,
-            ...(agentDefinition === undefined ? {} : { agentDefinition: parsedBinding.data })
-        };
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            const now = suppliedNow ?? this.now();
+            const parsed = SessionOwnershipSchema.safeParse({
+                ...input,
+                createdAt: now,
+                updatedAt: now
+            });
+            if (!parsed.success || input.meetingId !== this.meetingId)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Invalid peer ownership."
+                );
             const creation = this.meetingDomain.table("creation").get("current");
             if (!creation)
                 throw new RepositoryError(
                     "CORRUPT_DATABASE",
                     false,
                     this.meetingId,
-                    "Meeting bootstrap is missing"
+                    "Missing creation record."
                 );
-            const now = _now ?? this.now();
-            const parsed = parseSessionLabel(input.sessionLabel);
-            if (
-                !input.parentSessionId ||
-                !input.provider ||
-                !parsed ||
-                parsed.meetingId !== this.meetingId
-            )
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Session label does not match the repository identity"
-                );
-            const existing =
-                creation.status === "ready"
-                    ? this.projection?.sessionOwnership[input.sessionId]
-                    : creation.sessionOwnership[input.sessionId];
-            if (input.supersededBySessionId !== existing?.supersededBySessionId)
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Only atomic Session replacement may assign supersession."
-                );
-            if (existing && hasInvalidOwnershipTransition(existing, input))
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Session ownership identity, initial message, lifecycle or capability cannot move backward"
-                );
-            if (
-                !existing &&
-                ((parsed.identityId !== undefined &&
-                    (input.identityId !== parsed.identityId || input.role !== parsed.role)) ||
-                    (parsed.identityId === undefined &&
-                        input.role === "manager" &&
-                        (parsed.participantId !== undefined ||
-                            input.participantId !== undefined)) ||
-                    (parsed.identityId === undefined &&
-                        input.role === "participant" &&
-                        (parsed.participantId === undefined ||
-                            parsed.participantId !== input.participantId)))
-            )
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Session role does not match the repository identity"
-                );
-            if (
-                input.lifecycleStatus === "active" &&
-                !input.initialMessageId &&
-                !existing?.initialMessageId
-            )
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Active sessions must have an initial message"
-                );
-            const ownership = {
-                ...input,
-                createdAt: existing?.createdAt ?? now,
-                updatedAt: now
-            };
-            if (existing?.initialMessageId !== undefined)
-                ownership.initialMessageId = existing.initialMessageId;
-            if (creation.status !== "ready") {
-                const next = {
-                    ...creation,
-                    sessionOwnership: {
-                        ...creation.sessionOwnership,
-                        [input.sessionId]: ownership
-                    },
-                    updatedAt: now
-                };
-                await this.meetingDomain.table("creation").put("current", next);
+            const source = this.projection ?? creation;
+            const existing = source.sessionOwnership[input.sessionId];
+            const proof = source.preparedDescriptors.find(
+                (d) => d.descriptorId === input.descriptorId
+            );
+            if (existing) {
+                const previous = ownershipInput(existing);
+                const lifecycleAllowed =
+                    previous.lifecycleStatus === input.lifecycleStatus ||
+                    (previous.lifecycleStatus === "provisioning" &&
+                        input.lifecycleStatus === "active") ||
+                    (input.lifecycleStatus === "closed" && previous.capabilityStatus === "revoked");
+                if (
+                    !same(immutableOwnership(previous), immutableOwnership(input)) ||
+                    !lifecycleAllowed ||
+                    (previous.capabilityStatus === "revoked" &&
+                        input.capabilityStatus !== "revoked") ||
+                    (input.lifecycleStatus === "closed" && input.capabilityStatus !== "revoked") ||
+                    (descriptor !== undefined && !same(descriptor, proof))
+                )
+                    throw new RepositoryError(
+                        "INVALID_STATE",
+                        false,
+                        this.meetingId,
+                        "Peer ownership is immutable and cannot move backward."
+                    );
+                if (same(previous, input)) return structuredClone(existing);
+                if (
+                    input.lifecycleStatus === "active" &&
+                    previous.lifecycleStatus === "provisioning" &&
+                    (!proof ||
+                        now >= proof.expiresAt ||
+                        creation.status === "creation_failed" ||
+                        input.capabilityStatus !== "active")
+                )
+                    throw new RepositoryError(
+                        "INVALID_STATE",
+                        false,
+                        this.meetingId,
+                        "Peer preflight expired or activation was revoked."
+                    );
+            } else {
+                const state = this.projection?.snapshot?.state;
+                const recommendations = state?.identityRecommendations;
+                const lifecycle = state?.lifecycle;
+                if (
+                    creation.status !== "ready" ||
+                    input.lifecycleStatus !== "provisioning" ||
+                    input.capabilityStatus !== "active" ||
+                    !input.admissionId ||
+                    !descriptor ||
+                    !validateDescriptor(input, descriptor) ||
+                    now >= descriptor.expiresAt ||
+                    !lifecycle ||
+                    typeof lifecycle !== "object" ||
+                    Array.isArray(lifecycle) ||
+                    lifecycle.status !== "running" ||
+                    !Array.isArray(recommendations) ||
+                    !recommendations.some(
+                        (item) =>
+                            item &&
+                            typeof item === "object" &&
+                            !Array.isArray(item) &&
+                            item.id === input.admissionId &&
+                            item.status === "provisioning" &&
+                            item.identityId === input.identityId &&
+                            item.sessionId === input.sessionId
+                    ) ||
+                    Object.values(source.sessionOwnership).some(
+                        (o) => o.id === input.id || o.identityId === input.identityId
+                    )
+                )
+                    throw new RepositoryError(
+                        "INVALID_STATE",
+                        false,
+                        this.meetingId,
+                        "Peer admission does not match a pending intent."
+                    );
+            }
+            const ownership = { ...input, createdAt: existing?.createdAt ?? now, updatedAt: now };
+            const descriptors = existing
+                ? source.preparedDescriptors
+                : [...source.preparedDescriptors, PreparedDescriptorSchema.parse(descriptor)];
+            if (!this.projection) {
+                await this.meetingDomain
+                    .table("creation")
+                    .put("current", {
+                        ...creation,
+                        sessionOwnership: {
+                            ...creation.sessionOwnership,
+                            [input.sessionId]: ownership
+                        },
+                        preparedDescriptors: descriptors,
+                        updatedAt: now
+                    });
                 return ownership;
             }
-            const result = await this.commit({
+            return this.commit({
                 operation: "session.ownership",
                 now,
-                mutate: (current) => {
-                    const next = PersistenceProjectionSchema.parse({
+                mutate: (current) => ({
+                    next: PersistenceProjectionSchema.parse({
                         ...current,
                         sessionOwnership: {
                             ...current.sessionOwnership,
                             [input.sessionId]: ownership
-                        }
-                    });
-                    return { next, result: ownership };
-                }
+                        },
+                        preparedDescriptors: descriptors
+                    }),
+                    result: ownership
+                })
             });
-            return result;
         });
-    }
-    /** Retains revoked ownership and its replacement link through checkpoint compaction. */
-    async replaceMissingSession(
-        previousSessionId: string,
-        replacementSessionId: string,
-        now = this.now()
-    ): Promise<SessionOwnership> {
-        return this.enqueueMutation(async () =>
-            this.commit({
-                operation: "session.replaced",
-                now,
-                mutate: (current) => {
-                    const previous = current.sessionOwnership[previousSessionId];
-                    if (
-                        current.snapshot?.state.status !== "paused" ||
-                        previous === undefined ||
-                        previous.capabilityStatus !== "revoked" ||
-                        previous.lifecycleStatus !== "closed" ||
-                        previous.supersededBySessionId !== undefined ||
-                        !replacementSessionId ||
-                        current.sessionOwnership[replacementSessionId] !== undefined
-                    ) {
-                        throw new RepositoryError(
-                            "INVALID_STATE",
-                            false,
-                            this.meetingId,
-                            "Session replacement requires a paused Meeting and retired ownership."
-                        );
-                    }
-                    const replacement: SessionOwnership = {
-                        ...previous,
-                        sessionId: replacementSessionId,
-                        lifecycleStatus: "provisioning",
-                        capabilityStatus: "active",
-                        createdAt: now,
-                        updatedAt: now
-                    };
-                    delete replacement.initialMessageId;
-                    const ownership = { ...current.sessionOwnership };
-                    ownership[previousSessionId] = {
-                        ...previous,
-                        supersededBySessionId: replacementSessionId,
-                        updatedAt: now
-                    };
-                    ownership[replacementSessionId] = replacement;
-                    return {
-                        next: { ...current, sessionOwnership: ownership },
-                        result: replacement
-                    };
-                }
-            })
-        );
     }
     async read(): Promise<MeetingSnapshot<TState>> {
         this.ensureOpen();
