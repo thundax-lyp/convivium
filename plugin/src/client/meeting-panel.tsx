@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 import type { MeetingSummary, MeetingView } from "@/protocol/index.js";
 import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.js";
-import { SubmissionFeedback } from "./meeting-create-form.js";
+import { SubmissionFeedback } from "./meeting-submission-feedback.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 import {
     INITIAL_FRESHNESS,
@@ -273,7 +273,6 @@ export const ConviviumMeetingPanel = ({
     };
     return renderMeetingPanelLayout(
         {
-            client: controlClient,
             localFeedback: (
                 <SubmissionFeedback
                     submission={localSubmission}
@@ -281,15 +280,6 @@ export const ConviviumMeetingPanel = ({
                     t={t}
                 />
             ),
-            createDisabled:
-                freshness.connection !== "connected" || freshness.list !== "fresh" || writePending,
-            onCreated: (meetingId) => {
-                selectMeeting(meetingId);
-                void refreshAll({ recovery: false });
-            },
-            onCommitted: () => {
-                void refreshAll({ recovery: false });
-            },
             locale,
             meetings,
             selectedId: workspace.selectedMeetingId,

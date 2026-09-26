@@ -58,7 +58,7 @@ Manager 的 `recommend_identity` 只提交 `reject` 事实或不可调度的 `ad
 
 面板先读取本地 Host 的全部可恢复 Meeting 摘要，选定后才读取完整状态。摘要不含 transcript、Session ID、capability、物理存储路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表返回暂不可用原因而不得伪装为完整可用列表。完整状态由类型化后端接口输出；Client 只展示，不计算领域状态、不写缓存事实。
 
-面板提供 MO-FR-11 的用户创建、十项结构化控制及暂停/恢复/结束，字段与失败行为遵循 Meeting Interface；具体表单接线见 Peer Meeting Agents Design。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
+面板只提供 MO-FR-11 的暂停/恢复/结束，会议创建由 MO-FR-18 的 `/convivium` Skill 提供；十项结构化 Captain 命令保留在可信本地 Remote 契约中。字段与失败行为遵循 Meeting Interface，具体接线见 Peer Meeting Agents Design。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
 
 Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale，Panel body 通过 slot locale seat 取得 typed translator，使已挂载页面随 locale revision 更新而不重新注册 slot。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
 

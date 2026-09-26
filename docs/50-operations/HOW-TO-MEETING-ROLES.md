@@ -5,7 +5,7 @@
 本文说明七个平级会议 Agent 的角色资源部署和核对。每场会议创建一位 Manager、一位专职 Evidence Reviewer 和五位 Contributor；Reviewer 的逐版本 one-shot worker 仍使用 subagent。正式契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，恢复与权限边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md)，实际覆盖见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 - Node/pnpm 满足 `plugin/package.json`，DSH 固定 `0.1.2-rc.1`。
-- 发行包包含 `config/definitions.json`、七份 AGENTS、七个 Preset、五项能力 Skill 和部署 patch。
+- 发行包包含 `config/definitions.json`、七份 AGENTS、七个 Preset、五项能力 Skill、一个用户入口 Skill 和部署 patch。
 - Host 提供模型路由、Agent factory、Preset/Skill Loader、Session persistence、SQLite Storage Domain；Reviewer worker 所需的 spawn provider 和来源读取工具由 Host 提供。
 - 凭据按 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 管理，不写入包、patch、终端输出或结果。缺模型、工具、资源或凭据时停止，不能以测试替身声称研究能力可用。
 
@@ -15,7 +15,7 @@
 
 `start.sh` 从 `$DSH_HOME/profiles/web/node_modules/@convivium/dsh-plugin/config` 解析真实路径，设置 `CONVIVIUM_MEETING_ROLES_ROOT`，再加载该目录的 `cordis.patch.yml`。此变量是非敏感部署路径，必须与插件入口的 package root 一致；另一份解包副本即使内容相同也不是运行资源根。不要自行改为源码目录或用 patch baseUrl 猜测路径。
 
-Host 的默认 Preset 保持 `standard`。用户打开 `Meetings` 面板，填写目标、议题、责任和限制后创建会议；七角色 Definition 当前版本均为 `2.0.0`。Captain 就是可信本地用户，无须 Captain Session。用户创建、十项控制及暂停/继续/结束都经 loopback Remote；Agent 没有用户控制工具。输入 Session 关闭、面板重新连接均不改变会议授权。
+Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/convivium <会议目标>` 直接创建会议，受控方法自动补齐七角色、初始议题和限制；`Meetings` 面板只负责查看和控制。七角色 Definition 当前版本均为 `2.0.0`。Captain 就是可信本地用户，无须 Captain Session。聊天 Skill 通过一次性授权工具走同一创建事务，十项控制及暂停/继续/结束经 loopback Remote；Meeting Agent 没有用户控制工具。输入 Session 关闭、面板重新连接均不改变会议授权。
 
 ## Role Assets And Models
 

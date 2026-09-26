@@ -8,9 +8,6 @@ import {
 } from "react";
 import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { MeetingClient } from "./meeting-client.js";
-import { MeetingCreateForm } from "./meeting-create-form.js";
-import { MeetingUserControls } from "./meeting-user-controls.js";
 import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { MeetingPanelOverview } from "./meeting-panel-overview.js";
@@ -23,11 +20,7 @@ import {
 } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
-    client?: MeetingClient;
     localFeedback?: React.ReactNode;
-    createDisabled?: boolean;
-    onCreated?(meetingId: string): void;
-    onCommitted?(): void;
     locale?: string;
     meetings: readonly MeetingSummary[];
     selectedId?: string;
@@ -62,14 +55,6 @@ const renderNavigator = (
     return (
         <nav data-testid="meeting-navigator" aria-label={t("panel.navigator.title")}>
             <h3>{t("panel.navigator.title")}</h3>
-            {ctx.client && (
-                <MeetingCreateForm
-                    client={ctx.client}
-                    disabled={ctx.createDisabled ?? true}
-                    onCreated={ctx.onCreated ?? (() => {})}
-                    t={t}
-                />
-            )}
             {ctx.listCached ? <p>{t("panel.navigator.stale")}</p> : null}
             {ctx.listError === undefined ? null : <p role="alert">{ctx.listError}</p>}
             {ctx.meetings.length === 0 && ctx.listLoading ? (
@@ -162,16 +147,6 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                         ) : null}
                         {ctx.localFeedback}
                     </header>
-                    {ctx.client && (
-                        <MeetingUserControls
-                            key={ctx.detail.meetingId}
-                            client={ctx.client}
-                            view={ctx.detail}
-                            disabled={ctx.detailCached || ctx.writePending}
-                            onCommitted={ctx.onCommitted ?? (() => {})}
-                            t={t}
-                        />
-                    )}
                     {ctx.detailError === undefined ? null : <p role="alert">{ctx.detailError}</p>}
                     <div role="tablist">
                         <Button

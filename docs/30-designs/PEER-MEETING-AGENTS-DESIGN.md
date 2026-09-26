@@ -54,7 +54,7 @@ Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Capta
 
 `ResolvedCallerScope` 的旧 local 分支改为 `role:"captain"`，附带由 meetingId 派生的 captainActorId，无 identityId/ownership；resolveCallerScope 和 validScope 验证 channel=loopback_remote、principal=local-controller、无 sessionBindingId。create 单独检查同一可信来源后分配 meetingId；已有会议检查 ready/lifecycle。DSH caller 一律通过 active MeetingIdentity，绝不退化为用户。Domain 用户 actor 为 `{kind:"captain_user",id:captainActorId}`；用户所有领域控制事实使用该脱敏 actor，receipt principal 沿用 local-controller，creator 不作为可更改授权表。Archive controlActorProvenance 恰一项 kind=captain，身份 provenance 不含用户。系统恢复和 deadline actor 保持系统来源。
 
-生产面板在 `plugin/src/client/meeting-panel.tsx` 接入新增 `meeting-user-controls.tsx::MeetingUserControls`，通过现有 MeetingClient.control 发送结构化命令；新建 `meeting-create-form.tsx::MeetingCreateForm`。七角色配置来自固定目标表，用户必须显式完成 objective/议题/限制/责任/引用字段，不能用 Agent 默认猜测补齐必需业务值。十项控制按当前状态显示有意义的操作及目标选择、理由、证据与条件字段；普通用户不编辑 actor、版本或 ownership。版本取完整读取的 snapshot，requestId 在一次提交时分配并在网络不确定重试中复用，用户改变内容才产生新 requestId；遇 VERSION_CONFLICT 补读并提示重试，不自动覆写。断线或详情不完整禁写。
+生产面板在 `plugin/src/client/meeting-panel.tsx` 只调用现有 MeetingClient.control 发送暂停、恢复和结束命令；Navigator 只列出会议，Overview 和 Timeline 展示已提交事实，不提供创建或十项结构化操作表单。聊天 Skill 直接创建会议，其缺省值来自 Meeting Interface 的固定规则，不由 Agent 猜测或扩大权限。十项结构化 Captain 命令仍由可信本地 Remote 契约支持，供明确授权的集成使用；Meeting Agent 自主提交其获授权的会议操作，用户日常只需给出目标并按需干预生命周期。面板版本取完整读取的 snapshot，requestId 在一次提交时分配并在网络不确定重试中复用；遇 VERSION_CONFLICT 补读并提示重试，不自动覆写。断线或详情不完整禁写。
 
 用户 read/list 沿现有 loopback 入口，继续完整用户可见事实；Agent read 只经 active ownership。用户与 Agent 都不能用投影修改领域权限。UI 的 controls 依据统一用户 action 表与领域前置，Domain 最终判定；用户结束仍使用现有显式 outcome/reason 及引用字段，归档由 Runtime 推进。
 

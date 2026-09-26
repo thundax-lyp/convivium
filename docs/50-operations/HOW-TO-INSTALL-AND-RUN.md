@@ -61,13 +61,13 @@ DEEPSEEK_API_KEY=
 
 该脚本读取安装时记录的 release 和 DSH workspace 绝对路径，将 `DSH_HOME` 设为该 workspace 下的 `dsh-home/`，将角色资源根设置为 profile 已安装插件的 `config/` 真实路径，再启动固定版本的 DSH Web。
 
-DSH 打开 Browser UI 后，进入 `Meetings` view 填写结构化表单创建会议，并执行用户控制。Captain 就是本地用户，无须新建 Session 或选择角色 Preset；七个会议 Agent 自动选择各自 Preset。输入 Session 关闭不影响投递或用户权限。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
+DSH 打开 Browser UI 后，在普通聊天输入 `/convivium <会议目标>` 创建会议，再进入 `Meetings` view 查看并执行用户控制。Captain 就是本地用户，无须新建 Session 或选择角色 Preset；七个会议 Agent 自动选择各自 Preset。输入 Session 关闭不影响投递或用户权限。模型默认路由在 DSH Settings 管理；需要角色级差异时，按 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md) 的 `agentModelOverrides` 规则增加后层控制 patch。
 
 ## Assert
 
 - Host 只监听 `127.0.0.1:31828`，Browser 可以打开 DSH UI。
-- `Meetings` view 可见，用户可以填写创建表单。
-- 通过用户表单创建会议时，Manager、Evidence Reviewer 和五个 Contributor Definition 可用，各自独立 Session/Preset/Skills；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
+- `Meetings` view 可见且没有创建按钮或表单；普通用户 Session 能加载 `/convivium`。
+- 通过 `/convivium` 创建会议时，Manager、Evidence Reviewer 和五个 Contributor Definition 可用，各自独立 Session/Preset/Skills；缺 provider、Skill、模型或 Storage Domain 时必须停止并修正 profile，不能改用空定义或临时内存 fallback。
 - 重启同一命令后仍使用相同 `DSH_HOME`、workspace 和 SQLite 文件，已提交会议可以恢复。
 
 ## Stop, Upgrade, And Failure Handling

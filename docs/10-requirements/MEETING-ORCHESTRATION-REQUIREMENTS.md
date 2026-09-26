@@ -165,13 +165,13 @@
 
 1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 用户 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 用户 专属数组。
 2. 当前面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
-3. 当前插件面板作为可信本地用户入口，必须允许创建会议、十项 Captain 控制，以及暂停、恢复、结束；运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
+3. 当前插件面板作为可信本地用户控制入口，只显示当前状态允许的暂停、恢复、结束；会议创建由 MO-FR-18 的聊天 Skill 提供。两者运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
 7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实；状态 projection、Web 接口响应、Client 只读展示和 archive-facing history 必须对同一已提交事实保持一致。
 8. 会议操作可以出现在 DSH 原生工具调用记录中，但这些记录不得替代正式会议状态、transcript 或审计记录。
-9. Meeting Panel 提供用户结构化控制：创建、议题激活/候选处置、Question/Issue 处置、决策接受/替换/撤销、风险处置、完成事实记录/替换/撤销及中止轮次。字段、授权、幂等和失败以统一 MeetingCommand 为准；Contribution 授权和任务重新分配继续只读。自然语言输入和 Agent 草稿不直接执行控制。
+9. 可信本地结构化 Remote 保留议题激活/候选处置、Question/Issue 处置、决策接受/替换/撤销、风险处置、完成事实记录/替换/撤销及中止轮次的 MeetingCommand 契约，Meetings View 不展示这些操作表单。字段、授权、幂等和失败以统一 MeetingCommand 为准；Contribution 授权和任务重新分配继续只读。除 MO-FR-18 的显式 Skill 调用外，自然语言输入和 Agent 草稿不直接执行控制。
 10. 会议状态提交后，通过刷新通知促使面板重新读取完整事实，替换固定 5 秒轮询；通知不携带或替代会议事实。连接恢复、重新聚焦和重新打开后补读完整状态；断线时保留已验证缓存并禁写，完整补读成功后才解除。
 
 ### MO-FR-12：Agent 内部能力边界
@@ -254,7 +254,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和泳道折叠；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
-5. 共享 Header 显示 controls 允许的暂停、继续、结束；概览和列表的用户控制入口依 MO-FR-11 提供创建及十项控制。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。
+5. 共享 Header 显示 controls 允许的暂停、继续、结束；概览只展示已提交事实，列表只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。
 6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review、MeetingTask 和技术标识。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以 Captain、Manager、Contributor、Reviewer 和系统五类泳道展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线只能使用 Meeting Interface 已有时间和身份字段。活动 Meeting 只从顶层 caller-filtered projection 建立节点；归档 Meeting 只从完整 `ArchiveView` 建立历史节点，并必须纳入其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态。

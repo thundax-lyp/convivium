@@ -40,7 +40,7 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
   ./scripts/install-from-source.sh --workspace "$web_ui_workspace" --dev-refresh
 ```
 
-按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再从 `Meetings` 面板创建人工 fixture；若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
+按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再从普通聊天输入 `/convivium <会议目标>` 创建人工 fixture，并在 `Meetings` 面板查看；若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
 
 ## Prerequisites
 

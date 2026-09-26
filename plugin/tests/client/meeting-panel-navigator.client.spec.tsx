@@ -60,6 +60,21 @@ function layoutProps() {
 describe("Meeting navigator", () => {
     beforeEach(() => vi.unstubAllGlobals());
 
+    it("does not offer meeting creation in the Web panel", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+
+        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+
+        expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Create meeting" })).toBeNull();
+        expect(screen.queryByTestId("meeting-user-controls")).toBeNull();
+    });
+
     it("renders a persistent navigator and workspace grid on wide screens", () => {
         const media = mediaFixture(false);
         vi.stubGlobal(
