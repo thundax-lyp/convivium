@@ -225,7 +225,7 @@ export const createMeetingCreationCoordinator = (
     const coordinator: MeetingCreationCoordinator = {
         async create(command, context, meetingId, now, signal) {
             if (
-                context.caller.channel !== "loopback_remote" ||
+                !["loopback_remote", "skill_invocation"].includes(context.caller.channel) ||
                 context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
                 context.caller.sessionBindingId !== undefined
             )

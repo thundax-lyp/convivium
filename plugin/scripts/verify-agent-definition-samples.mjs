@@ -23,6 +23,7 @@ export const definitionAssetFiles = [
     "README.md",
     "definitions.json",
     "cordis.patch.yml",
+    "skills/convivium/SKILL.md",
     ...roles.flatMap(([role, preset]) => [
         `agents/${role}/2.0.0/AGENTS.md`,
         `presets/convivium-${preset}/preset.yml`,
@@ -187,6 +188,15 @@ export async function verifyMeetingAgentDefinitions(root) {
         )
             add("SKILL_INVALID", location);
     }
+    const userSkill = contents.get("skills/convivium/SKILL.md") ?? "";
+    if (
+        !/^---\r?\n[\s\S]*?\r?\n---\r?\n/.test(userSkill) ||
+        !/^name: convivium$/m.test(userSkill) ||
+        !/^disable-model-invocation: true$/m.test(userSkill) ||
+        !/^user-invocable: true$/m.test(userSkill) ||
+        !userSkill.includes("convivium_start_meeting")
+    )
+        add("SKILL_INVALID", "skills/convivium/SKILL.md");
     for (const [role, preset, assigned] of roles) {
         const path = `presets/convivium-${preset}/agent.cordis.yml`;
         const config = contents.get(path) ?? "";

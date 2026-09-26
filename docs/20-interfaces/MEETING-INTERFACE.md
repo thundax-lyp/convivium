@@ -22,17 +22,17 @@ interface MeetingCommand {
 }
 interface CallerBinding {
   channel:
-    "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
+    "dsh_tool" | "loopback_remote" | "skill_invocation" | "runtime_recovery" | "deadline_handler";
   principalId: OpaqueId;
   sessionBindingId?: OpaqueId;
 }
 ```
 
-`CallerBinding` 只由可信 adapter 传给 Runtime。当前单 Host 单用户的 Captain 就是本地用户；生产入口为已受 loopback Host 边界约束的 `conviviumMeetings.control`，adapter 固定注入 `{channel:"loopback_remote",principalId:"local-controller"}`，不设置 sessionBindingId。用户提交结构化 MeetingCommand；Session、actor、authority 不接受 wire payload 提交。自然语言和 Agent 输出可以作为待编辑内容，不直接形成控制授权。本次不实现自然语言解析或 Agent 代用户自动提交。
+`CallerBinding` 只由可信 adapter 传给 Runtime。当前单 Host 单用户的 Captain 就是本地用户；结构化控制入口为已受 loopback Host 边界约束的 `conviviumMeetings.control`，adapter 固定注入 `{channel:"loopback_remote",principalId:"local-controller"}`，不设置 sessionBindingId。用户提交结构化 MeetingCommand；Session、actor、authority 不接受 wire payload 提交。`/convivium <目标>` 是另一条仅用于创建的可信用户入口：DSH `agent/pre-step` 只接受直接用户消息、核对可由用户调用的已部署 Skill，并为该输入 Session 的当前 turn 发出单次创建授权；`convivium_start_meeting` 消耗授权，从原始用户文字构造 `CreateMeeting`，以 `{channel:"skill_invocation",principalId:"local-controller"}` 提交。普通自然语言、Agent 文本和没有对应授权的工具调用不形成 Captain 权限。
 
-`create_meeting` 和十种 Captain 控制 action 只接受上述用户入口，DSH Agent tool caller 一律拒绝；pause/resume/end 同属该用户控制，start_archive 与归档结果仍由 Runtime 执行。关闭创建时的聊天 Session、重新打开面板或 Host 冷重启，不改变用户对当前 Host 内 Meeting 的控制权限；不引入 Session 权限转移或多用户身份系统。创建命令在协议结构和 identityKey 引用校验通过后、Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 meetingId，不混入 caller、Session、随机值或 teamId。receipt 键为 `(meetingId,principalId,requestId)`；同键同规范化 payload 返回原结果，不同 payload 返回 IDEMPOTENCY_CONFLICT。可信入口授权先于 receipt 查找。
+`create_meeting` 接受上述两个可信用户入口；其它 Captain 控制 action 只接受结构化用户入口。普通 DSH Agent tool caller 一律拒绝；pause/resume/end 同属用户控制，start_archive 与归档结果仍由 Runtime 执行。关闭创建时的聊天 Session、重新打开面板或 Host 冷重启，不改变用户对当前 Host 内 Meeting 的控制权限；不引入 Session 权限转移或多用户身份系统。创建命令在协议结构和 identityKey 引用校验通过后、Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 meetingId，不混入 caller、Session、随机值或 teamId。Skill 入口的 requestId 由已接受的直接用户消息 ID 派生，不能由模型选择。receipt 键为 `(meetingId,principalId,requestId)`；同键同规范化 payload 返回原结果，不同 payload 返回 IDEMPOTENCY_CONFLICT。可信入口授权先于 receipt 查找。
 
-Repository 的私有 bootstrap 保存创建来源 `creator`，它是审计来源，不是每场 Meeting 的 Session 授权锁。`sourceSessionId` 仅允许可信 Host 用户输入 adapter 从实际用户输入上下文提供；当前面板 control 入口没有该上下文，必须省略。模型参数和 wire payload 不能补填此字段；缺席不影响创建或后续控制。`captainActorId` 精确为 `"captain_actor-" + sha256Hex(encodeCanonicalJson([meetingId,"captain_actor","captain"])).slice(0,32)`；Domain 用户操作使用 `{kind:"captain_user",id:captainActorId}`，公开事实与归档不含 Session ID，不进入 MeetingState.identities。
+Repository 的私有 bootstrap 保存创建来源 `creator`，它是审计来源，不是每场 Meeting 的 Session 授权锁。`sourceSessionId` 仅允许可信 Host 用户输入 adapter 从实际用户输入上下文提供；当前面板 control 和 Skill 创建入口均不写入该字段。模型参数和 wire payload 不能补填此字段；缺席不影响创建或后续控制。`captainActorId` 精确为 `"captain_actor-" + sha256Hex(encodeCanonicalJson([meetingId,"captain_actor","captain"])).slice(0,32)`；Domain 用户操作使用 `{kind:"captain_user",id:captainActorId}`，公开事实与归档不含 Session ID，不进入 MeetingState.identities。
 
 ```ts
 interface MeetingBootstrap {
@@ -570,7 +570,9 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 
 ### Captain Control Surface
 
-生产控制统一经 `conviviumMeetings.control(MeetingCommand)`；下表是用户可提交的 action 闭集，不注册同名 DSH Captain tools，也移除旧 `convivium_create_meeting` Agent tool。用户 read/list 使用已有 loopback Remote，投影由 Runtime 授权。参数保持本接口的 action 字段、版本、幂等和领域前置，不增加任意 json wrapper。
+结构化控制统一经 `conviviumMeetings.control(MeetingCommand)`；下表是用户可提交的 action 闭集。旧 `convivium_create_meeting` Agent tool 保持移除；新增 `convivium_start_meeting` 只消费 `/convivium` 直接用户调用的一次性授权，不接受 MeetingCommand 参数，也不能执行表中其它 Captain action。用户 read/list 使用已有 loopback Remote，投影由 Runtime 授权。参数保持本接口的 action 字段、版本、幂等和领域前置，不增加任意 json wrapper。
+
+`convivium_start_meeting` 的 arguments 精确为空对象，目标取斜杠后的非空原始用户文字，且一次输入最多提交一次。适配器补齐标准七角色 `convivium.<role>` Definition `2.0.0`、全部 `required:true`、唯一 Manager 和 Evidence Reviewer、一个 `initial` pending active Agenda；一个 `primary` 必需产出是完成原始目标，一个 `verifiable` 验收条件要求可核验的产出、依据和剩余限制，一个 `evidence` 硬约束禁止把未经验证的推断当作事实。默认 `acceptableRiskLevel=low`；`maxFormalMessages=200`、`maxDurationMs=86400000`、`taskDeadlineMs=3600000`、`reviewDeadlineMs=900000`。这些是创建时固化的保守默认值，不表示目标已完成或风险已接受。缺失 Skill、目标为空、非直接用户来源、已消费授权或 Meeting-owned Session 均拒绝创建；模型不能通过工具参数改写上述字段。
 
 | 用户操作          | action schema                             | 来源              |
 | ----------------- | ----------------------------------------- | ----------------- |

@@ -29,6 +29,11 @@ async function fixture() {
     const fakeBin = join(root, "bin");
     const calls = join(root, "pnpm-calls");
     await mkdir(join(packageRoot, "config"), { recursive: true });
+    await mkdir(join(packageRoot, "config", "skills", "convivium"), { recursive: true });
+    await writeFile(
+        join(packageRoot, "config", "skills", "convivium", "SKILL.md"),
+        "---\nname: convivium\nuser-invocable: true\n---\nStart a meeting.\n"
+    );
     await mkdir(join(packageRoot, "scripts"));
     await mkdir(fakeBin);
     await writeFile(

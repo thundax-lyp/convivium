@@ -11,7 +11,7 @@ import {
     getMeetingIdentityReader,
     getMeetingCommandApplication
 } from "./runtime/index.js";
-import { registerMeetingTools } from "./tools/index.js";
+import { MeetingStartGate, registerMeetingStartTool, registerMeetingTools } from "./tools/index.js";
 
 export { Config };
 export { ConviviumRemoteService };
@@ -72,6 +72,36 @@ const meetingConsumerPlugin = {
                         return resolved;
                     }
                 }
+            });
+            const startGate = new MeetingStartGate();
+            ctx.on("agent/pre-step", async ({ agent, messages, turn, signal }, next) => {
+                const decision = await next();
+                if (
+                    decision.kind !== "reject" &&
+                    messages.some((message) => message.source.kind === "user")
+                ) {
+                    const skill = await ctx.skills
+                        .get("convivium", {
+                            scope: agent,
+                            cwd: agent.session.header.cwd,
+                            signal
+                        })
+                        .catch(() => undefined);
+                    if (skill?.invocation.userInvocable)
+                        startGate.observe(agent.id, turn, messages);
+                    else startGate.clear(agent.id, turn);
+                }
+                return decision;
+            });
+            ctx.on("agent/turn-stopping", ({ agent, turn }) => {
+                startGate.clear(agent.id, turn);
+            });
+            registerMeetingStartTool({
+                registry: ctx.tools,
+                gate: startGate,
+                create: (command, signal) => runtime.startFromSkill(command, signal),
+                isMeetingAgent: async (agent, signal) =>
+                    (await resolveMeetingCaller(agent, runtime, signal)) !== undefined
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {
                 if (remoteContext.webServer.host === "127.0.0.1")

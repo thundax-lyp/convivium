@@ -355,7 +355,12 @@ const createCallerScopeResolver =
     async (input: {
         meetingId: string;
         caller: {
-            channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
+            channel:
+                | "dsh_tool"
+                | "loopback_remote"
+                | "skill_invocation"
+                | "runtime_recovery"
+                | "deadline_handler";
             principalId: string;
             sessionBindingId?: string;
         };
@@ -630,6 +635,20 @@ export const activateTargetMeetingApplication = async (
                 {
                     caller: { channel: "loopback_remote", principalId: "local-controller" }
                 },
+                signal
+            );
+            if (result.kind === "accepted") await reconcile(result.meetingId);
+            return result;
+        },
+        async startFromSkill(command: MeetingCommand, signal: AbortSignal) {
+            if (command.action.kind !== "create_meeting")
+                return MeetingCommandResultSchema.parse({
+                    kind: "rejected",
+                    error: { code: "UNAUTHORIZED", message: "Only Meeting creation is delegated" }
+                });
+            const result = await application.execute(
+                command,
+                { caller: { channel: "skill_invocation", principalId: "local-controller" } },
                 signal
             );
             if (result.kind === "accepted") await reconcile(result.meetingId);

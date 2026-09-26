@@ -40,9 +40,9 @@ DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox�
 
 七个初始 Meeting identity 分别持有平级、独立、可持续的 AgentSession；动态接纳身份也单独创建。不同 Meeting、identity 或授权范围不得共享 Session。七个角色各有 Preset，只装分配的能力 Skills；角色 AGENTS 由插件在 scoped setup 中显式读取并注册。Captain 是每场 Meeting 的外部可信控制来源，不是 MeetingIdentity、Participant、notice 目标或任何会议 Agent 的 DSH parent。唯一专职 Evidence Reviewer 的逐版本 one-shot worker 仍作为该 Reviewer 的 DSH Subagent，worker 不取得 Meeting authority。
 
-每个生产 Meeting identity tool 暴露精确 MeetingCommand/action schema，Definition toolFilter 收窄可见面，Runtime 按 exec.agent 与 active ownership 独立授权。Captain 就是用户，其创建与控制走可信 loopback Remote；不注册 Captain Agent tools。
+每个生产 Meeting identity tool 暴露精确 MeetingCommand/action schema，Definition toolFilter 收窄可见面，Runtime 按 exec.agent 与 active ownership 独立授权。Captain 就是用户；结构化创建与控制走可信 loopback Remote。`convivium_start_meeting` 是仅用于显式用户 Skill 调用的零参数创建工具，以当前 turn 的单次授权和原始目标构造命令，不开放其它 Captain action。
 
-用户创建与 Captain 控制统一经可信 loopback `conviviumMeetings.control`，Captain 就是本地用户，不是 Agent 或原 Session 授权绑定。DSH tools 仅接受 active MeetingIdentity 的会议操作；输入 Session 关闭不影响七个平级 Agent、投递或用户控制。具体装配、来源审计与恢复见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)。
+用户可通过可信 loopback `conviviumMeetings.control` 结构化创建并控制会议，也可通过已部署的 `/convivium` Skill 直接创建。Skill 文件随安装包部署到当前 `DSH_HOME/skills/convivium/`，只由用户显式调用；Meeting Agent 的独立 Skill 根不包含它。Captain 是本地用户，不是 Agent 或原 Session 授权绑定。除这条受限创建路径外，DSH tools 仅接受 active MeetingIdentity 的会议操作；输入 Session 关闭不影响七个平级 Agent、投递或用户控制。具体装配、来源审计与恢复见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)。
 
 Reviewer 的 `EvidenceReviewClaim` 仍按 EvidenceVersion、sourceEffectId 和 expiry 原子认领；coordinator 仅调用专用 `convivium_run_review_worker`，worker 使用固定 `outputSchema` 和空 toolFilter，返回的结构化结果经 versionId 校验后才由 `submit_evidence_review` 单独提交。worker 失败、超时和 pause 依既有 EvidenceStatus/claim 规则处理，不能以 `followup` 接受推断审核成功。详细状态转换见 [Meeting Design](./MEETING-DESIGN.md)。
 

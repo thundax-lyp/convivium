@@ -224,7 +224,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 13. 七个平级 Meeting Agent 和 Meeting Runtime 投递不得依赖用户输入 Session 常驻；输入 Session 关闭时，已授权会议工作仍按 lifecycle、ownership 与 outbox 继续，不重挂 child、不丢弃待投递效果。
 14. Captain 是当前本地用户，能够管理当前 Host 中多场 Meeting；可信用户入口按每个请求验证 Meeting、版本、幂等与领域前置。原输入 Session 无需恢复，权限不绑定 Session；Agent 不能冒用用户控制身份，Session 来源仅用于审计。
 15. Meeting Agent 之间的正式交流必须经 Meeting Runtime 的会议操作、授权校验和可审计记录进行。即使 DSH 提供 Agent 间直接消息能力，Convivium 也不得为这些会议身份开放绕过 Meeting Runtime、会议记录或可见性规则的直接互发消息路径。
-16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务，不注册 Captain Agent tools；每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
+16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务；除 MO-FR-18 的一次性会议创建授权外，不注册 Captain Agent tools。每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
 
 ### MO-FR-15：Developer Markdown Projection
 
@@ -266,6 +266,14 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘可以遍历节点和相邻泳道；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
 15. Meetings View 的新增标签、筛选、空状态、错误、ARIA 文案和已知 enum label 继续遵守 MO-FR-16 的 `zh`、`en` 本地化与原文保持边界；时间使用 DSH/Host 的 locale 与时区格式，不得从格式化结果反推字段。
 16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
+
+### MO-FR-18：聊天框启动会议
+
+1. 本地用户在普通 DSH Conversation 输入 `/convivium <会议目标>` 时，Host 装载已部署的、仅可由用户显式调用的 `convivium` Skill。目标是斜杠命令后的原始用户文字；普通消息、Agent 文本和会议身份消息不得触发创建授权。
+2. 有非空目标时，Skill 经仅对该次直接用户调用有效的创建方法，直接创建一场 Meeting，并返回 `meetingId`；不要求用户先打开 Meetings View、填写结构化表单或再次确认。提交失败时明确返回失败，不宣称会议已创建。
+3. 用户未提供的初始身份、角色 Definition、议题、目标产出、验收条件、风险等级和会议时限由产品按 Meeting Interface 的固定规则补齐；用户无需逐项填写。没有可识别的会议目标时才追问。自动补齐不得预先标记任何产出已完成，也不得绕过创建预检或领域约束。
+4. 该授权只允许创建一场与本次用户目标绑定的 Meeting，不授予 Agent 其他 Captain 控制、代用户决定风险或跨 Meeting 访问权。创建后七个 Meeting Agent 按既有平级 Session 与授权投递运行，用户输入 Session 可以关闭。
+5. Meetings View 用于导航和控制已创建会议，不展示另一个创建入口；既有结构化 `create_meeting` Remote 契约可供可信本地用户集成调用。
 
 ## Collaborative Problem Solving
 
@@ -402,6 +410,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 59. `zh`、`en` 下新增 View Switcher、Navigator、Timeline、筛选、失败状态和 ARIA 文案均完整本地化，用户或 Agent 内容保持原文；真实 DSH Web profile 中切换 locale 无需重新注册 View 或刷新页面。
 60. 用户输入 Session 关闭后，七个平级 Agent 仍接收授权投递并推进会议；用户重开面板或 Host 重启后仍能控制，不要求恢复原 Session。任一 Agent 冒充用户控制都被拒绝；Agent 间绕过 Runtime 的内容不形成正式会议事实。
 61. 七个角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 的精确版本与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议。
+62. 在真实本地 DSH Web Conversation 中输入 `/convivium 调查TypeSafe JEV的最新进展`，不操作 Meetings View 表单即可得到已提交的 `meetingId`，其 objective 保留用户目标，七个固定身份和一个 pending active 议题齐全，且会议启动后的投递不依赖输入 Session 常驻。
+63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
 
 ## Related Documents
 

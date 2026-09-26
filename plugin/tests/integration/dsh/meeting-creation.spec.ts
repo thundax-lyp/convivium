@@ -138,8 +138,8 @@ const fixture = async (failAt = -1) => {
     const context = { caller: { channel: "loopback_remote", principalId: "local-controller" } };
     const dependencies = { ctx, owner, registry, definitions, packageRoot, cwd: packageRoot };
     const coordinator = createMeetingCreationCoordinator(dependencies);
-    const run = () =>
-        coordinator.create(command, context, "meeting", Date.now(), new AbortController().signal);
+    const run = (caller = context) =>
+        coordinator.create(command, caller, "meeting", Date.now(), new AbortController().signal);
     return { run, repository, registry, ctx, owner, active, command, context, dependencies };
 };
 
@@ -165,6 +165,23 @@ it("commits all seven peer bindings before factories and publishes only after al
         expect(f.ctx.agentDefaultModel.currentSelection).toHaveBeenCalledTimes(1);
         f.command.action.objective.statement = "changed";
         await expect(f.run()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    } finally {
+        await f.repository.close();
+    }
+});
+
+it("accepts one locally authorized Skill invocation as the Captain creation source", async () => {
+    const f = await fixture();
+    try {
+        expect(
+            await f.run({
+                caller: { channel: "skill_invocation", principalId: "local-controller" }
+            })
+        ).toMatchObject({ kind: "accepted", meetingId: "meeting" });
+        expect((await f.repository.recover()).bootstrap.creator).toEqual({
+            kind: "local_user",
+            principalId: "local-controller"
+        });
     } finally {
         await f.repository.close();
     }

@@ -33,7 +33,12 @@ export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
 export const DEADLINE_HANDLER_PRINCIPAL_ID = "deadline-handler";
 
 export interface CallerBinding {
-    channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
+    channel:
+        | "dsh_tool"
+        | "loopback_remote"
+        | "skill_invocation"
+        | "runtime_recovery"
+        | "deadline_handler";
     principalId: string;
     sessionBindingId?: string;
 }
@@ -496,7 +501,7 @@ async function executeCreateMeeting(
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
     if (
-        context.caller.channel !== "loopback_remote" ||
+        !["loopback_remote", "skill_invocation"].includes(context.caller.channel) ||
         context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
         context.caller.sessionBindingId !== undefined
     )

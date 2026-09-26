@@ -52,6 +52,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
             },
+            on: vi.fn(() => {
+                const disposer = vi.fn();
+                effects.push(disposer);
+                return disposer;
+            }),
             agents: { get: () => undefined },
             logger: vi.fn(() => ({ warn: vi.fn() })),
             subagents: {
@@ -136,14 +141,14 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
@@ -169,7 +174,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
@@ -177,7 +182,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         const fixture = await host("localhost");
         expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
     });
 
     it("does not activate legacy workspace projection", async () => {
@@ -255,7 +260,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(10)
+                    ).toBe(11)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -268,7 +273,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(10);
+                ).toBe(11);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {
