@@ -78,6 +78,8 @@ pause 停止新调度、撤销当前活动的继续条件并取消受影响的 A
 
 该 scenario 结果的 JSON 根字段精确为 `ok:true`、`scenario:"peer-meeting-agents"`、`meetingId:string`、`assertions:string[]`、`observed`。`assertions` 精确按序为 `seven-peer-sessions,role-skill-isolation,input-session-independent-delivery,user-control-authorization,github-source,arxiv-source,reviewer-worker,cold-recovery`。`observed` 精确包含 `sessionIds:Record<AgentRoleDefinitionId,string>`、`presetIds:Record<AgentRoleDefinitionId,string>`、`skills:Record<AgentRoleDefinitionId,AbilityName[]>`、`userControl:{inputSessionIndependent:boolean,agentRejected:boolean,reconnectedUserAccepted:boolean}`、`github:{url:string,ref:string}`、`arxiv:{url:string,id:string,version:string}`、`review:{versionId:string,reviewId:string}`、`coldRecovery:boolean`；七个 Record 的键集合精确为七角色，Session ID 值互异，Preset 值精确为 `convivium-<role 去掉 meeting_ 前缀后下划线替换为连字符>`，Skill 数组按名称排序且与角色分配表相等。`assertions` 是验证清单，不由 probe 自报通过代替 `result.mjs` 对 `observed` 的逐字段校验；URL/ID/ref/version 非空，结果不保存 API key、prompt 全文或隐藏推理。
 
+该场景的当前 `observed` 只保存 Session/Preset/Skill 集合、用户控制结果、来源标识、一次 Review 和冷恢复布尔值。资源与模型的恢复检查通过 Repository ownership 的绑定哈希比较；它不直接读取恢复后 Agent 的有效模型、角色身份指令或 `toolFilter`，也不验证 Reviewer 并发审核。`result.mjs` 只能校验结果结构和值，真实工具读取、notice、授权拒绝和恢复行为仍须由 probe 执行并由运行记录证明。完整 MO-FR-14 验收还须覆盖这些未被该场景直接观察的条件，不能由八个结果字段或一次专项 PASS 推断完成。
+
 ## Related Documents
 
 - [Architecture](../00-governance/ARCHITECTURE.md)

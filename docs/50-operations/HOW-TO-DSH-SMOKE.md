@@ -130,6 +130,8 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 真实 Loader 创建七个无 parent 的 Session，逐角色比较 Skill 列表并逐名称验证可加载边界；输入 Session 在创建前关闭，notice 仍投递。研究角色实际读取 GitHub 固定 ref 和 arXiv 固定版本并提交证据，Reviewer 运行真实 one-shot worker。Agent 调用用户创建入口被拒绝，独立用户连接可以暂停；冷 Host 使用同一 DSH_HOME/SQLite 继续，并逐项核对原 Session、Preset、Skills、资源与模型绑定。八项 observed 必须通过精确结果校验。
 
+此处的独立用户连接是重新建立的 loopback HTTP 请求；资源与模型绑定核对的是 Repository ownership 哈希，并未直接检查恢复后 Agent 的有效模型、角色身份指令或 `toolFilter`。一次 worker 不构成并发审核证据，结果中的固定来源标识也不能脱离工具调用记录单独证明实际内容读取。完整 MO-FR-14 验收边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md#acceptance) 与 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
+
 ## Review Records
 
 默认运行会删除隔离环境。需要保留可复盘记录时，先创建专用目录，再传入其现有路径：
