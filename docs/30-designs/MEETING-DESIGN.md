@@ -122,6 +122,8 @@ plan_next_step 只由 Manager 在没有 open Round 时提交，替代同 Agenda 
 
 application 只从 `Clock.now()` 取得时间，向 Domain command 传入具体 timestamp；Domain 不读取时钟。deadline handler 使用独立 requestId、当前版本和可验证到期条件，故早到、重复或竞态执行均不会产生双重 exit fact。
 
+每个运行中的 Meeting 独立轮询已提交的 Contribution 截止时间，不等待审核 outbox worker 空闲。尚未登记者到准备期限时以 `submission_missing` 退出；最终审核成功送达后，作者没有回复且响应期限到达时以 `timed_out` 退出。暂停时停止扫描，恢复时从当前 snapshot 补跑已到期命令。`awaiting_response` 本身不满足正常关轮条件；最后一个待处理 Contribution 确定退出且最终审核均已送达时，同一次提交生成定向 `round_ready` notice 唤醒 Manager。notice 只携带 Round ID，Manager 通过受控读取入口获取可见进度。
+
 所有同一 Meeting 写入通过 expected version 串行化。读与不同 Meeting 可并行；同一 round 的 evidence/review 可以并行提交，但所有成功写入仍各自产生一个连续 Meeting version。版本冲突、receipt 重放和 effect 重试均不能改写历史或创建重复 publication/message。
 
 恢复只做以下操作：读取最近完整 committed snapshot；验证记录连续性和 identity/session ownership；恢复未完成 effect outbox；根据当前时间补跑可证明已到期的 deadline command。普通变更保存为有界 commit record；若单次原子变更的 patch 超过 Convivium 自定的 65,536-byte record 上限，Repository 不拆分业务 command，而是先把完整新 projection 写成不超过 20,000 raw bytes 的 checkpoint pages，最后以 checkpoint pointer 原子发布。pointer 发布前恢复旧 projection，发布后恢复完整新 projection；该上限不是 DSH Storage Domain 或 SQLite 的 value 上限。任何 snapshot、receipt、outbox 或 ownership 损坏均标记 `RECOVERY_UNAVAILABLE` 并停止写入，绝不从 Session log、Markdown、UI 缓存或当前角色定义重建事实。Agent 内部失败本身不是 Meeting 失败；必须经显式 action、deadline 或授权处置成为领域事实。归档先物化完整 ArchivePackage，再进入 archiving 并停止、关闭、revoke 全部已证明归属的 Meeting Session；用户可管理多场 Meeting，归档只关闭目标 Meeting 已证明归属的平级 AgentSession；目标 Meeting 中有未登记的额外 Session 时拒绝恢复；任一关闭失败保持 archiving、禁讨论并保留输出，成功后才 archived。

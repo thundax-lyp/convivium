@@ -23,6 +23,7 @@ import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
 import { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
+import { runDueContributionDeadline } from "./services/contribution-deadline.js";
 import {
     createMeetingIdentityReader,
     type MeetingIdentityReader
@@ -409,6 +410,55 @@ const createCallerScopeResolver =
         };
     };
 
+const startContributionDeadlinePoller = (
+    repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">,
+    application: MeetingCommandApplication,
+    onError: (error: unknown) => void
+): { stop(): Promise<void> } => {
+    const controller = new AbortController();
+    let busy = false;
+    let current: Promise<void> = Promise.resolve();
+    const poll = () => {
+        if (busy || controller.signal.aborted) return;
+        busy = true;
+        current = (async () => {
+            try {
+                await runDueContributionDeadline(
+                    repository,
+                    application,
+                    Date.now(),
+                    controller.signal
+                );
+            } catch (error) {
+                if (!controller.signal.aborted) onError(error);
+            } finally {
+                busy = false;
+            }
+        })();
+    };
+    const timer = setInterval(poll, 1_000);
+    poll();
+    return {
+        stop: async () => {
+            clearInterval(timer);
+            controller.abort();
+            await current;
+        }
+    };
+};
+
+const stopMeetingDelivery = async (
+    meetingId: string,
+    workers: Map<string, ReturnType<typeof createOutboxWorker>>,
+    pollers: Map<string, { stop(): Promise<void> }>
+): Promise<void> => {
+    const worker = workers.get(meetingId);
+    worker?.stop();
+    await Promise.all([worker?.wait(), pollers.get(meetingId)?.stop()]);
+    workers.delete(meetingId);
+    pollers.delete(meetingId);
+};
+
 export const activateTargetMeetingApplication = async (
     ctx: Context,
     config: Config,
@@ -472,6 +522,7 @@ export const activateTargetMeetingApplication = async (
         catalog
     });
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
+    const deadlinePollers = new Map<string, { stop(): Promise<void> }>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {
         const repository = await registry.openMeeting({ meetingId });
         const existing = deliveryWorkers.get(meetingId);
@@ -563,16 +614,19 @@ export const activateTargetMeetingApplication = async (
             pollMs: 1_000,
             dispatch
         });
+        deadlinePollers.set(
+            meetingId,
+            startContributionDeadlinePoller(repository, application, (error) =>
+                ctx
+                    .logger("convivium:meeting")
+                    .error("Meeting %s deadline recovery failed %o", meetingId, error)
+            )
+        );
         deliveryWorkers.set(meetingId, worker);
         void worker.start().catch(() => undefined);
     };
-    const stopDelivery = async (meetingId: string) => {
-        const worker = deliveryWorkers.get(meetingId);
-        if (!worker) return;
-        worker.stop();
-        await worker.wait();
-        deliveryWorkers.delete(meetingId);
-    };
+    const stopDelivery = (meetingId: string) =>
+        stopMeetingDelivery(meetingId, deliveryWorkers, deadlinePollers);
     const reconcile = (meetingId?: string) =>
         recoverTargetMeetingDeliveries({
             registry,
@@ -694,8 +748,12 @@ export const activateTargetMeetingApplication = async (
     identityReaders.set(ctx, identityReader);
     return async () => {
         for (const worker of deliveryWorkers.values()) worker.stop();
-        await Promise.all([...deliveryWorkers.values()].map((worker) => worker.wait()));
+        await Promise.all([
+            ...[...deliveryWorkers.values()].map((worker) => worker.wait()),
+            ...[...deadlinePollers.values()].map((poller) => poller.stop())
+        ]);
         deliveryWorkers.clear();
+        deadlinePollers.clear();
         runtimes.delete(ctx);
         identityReaders.delete(ctx);
         applications.delete(ctx);
