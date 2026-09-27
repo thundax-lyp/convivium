@@ -4,7 +4,7 @@
 
 本文规定 Convivium 测试的有效性、保留价值和维护要求，适用于新增、修改、评审及精简测试。目标是在满足必要验证要求的前提下，减少无效断言、重复代码和不合理的执行成本。
 
-行为依据的优先级遵循 [Document Rules](./DOCUMENT-RULES.md)。测试运行、证据复用、资源清理和交付要求遵循 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence)。本文定义判断标准；[TDD](../../.agents/skills/test-driven-development/SKILL.md) 和 [Convivium Testcase Review](../../.agents/skills/convivium-testcase-review/SKILL.md) 分别说明开发与审查方法，触发方式由根 `AGENTS.md` 和各 Skill 配置维护。
+行为依据的优先级遵循 [Document Rules](./DOCUMENT-RULES.md)。测试运行、证据复用、资源清理和交付要求遵循 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence)。本文定义判断标准；[TDD](../../.agents/skills/test-driven-development/SKILL.md) 和 [Convivium Testcase Review](../../.agents/skills/convivium-testcase-review/SKILL.md) 分别说明开发与审查方法，触发方式由根 `AGENTS.md` 和各 Skill 配置维护。TDD Skill 的加载不表示本次任务的所有改动都需要红绿循环。
 
 ## Terms
 
@@ -125,11 +125,15 @@ characterization test 可以记录既有行为，用于有明确兼容目的的�
 
 ## Feedback And Evidence
 
+本规则中的**核心需求**按当前任务判定：它必须有已确认需求或有效接口契约作为依据，且对应当前目标不可缺少的验收结果或硬约束，例如授权、状态转换和数据完整性。若违反该要求，当前目标将无法成立，或会产生越权、错误状态、数据丢失或不一致等不可接受的结果。仅有一个 Acceptance Criterion、代码复杂、分支多或需要新增测试，都不足以认定为核心；应指出具体依据和能暴露违例的反例。依据不足以判断正确预期时，按根 `AGENTS.md` 先确认需求，不从当前实现推定。
+
+测试先行只用于本次改动中承担上述核心需求的行为。TDD Skill 已加载时，其红绿循环也只适用于这些行为；用户明确要求 TDD 时按其指定范围执行。其他改动仍按本规则选择、编写和运行必要测试，不强制先观察失败。
+
 新写或修改的测试需直接运行；对缺陷回归，应尽可能确认修复前失败、修复后通过，并核对两次结果确实来自目标缺陷。必要时可用隔离副本中的定向生产故障确认错误识别能力，不另写测试去验证断言；是否需要额外运行取决于风险与已有证据。
 
 通过只说明已执行断言在该版本和环境下成立。编译/环境错误不能单独证明行为测试有效，RED/GREEN 也不证明预期依据正确或需求已完整覆盖。
 
-测试精简需对照前后输入、断言及验证边界，并运行受影响检查；全绿或 coverage 不变不足以证明未丢失必要保护。命令、结果与未验证范围按 Engineering Rules 报告。TDD 的开发顺序由对应 Skill 说明。
+测试精简需对照前后输入、断言及验证边界，并运行受影响检查；全绿或 coverage 不变不足以证明未丢失必要保护。命令、结果与未验证范围按 Engineering Rules 报告。符合上述范围时，TDD 的开发顺序由对应 Skill 说明。
 
 ## Test Naming
 
