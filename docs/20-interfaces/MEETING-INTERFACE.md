@@ -1031,6 +1031,7 @@ interface AgentNoticeBase {
 }
 type AgentNoticePayload =
   | (AgentNoticeBase & { noticeKind: "meeting_started" })
+  | (AgentNoticeBase & { noticeKind: "round_opened"; roundId: OpaqueId })
   | (AgentNoticeBase & {
       noticeKind: "transcript_update";
       publicMessageId: OpaqueId;
@@ -1086,6 +1087,8 @@ type AgentNoticePayload =
 `meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
+
+`round_opened` 由 `open_round` 提交为负责该 Agenda 的每位 Contributor 分别生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方仍是负责该 Agenda 的 active Contributor、Round 仍 open，才投递到其独立 Session。通知只提示重新读取 caller-visible Meeting，不自动举手或授予 Contribution。
 
 `MeetingStateRecord` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecord` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。底层可以使用单一 commit record 或以最终 pointer 发布的分页 checkpoint，但不得因单条 record 大小限制拆分同一业务 command。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackage` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 

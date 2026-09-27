@@ -109,7 +109,25 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         ),
         pendingHandRaises
     };
-    return { kind: "accepted", state: next, relatedIds: [input.roundId], effectRequests: [] };
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [input.roundId],
+        effectRequests: next.identities
+            .filter(
+                (identity) =>
+                    identity.roles.includes("contributor") &&
+                    (identity.agendaResponsibilityIds.length === 0 ||
+                        identity.agendaResponsibilityIds.includes(input.agendaId))
+            )
+            .map((identity) => ({
+                kind: "agent_notice" as const,
+                noticeKind: "round_opened" as const,
+                recipientId: identity.id,
+                agendaId: input.agendaId,
+                roundId: input.roundId
+            }))
+    };
 };
 
 type AbortRoundInput = {

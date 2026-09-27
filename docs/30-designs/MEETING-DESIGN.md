@@ -56,7 +56,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 ### Evidence round
 
-`open_round` 只由 Manager 在 active Agenda 上执行。它在同一瞬间固定现有全部 Publication ID 为 baseline，创建 `open` Round，并把该 Agenda 已排队的 opportunity requests 原子转换为本轮 pending hand raises；仍须逐条由 Manager 处置，不自动授予 Contribution。同轮不按投稿顺序公开，任何新公开内容只能进入下一轮 baseline。
+`open_round` 只由 Manager 在 active Agenda 上执行。它在同一瞬间固定现有全部 Publication ID 为 baseline，创建 `open` Round，并把该 Agenda 已排队的 opportunity requests 原子转换为本轮 pending hand raises；仍须逐条由 Manager 处置，不自动授予 Contribution。提交同时为负责该 Agenda 的 Contributor 各生成一个 `round_opened` notice，使其读取新轮次并自主决定是否举手。同轮不按投稿顺序公开，任何新公开内容只能进入下一轮 baseline。
 
 每场 Meeting 只有一个专职 evidence reviewer identity。Runtime 对每个当前待审 EvidenceVersion 独立创建持久 `EvidenceReviewClaim`，再唤醒其 coordinator Session；claim 绑定创建它的 `sourceEffectId`。认领把版本置为 `validating`；有效 claim 覆盖目标 version 时，其它重复 effect 去重完成，原始 effect 等待 expiry。coordinator 为该 version 调用一个 DSH 原生 worker，worker 只得到这份 version 与固定 baseline，不是 MeetingIdentity，也不能提交 command。completed 结果携带 claimId 通过 `submit_evidence_review` 独立提交；成功原子写 Review、置为 `validated` 并移除 claim。同轮其它版本的成功或失败不进入这次提交边界。
 

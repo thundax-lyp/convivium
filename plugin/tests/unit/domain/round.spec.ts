@@ -43,8 +43,30 @@ const openRoundWithPlan = (
 
 describe("round transitions", () => {
     it("opens with all current publications as baseline and transfers queued requests to hands", () => {
+        const initial = makeRunningMeetingStateV1();
         const state = {
-            ...makeRunningMeetingStateV1(),
+            ...initial,
+            identities: [
+                ...initial.identities,
+                {
+                    id: "contributor-other",
+                    displayName: "Other agenda contributor",
+                    roles: ["contributor" as const],
+                    agendaResponsibilityIds: ["agenda-other"],
+                    riskAuthority: false,
+                    required: false
+                }
+            ],
+            agenda: [
+                ...initial.agenda,
+                {
+                    id: "agenda-other",
+                    title: "Other agenda",
+                    question: "Other question",
+                    status: "pending" as const,
+                    requiredOutputIds: ["output-v1"]
+                }
+            ],
             publications: [
                 {
                     id: "publication-1",
@@ -95,6 +117,15 @@ describe("round transitions", () => {
                 contributorId: "contributor-v1",
                 purpose: "补充证据",
                 raisedAt: 10
+            }
+        ]);
+        expect(result.effectRequests).toEqual([
+            {
+                kind: "agent_notice",
+                noticeKind: "round_opened",
+                recipientId: "contributor-v1",
+                agendaId: "agenda-v1",
+                roundId: "round-v1"
             }
         ]);
     });
