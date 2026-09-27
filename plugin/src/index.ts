@@ -100,6 +100,7 @@ const meetingConsumerPlugin = {
                 registry: ctx.tools,
                 gate: startGate,
                 create: (command, signal) => runtime.startFromSkill(command, signal),
+                initialContributorRoleIds: config.initialContributorRoleIds,
                 isMeetingAgent: async (agent, signal) =>
                     (await resolveMeetingCaller(agent, runtime, signal)) !== undefined
             });

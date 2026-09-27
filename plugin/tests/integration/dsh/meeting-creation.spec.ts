@@ -9,7 +9,16 @@ import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meet
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../../fixtures/domain-storage.js";
 
-const fixture = async (failAt = -1) => {
+const fixture = async (
+    failAt = -1,
+    contributorRoles: readonly (
+        | "domain_architect"
+        | "runtime_engineer"
+        | "protocol_ui_engineer"
+        | "github_research_analyst"
+        | "arxiv_research_analyst"
+    )[] = ["github_research_analyst", "arxiv_research_analyst"]
+) => {
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
     const definitions = parseAgentDefinitions(
         JSON.parse(await readFile(join(packageRoot, "config/definitions.json"), "utf8")).definitions
@@ -71,7 +80,7 @@ const fixture = async (failAt = -1) => {
         create: vi.fn(async ({ ownership }) => {
             const recovery = await repository.recover();
             expect(recovery.bootstrap.status).toBe("creating");
-            expect(recovery.sessionOwnership).toHaveLength(7);
+            expect(recovery.sessionOwnership).toHaveLength(contributorRoles.length + 2);
             expect(recovery.pendingOutbox).toBe(0);
             if (active.size === failAt) throw new Error("factory failed");
             active.add(ownership.sessionId);
@@ -90,22 +99,25 @@ const fixture = async (failAt = -1) => {
             active.delete(ownership.sessionId);
         })
     };
-    const identities = definitions.map((d) => ({
-        identityKey: d.roleDefinitionId,
-        displayName: d.displayName,
-        roles: [
-            d.roleDefinitionId === "meeting_manager"
-                ? "manager"
-                : d.roleDefinitionId === "verification_reviewer"
-                  ? "evidence_reviewer"
-                  : "contributor"
-        ],
-        agendaResponsibilityIds: ["agenda"],
-        riskAuthority: false,
-        required: true,
-        definitionId: d.agentDefinitionId,
-        definitionVersion: d.definitionVersion
-    }));
+    const initialRoles = new Set(["meeting_manager", "verification_reviewer", ...contributorRoles]);
+    const identities = definitions
+        .filter((d) => initialRoles.has(d.roleDefinitionId))
+        .map((d) => ({
+            identityKey: d.roleDefinitionId,
+            displayName: d.displayName,
+            roles: [
+                d.roleDefinitionId === "meeting_manager"
+                    ? "manager"
+                    : d.roleDefinitionId === "verification_reviewer"
+                      ? "evidence_reviewer"
+                      : "contributor"
+            ],
+            agendaResponsibilityIds: ["agenda"],
+            riskAuthority: false,
+            required: true,
+            definitionId: d.agentDefinitionId,
+            definitionVersion: d.definitionVersion
+        }));
     const command = {
         protocolVersion: 1,
         meetingId: "new",
@@ -136,14 +148,22 @@ const fixture = async (failAt = -1) => {
         }
     };
     const context = { caller: { channel: "loopback_remote", principalId: "local-controller" } };
-    const dependencies = { ctx, owner, registry, definitions, packageRoot, cwd: packageRoot };
+    const dependencies = {
+        ctx,
+        owner,
+        registry,
+        definitions,
+        initialContributorRoleIds: contributorRoles,
+        packageRoot,
+        cwd: packageRoot
+    };
     const coordinator = createMeetingCreationCoordinator(dependencies);
     const run = (caller = context) =>
         coordinator.create(command, caller, "meeting", Date.now(), new AbortController().signal);
     return { run, repository, registry, ctx, owner, active, command, context, dependencies };
 };
 
-it("commits all seven peer bindings before factories and publishes only after all activations", async () => {
+it("commits four peer bindings before factories and publishes only after all activations", async () => {
     const f = await fixture();
     try {
         expect(await f.run()).toMatchObject({ kind: "accepted", meetingId: "meeting" });
@@ -152,8 +172,8 @@ it("commits all seven peer bindings before factories and publishes only after al
             status: "ready",
             creator: { kind: "local_user", principalId: "local-controller" }
         });
-        expect(f.active.size).toBe(7);
-        expect(new Set(recovery.sessionOwnership.map((o) => o.sessionId)).size).toBe(7);
+        expect(f.active.size).toBe(4);
+        expect(new Set(recovery.sessionOwnership.map((o) => o.sessionId)).size).toBe(4);
         expect(
             recovery.sessionOwnership.every(
                 (o) => o.lifecycleStatus === "active" && !("parentSessionId" in o)
@@ -161,10 +181,24 @@ it("commits all seven peer bindings before factories and publishes only after al
         ).toBe(true);
         const first = await f.run();
         expect(first.kind).toBe("accepted");
-        expect(f.owner.create).toHaveBeenCalledTimes(7);
+        expect(f.owner.create).toHaveBeenCalledTimes(4);
         expect(f.ctx.agentDefaultModel.currentSelection).toHaveBeenCalledTimes(1);
         f.command.action.objective.statement = "changed";
         await expect(f.run()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    } finally {
+        await f.repository.close();
+    }
+});
+
+it("creates only the contributor roles selected by configuration", async () => {
+    const f = await fixture(-1, ["runtime_engineer"]);
+    try {
+        expect(await f.run()).toMatchObject({ kind: "accepted", meetingId: "meeting" });
+        const recovery = await f.repository.recover();
+        expect(recovery.sessionOwnership).toHaveLength(3);
+        expect(recovery.snapshot?.state.identities.map((identity) => identity.displayName)).toEqual(
+            ["Meeting Manager", "Runtime Engineer", "Verification Reviewer"]
+        );
     } finally {
         await f.repository.close();
     }
@@ -187,7 +221,7 @@ it("accepts one locally authorized Skill invocation as the Captain creation sour
     }
 });
 
-it.each([0, 3, 6])("revokes all bindings before cleaning failed creation at %s", async (index) => {
+it.each([0, 2, 3])("revokes all bindings before cleaning failed creation at %s", async (index) => {
     const f = await fixture(index);
     try {
         await expect(f.run()).rejects.toThrow("factory failed");
@@ -235,7 +269,7 @@ it("serializes concurrent identical creates without duplicate factories", async 
     try {
         const results = await Promise.all([f.run(), f.run()]);
         expect(results[0]).toEqual(results[1]);
-        expect(f.owner.create).toHaveBeenCalledTimes(7);
+        expect(f.owner.create).toHaveBeenCalledTimes(4);
     } finally {
         await f.repository.close();
     }

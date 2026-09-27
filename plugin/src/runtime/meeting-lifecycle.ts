@@ -327,7 +327,7 @@ function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">):
         new Set(definitions.map((item) => item.roleDefinitionId)).size !== 7 ||
         definitions.some((item) => !expected.has(item.roleDefinitionId))
     )
-        throw new Error("Convivium requires the exact seven enabled Meeting role definitions.");
+        throw new Error("Convivium requires the exact seven packaged Meeting role definitions.");
 }
 
 export function getMeetingCommandApplication(owner: object): MeetingCommandApplication {
@@ -460,6 +460,7 @@ export const activateTargetMeetingApplication = async (
             registry,
             definitions,
             agentModelOverrides: config.agentModelOverrides,
+            initialContributorRoleIds: config.initialContributorRoleIds,
             ctx,
             owner: agentOwner,
             packageRoot: rolePackageRoot,

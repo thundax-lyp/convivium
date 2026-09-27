@@ -167,22 +167,31 @@ export const peerCreateCommand = async (requestId, statement) => {
                 hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
-            identities: definitions.map((d) => ({
-                identityKey: d.roleDefinitionId,
-                definitionId: d.agentDefinitionId,
-                definitionVersion: d.definitionVersion,
-                displayName: d.roleDefinitionId,
-                roles: [
-                    d.roleDefinitionId === "meeting_manager"
-                        ? "manager"
-                        : d.roleDefinitionId === "verification_reviewer"
-                          ? "evidence_reviewer"
-                          : "contributor"
-                ],
-                agendaResponsibilityIds: ["agenda"],
-                riskAuthority: false,
-                required: true
-            })),
+            identities: definitions
+                .filter((d) =>
+                    [
+                        "meeting_manager",
+                        "verification_reviewer",
+                        "github_research_analyst",
+                        "arxiv_research_analyst"
+                    ].includes(d.roleDefinitionId)
+                )
+                .map((d) => ({
+                    identityKey: d.roleDefinitionId,
+                    definitionId: d.agentDefinitionId,
+                    definitionVersion: d.definitionVersion,
+                    displayName: d.roleDefinitionId,
+                    roles: [
+                        d.roleDefinitionId === "meeting_manager"
+                            ? "manager"
+                            : d.roleDefinitionId === "verification_reviewer"
+                              ? "evidence_reviewer"
+                              : "contributor"
+                    ],
+                    agendaResponsibilityIds: ["agenda"],
+                    riskAuthority: false,
+                    required: true
+                })),
             managerIdentityKey: "meeting_manager",
             evidenceReviewerIdentityKey: "verification_reviewer",
             initialAgenda: [

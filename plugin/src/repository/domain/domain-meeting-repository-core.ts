@@ -397,16 +397,18 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const identities = initialState.identities;
             const ownerships = input.initialOwnership;
             const descriptors = input.preparedDescriptors;
+            const initialCount = Array.isArray(identities) ? identities.length : 0;
             const valid =
                 Array.isArray(identities) &&
                 Array.isArray(ownerships) &&
                 Array.isArray(descriptors) &&
-                identities.length === 7 &&
-                ownerships.length === 7 &&
-                descriptors.length === 7 &&
-                new Set(ownerships.map((o) => o.id)).size === 7 &&
-                new Set(ownerships.map((o) => o.sessionId)).size === 7 &&
-                new Set(ownerships.map((o) => o.identityId)).size === 7 &&
+                initialCount >= 3 &&
+                initialCount <= 7 &&
+                ownerships.length === initialCount &&
+                descriptors.length === initialCount &&
+                new Set(ownerships.map((o) => o.id)).size === initialCount &&
+                new Set(ownerships.map((o) => o.sessionId)).size === initialCount &&
+                new Set(ownerships.map((o) => o.identityId)).size === initialCount &&
                 ownerships.every(
                     (o) =>
                         o.meetingId === this.meetingId &&
@@ -433,7 +435,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
-                    "Seven valid peer bindings are required."
+                    "Valid peer bindings must match the initial identities."
                 );
             const table = this.meetingDomain.table("creation");
             const existing = table.get("current");
@@ -584,7 +586,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             }
             if (
                 creation.status !== "creating" ||
-                Object.values(creation.sessionOwnership).length !== 7 ||
+                !Array.isArray(creation.initialState.identities) ||
+                Object.values(creation.sessionOwnership).length !==
+                    creation.initialState.identities.length ||
                 Object.values(creation.sessionOwnership).some(
                     (o) => o.lifecycleStatus !== "active" || o.capabilityStatus !== "active"
                 )

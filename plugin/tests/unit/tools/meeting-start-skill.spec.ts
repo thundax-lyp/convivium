@@ -16,7 +16,10 @@ const directMessage = (id: string, text: string) => ({
 
 describe("chat Meeting start", () => {
     it("fills the initial Meeting contract from a direct objective", () => {
-        const command = createMeetingStartCommand("调查TypeSafe JEV的最新进展", "skill:input-1");
+        const command = createMeetingStartCommand("调查TypeSafe JEV的最新进展", "skill:input-1", [
+            "github_research_analyst",
+            "arxiv_research_analyst"
+        ]);
         expect(command).toMatchObject({
             meetingId: "new",
             expectedMeetingVersion: 0,
@@ -30,11 +33,30 @@ describe("chat Meeting start", () => {
             }
         });
         if (command.action.kind !== "create_meeting") throw new Error("not a create command");
-        expect(command.action.identities).toHaveLength(7);
+        expect(command.action.identities.map((identity) => identity.identityKey)).toEqual([
+            "meeting_manager",
+            "verification_reviewer",
+            "github_research_analyst",
+            "arxiv_research_analyst"
+        ]);
         expect(command.action.identities.every((identity) => identity.required)).toBe(true);
         expect(command.action.initialAgenda).toHaveLength(1);
         expect(command.action.objective.requiredOutputs).toHaveLength(1);
         expect(command.action.objective.acceptanceCriteria).toHaveLength(1);
+    });
+
+    it("selects contributors from deployment configuration", () => {
+        const command = createMeetingStartCommand("目标", "skill:configured", [
+            "runtime_engineer",
+            "github_research_analyst"
+        ]);
+        if (command.action.kind !== "create_meeting") throw new Error("not a create command");
+        expect(command.action.identities.map((identity) => identity.identityKey)).toEqual([
+            "meeting_manager",
+            "runtime_engineer",
+            "verification_reviewer",
+            "github_research_analyst"
+        ]);
     });
 
     it("grants one create only for a direct slash Skill message", () => {
@@ -86,6 +108,7 @@ describe("chat Meeting start", () => {
                 }
             },
             gate,
+            initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
             create,
             isMeetingAgent: vi.fn(async () => false)
         });
@@ -126,6 +149,7 @@ describe("chat Meeting start", () => {
                 }
             },
             gate,
+            initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
             create,
             isMeetingAgent: vi.fn(async () => true)
         });

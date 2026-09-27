@@ -315,6 +315,7 @@ export async function writeSmokePatch(path, _scenario, storagePath) {
         "  config:",
         `    provider: ${PROVIDER}`,
         `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
+        '    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"]',
         `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`,
         "    maxParticipants: 3",
         "    speakerTimeoutMs: 60000",

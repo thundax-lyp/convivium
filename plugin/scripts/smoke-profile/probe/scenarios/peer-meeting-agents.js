@@ -4,9 +4,6 @@ import { peerCreateCommand, peerSessionId, waitUntil } from "../support.js";
 
 const skillsByRole = {
     meeting_manager: ["meeting-facilitation"],
-    domain_architect: ["repository-analysis"],
-    runtime_engineer: ["repository-analysis"],
-    protocol_ui_engineer: ["repository-analysis"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
     arxiv_research_analyst: ["arxiv"]
@@ -19,7 +16,7 @@ const abilities = [
     "repository-analysis"
 ];
 const assertions = [
-    "seven-peer-sessions",
+    "four-peer-sessions",
     "role-skill-isolation",
     "input-session-independent-delivery",
     "user-control-authorization",
@@ -162,7 +159,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
     const read = () => remote("read", { request: { protocolVersion: 1, meetingId } });
     const initial = await read();
     const { observed, bindings } = await observeBindings(runtime, meetingId, initial.identities);
-    assert(new Set(Object.values(observed.sessionIds)).size === 7, "peer sessions overlap");
+    assert(new Set(Object.values(observed.sessionIds)).size === 4, "peer sessions overlap");
     await waitUntil(
         () =>
             Object.values(observed.sessionIds).every((id) =>

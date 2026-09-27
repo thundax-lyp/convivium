@@ -3,6 +3,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import { MeetingCommandSchema, type MeetingCommand } from "@/protocol/index.js";
+import type { ContributorRoleDefinitionId } from "@/role-composition/model.js";
 
 interface StartGrant {
     readonly turn: number;
@@ -59,7 +60,11 @@ export class MeetingStartGate {
     };
 }
 
-export const createMeetingStartCommand = (goal: string, requestId: string): MeetingCommand => {
+export const createMeetingStartCommand = (
+    goal: string,
+    requestId: string,
+    initialContributorRoleIds: readonly ContributorRoleDefinitionId[]
+): MeetingCommand => {
     const statement = goal.trim();
     if (!statement) throw new Error("A Meeting objective is required");
     return MeetingCommandSchema.parse({
@@ -78,16 +83,24 @@ export const createMeetingStartCommand = (goal: string, requestId: string): Meet
                 hardConstraints: [{ id: "evidence", text: "不得将未经验证的推断表述为既成事实。" }],
                 acceptableRiskLevel: "low"
             },
-            identities: roles.map(([identityKey, displayName, role]) => ({
-                identityKey,
-                definitionId: `convivium.${identityKey}`,
-                definitionVersion: "2.0.0",
-                displayName,
-                roles: [role],
-                agendaResponsibilityIds: ["initial"],
-                riskAuthority: false,
-                required: true
-            })),
+            identities: roles
+                .filter(
+                    ([identityKey, , role]) =>
+                        role !== "contributor" ||
+                        initialContributorRoleIds.includes(
+                            identityKey as ContributorRoleDefinitionId
+                        )
+                )
+                .map(([identityKey, displayName, role]) => ({
+                    identityKey,
+                    definitionId: `convivium.${identityKey}`,
+                    definitionVersion: "2.0.0",
+                    displayName,
+                    roles: [role],
+                    agendaResponsibilityIds: ["initial"],
+                    riskAuthority: false,
+                    required: true
+                })),
             managerIdentityKey: "meeting_manager",
             evidenceReviewerIdentityKey: "verification_reviewer",
             initialAgenda: [
@@ -114,6 +127,7 @@ export interface MeetingStartToolDependencies {
     readonly gate: MeetingStartGate;
     readonly create: (command: MeetingCommand, signal: AbortSignal) => Promise<JsonValue>;
     readonly isMeetingAgent: (agent: Agent, signal: AbortSignal) => Promise<boolean>;
+    readonly initialContributorRoleIds: readonly ContributorRoleDefinitionId[];
 }
 
 export const registerMeetingStartTool = (
@@ -153,7 +167,11 @@ export const registerMeetingStartTool = (
                         }
                     } as JsonValue;
                 return dependencies.create(
-                    createMeetingStartCommand(grant.goal, grant.requestId),
+                    createMeetingStartCommand(
+                        grant.goal,
+                        grant.requestId,
+                        dependencies.initialContributorRoleIds
+                    ),
                     exec.signal
                 );
             }

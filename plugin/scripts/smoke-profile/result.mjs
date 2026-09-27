@@ -183,15 +183,12 @@ function validateIdentityAdmissionResult(value) {
 
 export const PEER_SKILLS = Object.freeze({
     meeting_manager: ["meeting-facilitation"],
-    domain_architect: ["repository-analysis"],
-    runtime_engineer: ["repository-analysis"],
-    protocol_ui_engineer: ["repository-analysis"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
     arxiv_research_analyst: ["arxiv"]
 });
 export const PEER_ASSERTIONS = [
-    "seven-peer-sessions",
+    "four-peer-sessions",
     "role-skill-isolation",
     "input-session-independent-delivery",
     "user-control-authorization",
@@ -222,7 +219,7 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
         ]) ||
         !exact(observed.sessionIds, roles) ||
         !Object.values(observed.sessionIds).every(nonempty) ||
-        new Set(Object.values(observed.sessionIds)).size !== 7 ||
+        new Set(Object.values(observed.sessionIds)).size !== 4 ||
         !exact(observed.presetIds, roles) ||
         roles.some(
             (role) =>

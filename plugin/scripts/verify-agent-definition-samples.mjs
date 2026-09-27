@@ -230,5 +230,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (errors.length) {
         for (const error of errors) console.error(`FAIL ${error.code} ${error.location}`);
         process.exitCode = 1;
-    } else console.log("PASS 7 enabled Meeting Agent Definition deployment roles");
+    } else console.log("PASS 7 packaged Meeting Agent Definition deployment roles");
 }

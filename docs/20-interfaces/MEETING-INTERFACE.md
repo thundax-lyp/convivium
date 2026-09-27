@@ -51,7 +51,7 @@ interface MeetingBootstrap {
 }
 ```
 
-创建事务写入 creating、createRequestId、requestHash、creator 和 Runtime createdAt=updatedAt=now；七份 ownership 全 active 才进入 ready 并保存 createResult。ready 前失败进入 creation_failed、保存安全 failureCode，先 revoke 再清理已创建 Session；creator 创建后不可修改。重放先授权用户入口，再按 requestId/hash 与已有创建记录/receipt 定位，复用原 descriptor 与所有 ID，不重新预检生成 TTL。用户关闭输入 Session 不删除或使该记录失效。
+创建事务写入 creating、createRequestId、requestHash、creator 和 Runtime createdAt=updatedAt=now；所选初始身份的 ownership 全 active 才进入 ready 并保存 createResult。ready 前失败进入 creation_failed、保存安全 failureCode，先 revoke 再清理已创建 Session；creator 创建后不可修改。重放先授权用户入口，再按 requestId/hash 与已有创建记录/receipt 定位，复用原 descriptor 与所有 ID，不重新预检生成 TTL。用户关闭输入 Session 不删除或使该记录失效。
 
 每个生产 Agent command tool 的 arguments 根对象直接使用本节的完整 `MeetingCommand` envelope，并把该 tool 唯一允许的 action shape 投影为模型可见的精确 object schema；不得额外包装 `input`、`arguments` 或 JSON string，也不得只暴露无结构 `json`、依赖 Skill 文本让模型猜测嵌套字段。tool schema 负责调用前的结构可见性与基础参数校验，`MeetingCommandSchema` 和 action schema 仍是 wire 解析真相源，Runtime 继续独立执行 caller、版本、幂等和领域授权校验。DSH Host 中的全局 tool 注册只表示可发现的实现入口，不表示任何 Meeting role 获得调用权；Meeting Definition 必须按角色收窄模型可见工具面，Runtime 对所有实际调用再次 fail closed。
 
@@ -572,7 +572,7 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 
 结构化控制统一经 `conviviumMeetings.control(MeetingCommand)`；下表是用户可提交的 action 闭集。旧 `convivium_create_meeting` Agent tool 保持移除；新增 `convivium_start_meeting` 只消费 `/convivium` 直接用户调用的一次性授权，不接受 MeetingCommand 参数，也不能执行表中其它 Captain action。用户 read/list 使用已有 loopback Remote，投影由 Runtime 授权。参数保持本接口的 action 字段、版本、幂等和领域前置，不增加任意 json wrapper。
 
-`convivium_start_meeting` 的 arguments 精确为空对象，目标取斜杠后的非空原始用户文字，且一次输入最多提交一次。适配器补齐标准七角色 `convivium.<role>` Definition `2.0.0`、全部 `required:true`、唯一 Manager 和 Evidence Reviewer、一个 `initial` pending active Agenda；一个 `primary` 必需产出是完成原始目标，一个 `verifiable` 验收条件要求可核验的产出、依据和剩余限制，一个 `evidence` 硬约束禁止把未经验证的推断当作事实。默认 `acceptableRiskLevel=low`；`maxFormalMessages=200`、`maxDurationMs=86400000`、`taskDeadlineMs=3600000`、`reviewDeadlineMs=900000`。这些是创建时固化的保守默认值，不表示目标已完成或风险已接受。缺失 Skill、目标为空、非直接用户来源、已消费授权或 Meeting-owned Session 均拒绝创建；模型不能通过工具参数改写上述字段。
+`convivium_start_meeting` 的 arguments 精确为空对象，目标取斜杠后的非空原始用户文字，且一次输入最多提交一次。适配器补齐 Manager、Reviewer 和 Host `initialContributorRoleIds` 选中的 Contributor 初始身份的 `convivium.<role>` Definition `2.0.0`、全部 `required:true`、唯一 Manager 和 Evidence Reviewer、一个 `initial` pending active Agenda；一个 `primary` 必需产出是完成原始目标，一个 `verifiable` 验收条件要求可核验的产出、依据和剩余限制，一个 `evidence` 硬约束禁止把未经验证的推断当作事实。默认 `acceptableRiskLevel=low`；`maxFormalMessages=200`、`maxDurationMs=86400000`、`taskDeadlineMs=3600000`、`reviewDeadlineMs=900000`。这些是创建时固化的保守默认值，不表示目标已完成或风险已接受。缺失 Skill、目标为空、非直接用户来源、已消费授权或 Meeting-owned Session 均拒绝创建；模型不能通过工具参数改写上述字段。
 
 | 用户操作          | action schema                             | 来源              |
 | ----------------- | ----------------------------------------- | ----------------- |
@@ -669,7 +669,7 @@ interface ContinuationInput {
 
 IDs and identityKey values supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID or identity IDs. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
 
-`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。七个初始身份都必须提交精确 Definition ID/version；Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`，五个 Contributor 分别接受其已发布角色 Definition。Definition 缺失、版本或 role 不匹配、preflight 失败均返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
+`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。初始身份数量等于二加 Host 配置选中的 Contributor 数量，均须提交精确 Definition ID/version；Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`，Contributor 须与 `initialContributorRoleIds` 精确一致且无重复。七份 Definition 保留，未选中的角色不加入新会议初始身份。Definition 缺失、版本或 role 不匹配、preflight 失败均返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
 
 `dispose_agenda_candidate` 的 promoted 分支须在同一转换中将 pending candidate 标 promoted 并 append 完整 pending Agenda；`AgendaInput.ownerId` 若存在必须直接引用已存在 Meeting identity。任一引用失败须整条拒绝，不提交半个 Agenda 或 candidate 状态；不授予新 role、不改变全局 evidenceReviewerId 或当前 active Agenda。park/reject 不改变身份责任。
 

@@ -11,6 +11,7 @@ import roleResources from "../../config/definitions.json" with { type: "json" };
 const config = {
     provider: "spawn",
     maxParticipants: 3,
+    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
     speakerTimeoutMs: 60_000,
     outboxPollMs: 1_000,
     agentDefinitions: roleResources.definitions
@@ -153,7 +154,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("requires the exact seven enabled role definitions without resolving their capabilities", async () => {
+    it("requires the exact seven packaged role definitions without resolving their capabilities", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
@@ -163,7 +164,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                 ...config,
                 agentDefinitions: roleResources.definitions.slice(0, 6)
             })
-        ).rejects.toThrow("exact seven enabled Meeting role definitions");
+        ).rejects.toThrow("exact seven packaged Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );
