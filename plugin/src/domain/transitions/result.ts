@@ -62,6 +62,7 @@ export type AgentNoticeEffectRequest =
           reason: string;
       })
     | (AgentNoticeEffectBase & { noticeKind: "review_request"; versionId: OpaqueId })
+    | (AgentNoticeEffectBase & { noticeKind: "round_ready"; roundId: OpaqueId })
     | (AgentNoticeEffectBase & {
           noticeKind: "transcript_update";
           publicMessageId: OpaqueId;

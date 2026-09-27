@@ -1,5 +1,6 @@
 import type { MeetingState, OpaqueId } from "@/domain/index.js";
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import { roundReadyNotice } from "./round.js";
 type Input = {
     contributionId: OpaqueId;
     actorId: OpaqueId;
@@ -102,5 +103,10 @@ export function closeContribution(state: MeetingState, input: Input): MeetingTra
                 : candidate
         )
     };
-    return { kind: "accepted", state: next, relatedIds: [contribution.id], effectRequests: [] };
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [contribution.id],
+        effectRequests: roundReadyNotice(state, next, contribution.roundId)
+    };
 }

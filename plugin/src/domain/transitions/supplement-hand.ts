@@ -1,5 +1,6 @@
 import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.js";
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import { roundReadyNotice } from "./round.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -201,7 +202,8 @@ export function disposeSupplementHand(
                 contributionId: contribution.id,
                 disposition: input.disposition,
                 reason: input.reason
-            }
+            },
+            ...roundReadyNotice(state, next, round.id)
         ]
     };
 }

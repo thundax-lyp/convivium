@@ -1,5 +1,9 @@
 import type { MeetingState, OpaqueId, Round } from "@/domain/index.js";
-import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
+import {
+    rejectedTransition as rejected,
+    type AgentNoticeEffectRequest,
+    type MeetingTransitionResult
+} from "./result.js";
 
 type OpenRoundInput = {
     roundId: OpaqueId;
@@ -16,7 +20,6 @@ const terminalContributionStatuses = new Set([
     "timed_out",
     "supplement_rejected",
     "aborted",
-    "awaiting_response",
     "closed"
 ]);
 
@@ -223,4 +226,37 @@ export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean
             return false;
     }
     return true;
+};
+
+export const roundReadyNotice = (
+    before: MeetingState,
+    after: MeetingState,
+    roundId: OpaqueId
+): AgentNoticeEffectRequest[] => {
+    const round = after.rounds.find((candidate) => candidate.id === roundId);
+    if (
+        after.lifecycle.status !== "running" ||
+        !round ||
+        round.contributionIds.length === 0 ||
+        isRoundClosable(before, roundId) ||
+        !isRoundClosable(after, roundId)
+    )
+        return [];
+    const manager = after.identities.find(
+        (identity) =>
+            identity.roles.includes("manager") &&
+            (identity.agendaResponsibilityIds.length === 0 ||
+                identity.agendaResponsibilityIds.includes(round.agendaId))
+    );
+    return manager
+        ? [
+              {
+                  kind: "agent_notice",
+                  noticeKind: "round_ready",
+                  recipientId: manager.id,
+                  agendaId: round.agendaId,
+                  roundId
+              }
+          ]
+        : [];
 };

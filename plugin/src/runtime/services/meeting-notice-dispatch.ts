@@ -1,4 +1,4 @@
-import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
+import { isRoundClosable, type MeetingIdentity, type MeetingState } from "@/domain/index.js";
 import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -10,6 +10,7 @@ const supported = new Set([
     "opportunity_disposition",
     "hand_request",
     "hand_disposition",
+    "round_ready",
     "transcript_update"
 ]);
 
@@ -193,6 +194,14 @@ function assertNoticeReferences(
             )
                 fail("NOTICE_VISIBILITY_INVALID");
             return { publicMessageId };
+        }
+        case "round_ready": {
+            assertRole(identity, "manager", agendaId);
+            const roundId = stringField(payload, "roundId");
+            const round = state.rounds.find((candidate) => candidate.id === roundId);
+            if (round?.agendaId !== agendaId || !isRoundClosable(state, roundId))
+                fail("NOTICE_VISIBILITY_INVALID");
+            return { roundId };
         }
         default:
             return fail("OUTBOX_ROUTE_UNAVAILABLE");

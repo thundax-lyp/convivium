@@ -172,5 +172,12 @@ describe("contribution exit", () => {
             exitReason: "响应期限已到"
         });
         expect(isRoundClosable(result.state, "round-v1")).toBe(true);
+        expect(result.effectRequests).toContainEqual({
+            kind: "agent_notice",
+            noticeKind: "round_ready",
+            recipientId: "manager-v1",
+            agendaId: "agenda-v1",
+            roundId: "round-v1"
+        });
     });
 });

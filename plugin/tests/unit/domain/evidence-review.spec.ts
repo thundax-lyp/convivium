@@ -558,7 +558,7 @@ describe("review delivery and publication", () => {
         );
     });
 
-    it("publishes reviewed evidence after its review is delivered", () => {
+    it("waits for the author's response before publishing delivered evidence", () => {
         const reviewed = submitClaimedReview(evidenceState(), {
             versionId: "version-v1",
             reviewId: "review-v1",
@@ -575,25 +575,50 @@ describe("review delivery and publication", () => {
         });
         if (delivered.kind !== "accepted") throw new Error("delivery");
 
-        expect(isRoundClosable(delivered.state, "round-v1")).toBe(true);
-        const published = publishRound(delivered.state, {
+        expect(isRoundClosable(delivered.state, "round-v1")).toBe(false);
+        const early = publishRound(delivered.state, {
+            roundId: "round-v1",
+            managerId: "manager-v1",
+            publicationId: "publication-early",
+            messageIds: ["message-early"],
+            now: 8
+        });
+        expect(early.kind).toBe("rejected");
+        const withdrawn = closeContribution(delivered.state, {
+            contributionId: "contribution-v1",
+            actorId: "contributor-v1",
+            actorKind: "author",
+            exit: "withdrawn",
+            reason: "不再补充",
+            now: 8
+        });
+        if (withdrawn.kind !== "accepted") throw new Error("withdrawal");
+        expect(isRoundClosable(withdrawn.state, "round-v1")).toBe(true);
+        expect(withdrawn.effectRequests).toContainEqual({
+            kind: "agent_notice",
+            noticeKind: "round_ready",
+            recipientId: "manager-v1",
+            agendaId: "agenda-v1",
+            roundId: "round-v1"
+        });
+        const published = publishRound(withdrawn.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
             publicationId: "publication-v1",
             messageIds: ["message-v1"],
-            now: 8
+            now: 9
         });
 
         expect(published.kind).toBe("accepted");
         expect(published.kind === "accepted" && published.state.contributions[0]?.status).toBe(
-            "closed"
+            "withdrawn"
         );
         expect(published.kind === "accepted" && published.state.contributions[0]?.exitReason).toBe(
-            "published"
+            "不再补充"
         );
         expect(
             published.kind === "accepted" && published.state.publications[0]?.exitReasons
-        ).toEqual(["published"]);
+        ).toEqual(["不再补充"]);
         expect(published.kind === "accepted" && published.effectRequests).toEqual(
             ["manager-v1", "contributor-v1", "reviewer-v1"].map((recipientId) => ({
                 kind: "agent_notice",

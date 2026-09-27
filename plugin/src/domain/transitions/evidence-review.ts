@@ -48,6 +48,7 @@ type DeliveryInput = {
     now: number;
 };
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import { roundReadyNotice } from "./round.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
@@ -329,24 +330,25 @@ export function recordReviewDelivery(
                   failedAt: input.now,
                   failureReason: input.failureReason!
               };
+    const next: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        contributions:
+            input.status === "sent"
+                ? state.contributions.map((contribution) =>
+                      contribution.packageId === packageValue.id &&
+                      contribution.status === "under_review"
+                          ? { ...contribution, status: "awaiting_response" as const }
+                          : contribution
+                  )
+                : state.contributions,
+        reviewDeliveries: [...state.reviewDeliveries, delivery]
+    };
     return {
         kind: "accepted",
-        state: {
-            ...state,
-            version: state.version + 1,
-            updatedAt: input.now,
-            contributions:
-                input.status === "sent"
-                    ? state.contributions.map((contribution) =>
-                          contribution.packageId === packageValue.id &&
-                          contribution.status === "under_review"
-                              ? { ...contribution, status: "awaiting_response" as const }
-                              : contribution
-                      )
-                    : state.contributions,
-            reviewDeliveries: [...state.reviewDeliveries, delivery]
-        },
+        state: next,
         relatedIds: [delivery.id, delivery.reviewId],
-        effectRequests: []
+        effectRequests: roundReadyNotice(state, next, packageValue.roundId)
     };
 }
