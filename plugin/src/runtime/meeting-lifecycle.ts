@@ -462,7 +462,14 @@ const stopMeetingDelivery = async (
 export const activateTargetMeetingApplication = async (
     ctx: Context,
     config: Config,
-    options: { rolePackageRoot: string }
+    options: {
+        rolePackageRoot: string;
+        onBeforeRecovery?: (services: {
+            runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
+            reader: MeetingIdentityReader;
+            application: MeetingCommandApplication;
+        }) => void | Promise<void>;
+    }
 ): Promise<() => Promise<void>> => {
     const { rolePackageRoot } = options;
     if (!rolePackageRoot) throw new Error("Meeting role package root is required.");
@@ -639,7 +646,6 @@ export const activateTargetMeetingApplication = async (
                 ctx.logger("convivium:meeting").error("Meeting %s recovery failed %o", id, error);
             }
         });
-    await reconcile();
     const runtime = {
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
@@ -746,6 +752,8 @@ export const activateTargetMeetingApplication = async (
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     identityReaders.set(ctx, identityReader);
+    await options.onBeforeRecovery?.({ runtime, reader: identityReader, application });
+    await reconcile();
     return async () => {
         for (const worker of deliveryWorkers.values()) worker.stop();
         await Promise.all([

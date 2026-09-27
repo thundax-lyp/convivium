@@ -5,12 +5,7 @@ import type {} from "@deepseek-ai/dsh-host-webserver";
 import { Config, type Config as ConfigType } from "./config.js";
 import { resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
-import {
-    activateTargetMeetingApplication,
-    getLocalMeetingWebRuntime,
-    getMeetingIdentityReader,
-    getMeetingCommandApplication
-} from "./runtime/index.js";
+import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.js";
 import { MeetingStartGate, registerMeetingStartTool, registerMeetingTools } from "./tools/index.js";
 
 export { Config };
@@ -51,28 +46,27 @@ const meetingConsumerPlugin = {
         });
         async function activate(): Promise<void> {
             const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
-                rolePackageRoot: fileURLToPath(new URL("../", import.meta.url))
+                rolePackageRoot: fileURLToPath(new URL("../", import.meta.url)),
+                onBeforeRecovery: ({ runtime, reader, application }) => {
+                    registerMeetingTools({
+                        registry: ctx.tools,
+                        application,
+                        reviewWorkers: ctx.subagents,
+                        reader,
+                        callers: {
+                            async resolve(agent, signal) {
+                                return resolveMeetingCaller(agent, runtime, signal);
+                            }
+                        }
+                    });
+                }
             });
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
             const runtime = getLocalMeetingWebRuntime(ctx);
-            const reader = getMeetingIdentityReader(ctx);
-            const application = getMeetingCommandApplication(ctx);
             (ctx as Context & { provide?: (name: string, value: unknown) => void }).provide?.(
                 "conviviumMeetingRuntime",
                 runtime
             );
-            registerMeetingTools({
-                registry: ctx.tools,
-                application,
-                reviewWorkers: ctx.subagents,
-                reader,
-                callers: {
-                    async resolve(agent, signal) {
-                        const resolved = await resolveMeetingCaller(agent, runtime, signal);
-                        return resolved;
-                    }
-                }
-            });
             const startGate = new MeetingStartGate();
             ctx.on("agent/pre-step", async ({ agent, messages, turn, signal }, next) => {
                 const decision = await next();
