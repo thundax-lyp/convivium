@@ -11,7 +11,7 @@ import {
 
 const fail = (path: string) => path;
 
-function validateAgendaRoundsAndContributions(parsedState: MeetingState): string | undefined {
+const validateAgendaRoundsAndContributions = (parsedState: MeetingState): string | undefined => {
     const { objective, lifecycle } = parsedState;
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
@@ -137,9 +137,9 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
         }
     }
     return undefined;
-}
+};
 
-function validateEvidencePackages(parsedState: MeetingState): string | undefined {
+const validateEvidencePackages = (parsedState: MeetingState): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
     const rounds = parsedState.rounds;
@@ -239,9 +239,9 @@ function validateEvidencePackages(parsedState: MeetingState): string | undefined
         }
     }
     return undefined;
-}
+};
 
-function validateRegistrationsAndReviews(parsedState: MeetingState): string | undefined {
+const validateRegistrationsAndReviews = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
     const roundById = indexById(parsedState.rounds);
@@ -342,9 +342,9 @@ function validateRegistrationsAndReviews(parsedState: MeetingState): string | un
         }
     }
     return undefined;
-}
+};
 
-function validateDeliveriesAndPublications(parsedState: MeetingState): string | undefined {
+const validateDeliveriesAndPublications = (parsedState: MeetingState): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const rounds = parsedState.rounds;
     const roundById = indexById(rounds);
@@ -421,9 +421,9 @@ function validateDeliveriesAndPublications(parsedState: MeetingState): string | 
         }
     }
     return undefined;
-}
+};
 
-function validateDiscussionRecords(parsedState: MeetingState): string | undefined {
+const validateDiscussionRecords = (parsedState: MeetingState): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
     const publicationIds = ids(parsedState.publications);
@@ -505,9 +505,9 @@ function validateDiscussionRecords(parsedState: MeetingState): string | undefine
         }
     }
     return undefined;
-}
+};
 
-function validateDecisions(parsedState: MeetingState): string | undefined {
+const validateDecisions = (parsedState: MeetingState): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const proposals = parsedState.proposals;
     const proposalIds = ids(proposals);
@@ -593,9 +593,9 @@ function validateDecisions(parsedState: MeetingState): string | undefined {
         }
     }
     return undefined;
-}
+};
 
-function validateSequencesAndBaselines(parsedState: MeetingState): string | undefined {
+const validateSequencesAndBaselines = (parsedState: MeetingState): string | undefined => {
     const rounds = parsedState.rounds;
     const contributions = parsedState.contributions;
     const contributionIds = ids(contributions);
@@ -699,9 +699,9 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
         }
     }
     return undefined;
-}
+};
 
-export function validateMeetingStateReferences(parsedState: MeetingState): string | undefined {
+export const validateMeetingStateReferences = (parsedState: MeetingState): string | undefined => {
     return (
         validateAgendaRoundsAndContributions(parsedState) ??
         validateEvidencePackages(parsedState) ??
@@ -711,4 +711,4 @@ export function validateMeetingStateReferences(parsedState: MeetingState): strin
         validateDecisions(parsedState) ??
         validateSequencesAndBaselines(parsedState)
     );
-}
+};
