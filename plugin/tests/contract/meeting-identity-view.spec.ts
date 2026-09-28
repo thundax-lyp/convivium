@@ -278,6 +278,139 @@ describe("identity filtered view and archive provenance", () => {
     });
 });
 
+it("shows the Manager published independent reviews but not unpublished reviews", () => {
+    const state = makeRunningMeetingStateV1();
+    state.rounds = [
+        {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            planId: "plan-1",
+            roundGoal: {
+                question: "What is supported?",
+                evidenceGap: "Independent review",
+                expectedOutput: "Published evidence"
+            },
+            publicBaselinePublicationIds: [],
+            openedAt: 1,
+            status: "open",
+            contributionIds: ["contribution-1"]
+        }
+    ];
+    state.contributions = [
+        {
+            id: "contribution-1",
+            roundId: "round-1",
+            contributorId: "contributor-v1",
+            handRaise: { raisedAt: 1, purpose: "Provide evidence" },
+            acceptedAt: 1,
+            status: "awaiting_response",
+            packageId: "package-1",
+            substantiveSupplementCount: 0
+        }
+    ];
+    state.evidencePackages = [
+        {
+            id: "package-1",
+            roundId: "round-1",
+            contributionId: "contribution-1",
+            authorId: "contributor-v1",
+            agendaId: "agenda-v1",
+            currentVersionId: "version-1",
+            versions: [
+                {
+                    id: "version-1",
+                    ordinal: 1,
+                    observation: "Observed result",
+                    interpretation: "Limited support",
+                    method: "Source inspection",
+                    falsifiers: [],
+                    uncertainties: [],
+                    limitations: [],
+                    claims: [],
+                    materials: [],
+                    submittedAt: 1,
+                    status: "validated",
+                    failureCount: 0
+                }
+            ]
+        }
+    ];
+    state.reviews = [
+        {
+            id: "review-1",
+            versionId: "version-1",
+            reviewerId: "reviewer-v1",
+            baselinePublicationIds: [],
+            scope: "source and support",
+            dimensions: {
+                source: {
+                    score: 2,
+                    reason: "located",
+                    scope: "source",
+                    baselineEvidenceIds: []
+                },
+                credibility: {
+                    score: 2,
+                    reason: "credible",
+                    scope: "source",
+                    baselineEvidenceIds: []
+                },
+                completeness: {
+                    score: 1,
+                    reason: "partial",
+                    scope: "claim",
+                    baselineEvidenceIds: []
+                },
+                support: {
+                    score: 1,
+                    reason: "limited",
+                    scope: "claim",
+                    baselineEvidenceIds: []
+                }
+            },
+            createdAt: 2
+        }
+    ];
+    state.reviewDeliveries = [
+        {
+            id: "delivery-1",
+            reviewId: "review-1",
+            authorId: "contributor-v1",
+            status: "sent",
+            sentAt: 3
+        }
+    ];
+    const managerView = () =>
+        projectMeetingView(
+            { meetingId: state.id, version: state.version, state, createdAt: 0, updatedAt: 3 },
+            { kind: "identity", identityId: "manager-v1", roles: ["manager"] }
+        );
+
+    expect(managerView().evidenceReviews).toEqual([]);
+    state.publications = [
+        {
+            id: "publication-1",
+            roundId: "round-1",
+            seq: 1,
+            finalVersionIds: ["version-1"],
+            finalReviewIds: ["review-1"],
+            publishedAt: 4,
+            exitReasons: []
+        }
+    ];
+    state.rounds = [{ ...state.rounds[0], status: "published", publicationId: "publication-1" }];
+    state.contributions = [
+        { ...state.contributions[0], status: "closed", exitReason: "published" }
+    ];
+
+    expect(managerView().evidenceReviews).toMatchObject([
+        { id: "review-1", versionId: "version-1", reviewerId: "reviewer-v1" }
+    ]);
+    expect(managerView().reviewDeliveries).toMatchObject([
+        { reviewId: "review-1", authorId: "contributor-v1" }
+    ]);
+});
+
 describe("archive provenance", () => {
     it("projects the value archive locally without identity ownership data", () => {
         const terminal = endMeeting(makeRunningMeetingStateV1(), {

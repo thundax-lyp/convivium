@@ -906,7 +906,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
     type AllowedControl = MeetingAction["kind"];
 
-evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 的 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
+evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 可读取已发布版本及对应的独立 Review，不读取本轮未发布版本或 Review；其 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。`EvidenceReviewView.reviewerId` 指审核者，`ReviewDeliveryView.authorId` 指反馈接收者（证据作者）；送达不构成作者自行审核。旧版本留在聚合审计历史，不是公共当前版投影。
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 

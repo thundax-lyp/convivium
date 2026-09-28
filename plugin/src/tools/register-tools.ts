@@ -353,7 +353,25 @@ const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => 
             parameters: readToolParameters,
             output: {
                 schema: { type: "json" },
-                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+                render: (_args, value) => {
+                    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+                        return [{ type: "text" as const, text: JSON.stringify(value) }];
+                    }
+                    const { meetingId, version, evidenceReviews, reviewDeliveries, ...rest } =
+                        value;
+                    return [
+                        {
+                            type: "text" as const,
+                            text: JSON.stringify({
+                                meetingId,
+                                version,
+                                evidenceReviews,
+                                reviewDeliveries,
+                                ...rest
+                            })
+                        }
+                    ];
+                }
             },
             async execute(args, exec) {
                 const request = ReadMeetingRequestSchema.safeParse(args.input);

@@ -204,7 +204,8 @@ export const projectMeetingView = (
     );
     const reviews = state.reviews.filter(
         ({ id, versionId }) =>
-            versions.has(versionId) && (caller.kind === "captain" || reviewer || sent.has(id))
+            versions.has(versionId) &&
+            (caller.kind === "captain" || manager || reviewer || sent.has(id))
     );
     const deliveries = state.reviewDeliveries.filter((delivery) => {
         if (caller.kind === "captain" || manager) {
