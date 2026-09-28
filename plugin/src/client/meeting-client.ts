@@ -13,9 +13,16 @@ import {
     type MeetingListResult,
     type MeetingReadResult,
     type ReadMeetingRequest,
-    type RefreshNotice,
-    type ProtocolError
+    type RefreshNotice
 } from "@/protocol/index.js";
+
+interface ProtocolError {
+    protocolVersion: 1;
+    ok: false;
+    code: string;
+    message: string;
+    retryable: boolean;
+}
 
 export class ProtocolFailure extends Error {
     constructor(readonly protocolError: ProtocolError) {

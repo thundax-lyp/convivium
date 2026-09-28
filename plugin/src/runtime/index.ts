@@ -17,8 +17,6 @@ export interface LocalMeetingWebRuntime {
     subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNotice>;
 }
 
-export type { MeetingToolCaller, MeetingToolRuntime } from "./application-service/index.js";
-
 export { createMeetingCreationCoordinator } from "./meeting-runtime.js";
 export {
     activateTargetMeetingApplication,

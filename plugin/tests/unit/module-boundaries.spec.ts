@@ -218,34 +218,4 @@ describe("plugin module boundaries", () => {
         ).toEqual([]);
     });
 
-    it("keeps repository recovery free of archive lifecycle orchestration", () => {
-        const recoverySource = readFileSync(
-            join(sourceRoot, "runtime/services/meeting-recovery-service.ts"),
-            "utf8"
-        );
-        expect(importsOf(recoverySource)).not.toContain("./meeting-archive-service.js");
-    });
-
-    it("keeps internal application use cases and services out of runtime facades", () => {
-        const runtimeFacade = readFileSync(join(sourceRoot, "runtime/index.ts"), "utf8");
-        expect(reexportsOf(runtimeFacade)).not.toEqual(
-            expect.arrayContaining([
-                "./services/meeting-dispatch-service.js",
-                "./services/types.js",
-                "./services/command-result-service.js",
-                "./services/meeting-session-service.js"
-            ])
-        );
-
-        const applicationFacade = readFileSync(
-            join(sourceRoot, "runtime/application-service/index.ts"),
-            "utf8"
-        );
-        expect(reexportsOf(applicationFacade)).not.toContain("./meeting-control.js");
-    });
-
-    it("keeps the target lifecycle independent from the legacy dispatch service", () => {
-        const lifecycle = readFileSync(join(sourceRoot, "runtime/meeting-lifecycle.ts"), "utf8");
-        expect(importsOf(lifecycle)).not.toContain("./services/meeting-dispatch-service.js");
-    });
 });

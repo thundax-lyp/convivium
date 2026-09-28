@@ -13,8 +13,7 @@ export default defineConfig([
     {
         entry: {
             index: "src/index.ts",
-            "remote/types": "src/remote/types.ts",
-            "protocol/types": "src/protocol/types.ts"
+            "remote/types": "src/remote/types.ts"
         },
         outDir: "lib",
         platform: "node",

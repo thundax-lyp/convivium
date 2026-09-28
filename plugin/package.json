@@ -31,10 +31,6 @@
             "types": "./lib/types/remote/types.d.ts",
             "default": "./lib/remote/types.js"
         },
-        "./protocol-types": {
-            "types": "./lib/types/protocol/types.d.ts",
-            "default": "./lib/protocol/types.js"
-        },
         "./cordis.patch.yml": "./cordis.patch.yml",
         "./package.json": "./package.json",
         "./config/cordis.patch.yml": "./config/cordis.patch.yml"
