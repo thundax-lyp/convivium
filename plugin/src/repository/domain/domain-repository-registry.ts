@@ -39,15 +39,15 @@ export interface OpenDomainMeetingInput<TState = JsonObject> {
     readonly create?: CreateMeetingInput<TState>;
 }
 
-function corrupt(meetingId: string, message: string): RepositoryError {
+const corrupt = (meetingId: string, message: string): RepositoryError => {
     return new RepositoryError("CORRUPT_DATABASE", false, meetingId, message);
-}
+};
 
-function validateCatalogIdentity(
+const validateCatalogIdentity = (
     key: string,
     record: CatalogMeetingRecord,
     meetingId: string
-): void {
+): void => {
     if (
         key !== catalogKey(record.meetingId) ||
         record.meetingId !== meetingId ||
@@ -55,9 +55,12 @@ function validateCatalogIdentity(
     ) {
         throw corrupt(meetingId, "Catalog identity is invalid");
     }
-}
+};
 
-function validateCreationIdentity(creation: CreationRecord, catalog: CatalogMeetingRecord): void {
+const validateCreationIdentity = (
+    creation: CreationRecord,
+    catalog: CatalogMeetingRecord
+): void => {
     if (
         creation.meetingId !== catalog.meetingId ||
         creation.requestId !== catalog.createRequestId ||
@@ -65,7 +68,7 @@ function validateCreationIdentity(creation: CreationRecord, catalog: CatalogMeet
     ) {
         throw corrupt(catalog.meetingId, "Creation identity is invalid");
     }
-}
+};
 
 export class DomainRepositoryRegistry<TState = JsonObject> {
     private readonly repositories = new Map<string, Promise<DomainMeetingRepository<TState>>>();

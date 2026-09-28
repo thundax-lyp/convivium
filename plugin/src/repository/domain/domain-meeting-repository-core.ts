@@ -57,13 +57,13 @@ import {
 } from "./projection.js";
 import { writeCheckpoint } from "./checkpoint.js";
 
-function canonicalStateObject(value: unknown): JsonObject {
+const canonicalStateObject = (value: unknown): JsonObject => {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
         throw new TypeError("Meeting state must be an object");
     }
     const normalized = JSON.parse(JSON.stringify(value)) as unknown;
     return JsonObjectSchema.parse(normalized);
-}
+};
 
 export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly catalogDomain: CatalogDomain;

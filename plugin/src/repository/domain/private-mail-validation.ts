@@ -10,12 +10,12 @@ import type {
 
 // Repository owns authorization, receipt replay, version checks and the commit boundary.
 // These checks only inspect the supplied values; they never access storage or mutate state.
-export function validatePrivateMailSend(
+export const validatePrivateMailSend = (
     snapshot: MeetingSnapshot,
     ownerships: readonly SessionOwnership[],
     parent: PrivateMeetingMail | undefined,
     input: Pick<SendPrivateMeetingMailInput, "mail" | "outbox">
-): void {
+): void => {
     const state = snapshot.state;
     const participants = state.participants;
     const transcript = state.transcript;
@@ -110,14 +110,14 @@ export function validatePrivateMailSend(
             "Meeting mail participants, context, or delivery are invalid"
         );
     }
-}
+};
 
-export function validatePrivateMailStart(
+export const validatePrivateMailStart = (
     snapshot: MeetingSnapshot,
     mail: PrivateMeetingMail,
     input: Pick<StartPrivateMeetingMailInput, "processingThroughSeq" | "deadlineAt">,
     now: number
-): void {
+): void => {
     const status = snapshot.state.status;
     if (
         mail.status !== "pending" ||
@@ -155,13 +155,13 @@ export function validatePrivateMailStart(
             "Meeting mail processing bounds are invalid"
         );
     }
-}
+};
 
-export function validatePrivateMailFinish(
+export const validatePrivateMailFinish: (
     meetingId: string,
     mail: PrivateMeetingMail | undefined,
     input: Pick<FinishPrivateMeetingMailInput, "handlingAttemptId" | "deliveryId">
-): asserts mail is PrivateMeetingMail {
+) => asserts mail is PrivateMeetingMail = (meetingId, mail, input) => {
     if (
         !mail ||
         mail.status !== "processing" ||
@@ -175,4 +175,4 @@ export function validatePrivateMailFinish(
             "Mail handling is stale or terminal"
         );
     }
-}
+};
