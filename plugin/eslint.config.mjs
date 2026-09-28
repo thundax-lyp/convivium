@@ -3,6 +3,47 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const versionSuffix = /(?:^|[_a-zA-Z])(?:V|v)[1-9][0-9]*$/;
+const versionedPathSegment = /(?:^|[._-])v[1-9][0-9]*(?:[._-]|$)/i;
+const noVersionSuffix = {
+    meta: {
+        type: "problem",
+        docs: { description: "Disallow version suffixes in unpublished contracts and methods" },
+        messages: {
+            symbol: "未发布的契约和方法禁止版本后缀；直接维护当前名称。",
+            path: "未发布的源码文件禁止版本后缀；直接维护当前路径。"
+        },
+        schema: []
+    },
+    create: (context) => ({
+        Identifier: (node) => {
+            if (versionSuffix.test(node.name)) {
+                context.report({ node, messageId: "symbol" });
+            }
+        },
+        Literal: (node) => {
+            if (
+                typeof node.value === "string" &&
+                node.value.startsWith("convivium_") &&
+                versionSuffix.test(node.value)
+            ) {
+                context.report({ node, messageId: "symbol" });
+            }
+        },
+        Program: (node) => {
+            const segments = context.filename.split(/[\\/]/);
+            const sourceIndex = segments.lastIndexOf("src");
+            if (
+                segments
+                    .slice(sourceIndex + 1)
+                    .some((segment) => versionedPathSegment.test(segment))
+            ) {
+                context.report({ node, messageId: "path" });
+            }
+        }
+    })
+};
+
 // These top-level modules expose index.ts (or index.tsx) as their public entry.
 const publicModules = [
     "client",
@@ -133,8 +174,10 @@ export default tseslint.config(
     },
     {
         files: ["src/**/*.{ts,tsx}"],
+        plugins: { convivium: { rules: { "no-version-suffix": noVersionSuffix } } },
         rules: {
             "no-console": "error",
+            "convivium/no-version-suffix": "error",
             ...sourceImportRules()
         }
     },

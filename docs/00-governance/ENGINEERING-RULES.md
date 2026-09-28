@@ -10,6 +10,7 @@
 
 ## Code Style
 
+- 项目尚未发布，契约、接口、方法、类型、常量、工具名和角色身份资源禁止用版本后缀区分实现，包括 `V1`、`_v2`、`-v3` 及 `config/agents/<role>/<version>/`。修改现有定义时直接维护当前契约；确需兼容历史持久数据，应明确数据读取与失败语义，不以新增版本后缀绕过设计。`protocolVersion`、`formatVersion` 等现有数据字段不是命名后缀，本规则不要求为此次改动递增它们。插件 `lint` 检查源码符号和角色资源目录。
 - 全工程新增或修改的 React UI 使用 TSX/JSX 元素语法表达组件树，不以嵌套 `createElement()` 编写界面；必须向非 JSX API 传递元素时，仍可使用 `createElement()`。
 - 全工程新增或修改的普通函数与 React 组件使用箭头函数。需要 `function` 自身语义的生成器、依赖动态 `this` 或原型行为的方法，以及外部接口要求的方法声明可以保留相应语法；不得仅为形式统一改变这些语义。
 - 插件工程的控制流语句使用花括号；`plugin/eslint.config.mjs` 以 `curly: ["error", "all"]` 检查。
