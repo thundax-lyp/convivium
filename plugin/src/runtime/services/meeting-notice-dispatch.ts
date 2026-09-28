@@ -25,19 +25,19 @@ class NoticeDispatchError extends Error {
     }
 }
 
-function fail(code: string): never {
+const fail: (code: string) => never = (code) => {
     throw new NoticeDispatchError(code, false);
-}
+};
 
-function stringField(payload: Record<string, unknown>, key: string): string {
+const stringField = (payload: Record<string, unknown>, key: string): string => {
     const value = payload[key];
     if (typeof value !== "string" || value.trim() === "") {
         fail("NOTICE_PAYLOAD_INVALID");
     }
     return value;
-}
+};
 
-function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabel["role"] {
+const roleFor = (identity: MeetingIdentity): MeetingIdentitySessionLabel["role"] => {
     if (identity.roles.length !== 1) {
         fail("NOTICE_IDENTITY_INVALID");
     }
@@ -51,24 +51,24 @@ function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabel["role"]
         default:
             return fail("NOTICE_IDENTITY_INVALID");
     }
-}
+};
 
-function assigned(identity: MeetingIdentity, agendaId: string): boolean {
+const assigned = (identity: MeetingIdentity, agendaId: string): boolean => {
     return (
         identity.agendaResponsibilityIds.length === 0 ||
         identity.agendaResponsibilityIds.includes(agendaId)
     );
-}
+};
 
-function assertRole(
+const assertRole = (
     identity: MeetingIdentity,
     role: "manager" | "contributor",
     agendaId: string
-): void {
+): void => {
     if (!identity.roles.includes(role) || !assigned(identity, agendaId)) {
         fail("NOTICE_VISIBILITY_INVALID");
     }
-}
+};
 
 const roundOpenedDetails = (
     state: MeetingState,
@@ -85,13 +85,13 @@ const roundOpenedDetails = (
     return { roundId };
 };
 
-function assertNoticeReferences(
+const assertNoticeReferences = (
     state: MeetingState,
     identity: MeetingIdentity,
     payload: Record<string, unknown>,
     noticeKind: string,
     agendaId: string
-): Record<string, unknown> {
+): Record<string, unknown> => {
     const agenda = state.agenda.find((candidate) => candidate.id === agendaId);
     if (!agenda) {
         fail("NOTICE_VISIBILITY_INVALID");
@@ -242,14 +242,14 @@ function assertNoticeReferences(
         default:
             return fail("OUTBOX_ROUTE_UNAVAILABLE");
     }
-}
+};
 
-function findOwnership(
+const findOwnership = (
     ownerships: readonly SessionOwnership[],
     identity: MeetingIdentity,
     meetingId: string,
     expectedRole: SessionOwnership["role"]
-): SessionOwnership {
+): SessionOwnership => {
     const matches = ownerships.filter(
         (candidate) =>
             candidate.id === identity.sessionOwnershipId &&
@@ -263,7 +263,7 @@ function findOwnership(
         fail("NOTICE_OWNERSHIP_INVALID");
     }
     return matches[0]!;
-}
+};
 
 export interface MeetingNoticeDispatcherDependencies {
     readonly owner: MeetingAgentOwner;
