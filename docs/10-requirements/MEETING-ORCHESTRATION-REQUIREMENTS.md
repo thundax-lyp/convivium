@@ -226,7 +226,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 13. 平级 Meeting Agent 和 Meeting Runtime 投递不得依赖用户输入 Session 常驻；输入 Session 关闭时，已授权会议工作仍按 lifecycle、ownership 与 outbox 继续，不重挂 child、不丢弃待投递效果。
 14. Captain 是当前本地用户，能够管理当前 Host 中多场 Meeting；可信用户入口按每个请求验证 Meeting、版本、幂等与领域前置。原输入 Session 无需恢复，权限不绑定 Session；Agent 不能冒用用户控制身份，Session 来源仅用于审计。
 15. Meeting Agent 之间的正式交流必须经 Meeting Runtime 的会议操作、授权校验和可审计记录进行。即使 DSH 提供 Agent 间直接消息能力，Convivium 也不得为这些会议身份开放绕过 Meeting Runtime、会议记录或可见性规则的直接互发消息路径。
-16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务；除 MO-FR-18 的一次性会议创建授权外，不注册 Captain Agent tools。每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
+16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务；除 MO-FR-18 的一次性会议创建与指定会议取消授权外，不注册 Captain Agent tools。每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
 
 ### MO-FR-15：Developer Markdown Projection
 

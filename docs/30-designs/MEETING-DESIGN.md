@@ -6,7 +6,7 @@
 
 ## Scope And Non-goals
 
-覆盖 Meeting 的命令路由、状态转换顺序、并发控制、效果投递、恢复和可观察性。它不定义 DSH Session 实现、存储引擎、Remote 传输、页面布局、Agent Prompt、模型选择或业务对象字段；分别由 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 与 Domain Design 规定。
+覆盖 Meeting 的命令路由、状态转换顺序、并发控制、效果投递、领域恢复和可观察性。它不定义 DSH Session 实现、存储引擎、Remote 传输、页面布局、Agent Prompt、模型选择或业务对象字段；平级 Agent 的装配、投递与恢复见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)，插件入口与界面见 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md)，跨边界字段与领域对象分别见 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 和 Domain Design。
 
 证据轮次行为与验收以 [Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md) 为准；本文只定义满足该需求的命令编排。
 
@@ -26,11 +26,11 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 ## Common Command Pipeline
 
-所有 Agent、local panel、Remote control、恢复任务和自动期限检查都严格执行同一序列：
+所有 Agent、local panel、Remote control、显式用户 Skill、恢复任务和自动期限检查都严格执行同一序列：
 
 1. 解码 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的版本化 envelope，执行结构和值域校验。
-2. 从可信调用通道取得 caller binding、当前时间和 requestId；创建与 Captain 控制仅由 loopback 用户入口注入 local-controller。身份命令按 active ownership 解析 caller，Agent 不取得用户权限；输入不承载 actor、authority 或 Session 来源。
-3. 加载 Meeting；用户控制验证可信 loopback 来源，MeetingIdentity 验证 active ownership。bootstrap creator 仅保留创建审计，不锁定输入 Session；未知、损坏或撤权的身份 fail closed。
+2. 从可信调用通道取得 caller binding、当前时间和 requestId；结构化用户控制经 loopback Remote，显式 `/convivium` Skill 仅可按 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#captain-control-surface) 的一次性授权创建或取消指定 Meeting。两种入口均由可信 adapter 注入 local-controller；身份命令按 active ownership 解析 caller，Agent 不取得用户权限；输入不承载 actor、authority 或 Session 来源。
+3. 加载 Meeting；用户控制验证相应可信入口与授权，MeetingIdentity 验证 active ownership。bootstrap creator 仅保留创建审计，不锁定输入 Session；未知、损坏或撤权的身份 fail closed。
 4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
 6. 以当前 Host/profile Storage Domain 内全局唯一的 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。catalog、repository 与 recovery 只按 `meetingId` 定位，不建立 `teamId` namespace；冲突返回当前版本，不执行效果。
@@ -47,7 +47,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 | 转换                                 | 允许 actor                  | 前提                                                                                                                                                                           | 成功事实/效果                                                                                                                                                                                                                   | 拒绝或无操作                                                                                                                      |
 | ------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `create_meeting`                     | 可信用户入口                | objective、初始身份、限制完整；loopback adapter 已验证本地用户来源；配置选中的全部初始平级 Agent 的 DSH 预检已完成                                                                           | version 1、私有 bootstrap 中不可变的 creator 审计来源、与初始身份等数的独立 ownership/session；为每个初始 identity 各创建一个 `meeting_started` effect                                                                                      | 非可信用户入口、任一必填目标、身份或能力缺失均拒绝；不产生半个 Meeting                                                            |
+| `create_meeting`                     | 可信用户入口                | objective、初始身份、限制完整；loopback adapter 已验证本地用户来源，或 Skill adapter 已消费本次直接用户输入的一次性创建授权；配置选中的全部初始平级 Agent 的 DSH 预检已完成                     | version 1、私有 bootstrap 中不可变的 creator 审计来源、与初始身份等数的独立 ownership/session；为每个初始 identity 各创建一个 `meeting_started` effect                                                                                      | 非可信用户入口、任一必填目标、身份或能力缺失均拒绝；不产生半个 Meeting                                                            |
 | `activate_agenda`                    | Captain                     | Meeting running；目标 Agenda pending；恰有一个旧 active Agenda 且其上没有 open Round                                                                                           | 原 Agenda 按明示 disposition 收口，新 Agenda active，open Round 不会留在已收口 Agenda 上                                                                                                                                        | 非 Captain、非 running、旧议题仍有 open Round、缺失/非 pending Agenda 拒绝                                                        |
 | `raise_agenda_candidate`             | 任意已授权 identity         | Meeting 非终态；title/reason 完整                                                                                                                                              | pending candidate                                                                                                                                                                                                               | 相同 request replay receipt；不能隐式加入 Agenda                                                                                  |
 | `dispose_agenda_candidate`           | Captain                     | candidate pending；promoted Agenda 的 output/owner 引用可解析                                                                                                                  | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted 并 append 完整 pending Agenda；不改变全局 evidenceReviewerId、不授新 role、不切换 active                                                            | 再处置、非 Captain、候选/owner 不存在或任一引用非法时整条拒绝，state/facts/version 均不变                                         |
@@ -128,7 +128,9 @@ application 只从 `Clock.now()` 取得时间，向 Domain command 传入具体 
 
 所有同一 Meeting 写入通过 expected version 串行化。读与不同 Meeting 可并行；同一 round 的 evidence/review 可以并行提交，但所有成功写入仍各自产生一个连续 Meeting version。版本冲突、receipt 重放和 effect 重试均不能改写历史或创建重复 publication/message。
 
-恢复只做以下操作：读取最近完整 committed snapshot；验证记录连续性和 identity/session ownership；恢复未完成 effect outbox；根据当前时间补跑可证明已到期的 deadline command。普通变更保存为有界 commit record；若单次原子变更的 patch 超过 Convivium 自定的 65,536-byte record 上限，Repository 不拆分业务 command，而是先把完整新 projection 写成不超过 20,000 raw bytes 的 checkpoint pages，最后以 checkpoint pointer 原子发布。pointer 发布前恢复旧 projection，发布后恢复完整新 projection；该上限不是 DSH Storage Domain 或 SQLite 的 value 上限。任何 snapshot、receipt、outbox 或 ownership 损坏均标记 `RECOVERY_UNAVAILABLE` 并停止写入，绝不从 Session log、Markdown、UI 缓存或当前角色定义重建事实。Agent 内部失败本身不是 Meeting 失败；必须经显式 action、deadline 或授权处置成为领域事实。归档先物化完整 ArchivePackage，再进入 archiving 并停止、关闭、revoke 全部已证明归属的 Meeting Session；用户可管理多场 Meeting，归档只关闭目标 Meeting 已证明归属的平级 AgentSession；目标 Meeting 中有未登记的额外 Session 时拒绝恢复；任一关闭失败保持 archiving、禁讨论并保留输出，成功后才 archived。
+Meeting 领域恢复只读取最近完整 committed snapshot，验证记录连续性与 identity/session ownership，恢复未完成 effect outbox，并根据当前时间补跑可证明已到期的 deadline command。普通变更保存为有界 commit record；若单次原子变更的 patch 超过 Convivium 自定的 65,536-byte record 上限，Repository 不拆分业务 command，而是先把完整新 projection 写成不超过 20,000 raw bytes 的 checkpoint pages，最后以 checkpoint pointer 原子发布。pointer 发布前恢复旧 projection，发布后恢复完整新 projection；该上限不是 DSH Storage Domain 或 SQLite 的 value 上限。任何 snapshot、receipt、outbox 或 ownership 损坏均标记 `RECOVERY_UNAVAILABLE` 并停止写入，绝不从 Session log、Markdown、UI 缓存或当前角色定义重建事实。Agent 内部失败本身不是 Meeting 失败；必须经显式 action、deadline 或授权处置成为领域事实。
+
+归档先物化完整 ArchivePackage，再进入 archiving；只有目标 Meeting 中已证明归属的 Session 全部关闭，才能切换 archived。未登记的额外 Session 使恢复拒绝，关闭失败则保持 archiving、禁讨论并保留输出。Session 的撤权、停止及冷恢复步骤由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#delivery-pause-recovery-and-archive) 维护。
 
 ## Failure, Security And Observability
 
