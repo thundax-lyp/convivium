@@ -37,7 +37,7 @@ describe("identity admission recovery", () => {
                     id: "rec-1",
                     candidateId: "candidate-1",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v1",
@@ -86,7 +86,7 @@ const recoveryFixture = (status: string, bootstrapStatus = "ready") => {
             sessionId: "persisted-session-1",
             lifecycleStatus: "active",
             capabilityStatus: "active",
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             descriptorId: "descriptor-1",
             createdAt: 1,
             updatedAt: 1
@@ -151,7 +151,7 @@ const recoveryFixture = (status: string, bootstrapStatus = "ready") => {
                 openMeeting: async () => repository
             },
             owner,
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             ensureDelivery,
             stopDelivery,
             now: () => 50

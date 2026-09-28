@@ -112,26 +112,18 @@ const identitySchema = z
         riskAuthority: z.boolean(),
         required: z.boolean(),
         definitionId: opaqueIdSchema.optional(),
-        definitionVersion: textSchema.optional(),
         definitionHash: z
             .string()
             .regex(/^[a-f0-9]{64}$/)
             .optional(),
         sessionOwnershipId: opaqueIdSchema.optional()
     })
-    .refine((value) => own(value, "definitionId") === own(value, "definitionVersion"), {
-        path: ["definitionVersion"]
-    })
-    .refine((value) => isAbsentOrDefined(value, "definitionId"), { path: ["definitionId"] })
-    .refine((value) => isAbsentOrDefined(value, "definitionVersion"), {
-        path: ["definitionVersion"]
-    });
+    .refine((value) => isAbsentOrDefined(value, "definitionId"), { path: ["definitionId"] });
 const identityRecommendationSchema = withDefinedOptionals(
     z.object({
         id: opaqueIdSchema,
         candidateId: opaqueIdSchema,
         definitionId: opaqueIdSchema,
-        definitionVersion: textSchema,
         catalogId: opaqueIdSchema,
         catalogVersion: textSchema,
         agendaId: opaqueIdSchema,
@@ -705,7 +697,6 @@ const archiveIdentityProvenanceSchema = withDefinedOptionals(
             displayName: textSchema,
             roles: uniqueRoleArraySchema,
             definitionId: opaqueIdSchema.optional(),
-            definitionVersion: textSchema.optional(),
             definitionHash: z
                 .string()
                 .regex(/^[a-f0-9]{64}$/)
@@ -713,15 +704,11 @@ const archiveIdentityProvenanceSchema = withDefinedOptionals(
         })
         .refine(
             (value) =>
-                (value.definitionId !== undefined &&
-                    value.definitionVersion !== undefined &&
-                    value.definitionHash !== undefined) ||
-                (value.definitionId === undefined &&
-                    value.definitionVersion === undefined &&
-                    value.definitionHash === undefined),
+                (value.definitionId !== undefined && value.definitionHash !== undefined) ||
+                (value.definitionId === undefined && value.definitionHash === undefined),
             { path: ["definitionId"] }
         ),
-    ["definitionId", "definitionVersion", "definitionHash"]
+    ["definitionId", "definitionHash"]
 );
 const archiveMaterialSchema = z.object({
     id: opaqueIdSchema,

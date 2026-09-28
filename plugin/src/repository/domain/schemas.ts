@@ -54,7 +54,6 @@ const authorization = z
     .strict() satisfies z.ZodType<CommandAuthorization>;
 export const AgentDefinitionBindingSchema = z.strictObject({
     agentDefinitionId: z.string().refine((value) => value.trim().length > 0),
-    definitionVersion: z.string().refine((value) => value.trim().length > 0),
     definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
 });
 
@@ -77,7 +76,6 @@ export const ResourceBindingSchema = z.strictObject({
             "github_research_analyst",
             "arxiv_research_analyst"
         ]),
-        version: nonempty,
         sha256: sha
     }),
     presetId: nonempty,

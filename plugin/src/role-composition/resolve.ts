@@ -37,20 +37,17 @@ export type DynamicDefinitionResolution =
     | { kind: "resolved"; definition: MeetingAgentDefinition; binding: AgentDefinitionBinding }
     | {
           kind: "rejected";
-          code: "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH" | "ROLE_NOT_ALLOWED";
+          code: "DEFINITION_NOT_FOUND" | "DEFINITION_HASH_MISMATCH" | "ROLE_NOT_ALLOWED";
       };
 
 export const resolveDynamicMeetingDefinition = (
     definitions: readonly MeetingAgentDefinition[],
-    definitionRef: { id: string; version: string },
+    definitionRef: { id: string },
     expectedHash: string
 ): DynamicDefinitionResolution => {
     const definition = definitions.find((item) => item.agentDefinitionId === definitionRef.id);
     if (!definition) {
         return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
-    }
-    if (definition.definitionVersion !== definitionRef.version) {
-        return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
     }
     if (
         definition.roleDefinitionId === "meeting_manager" ||
@@ -60,11 +57,10 @@ export const resolveDynamicMeetingDefinition = (
     }
     const binding = {
         agentDefinitionId: definition.agentDefinitionId,
-        definitionVersion: definition.definitionVersion,
         definitionHash: definitionHash(definition)
     };
     if (binding.definitionHash !== expectedHash) {
-        return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
+        return { kind: "rejected", code: "DEFINITION_HASH_MISMATCH" };
     }
     return { kind: "resolved", definition, binding };
 };
@@ -124,7 +120,6 @@ export const resolveMeetingRoles = async (
             ...(overrides[id] === undefined ? {} : { agentOptions: overrides[id] }),
             agentDefinition: Object.freeze({
                 agentDefinitionId: d.agentDefinitionId,
-                definitionVersion: d.definitionVersion,
                 definitionHash: definitionHash(d)
             })
         });

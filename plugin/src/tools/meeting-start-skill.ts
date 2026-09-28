@@ -2,12 +2,22 @@ import type { UserMessage } from "@deepseek-ai/dsh-llm";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
-import { MeetingCommandSchema, type MeetingCommand } from "@/protocol/index.js";
+import {
+    MeetingCommandSchema,
+    type MeetingCommand,
+    type MeetingReadResult
+} from "@/protocol/index.js";
 import type { ContributorRoleDefinitionId } from "@/role-composition/model.js";
 
 interface StartGrant {
     readonly turn: number;
     readonly goal: string;
+    readonly requestId: string;
+}
+interface CancelGrant {
+    readonly turn: number;
+    readonly meetingId: string;
+    readonly reason: string;
     readonly requestId: string;
 }
 
@@ -23,6 +33,7 @@ const roles = [
 
 export class MeetingStartGate {
     private readonly grants = new Map<string, StartGrant>();
+    private readonly cancelGrants = new Map<string, CancelGrant>();
 
     observe = (sessionId: string, turn: number, messages: readonly UserMessage[]): void => {
         for (const message of messages) {
@@ -36,13 +47,32 @@ export class MeetingStartGate {
             const match = /^\/convivium(?:\s+([\s\S]*))?$/.exec(text.trim());
             if (!match) {
                 this.grants.delete(sessionId);
+                this.cancelGrants.delete(sessionId);
                 continue;
             }
             const goal = match[1]?.trim();
             if (!goal) {
                 this.grants.delete(sessionId);
+                this.cancelGrants.delete(sessionId);
                 continue;
             }
+            const cancellation = /^cancel\s+(\S+)\s+([\s\S]+)$/.exec(goal);
+            if (cancellation) {
+                this.grants.delete(sessionId);
+                this.cancelGrants.set(sessionId, {
+                    turn,
+                    meetingId: cancellation[1]!,
+                    reason: cancellation[2]!.trim(),
+                    requestId: `skill:${message.id}`
+                });
+                continue;
+            }
+            if (goal.startsWith("cancel")) {
+                this.grants.delete(sessionId);
+                this.cancelGrants.delete(sessionId);
+                continue;
+            }
+            this.cancelGrants.delete(sessionId);
             this.grants.set(sessionId, {
                 turn,
                 goal,
@@ -57,12 +87,96 @@ export class MeetingStartGate {
         return grant;
     };
 
+    takeCancel = (sessionId: string): CancelGrant | undefined => {
+        const grant = this.cancelGrants.get(sessionId);
+        this.cancelGrants.delete(sessionId);
+        return grant;
+    };
+
     clear = (sessionId: string, turn: number): void => {
         if (this.grants.get(sessionId)?.turn === turn) {
             this.grants.delete(sessionId);
         }
+        if (this.cancelGrants.get(sessionId)?.turn === turn) {
+            this.cancelGrants.delete(sessionId);
+        }
     };
 }
+
+export const createMeetingCancelCommand = (
+    grant: Omit<CancelGrant, "turn">,
+    view: MeetingReadResult
+): MeetingCommand =>
+    MeetingCommandSchema.parse({
+        protocolVersion: 1,
+        meetingId: grant.meetingId,
+        expectedMeetingVersion: view.version,
+        requestId: grant.requestId,
+        action: {
+            kind: "end_meeting",
+            outcome: "cancelled",
+            reason: grant.reason,
+            decisionIds: view.outcomes.decisions
+                .filter((item) => item.status === "accepted")
+                .map((item) => item.id),
+            completionFactIds: view.outcomes.completionFacts
+                .filter((item) => item.status === "active")
+                .map((item) => item.id),
+            unresolvedQuestionIds: view.questions
+                .filter((item) => item.status === "open" || item.status === "deferred")
+                .map((item) => item.id),
+            unresolvedIssueIds: view.issues
+                .filter((item) => item.status === "open" || item.status === "deferred")
+                .map((item) => item.id)
+        }
+    });
+
+export interface MeetingCancelToolDependencies {
+    readonly registry: Pick<ToolRuntime, "register">;
+    readonly gate: MeetingStartGate;
+    readonly read: (meetingId: string, signal: AbortSignal) => Promise<MeetingReadResult>;
+    readonly cancel: (command: MeetingCommand, signal: AbortSignal) => Promise<JsonValue>;
+    readonly isMeetingAgent: (agent: Agent, signal: AbortSignal) => Promise<boolean>;
+}
+
+export const registerMeetingCancelTool = (
+    dependencies: MeetingCancelToolDependencies
+): (() => void) =>
+    dependencies.registry.register(
+        defineTool({
+            name: "convivium_cancel_meeting",
+            description:
+                "Cancel one Meeting from the current user's explicit /convivium cancel <meetingId> <reason> invocation.",
+            parameters: {},
+            output: {
+                schema: { type: "json" },
+                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+            },
+            async execute(_args, exec) {
+                if (!exec.agent) {
+                    return {
+                        kind: "rejected",
+                        error: {
+                            code: "UNAUTHORIZED",
+                            message: "A direct user Skill call is required"
+                        }
+                    } as JsonValue;
+                }
+                const grant = dependencies.gate.takeCancel(exec.agent.id);
+                if (!grant || (await dependencies.isMeetingAgent(exec.agent, exec.signal))) {
+                    return {
+                        kind: "rejected",
+                        error: {
+                            code: "UNAUTHORIZED",
+                            message: "No active user cancellation invocation"
+                        }
+                    } as JsonValue;
+                }
+                const view = await dependencies.read(grant.meetingId, exec.signal);
+                return dependencies.cancel(createMeetingCancelCommand(grant, view), exec.signal);
+            }
+        })
+    );
 
 export const createMeetingStartCommand = (
     goal: string,
@@ -100,7 +214,6 @@ export const createMeetingStartCommand = (
                 .map(([identityKey, displayName, role]) => ({
                     identityKey,
                     definitionId: `convivium.${identityKey}`,
-                    definitionVersion: "2.0.0",
                     displayName,
                     roles: [role],
                     agendaResponsibilityIds: ["initial"],

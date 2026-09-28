@@ -316,7 +316,7 @@ describe("peer creation and ownership transaction", () => {
                 identityId: ownership.identityId,
                 sessionId: ownership.sessionId,
                 definitionId: ownership.definition.agentDefinitionId,
-                definitionVersion: ownership.definition.definitionVersion,
+
                 definitionHash: ownership.definition.definitionHash
             };
             // The generic Repository port validates private ownership against the persisted domain facts.

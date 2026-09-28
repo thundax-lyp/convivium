@@ -58,7 +58,7 @@ const fixture = async (role = "domain_architect") => {
         definition,
         binding: {
             agentDefinitionId: definition.agentDefinitionId,
-            definitionVersion: definition.definitionVersion,
+
             definitionHash: definitionHash(definition)
         },
         agentOptions: { provider: "host", model: "model" },
@@ -196,7 +196,7 @@ describe("role resource preflight", () => {
         expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });
         await rm(script);
         await writeFile(
-            join(f.input.packageRoot, "config/agents/domain_architect/2.0.0/AGENTS.md"),
+            join(f.input.packageRoot, "config/agents/domain_architect/AGENTS.md"),
             "changed"
         );
         expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });

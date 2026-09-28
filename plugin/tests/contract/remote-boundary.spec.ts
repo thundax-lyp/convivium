@@ -209,7 +209,6 @@ it("routes all fourteen user controls through the application with a fixed trust
             identityKey: d.roleDefinitionId,
             displayName: d.displayName,
             definitionId: d.agentDefinitionId,
-            definitionVersion: d.definitionVersion,
             roles: [
                 d.roleDefinitionId === "meeting_manager"
                     ? "manager"

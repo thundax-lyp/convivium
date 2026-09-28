@@ -133,6 +133,7 @@ describe("target Meeting tool registration", () => {
             "convivium_submit_manager_plan",
             "convivium_dispose_hand_raise",
             "convivium_publish_round",
+            "convivium_end_meeting",
             "convivium_raise_hand",
             "convivium_decline_hand",
             "convivium_submit_evidence",

@@ -33,7 +33,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v1",
@@ -63,7 +63,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v1",
@@ -99,7 +99,7 @@ describe("identity domain transitions", () => {
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 definitionHash: "a".repeat(64)
             },
             2
@@ -121,7 +121,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v1",
@@ -156,7 +156,7 @@ describe("identity domain transitions", () => {
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 definitionHash: "b".repeat(64)
             },
             2
@@ -172,7 +172,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v1",
@@ -206,7 +206,7 @@ describe("identity domain transitions", () => {
                 descriptorId: "descriptor-1",
                 displayName: "Architect",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 definitionHash: "a".repeat(64)
             },
             2
@@ -219,7 +219,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v2",
@@ -251,7 +251,7 @@ describe("identity domain transitions", () => {
                 {
                     candidateId: "candidate-1",
                     definitionId: "other_definition",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v3",
@@ -276,7 +276,7 @@ describe("identity domain transitions", () => {
             {
                 candidateId: "candidate-1",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 catalogId: "catalog-1",
                 catalogVersion: "1",
                 agendaId: "agenda-v1",
@@ -303,7 +303,7 @@ describe("identity domain transitions", () => {
                 {
                     candidateId: "candidate-1",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v2",

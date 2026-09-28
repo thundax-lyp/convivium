@@ -60,7 +60,6 @@ const catalogView = (catalog: MeetingAgentCatalog) => {
         candidates: catalog.candidates.map((item) => ({
             candidateId: item.candidateId,
             definitionId: item.definition.id,
-            definitionVersion: item.definition.version,
             displayName: item.displayName,
             availability: item.availability,
             meetingRoles: [...item.meetingRoles],
@@ -91,7 +90,9 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
         ) {
             controls.push("resume_meeting");
         }
-        controls.push("end_meeting");
+        if (!state.rounds.some((round) => round.status === "open")) {
+            controls.push("end_meeting");
+        }
         if (state.agendaCandidates.some((item) => item.status === "pending")) {
             controls.push("dispose_agenda_candidate");
         }
@@ -146,7 +147,10 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
             "open_round",
             "dispose_hand_raise",
             "publish_round",
-            "recommend_identity"
+            "recommend_identity",
+            ...(!state.rounds.some((round) => round.status === "open")
+                ? ["end_meeting" as const]
+                : [])
         ] as const;
     }
     if (hasRole(caller, "evidence_reviewer")) {

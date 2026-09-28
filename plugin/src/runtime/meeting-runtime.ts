@@ -91,7 +91,6 @@ const targetCreateState = (
             riskAuthority: source.riskAuthority,
             required: source.required,
             definitionId: source.definitionId!,
-            definitionVersion: source.definitionVersion!,
             definitionHash,
             sessionOwnershipId: ownershipId
         })),
@@ -165,16 +164,14 @@ const assertInitialTargetIdentities = (
     let reviewers = 0;
     let contributors = 0;
     for (const identity of action.identities) {
-        if (!identity.definitionId || !identity.definitionVersion) {
+        if (!identity.definitionId) {
             throw new RoleCompositionError();
         }
         if (identity.agendaResponsibilityIds.some((id) => !agendas.has(id))) {
             throw new RoleCompositionError();
         }
         const definition = definitions.find(
-            (item) =>
-                item.agentDefinitionId === identity.definitionId &&
-                item.definitionVersion === identity.definitionVersion
+            (item) => item.agentDefinitionId === identity.definitionId
         );
         if (!definition || selectedRoles.has(definition.roleDefinitionId)) {
             throw new RoleCompositionError();
@@ -368,9 +365,7 @@ export const createMeetingCreationCoordinator = (
             const identities = command.action.identities.map((source) => {
                 const id = stableId("meeting_identity", meetingId, source.identityKey);
                 const definition = dependencies.definitions.find(
-                    (d) =>
-                        d.agentDefinitionId === source.definitionId &&
-                        d.definitionVersion === source.definitionVersion
+                    (d) => d.agentDefinitionId === source.definitionId
                 )!;
                 return {
                     source,
@@ -407,7 +402,6 @@ export const createMeetingCreationCoordinator = (
                         definition: identity.definition,
                         binding: {
                             agentDefinitionId: identity.definition.agentDefinitionId,
-                            definitionVersion: identity.definition.definitionVersion,
                             definitionHash: identity.definitionHash
                         },
                         agentOptions: resolveEffectiveAgentOptions(

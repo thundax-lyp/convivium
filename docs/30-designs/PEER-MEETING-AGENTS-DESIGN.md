@@ -10,13 +10,13 @@
 
 ## Responsibilities And Dependencies
 
-角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。七份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 只负责议题内计划、开轮、举手处置、发布与推荐；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub 与 arXiv 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
+角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。七份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 负责议题内计划、开轮、举手处置、发布、推荐和正常结束判断；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub 与 arXiv 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
 
 五项 Skill 的工作方法固定为：`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
 
 | 责任                | 唯一 owner                        | 输入与输出                                                               |
 | ------------------- | --------------------------------- | ------------------------------------------------------------------------ |
-| Definition/资源目录 | `role-composition` 与包内静态资源 | 精确 Definition ID/version/hash → AGENTS/Preset/Skill 指纹               |
+| Definition/资源目录 | `role-composition` 与包内静态资源 | 精确 Definition ID/hash → AGENTS/Preset/Skill 指纹               |
 | 平级 Agent handle   | Runtime 的 `MeetingAgentOwner`    | `PreparedDescriptor` → `AgentHandle` 或 RoleError                        |
 | Session ownership   | Meeting Repository                | Meeting/identity/session/资源/模型私有绑定；`provisioning→active→closed` |
 | 用户输入来源        | Meeting Repository 私有 bootstrap | 可信用户 adapter 的 creator；仅用于审计                                  |
@@ -38,7 +38,7 @@ PreparedDescriptor 的 TTL 只限制首次 create/激活；active ownership 的�
 
 ## State And Creation Flow
 
-1. `conviviumMeetings.control` 从 loopback Host 用户边界注入 local-controller；DSH Agent 创建调用或 payload 伪造来源立即拒绝。为 Meeting ID 与全部配置选中的初始 identity/session/ownership 分配确定性 ID；在第一个 Session 创建前解析全部 Definition、AGENTS、Preset、Skill、Host 模型选择并核对指纹。对每个 Preset 调用 `ctx.agentPresets.standingKeyFor(id)` 后按返回 scope 校验实际 Skill `list/get`，不创建 AgentSession；创建时的 scoped setup 再次校验。
+1. `conviviumMeetings.control` 从 loopback Host 用户边界注入 local-controller；`convivium_start_meeting` 仅消费 `/convivium <目标>` 直接用户输入的一次性创建授权，并注入相同 principal。普通 DSH Agent 创建调用或 payload 伪造来源立即拒绝。为 Meeting ID 与全部配置选中的初始 identity/session/ownership 分配确定性 ID；在第一个 Session 创建前解析全部 Definition、AGENTS、Preset、Skill、Host 模型选择并核对指纹。对每个 Preset 调用 `ctx.agentPresets.standingKeyFor(id)` 后按返回 scope 校验实际 Skill `list/get`，不创建 AgentSession；创建时的 scoped setup 再次校验。
 2. Repository 以一个创建入口持久化私有不可变 `creator`、初始领域状态与 `creating` bootstrap；receipt/outbox 仅在 completeCreate 发布。初始身份尚不能执行 Meeting command；每个身份先有 `provisioning` ownership。创建来源不进入 `MeetingState.identities`，也不是 DSH parent。
 3. 对每个身份调用 `MeetingAgentOwner.create`。它传精确 `sessionId`、`agentPreset`、已固化 `agentOptions` 给 `ctx.agents.create`，在 unpublished scoped setup 中 mount Preset、注册角色指令、restrict Tools、核对 Skill `list/get`；返回后再次核对 Session ID/header/资源绑定。Published Agent 在 ownership 激活前不能获得 Meeting authority 或 notice。
 4. 在 Meeting 仍可创建且 descriptor/ownership 未变时，将该 ownership 原子激活。全部初始 ownership 均 active 后，bootstrap 才从 `creating` 转 `ready` 并允许 outbox 投递。任一步失败，bootstrap 置 `creation_failed`，先 revoke 所有已登记 ownership，再取消、drain 和 dispose 已创建 handle；不能留下可调度半身份或把它们重挂 Captain。
@@ -48,21 +48,19 @@ PreparedDescriptor 的 TTL 只限制首次 create/激活；active ownership 的�
 
 ## Captain, Caller And Audit
 
-Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Captain Agent 或原 Session 授权锁。结构化入口为 `plugin/src/remote/index.ts::ConviviumRemoteService.control` → `plugin/src/runtime/meeting-lifecycle.ts` 的 LocalMeetingWebRuntime.control → application。Remote 仍只在 webServer.host=127.0.0.1 时注册；来源固定 `{channel:"loopback_remote",principalId:"local-controller"}`。另有 `/convivium <目标>` 用户 Skill 入口：`plugin/src/tools/meeting-start-skill.ts` 从当前 turn 的直接用户消息取得目标和一次性授权，`convivium_start_meeting` 只构造 CreateMeeting，经 LocalMeetingWebRuntime.startFromSkill 以 `{channel:"skill_invocation",principalId:"local-controller"}` 提交；其它 Captain action 仍只经 Remote。两条创建路径使用相同版本/幂等/领域校验；start_archive 及归档结果由 runtime_recovery 执行。普通会议身份工具不获得 Captain 权限，旧 create tool 保持移除。
+Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Captain Agent 或原 Session 授权锁。结构化入口为 `plugin/src/remote/index.ts::ConviviumRemoteService.control` → `plugin/src/runtime/meeting-lifecycle.ts` 的 LocalMeetingWebRuntime.control → application。Remote 仍只在 webServer.host=127.0.0.1 时注册；来源固定 `{channel:"loopback_remote",principalId:"local-controller"}`。另有显式用户 Skill 入口：`/convivium <目标>` 的 `convivium_start_meeting` 只构造 CreateMeeting，经 LocalMeetingWebRuntime.startFromSkill 以 `{channel:"skill_invocation",principalId:"local-controller"}` 提交；`/convivium cancel <meetingId> <原因>` 的 `convivium_cancel_meeting` 只构造指定 Meeting 的 `cancelled` 终止命令，经 LocalMeetingWebRuntime.cancelFromSkill 使用同一 channel/principal。两项工具均只消费当前 turn 的直接用户输入的一次性授权，其余 Captain action 只经 Remote。两条创建路径使用相同版本/幂等/领域校验；start_archive 及归档结果由 runtime_recovery 执行。普通会议身份工具不获得 Captain 权限，旧 create tool 保持移除。入口参数与授权细节以 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#captain-control-surface) 为准。
 
-`MeetingCommandExecutionContext` 删除 captainParent；创建从可信 adapter 得到 `creator:{kind:"local_user",principalId:"local-controller",sourceSessionId?:string}`。当前 Remote 和 Skill 均不填写 sourceSessionId；Skill 的输入 Session 与消息 ID 只用于当前 turn 的授权及 requestId 生成，不成为 Meeting 授权锁。`agent/pre-step` 仅识别直接用户来源且核对 `convivium` Skill 可由用户调用；授权在使用、turn 停止或用户换题后失效。创建工具无参数，固定补齐字段由 Meeting Interface 拥有，模型不能提交任意 Captain command。原 Session 关闭、重开面板、Host 重启均不影响当前本地用户控制。
+`MeetingCommandExecutionContext` 删除 captainParent；创建从可信 adapter 得到 `creator:{kind:"local_user",principalId:"local-controller",sourceSessionId?:string}`。当前 Remote 和 Skill 均不填写 sourceSessionId；Skill 的输入 Session 与消息 ID 只用于当前 turn 的授权及 requestId 生成，不成为 Meeting 授权锁。`agent/pre-step` 仅识别直接用户来源且核对 `convivium` Skill 可由用户调用；授权在使用、turn 停止或用户换题后失效。Skill 创建与取消工具均无参数；创建的固定补齐字段与取消的目标、原因解析由 Meeting Interface 拥有，模型不能提交任意 Captain command。原 Session 关闭、重开面板、Host 重启均不影响当前本地用户控制。
 
-`ResolvedCallerScope` 的旧 local 分支改为 `role:"captain"`，附带由 meetingId 派生的 captainActorId，无 identityId/ownership；resolveCallerScope 和 validScope 验证 channel=loopback_remote、principal=local-controller、无 sessionBindingId。create 单独检查同一可信来源后分配 meetingId；已有会议检查 ready/lifecycle。DSH caller 一律通过 active MeetingIdentity，绝不退化为用户。Domain 用户 actor 为 `{kind:"captain_user",id:captainActorId}`；用户所有领域控制事实使用该脱敏 actor，receipt principal 沿用 local-controller，creator 不作为可更改授权表。Archive controlActorProvenance 恰一项 kind=captain，身份 provenance 不含用户。系统恢复和 deadline actor 保持系统来源。
+`ResolvedCallerScope` 的旧 local 分支改为 `role:"captain"`，附带由 meetingId 派生的 captainActorId，无 identityId/ownership；resolveCallerScope 和 validScope 只接受可信 adapter 注入的 loopback_remote 或 skill_invocation、principal=local-controller、无 sessionBindingId。Skill adapter 先核对并消费一次性授权，Runtime 的 startFromSkill/cancelFromSkill 再限制 action；不能仅凭 caller channel 取得通用 Captain 权限。create 在可信来源校验后分配 meetingId；已有会议检查 ready/lifecycle。普通 DSH caller 一律通过 active MeetingIdentity，绝不退化为用户。Domain 用户 actor 为 `{kind:"captain_user",id:captainActorId}`；用户所有领域控制事实使用该脱敏 actor，receipt principal 沿用 local-controller，creator 不作为可更改授权表。Archive controlActorProvenance 恰一项 kind=captain，身份 provenance 不含用户。系统恢复和 deadline actor 保持系统来源。
 
-生产面板在 `plugin/src/client/meeting-panel.tsx` 只调用现有 MeetingClient.control 发送暂停、恢复和结束命令；Navigator 只列出会议，Overview 和 Timeline 展示已提交事实，不提供创建或十项结构化操作表单。聊天 Skill 直接创建会议，其缺省值来自 Meeting Interface 的固定规则，不由 Agent 猜测或扩大权限。十项结构化 Captain 命令仍由可信本地 Remote 契约支持，供明确授权的集成使用；Meeting Agent 自主提交其获授权的会议操作，用户日常只需给出目标并按需干预生命周期。面板版本取完整读取的 snapshot，requestId 在一次提交时分配并在网络不确定重试中复用；遇 VERSION_CONFLICT 补读并提示重试，不自动覆写。断线或详情不完整禁写。
-
-用户 read/list 沿现有 loopback 入口，继续完整用户可见事实；Agent read 只经 active ownership。用户与 Agent 都不能用投影修改领域权限。UI 的 controls 依据统一用户 action 表与领域前置，Domain 最终判定；用户结束仍使用现有显式 outcome/reason 及引用字段，归档由 Runtime 推进。
+生产面板的展示与控制行为由 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md#local-client-and-remote-boundary) 维护。本节只规定来源绑定：用户 read/list 沿 loopback 入口，Agent read 只经 active ownership；Skill 只取得本次直接用户调用授予的创建或指定会议取消权限。用户与 Agent 都不能用投影修改领域权限；归档由 Runtime 推进。
 
 ## Delivery, Pause, Recovery And Archive
 
 outbox dispatcher 每次按 Meeting、目标 identity、Session ownership、capability、当前可见事实及 lifecycle 重验，取得该 Meeting 的 owner handle，向 `Agent.followup` 提交带稳定 deliveryId 的 `UserMessage`，再经 `ctx.sessions.flush(session)` 等待持久化 listener，最后把 effect 标为 delivered。flush 未成功或 effect 完成提交未成功时保留可重试；重复投递可能出现，Agent 文本和 inbox acceptance 均不能形成 Meeting 事实。Reviewer claim、Meeting requestId/version 和 outbox ID 继续各自去重。Agent 间只经 Meeting Runtime 的正式操作交流。
 
-用户输入 Session 关闭不影响 owner Map 中已创建身份的 handle、outbox 或动态准入。Host 冷启动先恢复 Meeting Repository，再从 active/provisioning ownership 逐个读取精确 Definition ID/version/hash、资源指纹和固化 `EffectiveAgentOptions`；验证 DSH persisted Session 的 ID/header 后调用 `ctx.agents.resume`，使用同一 scoped setup。资源缺失/变更、Session 或 ownership 不可证明时只标记 `RECOVERY_UNAVAILABLE`，不读取当前默认配置代替。发现已由其他 owner 持有的 live Agent 时拒绝收养裸 handle。
+用户输入 Session 关闭不影响 owner Map 中已创建身份的 handle、outbox 或动态准入。Host 冷启动先恢复 Meeting Repository，再从 active/provisioning ownership 逐个读取精确 Definition ID/hash、资源指纹和固化 `EffectiveAgentOptions`；验证 DSH persisted Session 的 ID/header 后调用 `ctx.agents.resume`，使用同一 scoped setup。资源缺失/变更、Session 或 ownership 不可证明时只标记 `RECOVERY_UNAVAILABLE`，不读取当前默认配置代替。发现已由其他 owner 持有的 live Agent 时拒绝收养裸 handle。
 
 pause 停止新调度、撤销当前活动的继续条件并取消受影响的 Agent turn；resume 从已提交状态和 outbox 生成新的可见通知。end/归档先物化完整 ArchivePackage，随后仅对目标 Meeting 的 ownership 先 revoke capability，再 cancel/drain/dispose handle；任一关闭失败保持 archiving，直到可证明全部关闭。即使 DSH 持久 Session 日志仍在，已撤权身份不能调用 Meeting。插件停机保留 Meeting 事实和未完成 effect，释放所持 handle，不关闭别的 Meeting 或用户输入 Session。
 

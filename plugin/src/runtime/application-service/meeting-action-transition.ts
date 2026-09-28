@@ -91,6 +91,32 @@ const resumedEvidenceReviewEffects = (state: MeetingState): readonly MeetingDoma
             }))
     );
 
+const resumedRoundEffects = (state: MeetingState): readonly MeetingDomainEffectRequest[] =>
+    state.rounds
+        .filter((round) => round.status === "open")
+        .flatMap((round) =>
+            (round.invitedContributorIds ?? [])
+                .filter(
+                    (contributorId) =>
+                        !round.participationResponses?.some(
+                            (response) => response.contributorId === contributorId
+                        ) ||
+                        state.contributions.some(
+                            (contribution) =>
+                                contribution.roundId === round.id &&
+                                contribution.contributorId === contributorId &&
+                                contribution.status === "preparing"
+                        )
+                )
+                .map((recipientId) => ({
+                    kind: "agent_notice" as const,
+                    noticeKind: "round_opened" as const,
+                    recipientId,
+                    agendaId: round.agendaId,
+                    roundId: round.id
+                }))
+        );
+
 const runArchiveTransition = (
     input: TransitionInput,
     action: Extract<
@@ -275,7 +301,10 @@ const runUserControlTransition = (
                 factPayload: result.facts[0].payload,
                 effectRequests:
                     action.kind === "resume_meeting"
-                        ? resumedEvidenceReviewEffects(result.state)
+                        ? [
+                              ...resumedRoundEffects(result.state),
+                              ...resumedEvidenceReviewEffects(result.state)
+                          ]
                         : []
             };
             break;
@@ -364,6 +393,7 @@ const runManagerPlanTransition = (
 ): CommandTransition => {
     const { snapshot, deps, now, factId } = input;
     const generated = (kind: string) => deps.ids.nextId(kind);
+    const planId = generated("manager_plan");
     const result = transitionMeetingState(
         snapshot.state,
         {
@@ -379,7 +409,7 @@ const runManagerPlanTransition = (
         { kind: "identity", id: actorId },
         now,
         factId,
-        generated("manager_plan")
+        planId
     );
     if (result.kind === "rejected") {
         throw new TransitionRejected(result.code, result.code);
@@ -388,7 +418,18 @@ const runManagerPlanTransition = (
         kind: "accepted",
         state: result.state,
         relatedIds: result.facts[0].relatedIds,
-        effectRequests: []
+        effectRequests:
+            action.planKind === "stop_agenda"
+                ? [
+                      {
+                          kind: "agent_notice",
+                          noticeKind: "agenda_stopped",
+                          recipientId: actorId,
+                          agendaId: action.agendaId,
+                          planId
+                      }
+                  ]
+                : []
     };
 };
 

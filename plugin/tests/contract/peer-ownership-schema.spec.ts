@@ -4,13 +4,12 @@ import { decodeProjection, encodeProjection } from "@/repository/domain/projecti
 
 const binding = {
     agentDefinitionId: "convivium.domain_architect",
-    definitionVersion: "2.0.0",
+
     definitionHash: "a".repeat(64)
 };
 const resources = {
     instructions: {
         roleDefinitionId: "domain_architect",
-        version: "2.0.0",
         sha256: "b".repeat(64)
     },
     presetId: "convivium-domain-architect",

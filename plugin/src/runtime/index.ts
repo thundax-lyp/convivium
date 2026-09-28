@@ -14,6 +14,7 @@ export interface LocalMeetingWebRuntime {
     ): Promise<MeetingReadResult>;
     control(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     startFromSkill(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
+    cancelFromSkill(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNotice>;
 }
 

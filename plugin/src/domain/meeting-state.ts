@@ -53,7 +53,6 @@ export interface MeetingIdentity {
     riskAuthority: boolean;
     required: boolean;
     definitionId?: OpaqueId;
-    definitionVersion?: string;
     definitionHash?: string;
     sessionOwnershipId?: string;
 }
@@ -62,7 +61,6 @@ export interface IdentityRecommendationCore {
     id: string;
     candidateId: string;
     definitionId: string;
-    definitionVersion: string;
     catalogId: string;
     catalogVersion: string;
     agendaId: string;
@@ -545,7 +543,6 @@ export interface ArchiveIdentityProvenance {
     displayName: string;
     roles: readonly MeetingRole[];
     definitionId?: OpaqueId;
-    definitionVersion?: string;
     definitionHash?: string;
 }
 

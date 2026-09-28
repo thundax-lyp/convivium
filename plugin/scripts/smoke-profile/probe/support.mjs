@@ -192,7 +192,6 @@ export const peerCreateCommand = async (requestId, statement) => {
                 .map((d) => ({
                     identityKey: d.roleDefinitionId,
                     definitionId: d.agentDefinitionId,
-                    definitionVersion: d.definitionVersion,
                     displayName: d.roleDefinitionId,
                     roles: [
                         d.roleDefinitionId === "meeting_manager"

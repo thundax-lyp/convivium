@@ -42,7 +42,6 @@ export const provisionMeetingIdentity = async (
         recommendation: {
             id: string;
             definitionId: string;
-            definitionVersion: string;
             definitionHash?: string;
             identityId?: string;
             sessionId?: string;
@@ -58,7 +57,7 @@ export const provisionMeetingIdentity = async (
     }
     const resolved = resolveDynamicMeetingDefinition(
         dependencies.definitions,
-        { id: recommendation.definitionId, version: recommendation.definitionVersion },
+        { id: recommendation.definitionId },
         recommendation.definitionHash
     );
     if (resolved.kind !== "resolved") {
@@ -175,7 +174,6 @@ export const provisionMeetingIdentity = async (
                 descriptorId: descriptor.descriptorId,
                 displayName: resolved.definition.displayName,
                 definitionId: recommendation.definitionId,
-                definitionVersion: recommendation.definitionVersion,
                 definitionHash: recommendation.definitionHash
             }
         };

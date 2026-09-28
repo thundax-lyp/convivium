@@ -22,6 +22,7 @@ export {
     FailEvidenceValidationActionSchema,
     SubmitEvidenceReviewActionSchema,
     PublishRoundActionSchema,
+    EndMeetingActionSchema,
     MeetingCommandSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestSchema,

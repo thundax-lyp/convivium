@@ -14,10 +14,10 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 });
 
 export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
-    ["manager", "convivium.meeting_manager", "2.0.0", "manager"],
-    ["reviewer", "convivium.verification_reviewer", "2.0.0", "evidence_reviewer"],
-    ["contributor-a", "convivium.github_research_analyst", "2.0.0", "contributor"],
-    ["contributor-b", "convivium.arxiv_research_analyst", "2.0.0", "contributor"]
+    ["manager", "convivium.meeting_manager", "manager"],
+    ["reviewer", "convivium.verification_reviewer", "evidence_reviewer"],
+    ["contributor-a", "convivium.github_research_analyst", "contributor"],
+    ["contributor-b", "convivium.arxiv_research_analyst", "contributor"]
 ];
 
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
@@ -203,10 +203,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 acceptableRiskLevel: "low"
             },
             identities: MEETING_BUSINESS_LOOP_DEFINITIONS.map(
-                ([identityKey, definitionId, definitionVersion, role]) => ({
+                ([identityKey, definitionId, role]) => ({
                     identityKey,
                     definitionId,
-                    definitionVersion,
                     displayName: identityKey,
                     roles: [role],
                     agendaResponsibilityIds: ["agenda-1"],
@@ -678,24 +677,38 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 .map((review) => review.id)
         });
     }
-    const ended = await runtime.remote("control", {
-        command: {
+    const endView = await read();
+    manager = await runtime.waitForAgent(ctx, manager.id);
+    const ended = await callTargetTool(
+        ctx,
+        manager,
+        "convivium_end_meeting",
+        {
             protocolVersion: 1,
             meetingId,
-            expectedMeetingVersion: version,
+            expectedMeetingVersion: endView.version,
             requestId: "loop-end",
             action: {
                 kind: "end_meeting",
                 outcome: "partial",
                 reason: "four fixture research stages complete",
-                decisionIds: [],
-                completionFactIds: [],
-                unresolvedQuestionIds: [],
-                unresolvedIssueIds: []
+                decisionIds: endView.outcomes.decisions
+                    .filter((item) => item.status === "accepted")
+                    .map((item) => item.id),
+                completionFactIds: endView.outcomes.completionFacts
+                    .filter((item) => item.status === "active")
+                    .map((item) => item.id),
+                unresolvedQuestionIds: endView.questions
+                    .filter((item) => item.status === "open" || item.status === "deferred")
+                    .map((item) => item.id),
+                unresolvedIssueIds: endView.issues
+                    .filter((item) => item.status === "open" || item.status === "deferred")
+                    .map((item) => item.id)
             }
-        }
-    });
-    assert(ended.kind === "accepted", "local end_meeting was rejected");
+        },
+        nextCall()
+    );
+    assert(ended.kind === "accepted", "Manager end_meeting was rejected");
     let archived;
     for (let attempt = 0; attempt < 900; attempt += 1) {
         archived = await read();

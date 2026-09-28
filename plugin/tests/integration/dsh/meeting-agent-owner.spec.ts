@@ -106,7 +106,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                 definition,
                 binding: {
                     agentDefinitionId: definition.agentDefinitionId,
-                    definitionVersion: definition.definitionVersion,
+
                     definitionHash: definitionHash(definition)
                 },
                 agentOptions: { provider: "fixture", model: "fixture" },
@@ -150,7 +150,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                 )?.text
             ).toBe(
                 await readFile(
-                    join(root, "config/agents", definition.roleDefinitionId, "2.0.0/AGENTS.md"),
+                    join(root, "config/agents", definition.roleDefinitionId, "AGENTS.md"),
                     "utf8"
                 )
             );

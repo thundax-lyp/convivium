@@ -116,7 +116,12 @@ const sameCaller = (left: CallerBinding, right: CallerBinding): boolean => {
     );
 };
 
-const authorizedRole = (action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean => {
+const authorizedRole = (action: MeetingAction, scope: ResolvedCallerScope): boolean => {
+    if (action.kind === "end_meeting") {
+        return scope.role === "manager"
+            ? ["completed", "partial", "no_consensus"].includes(action.outcome)
+            : scope.role === "captain" && ["cancelled", "failed"].includes(action.outcome);
+    }
     if (
         [
             "activate_agenda",
@@ -130,19 +135,18 @@ const authorizedRole = (action: MeetingAction["kind"], scope: ResolvedCallerScop
             "record_completion_fact",
             "change_completion_fact",
             "pause_meeting",
-            "resume_meeting",
-            "end_meeting"
-        ].includes(action)
+            "resume_meeting"
+        ].includes(action.kind)
     ) {
         return scope.role === "captain";
     }
     if (
-        action === "record_review_delivery" ||
-        action === "claim_evidence_review" ||
-        action === "fail_evidence_validation" ||
-        action === "start_archive" ||
-        action === "record_archive_session_result" ||
-        action === "record_identity_admission_result"
+        action.kind === "record_review_delivery" ||
+        action.kind === "claim_evidence_review" ||
+        action.kind === "fail_evidence_validation" ||
+        action.kind === "start_archive" ||
+        action.kind === "record_archive_session_result" ||
+        action.kind === "record_identity_admission_result"
     ) {
         return scope.role === "runtime";
     }
@@ -153,14 +157,14 @@ const authorizedRole = (action: MeetingAction["kind"], scope: ResolvedCallerScop
             "dispose_hand_raise",
             "publish_round",
             "recommend_identity"
-        ].includes(action)
+        ].includes(action.kind)
     ) {
         return scope.role === "manager";
     }
-    if (action === "submit_evidence_review") {
+    if (action.kind === "submit_evidence_review") {
         return scope.role === "evidence_reviewer";
     }
-    if (action === "close_contribution" || action === "expire_round_participation") {
+    if (action.kind === "close_contribution" || action.kind === "expire_round_participation") {
         return scope.role === "participant" || scope.role === "runtime";
     }
     return scope.role === "participant";
@@ -192,7 +196,10 @@ const validScope = (
             ownership.capabilityStatus === "active"
         );
     }
-    if (context.caller.channel === "loopback_remote") {
+    if (
+        context.caller.channel === "loopback_remote" ||
+        context.caller.channel === "skill_invocation"
+    ) {
         return (
             scope.role === "captain" &&
             context.caller.principalId === LOCAL_CONTROLLER_PRINCIPAL_ID &&
@@ -276,7 +283,7 @@ const actionAuthorizationFailure = (
     context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScope
 ): MeetingCommandResult | undefined => {
-    if (!authorizedRole(command.action.kind, scope)) {
+    if (!authorizedRole(command.action, scope)) {
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
     }
     if (
@@ -354,7 +361,6 @@ const prepareIdentityCatalog = async (
         !candidate ||
         candidate.availability !== "available" ||
         candidate.definition.id !== action.definitionId ||
-        candidate.definition.version !== action.definitionVersion ||
         catalog.snapshot.catalogId !== action.catalogId ||
         catalog.snapshot.catalogVersion !== action.catalogVersion
     ) {

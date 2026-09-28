@@ -108,8 +108,7 @@ export const createMeetingAgentOwner = ({
     ) => {
         if (
             definitionHash(definition) !== ownership.definition.definitionHash ||
-            definition.agentDefinitionId !== ownership.definition.agentDefinitionId ||
-            definition.definitionVersion !== ownership.definition.definitionVersion
+            definition.agentDefinitionId !== ownership.definition.agentDefinitionId
         ) {
             throw new Error("RECOVERY_UNAVAILABLE: definition binding differs");
         }
@@ -143,10 +142,7 @@ export const createMeetingAgentOwner = ({
             await ctx.agentPresets.mount(agentCtx, definition.dshPresetId);
             const ref = definition.agentInstructions;
             const text = (
-                await readRoleResource(
-                    packageRoot,
-                    `agents/${ref.roleDefinitionId}/${ref.version}/AGENTS.md`
-                )
+                await readRoleResource(packageRoot, `agents/${ref.roleDefinitionId}/AGENTS.md`)
             ).toString("utf8");
             agentCtx.systemPrompt.section({ name: "convivium:role-identity", order: 1, text });
             if (definition.toolFilter) {

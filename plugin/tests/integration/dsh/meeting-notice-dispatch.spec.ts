@@ -12,7 +12,7 @@ it.each(["flush-false", "post-revoke", "after-flush-crash"])(
             meetingId: state.id,
             identityId: state.identities[0].id,
             sessionId: "peer-session",
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             role: "manager",
             lifecycleStatus: "active",
             capabilityStatus: "active"
@@ -33,7 +33,7 @@ it.each(["flush-false", "post-revoke", "after-flush-crash"])(
         };
         const dispatcher = createMeetingNoticeDispatcher({
             owner,
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: { meetingId: state.id, state },

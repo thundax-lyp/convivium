@@ -13,7 +13,6 @@ export interface MeetingIdentityEffectHandlerDependencies {
         recommendation: {
             id: string;
             definitionId: string;
-            definitionVersion: string;
             definitionHash?: string;
             identityId?: string;
             sessionId?: string;

@@ -65,7 +65,7 @@
     "scripts": {
         "format": "prettier . --write",
         "format:check": "prettier . --check",
-        "lint": "eslint .",
+        "lint": "eslint . && node scripts/verify-agent-definition-samples.mjs",
         "lint:fix": "eslint . --fix",
         "build": "rm -rf lib && pnpm generate:typert && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsc-alias -p tsconfig.json && tsdown --config tsdown.config.ts",
         "typecheck:host": "tsc -p tsconfig.json --noEmit",

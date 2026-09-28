@@ -37,7 +37,7 @@ describe("identity provision effect handler", () => {
                 descriptorId: "descriptor:rec-1",
                 displayName: "Architect",
                 definitionId: "domain_architect",
-                definitionVersion: "1",
+
                 definitionHash: "a".repeat(64)
             }
         }));
@@ -55,7 +55,7 @@ describe("identity provision effect handler", () => {
                                 decision: "admit",
                                 status: "provisioning",
                                 definitionId: "domain_architect",
-                                definitionVersion: "1",
+
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
                                 sessionId: "child-1"
@@ -124,7 +124,7 @@ describe("identity provision effect handler", () => {
                                 decision: "admit",
                                 status: "provisioning",
                                 definitionId: "domain_architect",
-                                definitionVersion: "1",
+
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
                                 sessionId: "child-1"
@@ -177,7 +177,7 @@ describe("identity provision lifecycle races", () => {
                                 decision: "admit",
                                 status: "provisioning",
                                 definitionId: "domain_architect",
-                                definitionVersion: "1",
+
                                 definitionHash: "a".repeat(64),
                                 identityId: "identity-1",
                                 sessionId: "child-1"
@@ -225,7 +225,7 @@ describe("identity provision lifecycle races", () => {
                                     decision: "admit",
                                     status: reads === 1 ? "provisioning" : "failed",
                                     definitionId: "domain_architect",
-                                    definitionVersion: "1",
+
                                     definitionHash: "a".repeat(64),
                                     identityId: "identity-1",
                                     sessionId: "child-1"
@@ -248,7 +248,7 @@ describe("identity provision lifecycle races", () => {
                     descriptorId: "descriptor:rec-1",
                     displayName: "Architect",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     definitionHash: "a".repeat(64)
                 }
             })),
@@ -294,7 +294,7 @@ describe("identity provision lifecycle races", () => {
                                     decision: "admit",
                                     status: terminal ? "failed" : "provisioning",
                                     definitionId: "domain_architect",
-                                    definitionVersion: "1",
+
                                     definitionHash: "a".repeat(64),
                                     identityId: "identity-1",
                                     sessionId: "child-1"
@@ -317,7 +317,7 @@ describe("identity provision lifecycle races", () => {
                     descriptorId: "descriptor:rec-1",
                     displayName: "Architect",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     definitionHash: "a".repeat(64)
                 }
             })),
@@ -395,7 +395,7 @@ describe("dynamic peer identity provisioning", () => {
             recommendation: {
                 id: "admission",
                 definitionId: definition.agentDefinitionId,
-                definitionVersion: definition.definitionVersion,
+
                 definitionHash: definitionHash(definition),
                 identityId: "identity",
                 sessionId: "session"

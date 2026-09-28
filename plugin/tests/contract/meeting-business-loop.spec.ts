@@ -15,7 +15,7 @@ import {
 const identity = {
     candidateId: "candidate-1",
     definitionId: "definition-1",
-    definitionVersion: "1",
+
     catalogId: "catalog-1",
     catalogVersion: "1",
     agendaId: "agenda-1",

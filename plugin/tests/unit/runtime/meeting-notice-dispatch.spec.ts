@@ -27,7 +27,7 @@ function fixture() {
             meetingId: state.id,
             identityId: identity.id,
             sessionId: `session:${identity.id}`,
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             sessionLabel: `convivium:meeting-identity:${role}:${state.id}:${identity.id}`,
             role,
             lifecycleStatus: "active",
@@ -67,7 +67,7 @@ describe("round ready notice", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -106,6 +106,69 @@ describe("round ready notice", () => {
     });
 });
 
+it("delivers agenda_stopped only for the active stop plan owned by Manager", async () => {
+    const { state, ownership } = fixture();
+    state.managerPlans = [
+        {
+            id: "plan-stop",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            kind: "stop_agenda",
+            rationale: "No further evidence in the current agenda",
+            createdAt: 2,
+            status: "active"
+        }
+    ];
+    const deliver = vi.fn().mockResolvedValue(true);
+    const dispatcher = createMeetingNoticeDispatcher({
+        owner: { deliver, resume: vi.fn(async () => {}) },
+        definitions: [{ agentDefinitionId: "fixture" }],
+        repository: {
+            recover: async () => ({
+                snapshot: {
+                    meetingId: state.id,
+                    version: 2,
+                    state,
+                    createdAt: 0,
+                    updatedAt: 2
+                },
+                sessionOwnership: ownership
+            })
+        } as never
+    });
+    await dispatcher.dispatch({
+        outboxItem: item({
+            kind: "agent_notice",
+            noticeKind: "agenda_stopped",
+            recipientId: "manager-v1",
+            agendaId: "agenda-v1",
+            planId: "plan-stop"
+        }),
+        signal: new AbortController().signal
+    });
+    expect(JSON.parse(deliver.mock.calls[0]?.[0].text)).toEqual({
+        effectId: "effect-1",
+        meetingId: "meeting-v1",
+        noticeKind: "agenda_stopped",
+        agendaId: "agenda-v1",
+        planId: "plan-stop"
+    });
+    state.managerPlans[0]!.status = "superseded";
+    await expect(
+        dispatcher.dispatch({
+            outboxItem: item({
+                kind: "agent_notice",
+                noticeKind: "agenda_stopped",
+                recipientId: "manager-v1",
+                agendaId: "agenda-v1",
+                planId: "plan-stop"
+            }),
+            signal: new AbortController().signal
+        })
+    ).rejects.toThrow("NOTICE_VISIBILITY_INVALID");
+    expect(deliver).toHaveBeenCalledTimes(1);
+});
+
 describe("round opened notice", () => {
     it("wakes an assigned contributor while the round is open and rejects the reviewer", async () => {
         const { state, ownership } = fixture();
@@ -124,7 +187,7 @@ describe("round opened notice", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -175,7 +238,7 @@ describe("meeting notice dispatcher v1", () => {
             const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume: vi.fn(async () => {}) },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -221,7 +284,7 @@ describe("meeting notice dispatcher v1", () => {
             const resume = vi.fn();
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -256,7 +319,7 @@ describe("meeting notice dispatcher v1", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -343,7 +406,7 @@ describe("meeting notice dispatcher v1", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -489,7 +552,7 @@ describe("public transcript notice dispatch", () => {
             const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume: vi.fn(async () => {}) },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {

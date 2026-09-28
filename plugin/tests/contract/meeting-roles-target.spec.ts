@@ -29,13 +29,12 @@ it("binds seven packaged identities to isolated native Presets and capability di
     );
     const { load } = nativeRequire("js-yaml");
     for (const definition of definitions) {
-        expect(definition.definitionVersion).toBe("2.0.0");
         expect(definition.requiredSkillNames).toEqual(expected[definition.roleDefinitionId]);
         expect(definition.dshPresetId).toBe(
             `convivium-${definition.roleDefinitionId.replace(/^meeting_/, "").replaceAll("_", "-")}`
         );
         const instructions = await readFile(
-            new URL(`agents/${definition.roleDefinitionId}/2.0.0/AGENTS.md`, root)
+            new URL(`agents/${definition.roleDefinitionId}/AGENTS.md`, root)
         );
         expect(definition.agentInstructions.sha256).toBe(
             createHash("sha256").update(instructions).digest("hex")

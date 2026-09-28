@@ -22,7 +22,7 @@ export const runIdentityAdmissionScenario = async (runtime) => {
         const definition = definitions.find((d) => d.roleDefinitionId === role);
         return {
             candidateId: i === 0 ? "candidate-admit" : "candidate-reject",
-            definition: { id: definition.agentDefinitionId, version: definition.definitionVersion },
+            definition: { id: definition.agentDefinitionId },
             definitionHash: createHash("sha256")
                 .update(
                     JSON.stringify(
@@ -84,7 +84,6 @@ export const runIdentityAdmissionScenario = async (runtime) => {
             kind: "recommend_identity",
             candidateId: candidate.candidateId,
             definitionId: candidate.definition.id,
-            definitionVersion: candidate.definition.version,
             catalogId: "smoke-catalog",
             catalogVersion: "1",
             agendaId: "agenda",

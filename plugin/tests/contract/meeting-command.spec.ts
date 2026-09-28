@@ -414,8 +414,8 @@ describe("target Meeting command application transitions", () => {
                 requestId: "end-1",
                 action: {
                     kind: "end_meeting",
-                    outcome: "partial",
-                    reason: "未完成目标",
+                    outcome: "cancelled",
+                    reason: "本地用户异常终止",
                     decisionIds: [],
                     completionFactIds: [],
                     unresolvedQuestionIds: [],

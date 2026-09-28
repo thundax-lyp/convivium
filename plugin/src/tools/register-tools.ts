@@ -15,6 +15,7 @@ import {
     OpenRoundActionSchema,
     SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
+    EndMeetingActionSchema,
     RaiseHandActionSchema,
     DeclineHandActionSchema,
     RecommendIdentityActionSchema,
@@ -214,7 +215,6 @@ const actionSchemas = {
         kind: { type: "string", const: "recommend_identity", required: true },
         candidateId: requiredString("Catalog candidate identifier."),
         definitionId: requiredString("Candidate Agent definition identifier."),
-        definitionVersion: requiredString("Candidate Agent definition version."),
         catalogId: requiredString("Catalog identifier from read_meeting."),
         catalogVersion: requiredString("Catalog version from read_meeting."),
         agendaId: requiredString("Agenda requiring the identity."),
@@ -222,6 +222,20 @@ const actionSchemas = {
         expectedContribution: requiredString("Expected contribution from the identity."),
         evidenceGap: requiredString("Evidence gap the identity would address."),
         decision: { type: "string", enum: ["admit", "reject"], required: true }
+    }),
+    end_meeting: exactObject({
+        kind: { type: "string", const: "end_meeting", required: true },
+        outcome: {
+            type: "string",
+            enum: ["completed", "partial", "no_consensus"],
+            required: true,
+            description: "Normal termination outcome; completed requires validated objective facts."
+        },
+        reason: requiredString("Evidence-based reason and unresolved limits for ending."),
+        decisionIds: requiredStringArray("Accepted decision identifiers from the current Meeting."),
+        completionFactIds: requiredStringArray("Active completion fact identifiers."),
+        unresolvedQuestionIds: requiredStringArray("Open or deferred question identifiers."),
+        unresolvedIssueIds: requiredStringArray("Open or deferred issue identifiers.")
     })
 } satisfies Record<string, ValueSchemaSpec>;
 
@@ -530,6 +544,7 @@ export function registerMeetingTools(
             kind: "publish_round",
             schema: PublishRoundActionSchema
         },
+        { name: "convivium_end_meeting", kind: "end_meeting", schema: EndMeetingActionSchema },
         { name: "convivium_raise_hand", kind: "raise_hand", schema: RaiseHandActionSchema },
         { name: "convivium_decline_hand", kind: "decline_hand", schema: DeclineHandActionSchema },
         {

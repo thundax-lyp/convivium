@@ -6,7 +6,12 @@ import { Config, type Config as ConfigType } from "./config.js";
 import { resolveMeetingCaller } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.js";
-import { MeetingStartGate, registerMeetingStartTool, registerMeetingTools } from "./tools/index.js";
+import {
+    MeetingStartGate,
+    registerMeetingStartTool,
+    registerMeetingCancelTool,
+    registerMeetingTools
+} from "./tools/index.js";
 
 export { Config };
 export { ConviviumRemoteService };
@@ -99,6 +104,15 @@ const meetingConsumerPlugin = {
                 gate: startGate,
                 create: (command, signal) => runtime.startFromSkill(command, signal),
                 initialContributorRoleIds: config.initialContributorRoleIds,
+                isMeetingAgent: async (agent, signal) =>
+                    (await resolveMeetingCaller(agent, runtime, signal)) !== undefined
+            });
+            registerMeetingCancelTool({
+                registry: ctx.tools,
+                gate: startGate,
+                read: (meetingId, signal) =>
+                    runtime.read({ protocolVersion: 1, meetingId }, signal),
+                cancel: (command, signal) => runtime.cancelFromSkill(command, signal),
                 isMeetingAgent: async (agent, signal) =>
                     (await resolveMeetingCaller(agent, runtime, signal)) !== undefined
             });

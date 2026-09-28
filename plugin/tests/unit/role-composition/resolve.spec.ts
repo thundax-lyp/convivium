@@ -7,13 +7,12 @@ import {
 
 const manager = {
     agentDefinitionId: "manager",
-    definitionVersion: "2.0.0",
+
     roleDefinitionId: "meeting_manager",
     displayName: "Manager",
     summary: "Manage",
     agentInstructions: {
         roleDefinitionId: "meeting_manager",
-        version: "2.0.0",
         sha256: "a".repeat(64)
     },
     dshPresetId: "convivium-manager",
@@ -78,10 +77,10 @@ describe("meeting role definitions", () => {
         expect(
             resolveDynamicMeetingDefinition(
                 definitions,
-                { id: "participant", version: "2.0.0" },
+                { id: "participant" },
                 first.participants.__proto__.agentDefinition.definitionHash
             )
-        ).toEqual({ kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" });
+        ).toEqual({ kind: "rejected", code: "DEFINITION_HASH_MISMATCH" });
     });
     it.each([
         { roleDescription: "legacy" },
@@ -113,11 +112,7 @@ describe("meeting role definitions", () => {
             };
             const definitions = parseAgentDefinitions([d]);
             expect(
-                resolveDynamicMeetingDefinition(
-                    definitions,
-                    { id: "manager", version: "2.0.0" },
-                    "a".repeat(64)
-                )
+                resolveDynamicMeetingDefinition(definitions, { id: "manager" }, "a".repeat(64))
             ).toEqual({ kind: "rejected", code: "ROLE_NOT_ALLOWED" });
         }
     });

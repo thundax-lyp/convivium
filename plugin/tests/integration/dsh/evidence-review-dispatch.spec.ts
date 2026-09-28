@@ -76,7 +76,7 @@ function reviewedState() {
             meetingId: state.id,
             identityId: "contributor-v1",
             sessionId: "session:contributor-v1",
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             sessionLabel: "convivium:meeting-identity:participant:meeting-v1:contributor-v1",
             role: "participant" as const,
             lifecycleStatus: "active" as const,
@@ -94,7 +94,7 @@ describe("review delivery dispatcher v1", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: { execute } as never,
             repository: {
@@ -145,7 +145,7 @@ describe("review delivery dispatcher v1", () => {
             })
             .mockResolvedValueOnce({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
                 deliver: vi.fn().mockResolvedValue(true)
@@ -169,7 +169,7 @@ describe("review delivery dispatcher v1", () => {
         const { state, ownership } = reviewedState();
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
         const dispatcher = createReviewDeliveryDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
                 deliver: vi.fn().mockRejectedValue(new Error("secret transport"))
@@ -224,7 +224,7 @@ describe("review delivery dispatcher v1", () => {
         const deliver = vi.fn();
         const execute = vi.fn();
         const dispatcher = createReviewDeliveryDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: { execute } as never,
             repository: {

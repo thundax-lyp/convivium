@@ -94,7 +94,6 @@ export const preflightMeetingIdentity = async (input: {
                 (value) => value.trim()
             ) ||
             binding.agentDefinitionId !== definition.agentDefinitionId ||
-            binding.definitionVersion !== definition.definitionVersion ||
             binding.definitionHash !== definitionHash(definition)
         ) {
             throw new Error("Invalid preflight binding.");
