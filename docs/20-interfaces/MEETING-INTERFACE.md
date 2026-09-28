@@ -76,6 +76,8 @@ type MeetingAction =
   | DisposeEvidenceOpportunity
   | OpenRound
   | RaiseHand
+  | DeclineHand
+  | ExpireRoundParticipation
   | DisposeHandRaise
   | SubmitEvidence
   | ClaimEvidenceReview
@@ -264,6 +266,16 @@ interface RaiseHand {
   roundId: OpaqueId;
   purpose: string;
 }
+interface DeclineHand {
+  kind: "decline_hand";
+  roundId: OpaqueId;
+  reason: string;
+}
+interface ExpireRoundParticipation {
+  kind: "expire_round_participation";
+  roundId: OpaqueId;
+  contributorId: OpaqueId;
+}
 interface DisposeHandRaise {
   kind: "dispose_hand_raise";
   roundId: OpaqueId;
@@ -330,11 +342,15 @@ interface AbortRound {
 }
 ```
 
-`SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权、补充机会和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。首份合法提交创建 ordinal 1 和 complete Registration；已有登记版本的更新必须消费获接纳的 supplement hand，在同一 EvidencePackage 追加 ordinal + 1 并把计数 + 1。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 只能使用 `CloseContribution` 且 Runtime 必须验证 deadline 已到。
+新 Round 中 `record_review_delivery(sent)` 立即把已登记 Contribution 置 `closed` 并记 `review_delivered`，无送达后等待或本轮补证；失败送达不结算。历史 Round 保留送达后响应、补证与超时语义。
+
+`SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权、补充机会和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。新 Round 首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新；历史 Round 才可消费获接纳的 supplement hand，在同一 EvidencePackage 追加 ordinal + 1 并把计数 + 1。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
 
 `RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution/MeetingTask 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束任务时两种初次申请均返回 `PRECONDITION_FAILED`。
 
-`RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending 或本轮已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
+新 Round 的 `Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。开轮前已经排队的取证申请原子记为 `raised`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。历史 Round 缺少这两个字段，继续按原状态机处理。
+
+`RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending、本轮已记录选择或已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
 
 `DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|timed_out|supplement_rejected|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或旧状态导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、摘要替代原文或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
 
@@ -597,7 +613,7 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 
 A DecisionCandidate is accepted only when it names the current ProposalRevision and its evidence/positions are visible, valid and meeting-local. Each Candidate may be used by at most one Decision and each ProposalRevision may have at most one accepted Decision. Decide accepts exactly one unused Candidate and rejects a second accepted Decision on the same revision. Supersede requires replacementCandidateId naming an unused Candidate on the same proposal's current revision and atomically accepts it, creates its Decision and marks the old accepted Decision superseded; revoke must not contain replacementCandidateId. Candidate reject/revoke does not exist. Risk accept/reject only accepts an exact `status=open` Issue and checks its riskLevel against acceptableRiskLevel, every hard constraint named by that Issue's `affectedConstraintIds`, lifecycle, non-empty rationale and meeting-local evidence; `resolved|deferred|out_of_scope` is rejected. Accept requires those constraints to be satisfied and updates only that Issue to accepted_risk and non-blocking. Reject is not limited by acceptableRiskLevel and keeps the Issue open and blocking.
 
-RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is contributor-only: the caller must be an existing `MeetingIdentity` whose roles include `contributor`; the external Captain, manager-only, evidence-reviewer-only and local-controller callers are rejected. When `taskId` is present, it must name the caller's completed Task with active authorization and a nonempty result. The action creates an immutable declaration but never changes output, criterion, Agenda, Question, Issue, lifecycle or completion status. 当前契约的 `RecordCompletionFact` 没有 `declarationId`，因此不消费、匹配、替代或删除 CompletionDeclaration；它独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
+For historical Rounds without participation fields, RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is contributor-only: the caller must be an existing `MeetingIdentity` whose roles include `contributor`; the external Captain, manager-only, evidence-reviewer-only and local-controller callers are rejected. When `taskId` is present, it must name the caller's completed Task with active authorization and a nonempty result. The action creates an immutable declaration but never changes output, criterion, Agenda, Question, Issue, lifecycle or completion status. 当前契约的 `RecordCompletionFact` 没有 `declarationId`，因此不消费、匹配、替代或删除 CompletionDeclaration；它独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
 
 `pendingDecisionCandidates` contains current-revision candidates without any Decision only while lifecycle is `running|paused`; `paused` preserves resumable work but does not permit acceptance. It is empty for `preparing|converging|ending|terminal|archiving|archived`. Caller filtering remains Captain/local-only.
 
@@ -611,11 +627,11 @@ PlanNextStep is Manager-only and is rejected while a Round is open; a new plan s
 
 `CompletePrivateMail` 只允许目标 recipient 在 mail 为 `processing` 且 `processingStartedAt <= now < deadlineAt` 时执行，写 `status=completed` 与 `completedAt=now`。`CancelPrivateMail` 只允许 sender 对 `queued|processing` mail 执行，要求 `now >= createdAt` 且已开始时还要求 `now >= processingStartedAt`，写 `status=cancelled`、`completedAt=now` 与 trim 后非空 `failureReason=reason`。`ExpirePrivateMail` 只允许 deadline handler 对 `queued|processing` mail 在 `now >= deadlineAt` 时执行，写 `status=timed_out`、`completedAt=now` 与非空 `failureReason=reason`。send/start 只允许 `running`；complete/cancel/expire 允许 `running|paused|converging|ending` 以释放占用；`terminal|archiving|archived` 一律 `MEETING_TERMINAL`。已经终结的 mail 再操作返回 `INVALID_STATE`，时间早于创建/处理、早到 start/complete/expire 均返回 `PRECONDITION_FAILED`。`SendPrivateMail` 除状态变化外产生唯一 `{kind:"session_mail",mailId,recipientId,contextPublicationUpperBound:sendContextPublicationUpperBound}` Domain effect request；其它四个 action 的 effect request 为空。五个 action 均不生成 FormalMessage、Decision、CompletionFact 或 MeetingTask。
 
-补正申请在首次登记前还须严格早于 Contribution.acceptedAt + limits.taskDeadlineMs；这条准备期限即使没有单独 Round/MeetingTask deadline 也适用。
+历史 Round 的补正申请在首次登记前还须严格早于 Contribution.acceptedAt + limits.taskDeadlineMs；这条准备期限即使没有单独 Round/MeetingTask deadline 也适用。
 
-审核意见成功送达后，作者在响应期限内用 `RaiseSupplementHand` 携非空 purpose 明确“继续举手并申请补证”，该动作无论审核是否已送达都把 purpose 写入原 Contribution.response；放弃则由作者用 `CloseContribution(withdrawn)` 明确提交。没有独立的空文字“继续”动作。已登记版 substantiveSupplementCount=2 时第三次申请仍可作为待处置举手送给 Manager，但 accepted 必须返回 LIMIT_EXCEEDED；Manager 只能 rejected/deferred 并说明次数已尽，两者都收口为 supplement_rejected，不伪称作者主动放弃。Manager 处置前的 pending hand 不能因作者沉默自动超时；已明确继续但补充未推进者只可在原 Contribution 准备/持久 Round 或适用 Task 期限到期后以“继续申请未完成”原因 timed_out，区别于送达后无任何明确响应的 60 秒超时。新版本完整登记时清除旧 response，新的审核送达重新开启响应期限。
+历史 Round 的审核意见成功送达后，作者在响应期限内用 `RaiseSupplementHand` 携非空 purpose 明确“继续举手并申请补证”，该动作无论审核是否已送达都把 purpose 写入原 Contribution.response；放弃则由作者用 `CloseContribution(withdrawn)` 明确提交。没有独立的空文字“继续”动作。已登记版 substantiveSupplementCount=2 时第三次申请仍可作为待处置举手送给 Manager，但 accepted 必须返回 LIMIT_EXCEEDED；Manager 只能 rejected/deferred 并说明次数已尽，两者都收口为 supplement_rejected，不伪称作者主动放弃。Manager 处置前的 pending hand 不能因作者沉默自动超时；已明确继续但补充未推进者只可在原 Contribution 准备/持久 Round 或适用 Task 期限到期后以“继续申请未完成”原因 timed_out，区别于送达后无任何明确响应的 60 秒超时。新版本完整登记时清除旧 response，新的审核送达重新开启响应期限。
 
-已有登记版但仍在原 Contribution 内的补证准备期限，以当前 EvidenceVersion.submittedAt + limits.taskDeadlineMs 为默认界；再与存在的 Round.deadlineAt、同 Agenda 未结束 MeetingTask.deadlineAt 取最早值。`RaiseSupplementHand`、获批准补证机会后的 `SubmitEvidence` 均须严格早于此界；送达后申请还须严格早于 sentAt + 60000。期限到达而 Manager 申请仍 pending 时，不能将 Manager 未处置归因于作者沉默。
+历史 Round 已有登记版但仍在原 Contribution 内的补证准备期限，以当前 EvidenceVersion.submittedAt + limits.taskDeadlineMs 为默认界；再与存在的 Round.deadlineAt、同 Agenda 未结束 MeetingTask.deadlineAt 取最早值。历史 Round 的 `RaiseSupplementHand`、获批准补证机会后的 `SubmitEvidence` 均须严格早于此界；送达后申请还须严格早于 sentAt + 60000。期限到达而 Manager 申请仍 pending 时，不能将 Manager 未处置归因于作者沉默。
 
 ## Input Components
 
@@ -833,6 +849,8 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
+新 Round 的受邀选择在 MeetingView 中向 Captain 和 Manager 显示全部受邀者及状态，普通 Contributor 仅显示自己；尚未选择者由受邀名单减去已记录响应派生。历史 Round 不含这两个可选字段。
+
 `IdentityView` 只投影已激活 identity。`IdentityRecommendationView` 只向当前 Manager、Captain（本地用户） 返回；普通 Participant 缺席。`managerCatalog` 仅 Manager 可见，由同一 Host producer 在只读请求时按需生成，缺 producer、非法 snapshot 或暂不可用时缺席，普通 Meeting 读取继续；它不是可写 MeetingState，也不从旧状态缓存。Catalog view 只拷贝 producer 的安全能力标签和适用性摘要，丢弃 `model|sandbox|approval` 类能力；三类 view 均不含 Definition 正文、descriptor、Session、ownership 或 capability 正文/私有配置。
 
 Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRefresh()`，仅 loopback 可用。断线禁写；重连、focus 或 notice 后必须 read，不自动重试 command 或轮询。notice 可丢失/重复且不携带事实。
@@ -848,7 +866,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface AgendaView { id: OpaqueId; title: string; question: string; status: "pending" | "active" | "blocked" | "completed" | "deferred" | "closed"; ownerId?: OpaqueId; requiredOutputIds: OpaqueId[] }
     interface AgendaCandidateView { id: OpaqueId; title: string; reason: string; sourceMessageId?: OpaqueId; status: "pending" | "promoted" | "parked" | "rejected" }
     interface EvidenceOpportunityRequestView { id: OpaqueId; agendaId: OpaqueId; contributorId: OpaqueId; purpose: string; requestedAt: EpochMs }
-    interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
+    interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; invitedContributorIds?: OpaqueId[]; participationResponses?: Array<{ contributorId: OpaqueId; status: "raised" | "declined" | "no_response"; recordedAt: EpochMs }>; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
     interface PendingHandRaiseView { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; raisedAt: EpochMs }
     interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "awaiting_response" | "withdrawn" | "submission_missing" | "timed_out" | "supplement_rejected" | "aborted" | "closed"; packageId?: OpaqueId; substantiveSupplementCount: number; exitReason?: string }
     interface PublicationView { id: OpaqueId; roundId: OpaqueId; seq: number; finalVersionIds: OpaqueId[]; finalReviewIds: OpaqueId[]; exitReasons: string[]; publishedAt: EpochMs }
@@ -906,7 +924,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
     type AllowedControl = MeetingAction["kind"];
 
-evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 的 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
+evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 可读取已发布版本及对应的独立 Review，不读取本轮未发布版本或 Review；其 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。`EvidenceReviewView.reviewerId` 指审核者，`ReviewDeliveryView.authorId` 指反馈接收者（证据作者）；送达不构成作者自行审核。旧版本留在聚合审计历史，不是公共当前版投影。
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 

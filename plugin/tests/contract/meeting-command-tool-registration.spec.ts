@@ -134,6 +134,7 @@ describe("target Meeting tool registration", () => {
             "convivium_dispose_hand_raise",
             "convivium_publish_round",
             "convivium_raise_hand",
+            "convivium_decline_hand",
             "convivium_submit_evidence",
             "convivium_submit_evidence_review",
             "convivium_recommend_identity"
@@ -249,6 +250,17 @@ describe("target Meeting tool registration", () => {
             meetingId: "meeting-1",
             objective: { statement: "Question" }
         });
+        const renderedRead = readMeeting.output.render({}, readResult)[0];
+        expect(renderedRead.type).toBe("text");
+        if (renderedRead.type === "text") {
+            expect(JSON.parse(renderedRead.text)).toEqual(readResult);
+            expect(renderedRead.text.indexOf('"evidenceReviews"')).toBeLessThan(
+                renderedRead.text.indexOf('"evidencePackages"')
+            );
+            expect(renderedRead.text.indexOf('"reviewDeliveries"')).toBeLessThan(
+                renderedRead.text.indexOf('"evidencePackages"')
+            );
+        }
         expect(read).toHaveBeenCalledWith(
             { protocolVersion: 1, meetingId: "meeting-1" },
             expect.objectContaining({ meetingId: "meeting-1", identityId: "identity-1" }),

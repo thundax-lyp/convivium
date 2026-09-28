@@ -5,8 +5,10 @@ import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.js"
 import {
     abortRound,
     isRoundClosable,
-    openRound as openRoundTransition
+    openRound as openRoundTransition,
+    respondRoundParticipation
 } from "@/domain/transitions/round.js";
+import { raiseHand } from "@/domain/transitions/hand-raise.js";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
@@ -112,6 +114,10 @@ describe("round transitions", () => {
                 openedAt: 20,
                 status: "open",
                 contributionIds: [],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised", recordedAt: 20 }
+                ],
                 deadlineAt: 100
             }
         ]);
@@ -169,7 +175,7 @@ describe("round transitions", () => {
         );
     });
 
-    it("treats an empty open round as closable and pending hands as blocking", () => {
+    it("waits for invited contributors to choose before closing an empty round", () => {
         const state = makeRunningMeetingStateV1();
         const opened = openRoundWithPlan(state, {
             roundId: "round-v1",
@@ -181,7 +187,11 @@ describe("round transitions", () => {
         if (opened.kind !== "accepted") {
             return;
         }
-        expect(isRoundClosable(opened.state, "round-v1")).toBe(true);
+        expect(opened.state.rounds[0]).toMatchObject({
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: []
+        });
+        expect(isRoundClosable(opened.state, "round-v1")).toBe(false);
         const blocked = {
             ...opened.state,
             pendingHandRaises: [
@@ -190,6 +200,81 @@ describe("round transitions", () => {
         };
         expect(isRoundClosable(blocked, "round-v1")).toBe(false);
         expect(isRoundClosable(opened.state, "missing")).toBe(false);
+    });
+
+    it("records an explicit decline and closes an empty round without claiming a contribution", () => {
+        const opened = openRoundWithPlan(makeRunningMeetingStateV1(), {
+            roundId: "round-v1",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            now: 10
+        });
+        if (opened.kind !== "accepted") {
+            throw new Error("round");
+        }
+        const declined = respondRoundParticipation(opened.state, {
+            roundId: "round-v1",
+            contributorId: "contributor-v1",
+            status: "declined",
+            now: 11
+        });
+        expect(declined.kind).toBe("accepted");
+        if (declined.kind !== "accepted") {
+            return;
+        }
+        expect(declined.state.rounds[0]?.participationResponses).toEqual([
+            { contributorId: "contributor-v1", status: "declined", recordedAt: 11 }
+        ]);
+        expect(declined.state.contributions).toEqual([]);
+        expect(isRoundClosable(declined.state, "round-v1")).toBe(true);
+        expect(declined.effectRequests).toMatchObject([{ noticeKind: "round_ready" }]);
+        expect(
+            raiseHand(declined.state, {
+                roundId: "round-v1",
+                contributorId: "contributor-v1",
+                purpose: "late",
+                now: 12
+            }).kind
+        ).toBe("rejected");
+    });
+
+    it("distinguishes silence at the participation deadline from an explicit decline", () => {
+        const opened = openRoundWithPlan(makeRunningMeetingStateV1(), {
+            roundId: "round-v1",
+            agendaId: "agenda-v1",
+            managerId: "manager-v1",
+            now: 10,
+            deadlineAt: 20
+        });
+        if (opened.kind !== "accepted") {
+            throw new Error("round");
+        }
+        const early = respondRoundParticipation(opened.state, {
+            roundId: "round-v1",
+            contributorId: "contributor-v1",
+            status: "no_response",
+            now: 19
+        });
+        expect(early.kind).toBe("rejected");
+        const lateDecline = respondRoundParticipation(opened.state, {
+            roundId: "round-v1",
+            contributorId: "contributor-v1",
+            status: "declined",
+            now: 20
+        });
+        expect(lateDecline.kind).toBe("rejected");
+        const expired = respondRoundParticipation(opened.state, {
+            roundId: "round-v1",
+            contributorId: "contributor-v1",
+            status: "no_response",
+            now: 20
+        });
+        expect(expired.kind).toBe("accepted");
+        if (expired.kind !== "accepted") {
+            return;
+        }
+        expect(expired.state.rounds[0]?.participationResponses?.[0]?.status).toBe("no_response");
+        expect(isRoundClosable(expired.state, "round-v1")).toBe(true);
     });
 
     it("aborts an open round and closes unfinished contributions without publishing", () => {

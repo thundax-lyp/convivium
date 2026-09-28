@@ -52,10 +52,37 @@ function contributionState() {
     if (accepted.kind !== "accepted") {
         throw new Error("hand did not accept");
     }
-    return accepted.state;
+    return {
+        ...accepted.state,
+        rounds: accepted.state.rounds.map(
+            ({ invitedContributorIds: _invited, participationResponses: _responses, ...round }) =>
+                round
+        )
+    };
 }
 
 describe("supplement hand transitions", () => {
+    it("rejects same-round supplementation for a new round", () => {
+        const legacy = contributionState();
+        const state = {
+            ...legacy,
+            rounds: legacy.rounds.map((round) => ({
+                ...round,
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised" as const, recordedAt: 2 }
+                ]
+            }))
+        };
+        const result = raiseSupplementHand(state, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            purpose: "补充反证",
+            now: 4
+        });
+        expect(result.kind).toBe("rejected");
+        expect(result.kind === "rejected" && result.state).toBe(state);
+    });
     it("records one supplement request on the original contribution", () => {
         const result = raiseSupplementHand(contributionState(), {
             contributionId: "contribution-v1",

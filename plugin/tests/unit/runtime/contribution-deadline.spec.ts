@@ -86,6 +86,49 @@ const deliveredState = () => {
 };
 
 describe("contribution deadline recovery", () => {
+    it("records an unanswered round invitation through the trusted deadline handler", async () => {
+        const state = makeRunningMeetingStateV1();
+        state.rounds = [
+            {
+                id: "round-v1",
+                agendaId: "agenda-v1",
+                publicBaselinePublicationIds: [],
+                openedAt: 10,
+                deadlineAt: 20,
+                status: "open",
+                contributionIds: [],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: []
+            }
+        ];
+        const recover = vi.fn(async () => ({
+            snapshot: {
+                meetingId: state.id,
+                version: state.version,
+                state
+            }
+        }));
+        const execute = vi.fn(async () => ({ kind: "accepted" as const }));
+        const application = { execute } as never;
+        const repository = { recover } as never;
+        const signal = new AbortController().signal;
+        await runDueContributionDeadline(repository, application, 19, signal);
+        expect(execute).not.toHaveBeenCalled();
+        await runDueContributionDeadline(repository, application, 20, signal);
+        expect(execute).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: {
+                    kind: "expire_round_participation",
+                    roundId: "round-v1",
+                    contributorId: "contributor-v1"
+                }
+            }),
+            expect.objectContaining({
+                caller: expect.objectContaining({ channel: "deadline_handler" })
+            }),
+            signal
+        );
+    });
     it("records timeout at the response deadline with the trusted caller", async () => {
         const state = deliveredState();
         const recover = vi.fn(async () => ({

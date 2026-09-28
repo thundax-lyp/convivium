@@ -257,12 +257,9 @@ describe("hand raise", () => {
             purpose: "B",
             now: 4
         });
-        expect(second.kind).toBe("accepted");
-        if (second.kind !== "accepted") {
-            return;
-        }
-        expect(second.state.contributions).toEqual([]);
-        expect(second.state.pendingHandRaises).toHaveLength(1);
+        expect(second.kind).toBe("rejected");
+        expect(second.kind === "rejected" && second.error.code).toBe("PRECONDITION_FAILED");
+        expect(rejected.state.contributions).toEqual([]);
     });
 
     it("atomically rejects accepting a contributor who is a processing mail recipient", () => {

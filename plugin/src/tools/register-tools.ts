@@ -16,6 +16,7 @@ import {
     SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
     RaiseHandActionSchema,
+    DeclineHandActionSchema,
     RecommendIdentityActionSchema,
     SubmitEvidenceActionSchema,
     SubmitEvidenceReviewActionSchema,
@@ -139,6 +140,11 @@ const actionSchemas = {
         kind: { type: "string", const: "raise_hand", required: true },
         roundId: requiredString("Open round identifier."),
         purpose: requiredString("Purpose of the proposed contribution.")
+    }),
+    decline_hand: exactObject({
+        kind: { type: "string", const: "decline_hand", required: true },
+        roundId: requiredString("Open round identifier."),
+        reason: requiredString("Why this contributor will not raise a hand this round.")
     }),
     submit_evidence: exactObject({
         kind: { type: "string", const: "submit_evidence", required: true },
@@ -353,7 +359,25 @@ const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => 
             parameters: readToolParameters,
             output: {
                 schema: { type: "json" },
-                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+                render: (_args, value) => {
+                    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+                        return [{ type: "text" as const, text: JSON.stringify(value) }];
+                    }
+                    const { meetingId, version, evidenceReviews, reviewDeliveries, ...rest } =
+                        value;
+                    return [
+                        {
+                            type: "text" as const,
+                            text: JSON.stringify({
+                                meetingId,
+                                version,
+                                evidenceReviews,
+                                reviewDeliveries,
+                                ...rest
+                            })
+                        }
+                    ];
+                }
             },
             async execute(args, exec) {
                 const request = ReadMeetingRequestSchema.safeParse(args.input);
@@ -507,6 +531,7 @@ export function registerMeetingTools(
             schema: PublishRoundActionSchema
         },
         { name: "convivium_raise_hand", kind: "raise_hand", schema: RaiseHandActionSchema },
+        { name: "convivium_decline_hand", kind: "decline_hand", schema: DeclineHandActionSchema },
         {
             name: "convivium_submit_evidence",
             kind: "submit_evidence",

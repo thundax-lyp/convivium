@@ -274,12 +274,38 @@ const roundSchema = z
         openedAt: epochSchema,
         status: z.enum(["open", "published", "aborted"]),
         contributionIds: uniqueIdArraySchema,
+        invitedContributorIds: uniqueIdArraySchema.optional(),
+        participationResponses: z
+            .array(
+                z.object({
+                    contributorId: opaqueIdSchema,
+                    status: z.enum(["raised", "declined", "no_response"]),
+                    recordedAt: epochSchema
+                })
+            )
+            .optional(),
         deadlineAt: epochSchema.optional(),
         publicationId: opaqueIdSchema.optional(),
         abortReason: textSchema.optional(),
         abortedAt: epochSchema.optional()
     })
     .refine((value) => isAbsentOrDefined(value, "publicationId"), { path: ["publicationId"] })
+    .refine(
+        (value) =>
+            (value.invitedContributorIds === undefined) ===
+            (value.participationResponses === undefined),
+        { path: ["participationResponses"] }
+    )
+    .refine(
+        (value) =>
+            value.participationResponses === undefined ||
+            (new Set(value.participationResponses.map((item) => item.contributorId)).size ===
+                value.participationResponses.length &&
+                value.participationResponses.every((item) =>
+                    value.invitedContributorIds?.includes(item.contributorId)
+                )),
+        { path: ["participationResponses"] }
+    )
     .refine((value) => (value.status === "published") === own(value, "publicationId"), {
         path: ["publicationId"]
     })

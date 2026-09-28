@@ -160,7 +160,7 @@ const authorizedRole = (action: MeetingAction["kind"], scope: ResolvedCallerScop
     if (action === "submit_evidence_review") {
         return scope.role === "evidence_reviewer";
     }
-    if (action === "close_contribution") {
+    if (action === "close_contribution" || action === "expire_round_participation") {
         return scope.role === "participant" || scope.role === "runtime";
     }
     return scope.role === "participant";
@@ -301,6 +301,13 @@ const actionAuthorizationFailure = (
                     context.caller.principalId !== DEADLINE_HANDLER_PRINCIPAL_ID)))
     ) {
         return rejected("UNAUTHORIZED", "Contribution closure caller is not authorized");
+    }
+    if (
+        command.action.kind === "expire_round_participation" &&
+        (context.caller.channel !== "deadline_handler" ||
+            context.caller.principalId !== DEADLINE_HANDLER_PRINCIPAL_ID)
+    ) {
+        return rejected("UNAUTHORIZED", "Participation expiry requires the deadline handler");
     }
     if (command.action.kind === "start_archive" && context.archiveEffect === undefined) {
         return rejected("UNAUTHORIZED", "Archive materialization requires its runtime effect");

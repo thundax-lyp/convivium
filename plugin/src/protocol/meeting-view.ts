@@ -95,6 +95,16 @@ export const RoundViewSchema = z.object({
     publicationId: id.optional(),
     abortReason: text.optional(),
     abortedAt: epoch.optional(),
+    participationResponses: z
+        .array(
+            z.object({
+                contributorId: id,
+                status: z.enum(["raised", "declined", "no_response"]),
+                recordedAt: epoch
+            })
+        )
+        .optional(),
+    invitedContributorIds: z.array(id).optional(),
     pendingHandRaises: z.array(PendingHandRaiseViewSchema),
     contributions: z.array(ContributionViewSchema)
 });
@@ -616,6 +626,7 @@ export const AllowedControlSchema = z.enum([
     "submit_manager_plan",
     "open_round",
     "raise_hand",
+    "decline_hand",
     "dispose_hand_raise",
     "submit_evidence",
     "close_contribution",

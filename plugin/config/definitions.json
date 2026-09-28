@@ -25,7 +25,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
                 "version": "2.0.0",
-                "sha256": "a0ba78560632c64479aa5b8acf012797d99d9fafec2ac9d77f3ad79303c6aa0b"
+                "sha256": "12f07654a565ab6cd2a1242e24e9458589db98238ef7e9a4029cf7a6eff40f7a"
             }
         },
         {
@@ -52,7 +52,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "domain_architect",
                 "version": "2.0.0",
-                "sha256": "4bf8454847aa70d7f276ea35f60cd203c925cf14f44382596a6bc6b4e7eb91a9"
+                "sha256": "47e12a1c51749b71ea89b114b6f7dcf3fdab3444983c2a6589403823a62f8a16"
             }
         },
         {
@@ -79,7 +79,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "runtime_engineer",
                 "version": "2.0.0",
-                "sha256": "8ce6791d43b7478366c3d20c547bfcd914af1760af93ad4d06b91ac1ed301651"
+                "sha256": "a2218380371b48a5b9a20e65c880cdd2355df282cc9f8a36a44b87be8adbdfe1"
             }
         },
         {
@@ -106,7 +106,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "protocol_ui_engineer",
                 "version": "2.0.0",
-                "sha256": "5fa8dc733a4096c9b3668458104cf0acd458bebe9da92589c851bd453e443325"
+                "sha256": "70e119f8d3bba8c565c6222f6d2f0ca3bc22e86321d659a4a38b46c223323300"
             }
         },
         {
@@ -157,7 +157,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "github_research_analyst",
                 "version": "2.0.0",
-                "sha256": "2bac086bb59af825ccc70bb2dbf47bbba5f5fe2f147faad5529588dc163016ad"
+                "sha256": "b059c0d7112668dcb55a70c249425667da7c5831faa859ff6f6528c6de3bb636"
             }
         },
         {
@@ -184,7 +184,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "arxiv_research_analyst",
                 "version": "2.0.0",
-                "sha256": "22560db952668ed1add5813e2999529770c793e717b4c1e67a6cd0d9d158f625"
+                "sha256": "a05f5b460932d9a987329b9181ddd056411e27f1b0ece9cca0bb9b7a5558712a"
             }
         }
     ]

@@ -149,6 +149,13 @@ export interface Round {
     openedAt: EpochMs;
     status: "open" | "published" | "aborted";
     contributionIds: readonly OpaqueId[];
+    /** Absent only on rounds persisted before participation choices were introduced. */
+    invitedContributorIds?: readonly OpaqueId[];
+    participationResponses?: readonly {
+        contributorId: OpaqueId;
+        status: "raised" | "declined" | "no_response";
+        recordedAt: EpochMs;
+    }[];
     deadlineAt?: EpochMs;
     publicationId?: OpaqueId;
     abortReason?: string;

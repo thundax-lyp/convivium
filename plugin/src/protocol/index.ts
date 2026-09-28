@@ -14,6 +14,8 @@ export {
     OpenRoundActionSchema,
     SubmitManagerPlanActionSchema,
     RaiseHandActionSchema,
+    DeclineHandActionSchema,
+    ExpireRoundParticipationActionSchema,
     DisposeHandRaiseActionSchema,
     SubmitEvidenceActionSchema,
     ClaimEvidenceReviewActionSchema,

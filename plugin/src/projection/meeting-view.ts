@@ -153,7 +153,7 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
         return ["submit_evidence_review"] as const;
     }
     if (hasRole(caller, "contributor")) {
-        return ["raise_hand", "submit_evidence"] as const;
+        return ["raise_hand", "decline_hand", "submit_evidence"] as const;
     }
     return [];
 };
@@ -204,7 +204,8 @@ export const projectMeetingView = (
     );
     const reviews = state.reviews.filter(
         ({ id, versionId }) =>
-            versions.has(versionId) && (caller.kind === "captain" || reviewer || sent.has(id))
+            versions.has(versionId) &&
+            (caller.kind === "captain" || manager || reviewer || sent.has(id))
     );
     const deliveries = state.reviewDeliveries.filter((delivery) => {
         if (caller.kind === "captain" || manager) {
@@ -269,6 +270,22 @@ export const projectMeetingView = (
             ...(round.publicationId === undefined ? {} : { publicationId: round.publicationId }),
             ...(round.abortReason === undefined ? {} : { abortReason: round.abortReason }),
             ...(round.abortedAt === undefined ? {} : { abortedAt: round.abortedAt }),
+            ...(round.invitedContributorIds === undefined
+                ? {}
+                : {
+                      invitedContributorIds:
+                          caller.kind === "captain" || manager
+                              ? [...round.invitedContributorIds]
+                              : round.invitedContributorIds.filter(
+                                    (id) => id === caller.identityId
+                                ),
+                      participationResponses: (round.participationResponses ?? []).filter(
+                          (response) =>
+                              caller.kind === "captain" ||
+                              manager ||
+                              response.contributorId === caller.identityId
+                      )
+                  }),
             pendingHandRaises: state.pendingHandRaises.filter(
                 (hand) =>
                     hand.roundId === round.id &&

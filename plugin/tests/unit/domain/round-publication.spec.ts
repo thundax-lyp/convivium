@@ -4,7 +4,7 @@ import { openRound as openRoundTransition } from "@/domain/transitions/round.js"
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
-const openRoundWithPlan = (
+const rawOpenRoundWithPlan = (
     state: Parameters<typeof openRoundTransition>[0],
     input: OpenRoundFixtureInput
 ) =>
@@ -27,6 +27,24 @@ const openRoundWithPlan = (
         },
         { ...input, planId: "plan-v1" }
     );
+const openRoundWithPlan: typeof rawOpenRoundWithPlan = (state, input) => {
+    const result = rawOpenRoundWithPlan(state, input);
+    return result.kind === "accepted"
+        ? {
+              ...result,
+              state: {
+                  ...result.state,
+                  rounds: result.state.rounds.map(
+                      ({
+                          invitedContributorIds: _invited,
+                          participationResponses: _responses,
+                          ...round
+                      }) => round
+                  )
+              }
+          }
+        : result;
+};
 import { publishRound } from "@/domain/transitions/round-publication.js";
 
 describe("round publication", () => {

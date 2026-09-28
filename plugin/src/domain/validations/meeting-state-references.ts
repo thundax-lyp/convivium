@@ -65,6 +65,16 @@ const validateAgendaRoundsAndContributions = (parsedState: MeetingState): string
         if (!ref(r.agendaId, agendaIds)) {
             return fail(`${path}.agendaId`);
         }
+        if (r.invitedContributorIds !== undefined) {
+            const invalidInvite = checkRefs(
+                r.invitedContributorIds,
+                identityIds,
+                `${path}.invitedContributorIds`
+            );
+            if (invalidInvite) {
+                return fail(invalidInvite);
+            }
+        }
         const plan = managerPlanById.get(r.planId);
         if (
             !plan ||
