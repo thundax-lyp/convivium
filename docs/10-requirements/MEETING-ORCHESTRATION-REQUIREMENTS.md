@@ -128,7 +128,7 @@
 10. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
 11. `dispose_risk`、`submit_completion_declaration`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，当前范围不撤销或替代 CompletionFact，也不隐式回到 `running`。
 
-Manager 在轮次收口后根据当前正式事实判断是否仍有可执行的后续工作；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。`stop_agenda` 只停止议题规划，不自动结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
+Manager 在轮次收口后根据当前正式事实判断是否停止当前议题。`stop_agenda` 只记录停止判断，不指定后续任务，也不自动结束会议；成功提交后必须独立通知 Manager 重新读取会议，扫描待处理议题、候选议题、未完成任务及可执行的取证路径。若有路径，Manager 继续推进；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
 
 ### MO-FR-9：暂停、恢复与故障隔离
 

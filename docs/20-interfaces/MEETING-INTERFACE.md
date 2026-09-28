@@ -222,7 +222,7 @@ interface RecordIdentityAdmissionResult {
 }
 ```
 
-`EndMeeting` 由当前 Manager 以 `completed|partial|no_consensus` 正常收口，或由可信 loopback Captain 以 `cancelled|failed` 异常终止；已消费显式取消授权的 Skill 入口只能提交 `cancelled`。其它 actor/outcome 组合返回 `UNAUTHORIZED` 且不写入。`stop_agenda` 只是 Manager 的计划事实，不隐式触发 `EndMeeting`。各路径均要求没有 open Round、非空理由、四组 ID 与当前 accepted Decision、active CompletionFact、open/deferred Question 和 Issue 的顺序与内容精确一致，并只写一次 Termination 和归档 effect。`completed` 还要求确定性目标条件满足且没有未收口贡献或未决 Question/Issue；证据不足应以明确限制的 `partial` 或 `no_consensus` 记录，不得伪装完成。
+`EndMeeting` 由当前 Manager 以 `completed|partial|no_consensus` 正常收口，或由可信 loopback Captain 以 `cancelled|failed` 异常终止；已消费显式取消授权的 Skill 入口只能提交 `cancelled`。其它 actor/outcome 组合返回 `UNAUTHORIZED` 且不写入。`stop_agenda` 只是 Manager 的计划事实，不指定后续任务，也不隐式触发 `EndMeeting`；其提交另行生成面向 Manager 的 `agenda_stopped` notice，供其重新读取当前会议并扫描后续工作。各路径均要求没有 open Round、非空理由、四组 ID 与当前 accepted Decision、active CompletionFact、open/deferred Question 和 Issue 的顺序与内容精确一致，并只写一次 Termination 和归档 effect。`completed` 还要求确定性目标条件满足且没有未收口贡献或未决 Question/Issue；证据不足应以明确限制的 `partial` 或 `no_consensus` 记录，不得伪装完成。
 
 `create_meeting` 仅允许上述可信 loopback 用户入口或已消费当前 turn 一次性创建授权的 Skill 入口，且 Runtime 已完成 role definition/session preflight。`recommend_identity` 仅当前 `running` Meeting Manager 可用；Runtime 在同一 Host Catalog producer 重读 snapshot，要求 catalog/candidate/Definition 引用一致、candidate `available`、Agenda 属于本 Meeting 且 Manager 不能接纳自己。`reject` 原子提交 rejected 事实，不创建 Session。candidate 在本 Meeting 没有 active identity 时，`admit` 原子提交不可调度的 provisioning 意图和一次 `identity_provision` effect；`record_identity_admission_result` 仅由 Runtime outbox/recovery 在验证该意图和 Session owner 结果后使用，不能由 Agent 或 loopback caller 提交。该结果只有在 Definition/preflight、Session 和 durable ownership 都成功时才能原子激活普通可选 identity；失败原子记载安全 failureCode 且无 identity。candidate 已有 active identity 时，另一 Agenda 的合法 `admit` 原子新增独立 active recommendation，复用原 recommendation 的 identityId、sessionId、definitionId 和 definitionHash，并以本次决定的 Runtime now 写入 createdAt/resolvedAt；不产生 `identity_provision` effect，不新增 identity，也不改变角色、授权或 capability。复用请求的 Definition provenance 必须与既有 active recommendation 精确一致，否则返回 `PRECONDITION_FAILED`。两个动作均使用原 Meeting version/idempotency/终态拒写边界；同一 `candidateId + agendaId` 已有 provisioning 或 active recommendation 时不能再次准入，同一 candidate 尚有 provisioning recommendation 时其他 Agenda 也不能准入。`end_meeting` 在自身终态提交中把尚在 provisioning 的意图标为 `failed/ADMISSION_CONFLICT`，effect dispatcher 在创建前后重验 lifecycle 并清理已创建但未激活的 Session；不得在终态激活身份。
 
@@ -1050,6 +1050,7 @@ interface AgentNoticeBase {
 }
 type AgentNoticePayload =
   | (AgentNoticeBase & { noticeKind: "meeting_started" })
+  | (AgentNoticeBase & { noticeKind: "agenda_stopped"; planId: OpaqueId })
   | (AgentNoticeBase & { noticeKind: "round_opened"; roundId: OpaqueId })
   | (AgentNoticeBase & {
       noticeKind: "transcript_update";
@@ -1106,6 +1107,8 @@ type AgentNoticePayload =
 `meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
+
+`agenda_stopped` 由接受 `stop_agenda` 的同一事务为当前 Manager 生成一次 durable outbox effect；payload 仅含 `planId`、`agendaId` 和接收方 ID。dispatcher 只在该计划仍是当前 active `stop_agenda` 且接收方仍为负责该 Agenda 的 Manager 时投递；失效通知不得驱动后续动作。Manager 收到后另行读取会议、扫描后续工作并决定继续或正常结束；通知本身不改变议题或会议状态。
 
 `round_opened` 由 `open_round` 提交为负责该 Agenda 的每位 Contributor 分别生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方仍是负责该 Agenda 的 active Contributor、Round 仍 open，才投递到其独立 Session。通知只提示重新读取 caller-visible Meeting，不自动举手或授予 Contribution。
 

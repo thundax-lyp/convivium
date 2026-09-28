@@ -6,6 +6,7 @@ import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
 const supported = new Set([
     "meeting_started",
+    "agenda_stopped",
     "round_opened",
     "opportunity_request",
     "opportunity_disposition",
@@ -85,6 +86,29 @@ const roundOpenedDetails = (
     return { roundId };
 };
 
+const agendaStoppedDetails = (
+    state: MeetingState,
+    identity: MeetingIdentity,
+    payload: Record<string, unknown>,
+    agendaId: string
+): { planId: string } => {
+    assertRole(identity, "manager", agendaId);
+    const planId = stringField(payload, "planId");
+    if (
+        !state.managerPlans.some(
+            (plan) =>
+                plan.id === planId &&
+                plan.agendaId === agendaId &&
+                plan.managerId === identity.id &&
+                plan.kind === "stop_agenda" &&
+                plan.status === "active"
+        )
+    ) {
+        fail("NOTICE_VISIBILITY_INVALID");
+    }
+    return { planId };
+};
+
 const assertNoticeReferences = (
     state: MeetingState,
     identity: MeetingIdentity,
@@ -102,6 +126,8 @@ const assertNoticeReferences = (
                 fail("NOTICE_VISIBILITY_INVALID");
             }
             return {};
+        case "agenda_stopped":
+            return agendaStoppedDetails(state, identity, payload, agendaId);
         case "round_opened":
             return roundOpenedDetails(state, identity, payload, agendaId);
         case "opportunity_request": {

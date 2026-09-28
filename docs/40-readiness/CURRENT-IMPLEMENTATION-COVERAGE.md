@@ -76,6 +76,10 @@
 
 ## Executed Validation
 
+### 2026-09-28：`stop_agenda` 后续扫描链路
+
+在 `codex/manager-meeting-closure` 工作树、Node `v22.23.2` 下，先用聚焦测试复现停止计划没有 Manager 后续通知，再实现同事务写入 `agenda_stopped` outbox effect、投递前校验当前有效计划与 Manager 身份，并更新角色指令使 Manager 在独立通知阶段重读会议、扫描后续工作。`pnpm --dir plugin verify` 退出 0：94 个测试文件、824 个测试，以及格式、lint、类型检查、构建、环境、契约、角色资源和包检查通过；`node .github/scripts/check-doc-links.mjs` 检查 491 个本地链接，0 错误。上述自动验证未证明真实 Manager Agent 在收到通知后一定完成正确扫描和正常结束。固定人工 Web Host 仍运行旧部署，原会议的旧角色资源指纹与当前代码不兼容，未在其上重部署或改写 SQLite；该会议的运行恢复仍未覆盖。
+
 ### 2026-09-28：两位研究贡献者的 DSH 与人工 Web 冒烟
 
 基线为 `codex/fix-manager-review-visibility` 的本地未提交工作树，Node `v22.23.2`、DSH `0.1.2-rc.1`。修复经理 AGENTS 资源指纹与 Definition 不一致，并使业务冒烟按正式配置使用 GitHub 和 arXiv 两位初始 Contributor；按新轮次选择规则移除旧 late hand raise 的 deferred 断言。`pnpm --dir plugin verify:agent-definitions`、`pnpm --dir plugin format:check`、`pnpm --dir plugin lint` 与 `git diff --check` 均 PASS。

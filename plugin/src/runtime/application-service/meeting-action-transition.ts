@@ -364,6 +364,7 @@ const runManagerPlanTransition = (
 ): CommandTransition => {
     const { snapshot, deps, now, factId } = input;
     const generated = (kind: string) => deps.ids.nextId(kind);
+    const planId = generated("manager_plan");
     const result = transitionMeetingState(
         snapshot.state,
         {
@@ -379,7 +380,7 @@ const runManagerPlanTransition = (
         { kind: "identity", id: actorId },
         now,
         factId,
-        generated("manager_plan")
+        planId
     );
     if (result.kind === "rejected") {
         throw new TransitionRejected(result.code, result.code);
@@ -388,7 +389,18 @@ const runManagerPlanTransition = (
         kind: "accepted",
         state: result.state,
         relatedIds: result.facts[0].relatedIds,
-        effectRequests: []
+        effectRequests:
+            action.planKind === "stop_agenda"
+                ? [
+                      {
+                          kind: "agent_notice",
+                          noticeKind: "agenda_stopped",
+                          recipientId: actorId,
+                          agendaId: action.agendaId,
+                          planId
+                      }
+                  ]
+                : []
     };
 };
 
