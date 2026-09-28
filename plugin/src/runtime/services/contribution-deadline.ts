@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/index.js";
+import { roundParticipationDeadline, type MeetingState } from "@/domain/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import {
     DEADLINE_HANDLER_PRINCIPAL_ID,
@@ -9,6 +9,18 @@ const dueExit = (state: MeetingState, now: number) => {
     for (const round of state.rounds) {
         if (round.status !== "open") {
             continue;
+        }
+        if (
+            round.invitedContributorIds !== undefined &&
+            now >= roundParticipationDeadline(state, round)
+        ) {
+            const contributorId = round.invitedContributorIds.find(
+                (id) =>
+                    !round.participationResponses?.some((response) => response.contributorId === id)
+            );
+            if (contributorId !== undefined) {
+                return { kind: "participation" as const, roundId: round.id, contributorId };
+            }
         }
         for (const contributionId of round.contributionIds) {
             const contribution = state.contributions.find((item) => item.id === contributionId);
@@ -31,13 +43,19 @@ const dueExit = (state: MeetingState, now: number) => {
                     ...taskDeadlines
                 );
                 if (now >= deadline) {
-                    return { contributionId, exit: "submission_missing" as const };
+                    return {
+                        kind: "contribution" as const,
+                        contributionId,
+                        exit: "submission_missing" as const
+                    };
                 }
                 continue;
             }
             if (
                 contribution.status !== "awaiting_response" ||
                 contribution.packageId === undefined ||
+                (contribution.response === undefined &&
+                    round.invitedContributorIds !== undefined) ||
                 contribution.supplementHand?.status === "pending"
             ) {
                 continue;
@@ -64,7 +82,15 @@ const dueExit = (state: MeetingState, now: number) => {
                           ...taskDeadlines
                       );
             if (now >= deadline) {
-                return { contributionId, exit: "timed_out" as const };
+                return {
+                    kind: "contribution" as const,
+                    contributionId,
+                    exit: "timed_out" as const,
+                    reason:
+                        contribution.response === undefined
+                            ? "贡献者回复期限已到"
+                            : "继续申请未完成"
+                };
             }
         }
     }
@@ -92,14 +118,24 @@ export const runDueContributionDeadline = async (
             protocolVersion: 1,
             meetingId: snapshot.meetingId,
             expectedMeetingVersion: snapshot.version,
-            requestId: `contribution-deadline:${due.contributionId}:${due.exit}`,
-            action: {
-                kind: "close_contribution",
-                contributionId: due.contributionId,
-                exit: due.exit,
-                reason:
-                    due.exit === "submission_missing" ? "证据提交期限已到" : "贡献者回复期限已到"
-            }
+            requestId:
+                due.kind === "participation"
+                    ? `participation-deadline:${due.roundId}:${due.contributorId}`
+                    : `contribution-deadline:${due.contributionId}:${due.exit}`,
+            action:
+                due.kind === "participation"
+                    ? {
+                          kind: "expire_round_participation",
+                          roundId: due.roundId,
+                          contributorId: due.contributorId
+                      }
+                    : {
+                          kind: "close_contribution",
+                          contributionId: due.contributionId,
+                          exit: due.exit,
+                          reason:
+                              due.exit === "submission_missing" ? "证据提交期限已到" : due.reason
+                      }
         },
         { caller: { channel: "deadline_handler", principalId: DEADLINE_HANDLER_PRINCIPAL_ID } },
         signal

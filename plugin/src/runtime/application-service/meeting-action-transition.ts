@@ -16,6 +16,7 @@ import {
     openRound,
     publishRound,
     raiseHand,
+    respondRoundParticipation,
     failEvidenceValidation,
     recommendIdentity,
     recordIdentityAdmissionResult,
@@ -419,6 +420,22 @@ export const runMeetingActionTransition = (input: TransitionInput): CommandTrans
                 roundId: action.roundId,
                 contributorId: actorId,
                 purpose: action.purpose,
+                now
+            });
+            break;
+        case "decline_hand":
+            transition = respondRoundParticipation(snapshot.state, {
+                roundId: action.roundId,
+                contributorId: actorId,
+                status: "declined",
+                now
+            });
+            break;
+        case "expire_round_participation":
+            transition = respondRoundParticipation(snapshot.state, {
+                roundId: action.roundId,
+                contributorId: action.contributorId,
+                status: "no_response",
                 now
             });
             break;

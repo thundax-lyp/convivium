@@ -2,6 +2,52 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
 import { projectMeetingView } from "@/projection/meeting-view.js";
 import { endMeeting, startMeetingArchive } from "@/domain/index.js";
+describe("round participation visibility", () => {
+    it("shows every participation choice to the Manager but only the caller's choice to a Contributor", () => {
+        const state = makeRunningMeetingStateV1();
+        state.rounds = [
+            {
+                id: "round-1",
+                agendaId: "agenda-v1",
+                planId: "plan-1",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                publicBaselinePublicationIds: [],
+                openedAt: 1,
+                status: "open",
+                contributionIds: [],
+                invitedContributorIds: ["contributor-v1", "contributor-v2"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "declined", recordedAt: 2 },
+                    { contributorId: "contributor-v2", status: "raised", recordedAt: 3 }
+                ]
+            }
+        ];
+        const snapshot = {
+            meetingId: state.id,
+            version: state.version,
+            state,
+            createdAt: 0,
+            updatedAt: 3
+        };
+        const manager = projectMeetingView(snapshot, {
+            kind: "identity",
+            identityId: "manager-v1",
+            roles: ["manager"]
+        });
+        expect(manager.rounds[0]?.participationResponses).toHaveLength(2);
+        const contributor = projectMeetingView(snapshot, {
+            kind: "identity",
+            identityId: "contributor-v1",
+            roles: ["contributor"]
+        });
+        expect(contributor.rounds[0]?.invitedContributorIds).toEqual(["contributor-v1"]);
+        expect(contributor.rounds[0]?.participationResponses).toEqual([
+            { contributorId: "contributor-v1", status: "declined", recordedAt: 2 }
+        ]);
+        expect(contributor.controls).toContain("decline_hand");
+    });
+});
+
 describe("identity filtered view and archive provenance", () => {
     it("projects opportunity requests without a plan binding", () => {
         const state = makeRunningMeetingStateV1();

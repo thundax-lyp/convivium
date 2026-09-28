@@ -139,6 +139,9 @@ export const submitEvidence = (
             ? undefined
             : state.evidencePackages.find((candidate) => candidate.id === contribution.packageId);
     const supplement = existingPackage !== undefined;
+    if (supplement && round.invitedContributorIds !== undefined) {
+        return reject(state, "INVALID_STATE", "same-round evidence supplements are disabled");
+    }
     if (
         (!supplement && contribution.status !== "preparing") ||
         (supplement &&

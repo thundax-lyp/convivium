@@ -93,6 +93,20 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
                 `${round.roundGoal.question}: ${known("round", round.status, t)}`
             )
         );
+        for (const contributorId of round.invitedContributorIds ?? []) {
+            const response = round.participationResponses?.find(
+                (item) => item.contributorId === contributorId
+            );
+            items.push(
+                <li key={`participation:${round.id}:${contributorId}`}>
+                    {`${contributorId}: ${t(
+                        response
+                            ? `enum.participation.${response.status}`
+                            : "enum.participation.pending"
+                    )}`}
+                </li>
+            );
+        }
         for (const contribution of round.contributions) {
             items.push(
                 <li

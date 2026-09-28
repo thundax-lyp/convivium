@@ -91,6 +91,12 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
     const opportunityRequests = state.opportunityRequests.filter(
         (request) => request.agendaId === input.agendaId
     );
+    const invitedContributors = state.identities.filter(
+        (identity) =>
+            identity.roles.includes("contributor") &&
+            (identity.agendaResponsibilityIds.length === 0 ||
+                identity.agendaResponsibilityIds.includes(input.agendaId))
+    );
     const round: Round = {
         id: input.roundId,
         agendaId: input.agendaId,
@@ -100,6 +106,12 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         openedAt: input.now,
         status: "open",
         contributionIds: [],
+        invitedContributorIds: invitedContributors.map((identity) => identity.id),
+        participationResponses: opportunityRequests.map((request) => ({
+            contributorId: request.contributorId,
+            status: "raised" as const,
+            recordedAt: input.now
+        })),
         ...(input.deadlineAt === undefined ? {} : { deadlineAt: input.deadlineAt })
     };
     const pendingHandRaises = [
@@ -128,20 +140,13 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         kind: "accepted",
         state: next,
         relatedIds: [input.roundId],
-        effectRequests: next.identities
-            .filter(
-                (identity) =>
-                    identity.roles.includes("contributor") &&
-                    (identity.agendaResponsibilityIds.length === 0 ||
-                        identity.agendaResponsibilityIds.includes(input.agendaId))
-            )
-            .map((identity) => ({
-                kind: "agent_notice" as const,
-                noticeKind: "round_opened" as const,
-                recipientId: identity.id,
-                agendaId: input.agendaId,
-                roundId: input.roundId
-            }))
+        effectRequests: invitedContributors.map((identity) => ({
+            kind: "agent_notice" as const,
+            noticeKind: "round_opened" as const,
+            recipientId: identity.id,
+            agendaId: input.agendaId,
+            roundId: input.roundId
+        }))
     };
 };
 
@@ -239,6 +244,16 @@ export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean
     if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) {
         return false;
     }
+    if (
+        round.invitedContributorIds?.some(
+            (contributorId) =>
+                !round.participationResponses?.some(
+                    (response) => response.contributorId === contributorId
+                )
+        )
+    ) {
+        return false;
+    }
     for (const contributionId of round.contributionIds) {
         const contribution = state.contributions.find(
             (candidate) => candidate.id === contributionId
@@ -284,6 +299,78 @@ export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean
     return true;
 };
 
+export const roundParticipationDeadline = (state: MeetingState, round: Round): number =>
+    Math.min(round.openedAt + state.limits.taskDeadlineMs, round.deadlineAt ?? Infinity);
+
+export const respondRoundParticipation = (
+    state: MeetingState,
+    input: {
+        roundId: OpaqueId;
+        contributorId: OpaqueId;
+        status: "declined" | "no_response";
+        now: number;
+    }
+): MeetingTransitionResult => {
+    if (
+        !input.roundId.trim() ||
+        !input.contributorId.trim() ||
+        !Number.isSafeInteger(input.now) ||
+        input.now < 0
+    ) {
+        return rejected(state, "INVALID_ARGUMENT", "invalid participation response");
+    }
+    if (state.lifecycle.status !== "running") {
+        return rejected(state, "MEETING_TERMINAL", "meeting is not running");
+    }
+    const round = state.rounds.find((candidate) => candidate.id === input.roundId);
+    if (!round || round.status !== "open" || !round.invitedContributorIds) {
+        return rejected(state, "INVALID_STATE", "round has no open participation choice");
+    }
+    if (!round.invitedContributorIds.includes(input.contributorId)) {
+        return rejected(state, "UNAUTHORIZED", "contributor was not invited");
+    }
+    if (
+        round.participationResponses?.some(
+            (response) => response.contributorId === input.contributorId
+        )
+    ) {
+        return rejected(state, "INVALID_STATE", "participation choice is already recorded");
+    }
+    const deadline = roundParticipationDeadline(state, round);
+    if (
+        (input.status === "declined" && input.now >= deadline) ||
+        (input.status === "no_response" && input.now < deadline)
+    ) {
+        return rejected(state, "PRECONDITION_FAILED", "participation choice deadline mismatch");
+    }
+    const next: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        rounds: state.rounds.map((candidate) =>
+            candidate.id === round.id
+                ? {
+                      ...candidate,
+                      participationResponses: [
+                          ...(candidate.participationResponses ?? []),
+                          {
+                              contributorId: input.contributorId,
+                              status: input.status,
+                              recordedAt: input.now
+                          }
+                      ]
+                  }
+                : candidate
+        )
+    };
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [round.id, input.contributorId],
+        effectRequests: roundReadyNotice(state, next, round.id)
+    };
+};
+
 export const roundReadyNotice = (
     before: MeetingState,
     after: MeetingState,
@@ -293,7 +380,6 @@ export const roundReadyNotice = (
     if (
         after.lifecycle.status !== "running" ||
         !round ||
-        round.contributionIds.length === 0 ||
         isRoundClosable(before, roundId) ||
         !isRoundClosable(after, roundId)
     ) {

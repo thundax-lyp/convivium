@@ -53,7 +53,13 @@ function stateWithContribution() {
     if (accepted.kind !== "accepted") {
         throw new Error("accept");
     }
-    return accepted.state;
+    return {
+        ...accepted.state,
+        rounds: accepted.state.rounds.map(
+            ({ invitedContributorIds: _invited, participationResponses: _responses, ...round }) =>
+                round
+        )
+    };
 }
 const evidence = {
     observation: "观察",
@@ -222,5 +228,48 @@ describe("format and evidence transitions", () => {
             versionId: "version-v2",
             status: "complete"
         });
+    });
+
+    it("does not append a version in a new round even with a stale accepted supplement hand", () => {
+        const first = submitEvidence(stateWithContribution(), {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence,
+            packageId: "package-v1",
+            versionId: "version-v1",
+            now: 4
+        });
+        if (first.kind !== "accepted") {
+            throw new Error("initial evidence did not register");
+        }
+        const state = {
+            ...first.state,
+            rounds: first.state.rounds.map((round) => ({
+                ...round,
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised" as const, recordedAt: 2 }
+                ]
+            })),
+            contributions: first.state.contributions.map((contribution) => ({
+                ...contribution,
+                supplementHand: {
+                    purpose: "stale",
+                    raisedAt: 5,
+                    status: "accepted" as const,
+                    acceptedAt: 6
+                }
+            }))
+        };
+        const result = submitEvidence(state, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence,
+            packageId: "package-v1",
+            versionId: "version-v2",
+            now: 7
+        });
+        expect(result.kind).toBe("rejected");
+        expect(result.kind === "rejected" && result.state).toBe(state);
     });
 });

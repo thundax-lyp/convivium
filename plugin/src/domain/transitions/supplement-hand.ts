@@ -58,6 +58,9 @@ export const raiseSupplementHand = (
     if (!round || round.status !== "open") {
         return reject(state, "INVALID_STATE", "round is not open");
     }
+    if (round.invitedContributorIds !== undefined) {
+        return reject(state, "INVALID_STATE", "same-round evidence supplements are disabled");
+    }
     if (contribution.supplementHand !== undefined) {
         return reject(state, "PRECONDITION_FAILED", "supplement hand already exists");
     }

@@ -72,7 +72,13 @@ function evidenceState() {
     if (accept.kind !== "accepted") {
         throw new Error("accept");
     }
-    state = accept.state;
+    state = {
+        ...accept.state,
+        rounds: accept.state.rounds.map(
+            ({ invitedContributorIds: _invited, participationResponses: _responses, ...round }) =>
+                round
+        )
+    };
     const submit = submitEvidence(state, {
         contributionId: "contribution-v1",
         authorId: "contributor-v1",
@@ -541,6 +547,49 @@ describe("evidence review claim lifetime", () => {
 });
 
 describe("review delivery and publication", () => {
+    it("settles a new-round contribution as soon as its final review is delivered", () => {
+        const legacy = evidenceState();
+        const state = {
+            ...legacy,
+            rounds: legacy.rounds.map((round) => ({
+                ...round,
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    {
+                        contributorId: "contributor-v1",
+                        status: "raised" as const,
+                        recordedAt: 2
+                    }
+                ]
+            }))
+        };
+        const reviewed = submitClaimedReview(state, {
+            versionId: "version-v1",
+            reviewId: "review-v1",
+            dimensions,
+            scope: "本轮"
+        });
+        if (reviewed.kind !== "accepted") {
+            throw new Error("review");
+        }
+        const delivered = recordReviewDelivery(reviewed.state, {
+            reviewId: "review-v1",
+            dispatcherId: "dispatcher-v1",
+            deliveryId: "delivery-v1",
+            status: "sent",
+            now: 8
+        });
+        expect(delivered.kind).toBe("accepted");
+        if (delivered.kind !== "accepted") {
+            return;
+        }
+        expect(delivered.state.contributions[0]).toMatchObject({
+            status: "closed",
+            exitReason: "review_delivered"
+        });
+        expect(isRoundClosable(delivered.state, "round-v1")).toBe(true);
+        expect(delivered.effectRequests).toMatchObject([{ noticeKind: "round_ready" }]);
+    });
     it("requires a reason for failed delivery and permits one sent delivery", () => {
         const reviewed = submitClaimedReview(evidenceState(), {
             versionId: "version-v1",

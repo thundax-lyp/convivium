@@ -139,6 +139,16 @@ export const RaiseHandActionSchema = z.object({
     roundId: id,
     purpose: text
 });
+export const DeclineHandActionSchema = z.object({
+    kind: z.literal("decline_hand"),
+    roundId: id,
+    reason: text
+});
+export const ExpireRoundParticipationActionSchema = z.object({
+    kind: z.literal("expire_round_participation"),
+    roundId: id,
+    contributorId: id
+});
 export const DisposeHandRaiseActionSchema = z.object({
     kind: z.literal("dispose_hand_raise"),
     roundId: id,
@@ -294,6 +304,8 @@ const actions = [
     SubmitManagerPlanActionSchema,
     OpenRoundActionSchema,
     RaiseHandActionSchema,
+    DeclineHandActionSchema,
+    ExpireRoundParticipationActionSchema,
     DisposeHandRaiseActionSchema,
     SubmitEvidenceActionSchema,
     z.object({

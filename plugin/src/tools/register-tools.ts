@@ -16,6 +16,7 @@ import {
     SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
     RaiseHandActionSchema,
+    DeclineHandActionSchema,
     RecommendIdentityActionSchema,
     SubmitEvidenceActionSchema,
     SubmitEvidenceReviewActionSchema,
@@ -139,6 +140,11 @@ const actionSchemas = {
         kind: { type: "string", const: "raise_hand", required: true },
         roundId: requiredString("Open round identifier."),
         purpose: requiredString("Purpose of the proposed contribution.")
+    }),
+    decline_hand: exactObject({
+        kind: { type: "string", const: "decline_hand", required: true },
+        roundId: requiredString("Open round identifier."),
+        reason: requiredString("Why this contributor will not raise a hand this round.")
     }),
     submit_evidence: exactObject({
         kind: { type: "string", const: "submit_evidence", required: true },
@@ -525,6 +531,7 @@ export function registerMeetingTools(
             schema: PublishRoundActionSchema
         },
         { name: "convivium_raise_hand", kind: "raise_hand", schema: RaiseHandActionSchema },
+        { name: "convivium_decline_hand", kind: "decline_hand", schema: DeclineHandActionSchema },
         {
             name: "convivium_submit_evidence",
             kind: "submit_evidence",

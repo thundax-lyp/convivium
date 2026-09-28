@@ -362,7 +362,14 @@ export const recordReviewDelivery = (
                 ? state.contributions.map((contribution) =>
                       contribution.packageId === packageValue.id &&
                       contribution.status === "under_review"
-                          ? { ...contribution, status: "awaiting_response" as const }
+                          ? state.rounds.find((round) => round.id === contribution.roundId)
+                                ?.invitedContributorIds === undefined
+                              ? { ...contribution, status: "awaiting_response" as const }
+                              : {
+                                    ...contribution,
+                                    status: "closed" as const,
+                                    exitReason: "review_delivered"
+                                }
                           : contribution
                   )
                 : state.contributions,

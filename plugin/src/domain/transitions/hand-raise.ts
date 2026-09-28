@@ -1,5 +1,6 @@
 import type { Contribution, MeetingState, OpaqueId } from "@/domain/index.js";
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import { roundParticipationDeadline } from "./round.js";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -57,6 +58,21 @@ export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransi
     if (round.status !== "open") {
         return reject(state, "INVALID_STATE", "round is not open");
     }
+    if (round.invitedContributorIds !== undefined) {
+        if (!round.invitedContributorIds.includes(input.contributorId)) {
+            return reject(state, "UNAUTHORIZED", "contributor was not invited");
+        }
+        if (
+            round.participationResponses?.some(
+                (response) => response.contributorId === input.contributorId
+            )
+        ) {
+            return reject(state, "PRECONDITION_FAILED", "participation choice already recorded");
+        }
+        if (input.now >= roundParticipationDeadline(state, round)) {
+            return reject(state, "PRECONDITION_FAILED", "participation choice deadline passed");
+        }
+    }
     const agenda = state.agenda.find((candidate) => candidate.id === round.agendaId);
     if (!agenda) {
         return reject(state, "INVALID_STATE", "round agenda is missing");
@@ -110,6 +126,24 @@ export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransi
         ...state,
         version: state.version + 1,
         updatedAt: input.now,
+        rounds:
+            round.invitedContributorIds === undefined
+                ? state.rounds
+                : state.rounds.map((candidate) =>
+                      candidate.id === round.id
+                          ? {
+                                ...candidate,
+                                participationResponses: [
+                                    ...(candidate.participationResponses ?? []),
+                                    {
+                                        contributorId: input.contributorId,
+                                        status: "raised" as const,
+                                        recordedAt: input.now
+                                    }
+                                ]
+                            }
+                          : candidate
+                  ),
         pendingHandRaises: [
             ...state.pendingHandRaises,
             {
