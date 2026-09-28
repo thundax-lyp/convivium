@@ -2,31 +2,31 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
 import { recommendIdentity, recordIdentityAdmissionResult } from "@/domain/index.js";
 
-describe("identity domain transitions", () => {
-    function secondAgendaState() {
-        const state = makeRunningMeetingStateV1();
-        return {
-            ...state,
-            agenda: [
-                ...state.agenda,
-                {
-                    id: "agenda-v2",
-                    title: "议题 B",
-                    question: "另一议题",
-                    status: "pending" as const,
-                    requiredOutputIds: ["output-v1"]
-                },
-                {
-                    id: "agenda-v3",
-                    title: "议题 C",
-                    question: "第三议题",
-                    status: "pending" as const,
-                    requiredOutputIds: ["output-v1"]
-                }
-            ]
-        };
-    }
+const secondAgendaState = () => {
+    const state = makeRunningMeetingStateV1();
+    return {
+        ...state,
+        agenda: [
+            ...state.agenda,
+            {
+                id: "agenda-v2",
+                title: "议题 B",
+                question: "另一议题",
+                status: "pending" as const,
+                requiredOutputIds: ["output-v1"]
+            },
+            {
+                id: "agenda-v3",
+                title: "议题 C",
+                question: "第三议题",
+                status: "pending" as const,
+                requiredOutputIds: ["output-v1"]
+            }
+        ]
+    };
+};
 
+describe("identity domain transitions", () => {
     it("records reject without identity or effect", () => {
         const result = recommendIdentity(
             makeRunningMeetingStateV1(),
