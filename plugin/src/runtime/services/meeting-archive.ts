@@ -291,9 +291,7 @@ export const createMeetingArchiveDispatcher = (
             }
             for (const ownership of pending) {
                 const definition = dependencies.definitions.find(
-                    (d) =>
-                        d.agentDefinitionId === ownership.definition.agentDefinitionId &&
-                        d.definitionVersion === ownership.definition.definitionVersion
+                    (d) => d.agentDefinitionId === ownership.definition.agentDefinitionId
                 );
                 if (!definition) {
                     retry("RECOVERY_UNAVAILABLE");

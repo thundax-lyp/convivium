@@ -5,13 +5,12 @@ import { parseAgentDefinitions } from "@/role-composition/model.js";
 const definitions = parseAgentDefinitions([
     {
         agentDefinitionId: "domain_architect",
-        definitionVersion: "1",
+
         roleDefinitionId: "domain_architect",
         displayName: "Architect",
         summary: "summary",
         agentInstructions: {
             roleDefinitionId: "domain_architect",
-            version: "2.0.0",
             sha256: "a".repeat(64)
         },
         dshPresetId: "meeting",
@@ -26,12 +25,12 @@ describe("meeting identity admission boundary", () => {
         const hash = "";
         const mismatch = resolveDynamicMeetingDefinition(
             definitions,
-            { id: "domain_architect", version: "1" },
+            { id: "domain_architect" },
             hash
         );
-        expect(mismatch).toMatchObject({ kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" });
-        expect(
-            resolveDynamicMeetingDefinition(definitions, { id: "missing", version: "1" }, hash)
-        ).toMatchObject({ kind: "rejected", code: "DEFINITION_NOT_FOUND" });
+        expect(mismatch).toMatchObject({ kind: "rejected", code: "DEFINITION_HASH_MISMATCH" });
+        expect(resolveDynamicMeetingDefinition(definitions, { id: "missing" }, hash)).toMatchObject(
+            { kind: "rejected", code: "DEFINITION_NOT_FOUND" }
+        );
     });
 });

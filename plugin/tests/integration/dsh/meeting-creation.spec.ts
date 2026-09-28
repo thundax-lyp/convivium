@@ -119,8 +119,7 @@ const fixture = async (
             agendaResponsibilityIds: ["agenda"],
             riskAuthority: false,
             required: true,
-            definitionId: d.agentDefinitionId,
-            definitionVersion: d.definitionVersion
+            definitionId: d.agentDefinitionId
         }));
     const command = {
         protocolVersion: 1,

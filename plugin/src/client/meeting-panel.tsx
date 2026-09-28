@@ -35,15 +35,23 @@ const failureMessage = (failure: MeetingPanelFailure, t: MeetingTranslate): stri
         : t("panel.error.unavailable");
 };
 
-const endMeetingAction = {
+const endMeetingAction = (detail: MeetingView) => ({
     kind: "end_meeting" as const,
-    outcome: "partial" as const,
-    reason: "Ended from Meeting panel.",
-    decisionIds: [],
-    completionFactIds: [],
-    unresolvedQuestionIds: [],
-    unresolvedIssueIds: []
-};
+    outcome: "cancelled" as const,
+    reason: "Cancelled from Meeting panel.",
+    decisionIds: detail.outcomes.decisions
+        .filter((item) => item.status === "accepted")
+        .map((item) => item.id),
+    completionFactIds: detail.outcomes.completionFacts
+        .filter((item) => item.status === "active")
+        .map((item) => item.id),
+    unresolvedQuestionIds: detail.questions
+        .filter((item) => item.status === "open" || item.status === "deferred")
+        .map((item) => item.id),
+    unresolvedIssueIds: detail.issues
+        .filter((item) => item.status === "open" || item.status === "deferred")
+        .map((item) => item.id)
+});
 
 export const ConviviumMeetingPanel = ({
     api,
@@ -281,7 +289,7 @@ export const ConviviumMeetingPanel = ({
         if (!detail) {
             return;
         }
-        await localSubmission.submit(detail.meetingId, detail.version, endMeetingAction);
+        await localSubmission.submit(detail.meetingId, detail.version, endMeetingAction(detail));
     };
     const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
         if (!detail) {

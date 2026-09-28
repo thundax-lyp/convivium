@@ -11,7 +11,7 @@ const action = {
     kind: "recommend_identity" as const,
     candidateId: "candidate-1",
     definitionId: "domain_architect",
-    definitionVersion: "1",
+
     catalogId: "catalog-1",
     catalogVersion: "1",
     agendaId: "agenda-1",
@@ -58,7 +58,7 @@ describe("meeting identity protocol", () => {
             id: "rec-1",
             candidateId: "candidate-1",
             definitionId: "domain_architect",
-            definitionVersion: "1",
+
             agendaId: "agenda-1",
             decision: "admit",
             status: "provisioning",

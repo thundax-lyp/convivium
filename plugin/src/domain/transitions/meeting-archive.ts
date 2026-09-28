@@ -30,7 +30,6 @@ const identityProvenance = (state: MeetingState) =>
             ? {}
             : {
                   definitionId: identity.definitionId,
-                  definitionVersion: identity.definitionVersion,
                   definitionHash: identity.definitionHash
               })
     }));

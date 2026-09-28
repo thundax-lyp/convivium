@@ -58,7 +58,7 @@ describe("Meeting Header and mode tabs", () => {
         expect(header.textContent).toContain("Running");
         expect(header.textContent).toContain(`Meeting version: ${props.detail?.version}`);
         expect(screen.getByRole("button", { name: "Pause meeting" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "End meeting" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Cancel meeting" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Resume meeting" })).toBeNull();
     });
 
@@ -67,7 +67,7 @@ describe("Meeting Header and mode tabs", () => {
         render(renderMeetingPanelLayout(props, meetingTranslator("en")));
 
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
-        expect(screen.getByRole("button", { name: "End meeting" }).disabled).toBe(true);
+        expect(screen.getByRole("button", { name: "Cancel meeting" }).disabled).toBe(true);
     });
 
     it("switches the shared detail panel with click and horizontal arrow keys", () => {

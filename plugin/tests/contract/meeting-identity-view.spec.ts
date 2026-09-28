@@ -154,7 +154,7 @@ describe("identity filtered view and archive provenance", () => {
                 id: "recommendation-1",
                 candidateId: "candidate-1",
                 definitionId: "architect-definition",
-                definitionVersion: "1",
+
                 definitionHash: "a".repeat(64),
                 catalogId: "catalog-1",
                 catalogVersion: "1",

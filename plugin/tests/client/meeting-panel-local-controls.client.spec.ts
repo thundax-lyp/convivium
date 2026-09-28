@@ -85,7 +85,7 @@ describe("Meeting panel local controls", () => {
         } as unknown as MeetingClient;
         render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-        const end = await screen.findByRole("button", { name: "End meeting" });
+        const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
         expect(api.control).toHaveBeenCalledWith(
@@ -96,8 +96,8 @@ describe("Meeting panel local controls", () => {
                 requestId: "request-local",
                 action: {
                     kind: "end_meeting",
-                    outcome: "partial",
-                    reason: "Ended from Meeting panel.",
+                    outcome: "cancelled",
+                    reason: "Cancelled from Meeting panel.",
                     decisionIds: [],
                     completionFactIds: [],
                     unresolvedQuestionIds: [],
@@ -130,7 +130,7 @@ describe("Meeting panel local controls", () => {
         } as unknown as MeetingClient;
         render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-        const end = await screen.findByRole("button", { name: "End meeting" });
+        const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
         expect(end.disabled).toBe(true);

@@ -91,6 +91,79 @@ const authorizationFixture = (caller, role = "captain", ownerRole = "participant
     return { application, openMeeting, execute };
 };
 describe("Captain trusted user authorization", () => {
+    it("reserves normal endings for the owned Manager and emergency endings for Captain", async () => {
+        const managerCaller = {
+            channel: "dsh_tool" as const,
+            principalId: "manager",
+            sessionBindingId: "manager-owner"
+        };
+        const normal = {
+            kind: "end_meeting",
+            outcome: "partial",
+            reason: "证据不足，当前参与者无法继续核验",
+            decisionIds: [],
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: []
+        };
+        const emergency = { ...normal, outcome: "cancelled" };
+        const manager = authorizationFixture(managerCaller, "manager", "manager");
+        await expect(
+            manager.application.execute(
+                { ...envelope, action: normal } as never,
+                { caller: managerCaller },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "accepted" });
+        expect(manager.execute).toHaveBeenCalledOnce();
+
+        for (const [caller, role, ownerRole, action] of [
+            [user, "captain", "participant", normal],
+            [managerCaller, "manager", "manager", emergency],
+            [managerCaller, "manager", "participant", normal]
+        ] as const) {
+            const denied = authorizationFixture(caller, role, ownerRole);
+            await expect(
+                denied.application.execute(
+                    { ...envelope, action } as never,
+                    { caller } as never,
+                    new AbortController().signal
+                )
+            ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
+            expect(denied.openMeeting).not.toHaveBeenCalled();
+        }
+
+        const captain = authorizationFixture(user);
+        await expect(
+            captain.application.execute(
+                { ...envelope, action: emergency } as never,
+                { caller: user },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "accepted" });
+    });
+    it("accepts an explicit Captain skill cancellation with its own caller provenance", async () => {
+        const caller = { channel: "skill_invocation", principalId: "local-controller" } as const;
+        const f = authorizationFixture(caller);
+        await expect(
+            f.application.execute(
+                {
+                    ...envelope,
+                    action: {
+                        kind: "end_meeting",
+                        outcome: "cancelled",
+                        reason: "用户明确中止",
+                        decisionIds: [],
+                        completionFactIds: [],
+                        unresolvedQuestionIds: [],
+                        unresolvedIssueIds: []
+                    }
+                },
+                { caller },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "accepted" });
+    });
     it.each(actions)(
         "allows the user and refuses forged sources for $kind before receipt replay",
         async (action) => {

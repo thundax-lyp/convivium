@@ -39,13 +39,12 @@ describe("Convivium runtime config", () => {
     it("validates inline definitions and keeps configuration errors safe", () => {
         const definition = {
             agentDefinitionId: "a",
-            definitionVersion: "1",
+
             roleDefinitionId: "meeting_manager",
             displayName: "A",
             summary: "A",
             agentInstructions: {
                 roleDefinitionId: "meeting_manager",
-                version: "2.0.0",
                 sha256: "a".repeat(64)
             },
             dshPresetId: "minimal",

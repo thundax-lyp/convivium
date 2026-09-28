@@ -3,14 +3,14 @@ import { z } from "zod";
 const id = z.string().trim().min(1);
 const version = z.string().trim().min(1);
 const role = z.enum(["manager", "contributor", "evidence_reviewer"]);
-const versionedRef = z.object({ id, version });
+const definitionRef = z.object({ id });
 const capability = z.object({
     kind: z.enum(["preset", "skill", "tool", "mcp", "model", "sandbox", "approval"]),
     label: z.string().trim().min(1)
 });
 const candidate = z.object({
     candidateId: id,
-    definition: versionedRef,
+    definition: definitionRef,
     definitionHash: z.string().regex(/^[a-f0-9]{64}$/),
     displayName: z.string().trim().min(1),
     availability: z.enum(["available", "unavailable"]),
@@ -21,7 +21,7 @@ const candidate = z.object({
         z.object({ scope: z.string().trim().min(1), rationale: z.string().trim().min(1) })
     )
 });
-export type VersionedRef = z.infer<typeof versionedRef>;
+export type DefinitionRef = z.infer<typeof definitionRef>;
 export type RoleError = { code: string; message: string; targetId?: string };
 export type CapabilityKind = z.infer<typeof capability>["kind"];
 export type CapabilitySummary = z.infer<typeof capability>;

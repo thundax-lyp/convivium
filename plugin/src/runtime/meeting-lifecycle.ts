@@ -105,9 +105,7 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
     }: import("@/repository/types.js").SessionOwnership) => input;
     const definitionFor = (ownership: import("@/repository/types.js").SessionOwnership) => {
         const definition = dependencies.definitions.find(
-            (d) =>
-                d.agentDefinitionId === ownership.definition.agentDefinitionId &&
-                d.definitionVersion === ownership.definition.definitionVersion
+            (d) => d.agentDefinitionId === ownership.definition.agentDefinitionId
         );
         if (!definition) {
             throw new Error("RECOVERY_UNAVAILABLE: definition missing");
@@ -305,9 +303,7 @@ const createIdentityProvisionOwner = (dependencies: {
                 Date.now()
             );
             const definition = definitions.find(
-                (d) =>
-                    d.agentDefinitionId === owner.definition.agentDefinitionId &&
-                    d.definitionVersion === owner.definition.definitionVersion
+                (d) => d.agentDefinitionId === owner.definition.agentDefinitionId
             );
             if (!definition) {
                 throw new Error("RECOVERY_UNAVAILABLE");
@@ -403,7 +399,10 @@ const createCallerScopeResolver =
             sessionBindingId?: string;
         };
     }) => {
-        if (input.caller.channel === "loopback_remote") {
+        if (
+            input.caller.channel === "loopback_remote" ||
+            input.caller.channel === "skill_invocation"
+        ) {
             if (
                 input.caller.principalId !== "local-controller" ||
                 input.caller.sessionBindingId !== undefined
@@ -582,9 +581,7 @@ const createDeliveryManager = (input: {
                     throw new Error("INVALID_STATE");
                 }
                 const definition = definitions.find(
-                    (d) =>
-                        d.agentDefinitionId === ownership.definition.agentDefinitionId &&
-                        d.definitionVersion === ownership.definition.definitionVersion
+                    (d) => d.agentDefinitionId === ownership.definition.agentDefinitionId
                 );
                 if (!definition) {
                     throw new Error("RECOVERY_UNAVAILABLE");
@@ -791,6 +788,26 @@ export const activateTargetMeetingApplication = async (
                 return MeetingCommandResultSchema.parse({
                     kind: "rejected",
                     error: { code: "UNAUTHORIZED", message: "Only Meeting creation is delegated" }
+                });
+            }
+            const result = await application.execute(
+                command,
+                { caller: { channel: "skill_invocation", principalId: "local-controller" } },
+                signal
+            );
+            if (result.kind === "accepted") {
+                await reconcile(result.meetingId);
+            }
+            return result;
+        },
+        async cancelFromSkill(command: MeetingCommand, signal: AbortSignal) {
+            if (command.action.kind !== "end_meeting" || command.action.outcome !== "cancelled") {
+                return MeetingCommandResultSchema.parse({
+                    kind: "rejected",
+                    error: {
+                        code: "UNAUTHORIZED",
+                        message: "Only Meeting cancellation is delegated"
+                    }
                 });
             }
             const result = await application.execute(

@@ -56,7 +56,7 @@ export const resolveResourceBinding = async (input: {
     const instructions = definition.agentInstructions;
     const identity = await readRoleResource(
         packageRoot,
-        `agents/${instructions.roleDefinitionId}/${instructions.version}/AGENTS.md`
+        `agents/${instructions.roleDefinitionId}/AGENTS.md`
     );
     if (sha256Hex(identity) !== instructions.sha256) {
         throw new Error("Role identity fingerprint changed.");

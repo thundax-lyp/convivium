@@ -27,7 +27,7 @@ function fixture() {
             meetingId: state.id,
             identityId: identity.id,
             sessionId: `session:${identity.id}`,
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             sessionLabel: `convivium:meeting-identity:${role}:${state.id}:${identity.id}`,
             role,
             lifecycleStatus: "active",
@@ -67,7 +67,7 @@ describe("round ready notice", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -124,7 +124,7 @@ describe("round opened notice", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -175,7 +175,7 @@ describe("meeting notice dispatcher v1", () => {
             const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume: vi.fn(async () => {}) },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -221,7 +221,7 @@ describe("meeting notice dispatcher v1", () => {
             const resume = vi.fn();
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {
@@ -256,7 +256,7 @@ describe("meeting notice dispatcher v1", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -343,7 +343,7 @@ describe("meeting notice dispatcher v1", () => {
         const deliver = vi.fn().mockResolvedValue(true);
         const dispatcher = createMeetingNoticeDispatcher({
             owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
                     snapshot: {
@@ -489,7 +489,7 @@ describe("public transcript notice dispatch", () => {
             const deliver = vi.fn().mockResolvedValue(true);
             const dispatcher = createMeetingNoticeDispatcher({
                 owner: { deliver, resume: vi.fn(async () => {}) },
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 repository: {
                     recover: async () => ({
                         snapshot: {

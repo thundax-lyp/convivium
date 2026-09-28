@@ -9,7 +9,7 @@ const snapshot: MeetingAgentCatalog = {
     candidates: [
         {
             candidateId: "candidate-1",
-            definition: { id: "domain_architect", version: "1" },
+            definition: { id: "domain_architect" },
             definitionHash: "a".repeat(64),
             displayName: "Architect",
             availability: "available",

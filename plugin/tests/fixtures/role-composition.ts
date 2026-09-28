@@ -3,13 +3,12 @@ import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
     {
         agentDefinitionId: "fr14-manager",
-        definitionVersion: "1.0.0",
+
         roleDefinitionId: "meeting_manager",
         displayName: "fr14-manager",
         summary: "fr14-manager",
         agentInstructions: {
             roleDefinitionId: "meeting_manager",
-            version: "2.0.0",
             sha256: "a".repeat(64)
         },
         dshPresetId: "minimal",
@@ -19,13 +18,12 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
     },
     {
         agentDefinitionId: "fr14-participant",
-        definitionVersion: "1.0.0",
+
         roleDefinitionId: "domain_architect",
         displayName: "fr14-participant",
         summary: "fr14-participant",
         agentInstructions: {
             roleDefinitionId: "domain_architect",
-            version: "2.0.0",
             sha256: "b".repeat(64)
         },
         dshPresetId: "minimal",

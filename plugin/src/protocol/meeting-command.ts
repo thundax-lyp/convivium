@@ -18,7 +18,6 @@ const objective = z.object({
 const initialIdentity = z.object({
     identityKey: id,
     definitionId: id,
-    definitionVersion: text,
     displayName: text,
     roles: z.array(z.enum(["manager", "contributor", "evidence_reviewer"])),
     agendaResponsibilityIds: z.array(id),
@@ -39,6 +38,15 @@ const limits = z.object({
     reviewDeadlineMs: z.number().int().nonnegative()
 });
 const continuation = z.object({ sourceArchiveId: id, selectedMaterialIds: z.array(id) });
+export const EndMeetingActionSchema = z.object({
+    kind: z.literal("end_meeting"),
+    outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
+    reason: text,
+    decisionIds: z.array(id),
+    completionFactIds: z.array(id),
+    unresolvedQuestionIds: z.array(id),
+    unresolvedIssueIds: z.array(id)
+});
 export const CreateMeetingActionSchema = z.object({
     kind: z.literal("create_meeting"),
     objective,
@@ -335,15 +343,7 @@ const actions = [
     PublishRoundActionSchema,
     PauseMeetingActionSchema,
     ResumeMeetingActionSchema,
-    z.object({
-        kind: z.literal("end_meeting"),
-        outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
-        reason: text,
-        decisionIds: z.array(id),
-        completionFactIds: z.array(id),
-        unresolvedQuestionIds: z.array(id),
-        unresolvedIssueIds: z.array(id)
-    }),
+    EndMeetingActionSchema,
     z.object({ kind: z.literal("start_archive") }),
     z
         .object({

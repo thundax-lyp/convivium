@@ -25,7 +25,7 @@ export const definitionAssetFiles = [
     "cordis.patch.yml",
     "skills/convivium/SKILL.md",
     ...roles.flatMap(([role, preset]) => [
-        `agents/${role}/2.0.0/AGENTS.md`,
+        `agents/${role}/AGENTS.md`,
         `presets/convivium-${preset}/preset.yml`,
         `presets/convivium-${preset}/agent.cordis.yml`
     ]),
@@ -42,7 +42,6 @@ const nonempty = (value) => typeof value === "string" && value.trim().length > 0
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const fields = [
     "agentDefinitionId",
-    "definitionVersion",
     "roleDefinitionId",
     "displayName",
     "summary",
@@ -122,6 +121,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
                         "convivium_publish_round",
+                        "convivium_end_meeting",
                         "convivium_run_review_worker",
                         "convivium_submit_evidence_review",
                         "convivium_recommend_identity"
@@ -136,6 +136,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                       "convivium_open_round",
                                       "convivium_dispose_hand_raise",
                                       "convivium_publish_round",
+                                      "convivium_end_meeting",
                                       "convivium_recommend_identity"
                                   ]
                               }
@@ -155,15 +156,13 @@ export async function verifyMeetingAgentDefinitions(root) {
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
-                        d.definitionVersion !== "2.0.0" ||
                         d.dshPresetId !== `convivium-${preset}` ||
                         !same(d.requiredSkillNames, assigned) ||
                         ![d.displayName, d.summary].every(nonempty) ||
                         !same(d.agentInstructions, {
                             roleDefinitionId: role,
-                            version: "2.0.0",
                             sha256: createHash("sha256")
-                                .update(contents.get(`agents/${role}/2.0.0/AGENTS.md`) ?? "")
+                                .update(contents.get(`agents/${role}/AGENTS.md`) ?? "")
                                 .digest("hex")
                         }) ||
                         !Array.isArray(d.expertiseTags) ||
@@ -227,8 +226,8 @@ export async function verifyMeetingAgentDefinitions(root) {
         ) {
             add("PRESET_INVALID", path);
         }
-        if (!nonempty(contents.get(`agents/${role}/2.0.0/AGENTS.md`))) {
-            add("DEFINITION_INVALID", `agents/${role}/2.0.0/AGENTS.md`);
+        if (!nonempty(contents.get(`agents/${role}/AGENTS.md`))) {
+            add("DEFINITION_INVALID", `agents/${role}/AGENTS.md`);
         }
     }
     return errors.sort((a, b) =>

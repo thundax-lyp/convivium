@@ -10,13 +10,13 @@
 
 ## Responsibilities And Dependencies
 
-角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。七份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 只负责议题内计划、开轮、举手处置、发布与推荐；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub 与 arXiv 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
+角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。七份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 负责议题内计划、开轮、举手处置、发布、推荐和正常结束判断；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub 与 arXiv 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
 
 五项 Skill 的工作方法固定为：`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
 
 | 责任                | 唯一 owner                        | 输入与输出                                                               |
 | ------------------- | --------------------------------- | ------------------------------------------------------------------------ |
-| Definition/资源目录 | `role-composition` 与包内静态资源 | 精确 Definition ID/version/hash → AGENTS/Preset/Skill 指纹               |
+| Definition/资源目录 | `role-composition` 与包内静态资源 | 精确 Definition ID/hash → AGENTS/Preset/Skill 指纹               |
 | 平级 Agent handle   | Runtime 的 `MeetingAgentOwner`    | `PreparedDescriptor` → `AgentHandle` 或 RoleError                        |
 | Session ownership   | Meeting Repository                | Meeting/identity/session/资源/模型私有绑定；`provisioning→active→closed` |
 | 用户输入来源        | Meeting Repository 私有 bootstrap | 可信用户 adapter 的 creator；仅用于审计                                  |
@@ -62,7 +62,7 @@ Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Capta
 
 outbox dispatcher 每次按 Meeting、目标 identity、Session ownership、capability、当前可见事实及 lifecycle 重验，取得该 Meeting 的 owner handle，向 `Agent.followup` 提交带稳定 deliveryId 的 `UserMessage`，再经 `ctx.sessions.flush(session)` 等待持久化 listener，最后把 effect 标为 delivered。flush 未成功或 effect 完成提交未成功时保留可重试；重复投递可能出现，Agent 文本和 inbox acceptance 均不能形成 Meeting 事实。Reviewer claim、Meeting requestId/version 和 outbox ID 继续各自去重。Agent 间只经 Meeting Runtime 的正式操作交流。
 
-用户输入 Session 关闭不影响 owner Map 中已创建身份的 handle、outbox 或动态准入。Host 冷启动先恢复 Meeting Repository，再从 active/provisioning ownership 逐个读取精确 Definition ID/version/hash、资源指纹和固化 `EffectiveAgentOptions`；验证 DSH persisted Session 的 ID/header 后调用 `ctx.agents.resume`，使用同一 scoped setup。资源缺失/变更、Session 或 ownership 不可证明时只标记 `RECOVERY_UNAVAILABLE`，不读取当前默认配置代替。发现已由其他 owner 持有的 live Agent 时拒绝收养裸 handle。
+用户输入 Session 关闭不影响 owner Map 中已创建身份的 handle、outbox 或动态准入。Host 冷启动先恢复 Meeting Repository，再从 active/provisioning ownership 逐个读取精确 Definition ID/hash、资源指纹和固化 `EffectiveAgentOptions`；验证 DSH persisted Session 的 ID/header 后调用 `ctx.agents.resume`，使用同一 scoped setup。资源缺失/变更、Session 或 ownership 不可证明时只标记 `RECOVERY_UNAVAILABLE`，不读取当前默认配置代替。发现已由其他 owner 持有的 live Agent 时拒绝收养裸 handle。
 
 pause 停止新调度、撤销当前活动的继续条件并取消受影响的 Agent turn；resume 从已提交状态和 outbox 生成新的可见通知。end/归档先物化完整 ArchivePackage，随后仅对目标 Meeting 的 ownership 先 revoke capability，再 cancel/drain/dispose handle；任一关闭失败保持 archiving，直到可证明全部关闭。即使 DSH 持久 Session 日志仍在，已撤权身份不能调用 Meeting。插件停机保留 Meeting 事实和未完成 effect，释放所持 handle，不关闭别的 Meeting 或用户输入 Session。
 

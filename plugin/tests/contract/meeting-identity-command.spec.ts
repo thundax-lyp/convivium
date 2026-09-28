@@ -56,7 +56,7 @@ describe("meeting identity command", () => {
                     kind: "recommend_identity",
                     candidateId: "candidate-1",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v1",
@@ -126,7 +126,7 @@ describe("meeting identity command", () => {
                         candidates: [
                             {
                                 candidateId: "candidate-1",
-                                definition: { id: "domain_architect", version: "1" },
+                                definition: { id: "domain_architect" },
                                 definitionHash: "a".repeat(64),
                                 displayName: "Architect",
                                 availability: "available",
@@ -151,7 +151,7 @@ describe("meeting identity command", () => {
                     kind: "recommend_identity",
                     candidateId: "candidate-1",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v1",
@@ -231,7 +231,7 @@ describe("meeting identity command", () => {
                     kind: "recommend_identity",
                     candidateId: "candidate-1",
                     definitionId: "domain_architect",
-                    definitionVersion: "1",
+
                     catalogId: "catalog-1",
                     catalogVersion: "1",
                     agendaId: "agenda-v1",

@@ -9,7 +9,7 @@ export type MeetingRole = z.infer<typeof role>;
 export const RoleErrorCodeSchema = z.enum([
     "INVALID_ARGUMENT",
     "DEFINITION_NOT_FOUND",
-    "DEFINITION_VERSION_MISMATCH",
+    "DEFINITION_HASH_MISMATCH",
     "CATALOG_NOT_FOUND",
     "CATALOG_STALE",
     "CATALOG_CANDIDATE_MISMATCH",
@@ -27,7 +27,6 @@ export type RoleErrorCode = z.infer<typeof RoleErrorCodeSchema>;
 const identityFields = {
     candidateId: id,
     definitionId: id,
-    definitionVersion: text,
     catalogId: id,
     catalogVersion: text,
     agendaId: id,
@@ -52,7 +51,6 @@ export const ManagerCatalogViewSchema = z.object({
         z.object({
             candidateId: id,
             definitionId: id,
-            definitionVersion: text,
             displayName: text,
             availability: z.enum(["available", "unavailable"]),
             meetingRoles: z.array(role),
@@ -68,7 +66,6 @@ export const IdentityRecommendationViewSchema = z.object({
     id,
     candidateId: id,
     definitionId: id,
-    definitionVersion: text,
     agendaId: id,
     decision: z.enum(["admit", "reject"]),
     status: z.enum(["provisioning", "rejected", "active", "failed"]),
@@ -86,6 +83,5 @@ export const IdentityViewSchema = z.object({
     agendaResponsibilityIds: z.array(id),
     riskAuthority: z.boolean(),
     required: z.boolean(),
-    definitionId: id.optional(),
-    definitionVersion: text.optional()
+    definitionId: id.optional()
 });

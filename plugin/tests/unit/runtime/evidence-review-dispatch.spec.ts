@@ -153,7 +153,7 @@ function stateWithPendingReview() {
             meetingId: state.id,
             identityId: "reviewer-v1",
             sessionId: "session:reviewer-v1",
-            definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+            definition: { agentDefinitionId: "fixture" },
             sessionLabel: "convivium:meeting-identity:evidence_reviewer:meeting-v1:reviewer-v1",
             role: "evidence_reviewer" as const,
             lifecycleStatus: "active" as const,
@@ -267,7 +267,7 @@ describe("evidence review request dispatcher v1", () => {
             return true;
         });
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
@@ -438,7 +438,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
                 deliver: vi.fn().mockResolvedValue(true)
@@ -490,7 +490,7 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
                 deliver: vi.fn().mockRejectedValue(new Error("review turn timed out"))
@@ -573,14 +573,14 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             })
         } as never;
         const first = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver: firstSend },
             application: application as never,
             clock: { now: () => 6 },
             repository
         });
         const second = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver: secondSend },
             application: application as never,
             clock: { now: () => 6 },
@@ -647,7 +647,7 @@ describe("evidence review request dispatcher recovery", () => {
             return true;
         });
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
@@ -704,7 +704,7 @@ describe("evidence review request dispatcher recovery", () => {
         const deliver = vi.fn();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
@@ -741,7 +741,7 @@ describe("evidence review request dispatcher recovery", () => {
         const application = claimApplication(state);
         const deliver = vi.fn();
         const dispatcher = createEvidenceReviewDispatcher({
-            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            definitions: [{ agentDefinitionId: "fixture" }],
             owner: { resume: vi.fn(async () => {}), deliver },
             application: application as never,
             clock: { now: () => 6 },
@@ -787,7 +787,7 @@ describe("evidence review request dispatcher recovery", () => {
             const application = claimApplication(state);
             const deliver = vi.fn();
             const dispatcher = createEvidenceReviewDispatcher({
-                definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+                definitions: [{ agentDefinitionId: "fixture" }],
                 owner: { resume: vi.fn(async () => {}), deliver },
                 application: application as never,
                 clock: { now: () => 6 },

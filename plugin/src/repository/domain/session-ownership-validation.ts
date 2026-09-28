@@ -35,7 +35,6 @@ export const matchesPendingAdmission = (
                 item.identityId === input.identityId &&
                 item.sessionId === input.sessionId &&
                 item.definitionId === input.definition.agentDefinitionId &&
-                item.definitionVersion === input.definition.definitionVersion &&
                 item.definitionHash === input.definition.definitionHash
         )
     );

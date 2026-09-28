@@ -4,7 +4,6 @@ import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 export type IdentityRecommendationDraft = {
     candidateId: string;
     definitionId: string;
-    definitionVersion: string;
     catalogId: string;
     catalogVersion: string;
     agendaId: string;
@@ -24,7 +23,6 @@ export type IdentityAdmissionResultContext =
           descriptorId: string;
           displayName: string;
           definitionId: string;
-          definitionVersion: string;
           definitionHash: string;
       }
     | { kind: "rejected"; failureCode: string };
@@ -59,7 +57,6 @@ const validRecommendationDraft = (action: IdentityRecommendationDraft): boolean 
         !!action &&
         valid(action.candidateId) &&
         valid(action.definitionId) &&
-        valid(action.definitionVersion) &&
         valid(action.catalogId) &&
         valid(action.catalogVersion) &&
         valid(action.agendaId) &&
@@ -119,7 +116,6 @@ export const recommendIdentity = (
         active !== undefined &&
         (action.decision !== "admit" ||
             active.definitionId !== action.definitionId ||
-            active.definitionVersion !== action.definitionVersion ||
             active.definitionHash === undefined ||
             active.definitionHash !== ids.definitionHash)
     ) {
@@ -221,7 +217,6 @@ export const recordIdentityAdmissionResult = (
             result.identityId !== intent.identityId ||
             result.sessionId !== intent.sessionId ||
             result.definitionId !== intent.definitionId ||
-            result.definitionVersion !== intent.definitionVersion ||
             result.definitionHash !== intent.definitionHash ||
             !valid(result.ownershipId) ||
             !valid(result.descriptorId) ||
@@ -263,7 +258,6 @@ export const recordIdentityAdmissionResult = (
                           riskAuthority: false,
                           required: false,
                           definitionId: result.definitionId,
-                          definitionVersion: result.definitionVersion,
                           definitionHash: result.definitionHash,
                           sessionOwnershipId: result.ownershipId
                       }

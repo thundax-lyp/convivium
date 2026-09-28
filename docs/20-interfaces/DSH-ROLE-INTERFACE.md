@@ -15,10 +15,8 @@ type DefinitionId = string;
 type CatalogId = string;
 type DescriptorId = string;
 type EpochMs = number;
-interface VersionedRef {
-  id: string;
-  version: string;
-}
+interface DefinitionRef { id: string; }
+interface VersionedRef { id: string; version: string; }
 type MeetingRole = "manager" | "contributor" | "evidence_reviewer";
 type AgentRoleDefinitionId =
   | "meeting_manager"
@@ -43,12 +41,10 @@ interface ToolRestriction {
 }
 interface AgentInstructionRef {
   roleDefinitionId: AgentRoleDefinitionId;
-  version: string;
   sha256: string;
 }
 interface MeetingAgentDefinition {
   agentDefinitionId: DefinitionId;
-  definitionVersion: string;
   roleDefinitionId: AgentRoleDefinitionId;
   displayName: string;
   summary: string;
@@ -61,7 +57,6 @@ interface MeetingAgentDefinition {
 }
 interface AgentDefinitionBinding {
   agentDefinitionId: DefinitionId;
-  definitionVersion: string;
   definitionHash: string;
 }
 interface EffectiveAgentOptions {
@@ -78,11 +73,11 @@ interface ResourceBinding {
 }
 ```
 
-所有 ID、version 和 sha256 均为非空字符串；sha256 是小写十六进制 SHA-256。`definitionHash=sha256Hex(encodeCanonicalJson(definition))`，其中 Definition 使用本节字段、`requiredSkillNames` 按名称排序、`toolFilter.allow|deny` 各按名称排序；不包含读取时的文件路径。`AgentInstructionRef.sha256` 是 AGENTS.md 原始字节 SHA。`presetSha256` 是按 `preset.yml`、`agent.cordis.yml` 文件名顺序组成的 `[relativePath, rawFileSha256]` 数组的 canonical JSON SHA。每个 Skill `sha256` 是该能力目录中全部普通文件（含 `SKILL.md` 和 `scripts/`）按 POSIX 相对路径排序组成的 `[relativePath, rawFileSha256]` 数组的 canonical JSON SHA；出现 symlink 或目录逃逸拒绝。`compositionHash=sha256Hex(encodeCanonicalJson({definitionHash,instructions,presetId,presetSha256,skills,toolFilter,agentOptions}))`，其中 skills 按 name 排序。相同 Definition ID/version 的内容不得改变；角色身份、能力集合或正文变化均须升 Definition version。资源字节变更但未升版本时拒绝，不静默替换。模型选择变化不改变 `definitionHash`，但改变新 Session 的 `compositionHash`。
+所有 ID、version 和 sha256 均为非空字符串；sha256 是小写十六进制 SHA-256。`definitionHash=sha256Hex(encodeCanonicalJson(definition))`，其中 Definition 使用本节字段、`requiredSkillNames` 按名称排序、`toolFilter.allow|deny` 各按名称排序；不包含读取时的文件路径。`AgentInstructionRef.sha256` 是 AGENTS.md 原始字节 SHA。`presetSha256` 是按 `preset.yml`、`agent.cordis.yml` 文件名顺序组成的 `[relativePath, rawFileSha256]` 数组的 canonical JSON SHA。每个 Skill `sha256` 是该能力目录中全部普通文件（含 `SKILL.md` 和 `scripts/`）按 POSIX 相对路径排序组成的 `[relativePath, rawFileSha256]` 数组的 canonical JSON SHA；出现 symlink 或目录逃逸拒绝。`compositionHash=sha256Hex(encodeCanonicalJson({definitionHash,instructions,presetId,presetSha256,skills,toolFilter,agentOptions}))`，其中 skills 按 name 排序。Definition 以稳定 ID 和内容指纹绑定当前资源；资源字节变更使指纹变化，已创建 Session 恢复时必须与其固化指纹精确相等，不静默替换。模型选择变化不改变 `definitionHash`，但改变新 Session 的 `compositionHash`。
 
 ## Meeting Agent Definition And Resource Layout
 
-首发平级目标的七个 `agentDefinitionId` 维持 `convivium.<roleDefinitionId>`，`definitionVersion` 和 `agentInstructions.version` 均固定为 `2.0.0`；旧版本不提供兼容读取。发行路径固定为 `plugin/config/agents/<roleDefinitionId>/<version>/AGENTS.md`、`plugin/config/skills/<ability>/SKILL.md` 和 `plugin/config/presets/<presetId>/{preset.yml,agent.cordis.yml}`。AGENTS ref 的 roleDefinitionId 必须等于 Definition 的角色；只能从已安装发行根解析相对位置，Catalog 和 Manager 不提交路径。AGENTS 声明身份、职责、能力与边界，不重复 Skill 工作方法。Skill 使用目录 bundle、合法 frontmatter `name`/`description`；可含 `scripts/`，读取 Skill 不执行脚本。首发不提供 `meeting_scribe` 或 `web_research_analyst`。
+当前七个 `agentDefinitionId` 维持 `convivium.<roleDefinitionId>`；Definition 与身份资源不设独立版本字段或版本目录。发行路径固定为 `plugin/config/agents/<roleDefinitionId>/AGENTS.md`、`plugin/config/skills/<ability>/SKILL.md` 和 `plugin/config/presets/<presetId>/{preset.yml,agent.cordis.yml}`。AGENTS ref 的 roleDefinitionId 必须等于 Definition 的角色；只能从已安装发行根解析相对位置，Catalog 和 Manager 不提交路径。AGENTS 声明身份、职责、能力与边界，不重复 Skill 工作方法。Skill 使用目录 bundle、合法 frontmatter `name`/`description`；可含 `scripts/`，读取 Skill 不执行脚本。首发不提供 `meeting_scribe` 或 `web_research_analyst`。
 
 | roleDefinitionId                                               | requiredSkillNames（精确集合）                              |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -94,7 +89,7 @@ interface ResourceBinding {
 
 发行的 `plugin/config/cordis.patch.yml` 保留 Host 的 `agent-presets` shipped/user roots，把发行 `presets/` 加为 system-trust root，并把 default 设回 shipped `standard`，不能令普通用户输入 Session 默认进入任一会议角色 Preset。每个角色的 `dshPresetId` 与 Preset 目录名精确为 `convivium-` 加 roleDefinitionId 去掉 `meeting_` 前缀后的下划线转连字符形式（例如 `convivium-manager`）。DSH 只发现符合 `[a-z0-9][a-z0-9-]*` 的目录；Definition ID 仍为 `convivium.<roleDefinitionId>`。该 Preset 中 `dsh-skill-filesystem` 配置 `includeDefaultRoots:false`、`watch:false`，`customSkillDirs` 仅列上表对应的能力目录，直接以能力目录为扫描根读取其 `SKILL.md`；每个路径在 `presets/<presetId>/agent.cordis.yml` 中用 `fileURLToPath(new URL("../../skills/<ability>/", baseUrl))` 求得绝对安装路径，不得依赖 Host 当前工作目录，也不得挂载五能力共享父目录。目标 DSH `0.1.2-rc.1` 的 filesystem provider 会把扫描根下的 `SKILL.md` 作为 flat Markdown Skill 读取，并把扫描根作为相邻 `scripts/` 等资源的 base，故不需复制 Skill bundle。目标 Web bundle 已禁用 base 的 host `skill-filesystem` 行；部署仍可能加装其他 global Skill provider。预检必须对实际模型可见 `list` 做集合相等校验，并在同一 scope 对分配项、未分配项调用 `get`；额外可见、缺失、同名覆盖或正文 SHA 不符均为 `CAPABILITY_MISSING`。`toolFilter` 只收窄继承工具，Host 文件、网络和执行权限继续生效。
 
-首发 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker,convivium_submit_evidence_review`。五个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_run_review_worker,convivium_submit_evidence_review`。创建与十项用户控制不注册 Agent tool，不能把它们列为可用能力。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
+当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker,convivium_submit_evidence_review`。五个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker,convivium_submit_evidence_review`。创建与 Captain 用户控制不注册 Agent tool；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
 
 `meeting_manager` 与 `verification_reviewer` 只在创建时绑定唯一 Manager 与专职 reviewer；其它五个角色映射为 `roles:["contributor"]`，动态接纳只能使用这五个。Reviewer 只经专用 `convivium_run_review_worker` 启动固定 schema 的 one-shot DSH worker，不取得通用 subagent tool 或 worker Meeting authority。Definition 不授予 Meeting 控制权。
 
@@ -112,7 +107,7 @@ interface ResourceBinding {
       | { kind: "available"; snapshot: MeetingAgentCatalog }
       | { kind: "rejected"; error: RoleError };
     interface CatalogCandidate {
-      candidateId: string; definition: VersionedRef; definitionHash: string; displayName: string;
+      candidateId: string; definition: DefinitionRef; definitionHash: string; displayName: string;
       availability: "available" | "unavailable"; meetingRoles: MeetingRole[];
       responsibilitySummary: string;
       capabilitySummary: CapabilitySummary[]; suitability: Suitability[];
@@ -120,19 +115,19 @@ interface ResourceBinding {
     interface CapabilitySummary { kind: CapabilityKind; label: string }
     interface Suitability { scope: string; rationale: string }
     interface IdentityRecommendationInput {
-      candidateId: string; definition: VersionedRef; catalog: VersionedRef; agendaId: string;
+      candidateId: string; definition: DefinitionRef; catalog: VersionedRef; agendaId: string;
       decision: "admit" | "reject"; rationale: string;
       expectedContribution: string; evidenceGap: string;
     }
 
-Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围生成当前 Meeting 安全 snapshot；`ReadCatalogRequest` 仅由 Runtime 从该 Meeting 当前 active Manager ownership 形成，Manager 不提交 Session ID。Producer 必须从 snapshot 排除该 Manager 自己的 Agent candidate，以及 `meeting_manager`、`verification_reviewer` Definition；Runtime 重读时仍检查 candidate Definition 与该 Meeting Manager 已固化 Definition 不同且不属于这两个创建期专用角色。Snapshot 必须绑定请求 Meeting，candidateId 在 snapshot 内唯一，`catalogVersion` 对一次内容快照稳定。只读 Manager projection 只显示候选 ID、Definition id/version、displayName、availability、角色与安全 summary/suitability，不返回 AGENTS 身份资源、toolFilter、Preset/Skill 正文、模型/权限配置。Manager 决定必须引用其只读入口取得的 catalogId/version 和该 snapshot 中 `available` candidate 的 candidateId/Definition identity。Runtime 在 command 中重读同一 Host producer；meetingId、ID/version 或 candidate 不匹配时拒绝整个决定，不写 Meeting。Catalog 缺失、过期、格式损坏时普通 Meeting 工作继续，准入决定 fail closed。Catalog 不复制完整 Definition；producer 对已验证 Definition 计算并提供稳定 `definitionHash`，Manager 安全 view 不显示该指纹，Runtime 在首个 `admit` 意图中固化它。provisioning 阶段只解析所记录的精确 Definition id/version/hash，不使用当前默认版本或目录替代。
+Catalog producer 从 Host/profile 已验证的 Definition 和 DSH 授权范围生成当前 Meeting 安全 snapshot；`ReadCatalogRequest` 仅由 Runtime 从该 Meeting 当前 active Manager ownership 形成，Manager 不提交 Session ID。Producer 必须从 snapshot 排除该 Manager 自己的 Agent candidate，以及 `meeting_manager`、`verification_reviewer` Definition；Runtime 重读时仍检查 candidate Definition 与该 Meeting Manager 已固化 Definition 不同且不属于这两个创建期专用角色。Snapshot 必须绑定请求 Meeting，candidateId 在 snapshot 内唯一，`catalogVersion` 对一次内容快照稳定。只读 Manager projection 只显示候选 ID、Definition ID、displayName、availability、角色与安全 summary/suitability，不返回 AGENTS 身份资源、toolFilter、Preset/Skill 正文、模型/权限配置。Manager 决定必须引用其只读入口取得的 catalogId/version 和该 snapshot 中 `available` candidate 的 candidateId/Definition identity。Runtime 在 command 中重读同一 Host producer；meetingId、Catalog ID/version、Definition ID 或 candidate 不匹配时拒绝整个决定，不写 Meeting。Catalog 缺失、过期、格式损坏时普通 Meeting 工作继续，准入决定 fail closed。Catalog 不复制完整 Definition；producer 对已验证 Definition 计算并提供稳定 `definitionHash`，Manager 安全 view 不显示该指纹，Runtime 在首个 `admit` 意图中固化它。provisioning 阶段只解析所记录的精确 Definition ID/hash，不使用当前默认版本或目录替代。
 
 ## Definition Resolution And Preflight
 
 ```ts
 interface ResolveDefinitionRequest {
   protocolVersion: 1;
-  definition: VersionedRef;
+  definition: DefinitionRef;
 }
 type ResolveDefinitionResult =
   | {
@@ -146,7 +141,7 @@ interface PreflightIdentityRequest {
   meetingId: string;
   identityId: string;
   sessionId: string;
-  definition: VersionedRef;
+  definition: DefinitionRef;
   requestedRoles: MeetingRole[];
 }
 type PreflightIdentityResult =
@@ -170,7 +165,7 @@ interface MissingCapability {
 }
 ```
 
-创建新会议时，在第一个 Session 发布前为 Manager、Reviewer 和 Host 配置选中的每个 Contributor Definition 完成解析和预检：逐个调用 `ctx.agentPresets.standingKeyFor(dshPresetId)` 取得未创建 Agent 时的 Preset scope，并以该 scope 执行 `ctx.skills.list/get` 校验精确集合和正文；这只装配 standing Preset，不创建 Session。动态准入在提交 `provisioning` 意图后，以该意图固定的 ID/version/hash、identityId、sessionId 预检。动态 `requestedRoles` 必须精确为 `["contributor"]`，Definition 不得为 Manager 或专职 Reviewer。`descriptorId` 精确为 `"descriptor-" + sha256Hex(encodeCanonicalJson([meetingId, "descriptor", identityId])).slice(0, 32)`；`descriptorHash=sha256Hex(encodeCanonicalJson({descriptorId,meetingId,identityId,sessionId,definition,resources,agentOptions,expiresAt}))`，其中 `resources.skills` 按 name 排序。`expiresAt=preflightNow+300000`，`preflightNow` 取 Runtime 时钟且须为非负安全整数；在 `now>=expiresAt` 时拒绝。过期或跨 Meeting/identity/Session/Definition 的 descriptor 不复用。实际 Agent scoped setup 还须再次校验，阻止预检与发布之间的资源变化。
+创建新会议时，在第一个 Session 发布前为 Manager、Reviewer 和 Host 配置选中的每个 Contributor Definition 完成解析和预检：逐个调用 `ctx.agentPresets.standingKeyFor(dshPresetId)` 取得未创建 Agent 时的 Preset scope，并以该 scope 执行 `ctx.skills.list/get` 校验精确集合和正文；这只装配 standing Preset，不创建 Session。动态准入在提交 `provisioning` 意图后，以该意图固定的 ID/hash、identityId、sessionId 预检。动态 `requestedRoles` 必须精确为 `["contributor"]`，Definition 不得为 Manager 或专职 Reviewer。`descriptorId` 精确为 `"descriptor-" + sha256Hex(encodeCanonicalJson([meetingId, "descriptor", identityId])).slice(0, 32)`；`descriptorHash=sha256Hex(encodeCanonicalJson({descriptorId,meetingId,identityId,sessionId,definition,resources,agentOptions,expiresAt}))`，其中 `resources.skills` 按 name 排序。`expiresAt=preflightNow+300000`，`preflightNow` 取 Runtime 时钟且须为非负安全整数；在 `now>=expiresAt` 时拒绝。过期或跨 Meeting/identity/Session/Definition 的 descriptor 不复用。实际 Agent scoped setup 还须再次校验，阻止预检与发布之间的资源变化。
 
 Runtime 从 Host `agentDefaultModel.currentSelection()` 取得 provider、model、optional reasoningEffort，仅用按 Definition ID 配置的 `agentModelOverrides` 覆盖指定字段，形成完整 `EffectiveAgentOptions`。该私有执行选择固化在 descriptor 和 ownership；恢复时原样传给 DSH `agentOptions`，不重新读取当前默认或 override。缺 provider/model、目标 provider/model 不可用时 fail closed。Caller、Manager、HTTP 不可提交模型值。
 
@@ -227,7 +222,7 @@ Repository 使用现有 `MeetingRepositoryPort.create`、`recordSessionOwnership
 
 持久化 `CreationRecordSchema` 与 `PersistenceProjectionSchema` 的 `formatVersion` 目标为 `2`，其中嵌套 bootstrap 与 ownership 使用本文新字段；旧 `formatVersion:1` 一律以内部 RepositoryError `SCHEMA_VERSION_UNSUPPORTED` 拒读，application 映射为公开 `INCOMPATIBLE_VERSION`，不迁移、不回退、不混合写。未改变结构的事件、receipt、outbox 和 catalog record 继续使用原格式版本；新 projection 的 hash/checkpoint/recovery 只接受完整 v2 snapshot，不能从旧记录重建。`SessionOwnershipInput=Omit<SessionOwnership,"createdAt"|"updatedAt">`；时间仅由 Repository 的 Runtime now 写入。`SessionOwnership` 先 revoked 后才允许 closed；同值重放不更改 `createdAt`，成功状态变更仅更新 `updatedAt`。
 
-Runtime owner 私有 Map 持有 live handle 与装配 purpose（精确结构见专项设计）；`ctx.agents.get` 返回裸 Agent，不构成 dispose 能力或未知 live Session 的收养依据。Host 冷重启按 Meeting Repository 的 active/provisioning ownership 核对精确 Definition ID/version/hash、资源 SHA、Session header ID/Preset，调用 `ctx.agents.resume({resumeSessionId,agentOptions,setup})`；setup 使用与创建相同的固化资源绑定。资源、持久 Session、descriptor 或 ownership 不能证明时返回 `RECOVERY_UNAVAILABLE`，不以默认资源、替代 Session 或 Captain parent 补建。已撤权/closed ownership 即使留有 DSH 日志也不恢复 Meeting authority。`AgentHandle.dispose()` 从 live store 移除 Session；持久日志保留依 Host persistence/retention policy 单独验证。
+Runtime owner 私有 Map 持有 live handle 与装配 purpose（精确结构见专项设计）；`ctx.agents.get` 返回裸 Agent，不构成 dispose 能力或未知 live Session 的收养依据。Host 冷重启按 Meeting Repository 的 active/provisioning ownership 核对精确 Definition ID/hash、资源 SHA、Session header ID/Preset，调用 `ctx.agents.resume({resumeSessionId,agentOptions,setup})`；setup 使用与创建相同的固化资源绑定。资源、持久 Session、descriptor 或 ownership 不能证明时返回 `RECOVERY_UNAVAILABLE`，不以默认资源、替代 Session 或 Captain parent 补建。已撤权/closed ownership 即使留有 DSH 日志也不恢复 Meeting authority。`AgentHandle.dispose()` 从 live store 移除 Session；持久日志保留依 Host persistence/retention policy 单独验证。
 
 ## Runtime Delivery And Session Stop
 
@@ -241,7 +236,7 @@ Pause 停止新调度并取消目标身份正在进行的会议活动，恢复�
 
     interface RoleError {
       code:
-        | "INVALID_ARGUMENT" | "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH"
+        | "INVALID_ARGUMENT" | "DEFINITION_NOT_FOUND" | "DEFINITION_HASH_MISMATCH"
         | "CATALOG_NOT_FOUND" | "CATALOG_STALE" | "CATALOG_CANDIDATE_MISMATCH"
         | "ROLE_NOT_ALLOWED"
         | "CAPABILITY_MISSING" | "PREFLIGHT_EXPIRED" | "ADMISSION_CONFLICT"
@@ -254,7 +249,7 @@ Pause 停止新调度并取消目标身份正在进行的会议活动，恢复�
 
 ## Compatibility And Acceptance
 
-目标契约仅支持 DSH `0.1.2-rc.1` 的公开平级 Agent API；版本或必需 service 缺失时 Host 装载 fail closed，不回退到 Captain child。未发布的旧 Definition、ownership、descriptor 不读取、不转换、不双写；unknown discriminant、缺失必填字段或旧字段组合 fail closed。Catalog 安全摘要可增加 optional read field；Definition 语义、descriptor provenance、ownership 或 preflight/admission 顺序变化须形成新版本。
+目标契约仅支持 DSH `0.1.2-rc.1` 的公开平级 Agent API；版本或必需 service 缺失时 Host 装载 fail closed，不回退到 Captain child。未发布的旧 Definition、ownership、descriptor 不读取、不转换、不双写；unknown discriminant、缺失必填字段或旧字段组合 fail closed。Catalog 安全摘要可增加 optional read field；Definition 语义、descriptor provenance、ownership 或 preflight/admission 顺序变化须更新指纹并按新格式验证。
 
 1. 每个 Definition/admission 输入可由这些类型表达，没有 catch-all resource/config 字段。
 2. 七个角色的模型可见 Skill 集合精确等于分配集合，未分配 Skill 既不可列出也不可按名称加载；缺失或额外 global capability 不创建 identity/Session。

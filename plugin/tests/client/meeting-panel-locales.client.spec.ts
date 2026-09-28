@@ -81,7 +81,7 @@ describe("Meeting panel localized presentation", () => {
             )
         );
         expect(screen.getByRole("button", { name: "暂停会议" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "结束会议" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "异常取消会议" })).toBeTruthy();
         expect(screen.getByLabelText(`会议 ${summary.meetingId}`)).toBeTruthy();
 
         rerender(

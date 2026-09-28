@@ -52,7 +52,7 @@ const fixture = (terminal = false) => {
         meetingId: state.id,
         identityId: identity.id,
         sessionId: `session:${identity.id}`,
-        definition: { agentDefinitionId: "fixture", definitionVersion: "1" },
+        definition: { agentDefinitionId: "fixture" },
         sessionLabel: encodeMeetingIdentitySessionLabel({
             role: identity.roles[0] === "contributor" ? "participant" : identity.roles[0]!,
             meetingId: state.id,
@@ -127,7 +127,7 @@ const fixture = (terminal = false) => {
     const dispatcher = createMeetingArchiveDispatcher({
         repository: { recover, recordSessionOwnership },
         owner: { stop },
-        definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+        definitions: [{ agentDefinitionId: "fixture" }],
         application: { execute }
     } as never);
     const dispatch = (attempts = 1) =>

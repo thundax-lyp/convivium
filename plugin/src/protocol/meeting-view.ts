@@ -561,7 +561,6 @@ export const ArchiveViewSchema = z
                 displayName: text,
                 roles: z.array(role),
                 definitionId: id.optional(),
-                definitionVersion: text.optional(),
                 definitionHash: text.optional()
             })
         ),
@@ -599,7 +598,6 @@ export const ManagerCatalogViewSchema = z.object({
         z.object({
             candidateId: id,
             definitionId: id,
-            definitionVersion: text,
             displayName: text,
             availability: z.enum(["available", "unavailable"]),
             meetingRoles: z.array(role),

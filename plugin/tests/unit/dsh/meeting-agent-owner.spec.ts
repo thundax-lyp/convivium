@@ -73,7 +73,7 @@ const fixture = async () => {
         definition,
         binding: {
             agentDefinitionId: definition.agentDefinitionId,
-            definitionVersion: definition.definitionVersion,
+
             definitionHash: definitionHash(definition)
         },
         agentOptions: { provider: "host", model: "model" },

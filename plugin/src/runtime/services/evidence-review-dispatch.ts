@@ -182,9 +182,7 @@ const deliverReviewNotice = async (
 ): Promise<void> => {
     await input.authorize();
     const definition = dependencies.definitions.find(
-        (d) =>
-            d.agentDefinitionId === input.ownership.definition.agentDefinitionId &&
-            d.definitionVersion === input.ownership.definition.definitionVersion
+        (d) => d.agentDefinitionId === input.ownership.definition.agentDefinitionId
     );
     if (!definition) {
         retry("RECOVERY_UNAVAILABLE", false);

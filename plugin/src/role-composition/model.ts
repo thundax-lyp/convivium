@@ -33,14 +33,12 @@ export const abilityNames = [
 export type AbilityName = (typeof abilityNames)[number];
 const instruction = z.strictObject({
     roleDefinitionId: role,
-    version: z.string().regex(/^[0-9]+\.[0-9]+\.[0-9]+$/),
     sha256: z.string().regex(/^[a-f0-9]{64}$/)
 });
 export type AgentInstructionRef = z.infer<typeof instruction>;
 const definition = z
     .strictObject({
         agentDefinitionId: text,
-        definitionVersion: text,
         roleDefinitionId: role,
         displayName: text,
         summary: text,
@@ -69,7 +67,6 @@ export interface MeetingAgentDefinition extends Omit<
 
 export interface AgentDefinitionBinding {
     agentDefinitionId: string;
-    definitionVersion: string;
     definitionHash: string;
 }
 

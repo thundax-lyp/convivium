@@ -100,7 +100,6 @@ export const createMeetingStartCommand = (
                 .map(([identityKey, displayName, role]) => ({
                     identityKey,
                     definitionId: `convivium.${identityKey}`,
-                    definitionVersion: "2.0.0",
                     displayName,
                     roles: [role],
                     agendaResponsibilityIds: ["initial"],

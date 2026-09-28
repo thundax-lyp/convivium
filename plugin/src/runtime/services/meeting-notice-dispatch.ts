@@ -320,9 +320,7 @@ export const createMeetingNoticeDispatcher = (
         };
         const initial = await resolve();
         const definition = dependencies.definitions.find(
-            (d) =>
-                d.agentDefinitionId === initial.ownership.definition.agentDefinitionId &&
-                d.definitionVersion === initial.ownership.definition.definitionVersion
+            (d) => d.agentDefinitionId === initial.ownership.definition.agentDefinitionId
         );
         if (!definition) {
             throw new NoticeDispatchError("RECOVERY_UNAVAILABLE", true);

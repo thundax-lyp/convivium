@@ -34,7 +34,6 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "2.0.0",
         toolFilter: {
             allow: [
                 "skill",
@@ -43,6 +42,7 @@ it("publishes only the current contribution tools for Manager", () => {
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
                 "convivium_publish_round",
+                "convivium_end_meeting",
                 "convivium_recommend_identity"
             ].sort()
         }
@@ -50,7 +50,6 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
-        definitionVersion: "2.0.0",
         toolFilter: {
             allow: [
                 "skill",
@@ -65,6 +64,7 @@ it("publishes only the current contribution tools for Manager", () => {
         "convivium_open_round",
         "convivium_dispose_hand_raise",
         "convivium_publish_round",
+        "convivium_end_meeting",
         "convivium_run_review_worker",
         "convivium_submit_evidence_review",
         "convivium_recommend_identity"
@@ -77,10 +77,9 @@ it("publishes only the current contribution tools for Manager", () => {
                     roleDefinitionId !== "verification_reviewer"
             )
             .every(
-                ({ definitionVersion, toolFilter }) =>
-                    definitionVersion === "2.0.0" &&
+                ({ toolFilter }) =>
                     JSON.stringify(toolFilter) ===
-                        JSON.stringify({ deny: contributorDeniedTools.sort() })
+                    JSON.stringify({ deny: contributorDeniedTools.sort() })
             )
     ).toBe(true);
 
@@ -93,10 +92,7 @@ it("publishes only the current contribution tools for Manager", () => {
         "github_research_analyst",
         "arxiv_research_analyst"
     ].map((role) =>
-        readFileSync(
-            new URL(`../../config/agents/${role}/2.0.0/AGENTS.md`, import.meta.url),
-            "utf8"
-        )
+        readFileSync(new URL(`../../config/agents/${role}/AGENTS.md`, import.meta.url), "utf8")
     );
     expect(currentGuidance.every((guidance) => guidance.includes("convivium_read_meeting"))).toBe(
         true
