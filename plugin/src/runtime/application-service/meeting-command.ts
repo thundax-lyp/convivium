@@ -108,15 +108,15 @@ const rejected = (
     }
 });
 
-function sameCaller(left: CallerBinding, right: CallerBinding): boolean {
+const sameCaller = (left: CallerBinding, right: CallerBinding): boolean => {
     return (
         left.channel === right.channel &&
         left.principalId === right.principalId &&
         left.sessionBindingId === right.sessionBindingId
     );
-}
+};
 
-function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean {
+const authorizedRole = (action: MeetingAction["kind"], scope: ResolvedCallerScope): boolean => {
     if (
         [
             "activate_agenda",
@@ -164,13 +164,13 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
         return scope.role === "participant" || scope.role === "runtime";
     }
     return scope.role === "participant";
-}
+};
 
-function validScope(
+const validScope = (
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScope | undefined
-): scope is ResolvedCallerScope {
+): scope is ResolvedCallerScope => {
     if (
         !scope ||
         scope.meetingId !== command.meetingId ||
@@ -208,21 +208,21 @@ function validScope(
         context.caller.principalId === principal &&
         context.caller.sessionBindingId === undefined
     );
-}
+};
 
-function authorization(scope: ResolvedCallerScope): CommandAuthorization {
+const authorization = (scope: ResolvedCallerScope): CommandAuthorization => {
     return {
         callerBinding: scope.caller.channel + ":" + scope.caller.principalId,
         capabilityId:
             scope.ownership?.id === undefined ? scope.caller.principalId : scope.ownership.id
     };
-}
+};
 
-function outbox(
+const outbox = (
     requests: readonly object[],
     deps: MeetingCommandApplicationDependencies,
     now: number
-): OutboxInput[] {
+): OutboxInput[] => {
     return requests.map((request) => {
         const id = deps.ids.nextId("outbox");
         return {
@@ -233,9 +233,9 @@ function outbox(
             availableAt: now
         };
     });
-}
+};
 
-function mapRepositoryError(error: unknown): MeetingCommandResult {
+const mapRepositoryError = (error: unknown): MeetingCommandResult => {
     if (error instanceof TransitionRejected) {
         return rejected(error.code, error.message, error.targetKind, error.targetId);
     }
@@ -267,15 +267,15 @@ function mapRepositoryError(error: unknown): MeetingCommandResult {
         }
     })();
     return rejected(code, error.message);
-}
+};
 
 type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingState>["openMeeting"]>>;
 
-function actionAuthorizationFailure(
+const actionAuthorizationFailure = (
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScope
-): MeetingCommandResult | undefined {
+): MeetingCommandResult | undefined => {
     if (!authorizedRole(command.action.kind, scope)) {
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
     }
@@ -306,14 +306,14 @@ function actionAuthorizationFailure(
         return rejected("UNAUTHORIZED", "Archive materialization requires its runtime effect");
     }
     return undefined;
-}
+};
 
-async function prepareIdentityCatalog(
+const prepareIdentityCatalog = async (
     deps: MeetingCommandApplicationDependencies,
     repository: MeetingRepository,
     command: MeetingCommand,
     scope: ResolvedCallerScope
-): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> {
+): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> => {
     if (command.action.kind !== "recommend_identity") {
         return {};
     }
@@ -354,9 +354,9 @@ async function prepareIdentityCatalog(
         return { result: rejected("PRECONDITION_FAILED", "Catalog candidate does not match") };
     }
     return { definitionHash: candidate.definitionHash };
-}
+};
 
-function finalizeMeetingTransition(input: {
+const finalizeMeetingTransition = (input: {
     transition: CommandTransition;
     deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
@@ -368,7 +368,7 @@ function finalizeMeetingTransition(input: {
 }): {
     repositoryTransition: TransitionResult<MeetingCommandResult, MeetingState>;
     facts: readonly CommittedFactRecord<MeetingState>[];
-} {
+} => {
     const { transition, deps, command, now, factId, receiptId, actorId, snapshotVersion } = input;
     if (transition.kind === "rejected") {
         throw new TransitionRejected(
@@ -451,9 +451,9 @@ function finalizeMeetingTransition(input: {
             outbox: effects
         }
     };
-}
+};
 
-function createRepositoryCommand(input: {
+const createRepositoryCommand = (input: {
     deps: MeetingCommandApplicationDependencies;
     command: MeetingCommand;
     context: MeetingCommandExecutionContext;
@@ -461,7 +461,7 @@ function createRepositoryCommand(input: {
     now: number;
     catalogDefinitionHash?: string;
     committedFacts: readonly CommittedFactRecord<MeetingState>[];
-}): RepositoryCommand<MeetingCommandResult, MeetingState> {
+}): RepositoryCommand<MeetingCommandResult, MeetingState> => {
     const { deps, command, context, scope, now, catalogDefinitionHash, committedFacts } = input;
     const repositoryCommand: RepositoryCommand<MeetingCommandResult, MeetingState> = {
         requestId: command.requestId,
@@ -513,15 +513,15 @@ function createRepositoryCommand(input: {
         }
     };
     return repositoryCommand;
-}
+};
 
-async function executeCreateMeeting(
+const executeCreateMeeting = async (
     deps: MeetingCommandApplicationDependencies,
     command: CreateMeetingCommand,
     context: MeetingCommandExecutionContext,
     now: number,
     signal: AbortSignal
-): Promise<MeetingCommandResult> {
+): Promise<MeetingCommandResult> => {
     if (
         !["loopback_remote", "skill_invocation"].includes(context.caller.channel) ||
         context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
@@ -540,15 +540,15 @@ async function executeCreateMeeting(
     } catch (error) {
         return mapRepositoryError(error);
     }
-}
+};
 
-async function executeExistingMeeting(
+const executeExistingMeeting = async (
     deps: MeetingCommandApplicationDependencies,
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScope,
     now: number
-): Promise<MeetingCommandResult> {
+): Promise<MeetingCommandResult> => {
     const authorizationFailure = actionAuthorizationFailure(command, context, scope);
     if (authorizationFailure) {
         return authorizationFailure;
@@ -578,14 +578,14 @@ async function executeExistingMeeting(
         }
         return mapRepositoryError(error);
     }
-}
+};
 
-async function executeMeetingCommand(
+const executeMeetingCommand = async (
     deps: MeetingCommandApplicationDependencies,
     rawCommand: MeetingCommand,
     context: MeetingCommandExecutionContext,
     signal: AbortSignal
-): Promise<MeetingCommandResult> {
+): Promise<MeetingCommandResult> => {
     const parsed = MeetingCommandSchema.safeParse(rawCommand);
     if (!parsed.success) {
         return rejected("INVALID_ARGUMENT", "Invalid Meeting command");
@@ -604,12 +604,12 @@ async function executeMeetingCommand(
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
     }
     return executeExistingMeeting(deps, command, context, scope, now);
-}
+};
 
-export function createMeetingCommandApplication(
+export const createMeetingCommandApplication = (
     deps: MeetingCommandApplicationDependencies
-): MeetingCommandApplication {
+): MeetingCommandApplication => {
     return {
         execute: (command, context, signal) => executeMeetingCommand(deps, command, context, signal)
     };
-}
+};

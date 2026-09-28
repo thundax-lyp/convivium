@@ -59,7 +59,7 @@ const defaultSleep = (delayMs: number, signal: AbortSignal): Promise<void> =>
         );
     });
 
-function errorCode(error: unknown): string {
+const errorCode = (error: unknown): string => {
     if (error && typeof error === "object" && "code" in error) {
         const code = (error as { code?: unknown }).code;
         if (typeof code === "string" && code.length > 0) {
@@ -67,27 +67,27 @@ function errorCode(error: unknown): string {
         }
     }
     return "DSH_DISPATCH_FAILED";
-}
+};
 
-function isRetryable(error: unknown): boolean {
+const isRetryable = (error: unknown): boolean => {
     return !(
         error &&
         typeof error === "object" &&
         "retryable" in error &&
         (error as { retryable?: unknown }).retryable === false
     );
-}
+};
 
-function terminatesOnAttemptLimit(error: unknown): boolean {
+const terminatesOnAttemptLimit = (error: unknown): boolean => {
     return !(
         error &&
         typeof error === "object" &&
         "terminalOnAttemptLimit" in error &&
         (error as { terminalOnAttemptLimit?: unknown }).terminalOnAttemptLimit === false
     );
-}
+};
 
-function retryAvailableAt(error: unknown, fallback: number): number {
+const retryAvailableAt = (error: unknown, fallback: number): number => {
     if (error && typeof error === "object" && "retryAt" in error) {
         const retryAt = (error as { retryAt?: unknown }).retryAt;
         if (typeof retryAt === "number" && Number.isSafeInteger(retryAt) && retryAt > fallback) {
@@ -95,9 +95,9 @@ function retryAvailableAt(error: unknown, fallback: number): number {
         }
     }
     return fallback;
-}
+};
 
-export function createOutboxWorker(options: OutboxWorkerOptions) {
+export const createOutboxWorker = (options: OutboxWorkerOptions) => {
     if (options.batchSize < 1 || options.ttlMs < 1 || options.pollMs < 1) {
         throw new Error("Outbox worker batchSize, ttlMs and pollMs must be positive");
     }
@@ -109,7 +109,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     let wake: (() => void) | undefined;
     let running: Promise<void> | undefined;
 
-    async function runOnce(at = now()): Promise<OutboxPollResult> {
+    const runOnce = async (at = now()): Promise<OutboxPollResult> => {
         if (controller.signal.aborted) {
             return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
         }
@@ -170,9 +170,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
             }
         }
         return { claimed: items.length, delivered, retried, failed };
-    }
+    };
 
-    async function start(): Promise<void> {
+    const start = async (): Promise<void> => {
         running = (async () => {
             while (!controller.signal.aborted) {
                 try {
@@ -198,14 +198,14 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 throw error;
             }
         }
-    }
+    };
 
-    function stop(): void {
+    const stop = (): void => {
         controller.abort(new Error("Outbox worker stopped"));
         wake?.();
-    }
+    };
 
-    async function wait(): Promise<void> {
+    const wait = async (): Promise<void> => {
         try {
             await running;
         } catch (error) {
@@ -213,7 +213,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 throw error;
             }
         }
-    }
+    };
 
     return { runOnce, start, stop, wait, wake: () => wake?.(), signal: controller.signal };
-}
+};

@@ -38,10 +38,10 @@ export interface SubmitEvidenceInput {
     versionId: OpaqueId;
     now: number;
 }
-function validText(value: string) {
+const validText = (value: string) => {
     return value.trim().length > 0;
-}
-function validInput(evidence: EvidenceInput) {
+};
+const validInput = (evidence: EvidenceInput) => {
     if (![evidence.observation, evidence.interpretation, evidence.method].every(validText)) {
         return false;
     }
@@ -104,12 +104,12 @@ function validInput(evidence: EvidenceInput) {
             ) ||
                 !!material.reason?.trim())
     );
-}
+};
 
-export function submitEvidence(
+export const submitEvidence = (
     state: MeetingState,
     input: SubmitEvidenceInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         input.contributionId.trim() === "" ||
         input.authorId.trim() === "" ||
@@ -286,4 +286,4 @@ export function submitEvidence(
             }
         ]
     };
-}
+};

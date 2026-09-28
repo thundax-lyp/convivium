@@ -27,26 +27,30 @@ class EvidenceReviewDispatchError extends Error {
     }
 }
 
-function fail(code: string): never {
+const fail: (code: string) => never = (code) => {
     throw new EvidenceReviewDispatchError(code, false);
-}
+};
 
-function retry(code: string, terminalOnAttemptLimit = true, retryAt?: number): never {
+const retry: (code: string, terminalOnAttemptLimit?: boolean, retryAt?: number) => never = (
+    code,
+    terminalOnAttemptLimit = true,
+    retryAt
+) => {
     throw new EvidenceReviewDispatchError(code, true, terminalOnAttemptLimit, retryAt);
-}
+};
 
-function stringField(payload: Record<string, unknown>, key: string): string {
+const stringField = (payload: Record<string, unknown>, key: string): string => {
     const value = payload[key];
     if (typeof value !== "string" || value.trim() === "") {
         fail("REVIEW_PAYLOAD_INVALID");
     }
     return value;
-}
+};
 
-function claimReleaseReason(
+const claimReleaseReason = (
     error: unknown,
     signal: AbortSignal
-): "review_timeout" | "review_interrupted" | "dispatch_failed" {
+): "review_timeout" | "review_interrupted" | "dispatch_failed" => {
     if (signal.aborted) {
         return "review_interrupted";
     }
@@ -57,26 +61,26 @@ function claimReleaseReason(
     return detail.includes("timeout") || detail.includes("timed out") || detail.includes("deadline")
         ? "review_timeout"
         : "dispatch_failed";
-}
+};
 
-function findIdentity(
+const findIdentity = (
     state: MeetingState,
     identityId: string,
     role: "evidence_reviewer" | "contributor"
-): MeetingIdentity {
+): MeetingIdentity => {
     const identity = state.identities.find((candidate) => candidate.id === identityId);
     if (!identity || identity.roles.length !== 1 || identity.roles[0] !== role) {
         fail("REVIEW_VISIBILITY_INVALID");
     }
     return identity;
-}
+};
 
-function findOwnership(
+const findOwnership = (
     ownerships: readonly SessionOwnership[],
     identity: MeetingIdentity,
     meetingId: string,
     role: "evidence_reviewer" | "participant"
-): SessionOwnership {
+): SessionOwnership => {
     const matches = ownerships.filter(
         (candidate) =>
             candidate.id === identity.sessionOwnershipId &&
@@ -90,12 +94,12 @@ function findOwnership(
         fail("REVIEW_OWNERSHIP_INVALID");
     }
     return matches[0]!;
-}
+};
 
-function publicationEvidence(
+const publicationEvidence = (
     state: MeetingState,
     publication: Publication
-): readonly { version: EvidenceVersion; review: EvidenceReview }[] {
+): readonly { version: EvidenceVersion; review: EvidenceReview }[] => {
     if (publication.finalVersionIds.length !== publication.finalReviewIds.length) {
         fail("REVIEW_BASELINE_INVALID");
     }
@@ -111,9 +115,9 @@ function publicationEvidence(
         }
         return { version, review };
     });
-}
+};
 
-function pendingReviews(state: MeetingState) {
+const pendingReviews = (state: MeetingState) => {
     return state.evidencePackages.flatMap((evidencePackage) => {
         const version = evidencePackage.versions.find(
             (candidate) => candidate.id === evidencePackage.currentVersionId
@@ -149,7 +153,7 @@ function pendingReviews(state: MeetingState) {
         });
         return [{ version, baseline, roundId: round.id }];
     });
-}
+};
 
 interface DispatchEvidenceReviewInput {
     readonly outboxItem: OutboxItem;
@@ -204,15 +208,49 @@ const deliverReviewNotice = async (
     }
 };
 
-export function createEvidenceReviewDispatcher(
+const reviewItemRules = {
+    requiredDimensions: ["source", "credibility", "completeness", "support"],
+    allowedScores: [0, 1, 2, 3, "unable_to_assess"],
+    scoringRubric: {
+        0: "没有可用支持，或现有证据直接反驳该判断标准。",
+        1: "支持较弱，存在实质缺口、歧义或未经验证的假设。",
+        2: "对限定范围内的主张有充分支持，剩余限制明确且不会推翻结论。",
+        3: "存在强、直接且可独立核验的支持，没有实质性未解决缺口。",
+        unable_to_assess: "给定 immutable version 与允许使用的 baseline 不足以判断该标准。"
+    },
+    dimensionCriteria: {
+        source: "评估来源身份、出处、可检索性与保管链。",
+        credibility: "评估可信度、方法质量、交叉印证与已披露不确定性。",
+        completeness: "评估材料是否包含判断限定主张及其限制所需的信息。",
+        support: "评估引用材料是否无需未声明推断即可直接支持主张及其限定条件。"
+    },
+    workerOutputSchema: ReviewWorkerOutputSchema,
+    itemTemplate: {
+        versionId: "copy-pending-version-id",
+        scope: "填写非空审核范围",
+        dimensions: Object.fromEntries(
+            ["source", "credibility", "completeness", "support"].map((dimension) => [
+                dimension,
+                {
+                    score: "unable_to_assess",
+                    scope: "填写非空维度范围",
+                    reason: "填写非空判断理由",
+                    baselineEvidenceIds: []
+                }
+            ])
+        )
+    }
+};
+
+export const createEvidenceReviewDispatcher = (
     dependencies: EvidenceReviewDispatcherDependencies
-): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } {
-    async function failValidation(
+): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } => {
+    const failValidation = async (
         meetingId: string,
         roundId: string,
         claimId: string,
         reason: "review_timeout" | "review_interrupted" | "dispatch_failed"
-    ): Promise<void> {
+    ): Promise<void> => {
         for (let attempt = 0; attempt < 5; attempt += 1) {
             const recovered = await dependencies.repository.recover();
             if (!recovered.snapshot) {
@@ -252,7 +290,7 @@ export function createEvidenceReviewDispatcher(
             }
         }
         retry("REVIEW_CLAIM_RELEASE_FAILED");
-    }
+    };
 
     return {
         async dispatch({ outboxItem, signal }) {
@@ -437,53 +475,7 @@ export function createEvidenceReviewDispatcher(
                                     versionId: requestedVersionId,
                                     allowedBaselineEvidenceIds
                                 },
-                                reviewItemRules: {
-                                    requiredDimensions: [
-                                        "source",
-                                        "credibility",
-                                        "completeness",
-                                        "support"
-                                    ],
-                                    allowedScores: [0, 1, 2, 3, "unable_to_assess"],
-                                    scoringRubric: {
-                                        0: "没有可用支持，或现有证据直接反驳该判断标准。",
-                                        1: "支持较弱，存在实质缺口、歧义或未经验证的假设。",
-                                        2: "对限定范围内的主张有充分支持，剩余限制明确且不会推翻结论。",
-                                        3: "存在强、直接且可独立核验的支持，没有实质性未解决缺口。",
-                                        unable_to_assess:
-                                            "给定 immutable version 与允许使用的 baseline 不足以判断该标准。"
-                                    },
-                                    dimensionCriteria: {
-                                        source: "评估来源身份、出处、可检索性与保管链。",
-                                        credibility:
-                                            "评估可信度、方法质量、交叉印证与已披露不确定性。",
-                                        completeness:
-                                            "评估材料是否包含判断限定主张及其限制所需的信息。",
-                                        support:
-                                            "评估引用材料是否无需未声明推断即可直接支持主张及其限定条件。"
-                                    },
-                                    workerOutputSchema: ReviewWorkerOutputSchema,
-                                    itemTemplate: {
-                                        versionId: "copy-pending-version-id",
-                                        scope: "填写非空审核范围",
-                                        dimensions: Object.fromEntries(
-                                            [
-                                                "source",
-                                                "credibility",
-                                                "completeness",
-                                                "support"
-                                            ].map((dimension) => [
-                                                dimension,
-                                                {
-                                                    score: "unable_to_assess",
-                                                    scope: "填写非空维度范围",
-                                                    reason: "填写非空判断理由",
-                                                    baselineEvidenceIds: []
-                                                }
-                                            ])
-                                        )
-                                    }
-                                },
+                                reviewItemRules,
                                 submit: {
                                     tool: "convivium_submit_evidence_review",
                                     toolArguments: {
@@ -540,7 +532,7 @@ export function createEvidenceReviewDispatcher(
             retry("REVIEW_CLAIM_IN_PROGRESS", false, retainedClaim.expiresAt);
         }
     };
-}
+};
 
 interface ReviewDeliveryDispatcherDependencies extends Omit<
     EvidenceReviewDispatcherDependencies,
@@ -549,21 +541,21 @@ interface ReviewDeliveryDispatcherDependencies extends Omit<
     readonly application: MeetingCommandApplication;
 }
 
-function alreadySent(state: MeetingState, reviewId: string): boolean {
+const alreadySent = (state: MeetingState, reviewId: string): boolean => {
     return state.reviewDeliveries.some(
         (delivery) => delivery.reviewId === reviewId && delivery.status === "sent"
     );
-}
+};
 
-export function createReviewDeliveryDispatcher(
+export const createReviewDeliveryDispatcher = (
     dependencies: ReviewDeliveryDispatcherDependencies
-): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } {
-    async function record(
+): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } => {
+    const record = async (
         input: DispatchEvidenceReviewInput,
         status: "sent" | "failed",
         reviewId: string,
         failureReason?: string
-    ): Promise<void> {
+    ): Promise<void> => {
         const requestId = `review-delivery:${input.outboxItem.id}:${input.outboxItem.attempts}:${status}`;
         for (let recordAttempt = 0; recordAttempt < 5; recordAttempt += 1) {
             const recovered = await dependencies.repository.recover();
@@ -613,7 +605,7 @@ export function createReviewDeliveryDispatcher(
             return;
         }
         retry("REVIEW_DELIVERY_COMMIT_FAILED");
-    }
+    };
 
     return {
         async dispatch(input) {
@@ -719,4 +711,4 @@ export function createReviewDeliveryDispatcher(
             await record(input, "sent", reviewId);
         }
     };
-}
+};

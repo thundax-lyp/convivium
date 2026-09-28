@@ -2,9 +2,9 @@ import { z } from "zod";
 
 type RecordValue = Record<string, unknown>;
 
-function own(value: RecordValue, key: string): boolean {
+const own = (value: RecordValue, key: string): boolean => {
     return Object.prototype.hasOwnProperty.call(value, key);
-}
+};
 
 const opaqueIdSchema = z.string().refine((value) => value.trim().length > 0);
 const textSchema = z.string().refine((value) => value.trim().length > 0);
@@ -17,7 +17,7 @@ const uniqueIdArraySchema = z.array(opaqueIdSchema).superRefine((values, ctx) =>
         seen.add(value);
     });
 });
-function uniqueEntityArray<T extends z.ZodType<{ id: string }>>(schema: T) {
+const uniqueEntityArray = <T extends z.ZodType<{ id: string }>>(schema: T) => {
     return z.array(schema).superRefine((values, ctx) => {
         const seen = new Set<string>();
         values.forEach((value, index) => {
@@ -27,7 +27,7 @@ function uniqueEntityArray<T extends z.ZodType<{ id: string }>>(schema: T) {
             seen.add(value.id);
         });
     });
-}
+};
 const epochSchema = z.number().int().safe().nonnegative();
 const positiveIntegerSchema = z.number().int().safe().min(1);
 const integerSchema = z.number().int().safe().nonnegative();
@@ -43,7 +43,7 @@ const uniqueRoleArraySchema = z.array(roleSchema).superRefine((values, ctx) => {
 });
 const isAbsentOrDefined = (value: Record<string, unknown>, key: string) =>
     !own(value, key) || value[key] !== undefined;
-function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly string[]) {
+const withDefinedOptionals = <T extends z.ZodTypeAny>(schema: T, keys: readonly string[]) => {
     return schema.superRefine((value, ctx) => {
         for (const key of keys) {
             if (!isAbsentOrDefined(value as Record<string, unknown>, key)) {
@@ -51,7 +51,7 @@ function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly 
             }
         }
     });
-}
+};
 const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied"]);
 const constraintStatusSchema = z.enum(["pending", "satisfied", "violated"]);
 const agendaStatusSchema = z.enum([
@@ -823,6 +823,6 @@ const meetingStateSchema = withDefinedOptionals(
     ["termination", "archive", "continuation"]
 );
 
-export function parseMeetingStateShape(value: unknown) {
+export const parseMeetingStateShape = (value: unknown) => {
     return meetingStateSchema.safeParse(value);
-}
+};

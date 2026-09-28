@@ -366,7 +366,9 @@ describe("evidence review and delivery", () => {
             "validating"
         ]);
     });
+});
 
+describe("evidence review claim lifetime", () => {
     it("blocks a second claim until the first expires, then replaces it", () => {
         const state = evidenceState();
         const first = claimEvidenceReview(state, {

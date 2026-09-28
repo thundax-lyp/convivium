@@ -1,106 +1,47 @@
 import type {
-    EpochMs,
     MeetingState,
-    OpaqueId,
     Position,
     ProposalRevision,
-    DecisionCandidate
+    DecisionCandidate,
+    Decision,
+    Issue,
+    CompletionDeclaration,
+    CompletionFact
 } from "@/domain/meeting-state.js";
-import type { Decision } from "@/domain/meeting-state.js";
-import type { Issue } from "@/domain/meeting-state.js";
-import type { CompletionDeclaration, CompletionFact } from "@/domain/meeting-state.js";
+import type {
+    OutcomeActor,
+    RecordProposalRevisionInput,
+    RecordPositionInput,
+    RecordDecisionCandidateInput,
+    DecideInput,
+    ChangeDecisionInput,
+    DisposeRiskInput,
+    SubmitCompletionDeclarationInput,
+    RecordCompletionFactInput,
+    ChangeCompletionFactInput
+} from "./outcome-types.js";
+import {
+    evidenceOk,
+    requiredReviewOk,
+    currentRevision,
+    recalculateMeetingCompletion
+} from "./outcome-completion.js";
+export type {
+    OutcomeActor,
+    RecordProposalRevisionInput,
+    RecordPositionInput,
+    RecordDecisionCandidateInput,
+    DecideInput,
+    ChangeDecisionInput,
+    DisposeRiskInput,
+    SubmitCompletionDeclarationInput,
+    RecordCompletionFactInput,
+    ChangeCompletionFactInput
+} from "./outcome-types.js";
+export { recalculateMeetingCompletion, isObjectiveSatisfied } from "./outcome-completion.js";
 import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import type { MeetingTransitionResult } from "./result.js";
 import { rejectedTransition } from "./result.js";
-
-export type OutcomeActor =
-    { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
-export interface RecordProposalRevisionInput {
-    revisionId: OpaqueId;
-    proposalId: OpaqueId;
-    agendaId: OpaqueId;
-    summary: string;
-    body: string;
-    evidenceIds: readonly OpaqueId[];
-    supersedesRevisionId?: OpaqueId;
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export interface RecordPositionInput {
-    positionId: OpaqueId;
-    proposalRevisionId: OpaqueId;
-    stance: Position["stance"];
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export interface RecordDecisionCandidateInput {
-    candidateId: OpaqueId;
-    proposalRevisionId: OpaqueId;
-    outcome: DecisionCandidate["outcome"];
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    positionIds: readonly OpaqueId[];
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export interface DecideInput {
-    decisionId: OpaqueId;
-    candidateId: OpaqueId;
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export type ChangeDecisionInput = {
-    decisionId: OpaqueId;
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActor;
-    now: EpochMs;
-} & (
-    | { status: "superseded"; replacementCandidateId: OpaqueId; replacementDecisionId: OpaqueId }
-    | { status: "revoked"; replacementCandidateId?: never; replacementDecisionId?: never }
-);
-export interface DisposeRiskInput {
-    dispositionId: OpaqueId;
-    issueId: OpaqueId;
-    action: "accept" | "reject";
-    scope: string;
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export interface SubmitCompletionDeclarationInput {
-    declarationId: OpaqueId;
-    outputId: OpaqueId;
-    criterionId?: OpaqueId;
-    statement: string;
-    evidenceIds: readonly OpaqueId[];
-    taskId?: OpaqueId;
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export interface RecordCompletionFactInput {
-    factId: OpaqueId;
-    outputId: OpaqueId;
-    criterionId?: OpaqueId;
-    statement: string;
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    decisionIds: readonly OpaqueId[];
-    actor: OutcomeActor;
-    now: EpochMs;
-}
-export type ChangeCompletionFactInput = {
-    factId: OpaqueId;
-    rationale: string;
-    actor: OutcomeActor;
-    now: EpochMs;
-} & (
-    | { status: "superseded"; replacement: Omit<RecordCompletionFactInput, "actor" | "now"> }
-    | { status: "revoked"; replacement?: never }
-);
 
 const bad = (
     s: MeetingState,
@@ -136,113 +77,12 @@ const lifecycle = (s: MeetingState) =>
           : undefined;
 const identity = (s: MeetingState, actor: OutcomeActor) =>
     actor.kind === "identity" ? s.identities.find((i) => i.id === actor.id) : undefined;
-const published = (s: MeetingState) => new Set(s.publications.flatMap((p) => p.finalVersionIds));
-const evidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
-    validArray(ids) && ids.every((id) => published(s).has(id));
-const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
-    ids.every((id) => {
-        const owner = s.evidencePackages.find((p) => p.versions.some((v) => v.id === id));
-        if (!owner) {
-            return false;
-        }
-        const reviewer = s.identities.find((identity) => identity.id === s.evidenceReviewerId);
-        if (
-            reviewer === undefined ||
-            reviewer.id === owner.authorId ||
-            reviewer.roles.length !== 1 ||
-            reviewer.roles[0] !== "evidence_reviewer"
-        ) {
-            return false;
-        }
-        const reviews = s.reviews.filter((r) => r.versionId === id && r.reviewerId === reviewer.id);
-        if (
-            reviews.length !== 1 ||
-            !s.publications.some(
-                (p) => p.finalVersionIds.includes(id) && p.finalReviewIds.includes(reviews[0].id)
-            )
-        ) {
-            return false;
-        }
-        return s.reviewDeliveries.some((d) => d.reviewId === reviews[0].id && d.status === "sent");
-    });
-const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
-    evidenceOk(s, ids) && requiredReviewOk(s, ids);
-const currentRevision = (s: MeetingState, proposalId: string) =>
-    s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
 const actorRole = (s: MeetingState, actor: OutcomeActor, role: "contributor") =>
     actor.kind === "identity" &&
     s.identities.some((i) => i.id === actor.id && i.roles.includes(role));
 const captainActor = (_s: MeetingState, actor: OutcomeActor) => actor.kind === "captain_user";
 const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
     (s[key] as readonly { id: string }[]).some((x) => x.id === id);
-
-export const recalculateMeetingCompletion = (
-    state: MeetingState,
-    actorId: OpaqueId,
-    now: EpochMs
-): MeetingState => {
-    const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
-    const validDecision = (id: string) => {
-        const d = state.decisions.find((x) => x.id === id);
-        if (!d || d.status !== "accepted" || d.outcome !== "adopt") {
-            return false;
-        }
-        return current.has(d.proposalRevisionId);
-    };
-    const validFact = (f: CompletionFact) =>
-        f.status === "active" &&
-        f.decisionIds.every(validDecision) &&
-        factEvidenceOk(state, f.evidenceIds);
-    const facts = state.completionFacts.filter(validFact);
-    const outputs = state.objective.requiredOutputs.map(
-        (t) =>
-            ({
-                ...t,
-                status: facts.some((f) => f.outputId === t.id)
-                    ? "satisfied"
-                    : t.status === "satisfied"
-                      ? "pending"
-                      : t.status
-            }) as typeof t
-    );
-    const criteria = state.objective.acceptanceCriteria.map(
-        (t) =>
-            ({
-                ...t,
-                status: facts.some((f) => f.criterionId === t.id)
-                    ? "satisfied"
-                    : t.status === "satisfied"
-                      ? "pending"
-                      : t.status
-            }) as typeof t
-    );
-    const objective = {
-        ...state.objective,
-        requiredOutputs: outputs,
-        acceptanceCriteria: criteria
-    };
-    const satisfied =
-        outputs.every((t) => t.status === "satisfied") &&
-        criteria.every((t) => t.status === "satisfied") &&
-        state.objective.hardConstraints.every((t) => t.status === "satisfied") &&
-        !state.issues.some((i) => i.blocking);
-    const enteringConverging = satisfied && state.lifecycle.status === "running";
-    const lifecycle = enteringConverging
-        ? {
-              ...state.lifecycle,
-              status: "converging" as const,
-              changedAt: now,
-              changedBy: actorId,
-              reason: "objective_satisfied"
-          }
-        : state.lifecycle;
-    return {
-        ...state,
-        objective,
-        lifecycle,
-        ...(enteringConverging ? { pendingHandRaises: [], opportunityRequests: [] } : {})
-    };
-};
 
 export const recordProposalRevision = (
     state: MeetingState,
@@ -1127,17 +967,4 @@ export const changeCompletionFact = (
         ],
         effectRequests: []
     };
-};
-export const isObjectiveSatisfied = (state: MeetingState): boolean => {
-    const recalculated = recalculateMeetingCompletion(
-        { ...state, lifecycle: { ...state.lifecycle, status: "paused" } },
-        state.lifecycle.changedBy,
-        state.lifecycle.changedAt
-    );
-    return (
-        recalculated.objective.requiredOutputs.every((t) => t.status === "satisfied") &&
-        recalculated.objective.acceptanceCriteria.every((t) => t.status === "satisfied") &&
-        recalculated.objective.hardConstraints.every((t) => t.status === "satisfied") &&
-        !state.issues.some((i) => i.blocking)
-    );
 };

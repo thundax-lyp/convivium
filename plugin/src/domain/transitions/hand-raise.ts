@@ -20,25 +20,25 @@ const terminal = new Set([
     "closed"
 ]);
 
-function reservedFormalMessages(state: MeetingState): number {
+const reservedFormalMessages = (state: MeetingState): number => {
     return state.rounds
         .filter((round) => round.status === "open")
         .reduce((total, round) => total + round.contributionIds.length, 0);
-}
+};
 
-function managerFor(state: MeetingState, agendaId: OpaqueId) {
+const managerFor = (state: MeetingState, agendaId: OpaqueId) => {
     return state.identities.find(
         (identity) =>
             identity.roles.includes("manager") &&
             (identity.agendaResponsibilityIds.length === 0 ||
                 identity.agendaResponsibilityIds.includes(agendaId))
     );
-}
-function validTime(now: number) {
+};
+const validTime = (now: number) => {
     return Number.isSafeInteger(now) && now >= 0;
-}
+};
 
-export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransitionResult {
+export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransitionResult => {
     if (
         input.roundId.trim() === "" ||
         input.contributorId.trim() === "" ||
@@ -136,12 +136,12 @@ export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransi
             }
         ]
     };
-}
+};
 
-export function disposeHandRaise(
+export const disposeHandRaise = (
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         input.roundId.trim() === "" ||
         input.contributorId.trim() === "" ||
@@ -259,4 +259,4 @@ export function disposeHandRaise(
             }
         ]
     };
-}
+};

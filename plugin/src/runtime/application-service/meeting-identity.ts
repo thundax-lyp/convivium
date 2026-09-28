@@ -25,9 +25,9 @@ export interface MeetingIdentityEffectHandlerDependencies {
     readonly cleanupProvisioned: (recommendationId: string) => Promise<void>;
 }
 
-export function createMeetingIdentityEffectHandler(
+export const createMeetingIdentityEffectHandler = (
     dependencies: MeetingIdentityEffectHandlerDependencies
-): { dispatch(outboxItem: OutboxItem, signal: AbortSignal): Promise<void> } {
+): { dispatch(outboxItem: OutboxItem, signal: AbortSignal): Promise<void> } => {
     return {
         async dispatch(outboxItem, signal) {
             if (
@@ -144,4 +144,4 @@ export function createMeetingIdentityEffectHandler(
             }
         }
     };
-}
+};

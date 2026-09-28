@@ -8,10 +8,10 @@ export interface MeetingCommandRecoveryDependencies {
     readonly wakeOutbox?: MeetingOutboxWakeup["wake"];
 }
 
-export async function recoverMeetingCommands(
+export const recoverMeetingCommands = async (
     repositoryOrDependencies:
         MeetingRepositoryPort<MeetingState> | MeetingCommandRecoveryDependencies
-): Promise<RecoveryResult<MeetingState>> {
+): Promise<RecoveryResult<MeetingState>> => {
     const dependencies =
         "repository" in repositoryOrDependencies
             ? repositoryOrDependencies
@@ -21,4 +21,4 @@ export async function recoverMeetingCommands(
         dependencies.wakeOutbox?.();
     }
     return recovered;
-}
+};

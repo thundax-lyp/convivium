@@ -23,7 +23,7 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     ])
 );
 const dangerousKeys = new Set(["__proto__", "prototype", "constructor"]);
-function safeRecord<T>(valueSchema: z.ZodType<T>): z.ZodType<Record<string, T>> {
+const safeRecord = <T>(valueSchema: z.ZodType<T>): z.ZodType<Record<string, T>> => {
     return z.preprocess(
         (value) =>
             value &&
@@ -40,7 +40,7 @@ function safeRecord<T>(valueSchema: z.ZodType<T>): z.ZodType<Record<string, T>> 
             return output;
         })
     );
-}
+};
 export const JsonObjectSchema: z.ZodType<JsonObject> = safeRecord(JsonValueSchema);
 
 const meetingStateTransport: z.ZodType<JsonObject> = JsonObjectSchema;

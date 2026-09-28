@@ -9,7 +9,7 @@ type Input = {
     reason: string;
     now: number;
 };
-export function closeContribution(state: MeetingState, input: Input): MeetingTransitionResult {
+export const closeContribution = (state: MeetingState, input: Input): MeetingTransitionResult => {
     if (
         !input.contributionId.trim() ||
         !input.actorId.trim() ||
@@ -123,4 +123,4 @@ export function closeContribution(state: MeetingState, input: Input): MeetingTra
         relatedIds: [contribution.id],
         effectRequests: roundReadyNotice(state, next, contribution.roundId)
     };
-}
+};

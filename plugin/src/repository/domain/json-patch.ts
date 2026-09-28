@@ -13,7 +13,7 @@ export type JsonPatchOperation =
       };
 
 const dangerous = new Set(["__proto__", "prototype", "constructor"]);
-function jsonEqual(a: JsonValue, b: JsonValue): boolean {
+const jsonEqual = (a: JsonValue, b: JsonValue): boolean => {
     if (Object.is(a, b)) {
         return true;
     }
@@ -36,8 +36,8 @@ function jsonEqual(a: JsonValue, b: JsonValue): boolean {
         );
     }
     return false;
-}
-function clone(value: JsonValue): JsonValue {
+};
+const clone = (value: JsonValue): JsonValue => {
     if (Array.isArray(value)) {
         return value.map(clone);
     }
@@ -52,9 +52,9 @@ function clone(value: JsonValue): JsonValue {
         return result;
     }
     return value;
-}
+};
 
-export function diff(previous: JsonValue, next: JsonValue): JsonPatchOperation[] {
+export const diff = (previous: JsonValue, next: JsonValue): JsonPatchOperation[] => {
     const operations: JsonPatchOperation[] = [];
     const walk = (a: JsonValue, b: JsonValue, path: JsonPath): void => {
         if (Array.isArray(a) && Array.isArray(b)) {
@@ -116,9 +116,9 @@ export function diff(previous: JsonValue, next: JsonValue): JsonPatchOperation[]
     };
     walk(previous, next, []);
     return operations;
-}
+};
 
-function readPath(root: JsonValue, path: JsonPath): JsonValue {
+const readPath = (root: JsonValue, path: JsonPath): JsonValue => {
     let current = root;
     for (const part of path) {
         if (Array.isArray(current)) {
@@ -145,9 +145,9 @@ function readPath(root: JsonValue, path: JsonPath): JsonValue {
         }
     }
     return current;
-}
+};
 
-function locate(root: JsonValue, path: JsonPath): { parent: JsonValue; key: string | number } {
+const locate = (root: JsonValue, path: JsonPath): { parent: JsonValue; key: string | number } => {
     if (!path.length) {
         throw new Error("root path has no parent");
     }
@@ -166,9 +166,12 @@ function locate(root: JsonValue, path: JsonPath): { parent: JsonValue; key: stri
         throw new Error("invalid object path");
     }
     return { parent, key };
-}
+};
 
-export function applyPatch(input: JsonValue, operations: readonly JsonPatchOperation[]): JsonValue {
+export const applyPatch = (
+    input: JsonValue,
+    operations: readonly JsonPatchOperation[]
+): JsonValue => {
     let root = clone(input);
     for (const operation of operations) {
         if (!operation.path.length && operation.op === "set") {
@@ -221,4 +224,4 @@ export function applyPatch(input: JsonValue, operations: readonly JsonPatchOpera
         }
     }
     return root;
-}
+};

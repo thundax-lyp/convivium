@@ -38,7 +38,7 @@ import type { MeetingIdentityProvisionDependencies } from "./services/meeting-id
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 
-export function createTargetMeetingEffectDispatcher(dependencies: {
+export const createTargetMeetingEffectDispatcher = (dependencies: {
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
     readonly notice: {
         dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
@@ -52,7 +52,7 @@ export function createTargetMeetingEffectDispatcher(dependencies: {
     readonly reviewDelivery: {
         dispatch(input: { outboxItem: OutboxItem; signal: AbortSignal }): Promise<void>;
     };
-}): (item: OutboxItem, signal: AbortSignal) => Promise<void> {
+}): ((item: OutboxItem, signal: AbortSignal) => Promise<void>) => {
     return async (item, signal) => {
         const payload = item.payload as { kind?: string; noticeKind?: string };
         if (payload.kind === "identity_provision") {
@@ -84,7 +84,7 @@ export function createTargetMeetingEffectDispatcher(dependencies: {
         }
         throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
     };
-}
+};
 
 export const recoverTargetMeetingDeliveries = async (dependencies: {
     readonly registry: Pick<DomainRepositoryRegistry<MeetingState>, "listMeetings" | "openMeeting">;
@@ -335,7 +335,7 @@ const createIdentityProvisionOwner = (dependencies: {
 const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const identityReaders = new WeakMap<object, MeetingIdentityReader>();
-function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">): void {
+const assertTargetLifecycle = (config: Config, ctx: Pick<Context, "subagents">): void => {
     if (dshAgentPackage.version !== "0.1.2-rc.1") {
         throw new Error("Convivium requires DSH version 0.1.2-rc.1.");
     }
@@ -360,25 +360,25 @@ function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">):
     ) {
         throw new Error("Convivium requires the exact seven packaged Meeting role definitions.");
     }
-}
+};
 
-export function getMeetingCommandApplication(owner: object): MeetingCommandApplication {
+export const getMeetingCommandApplication = (owner: object): MeetingCommandApplication => {
     const application = applications.get(owner);
     if (!application) {
         throw new Error("Target Meeting application is not active.");
     }
     return application;
-}
+};
 
-export function getLocalMeetingWebRuntime(
+export const getLocalMeetingWebRuntime = (
     owner: object
-): LocalMeetingWebRuntime & MeetingOwnershipLookup {
+): LocalMeetingWebRuntime & MeetingOwnershipLookup => {
     const runtime = runtimes.get(owner);
     if (!runtime) {
         throw new Error("Target Meeting runtime is not active.");
     }
     return runtime;
-}
+};
 
 export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader => {
     const reader = identityReaders.get(owner);
@@ -505,79 +505,16 @@ const stopMeetingDelivery = async (
     pollers.delete(meetingId);
 };
 
-export const activateTargetMeetingApplication = async (
-    ctx: Context,
-    config: Config,
-    options: {
-        rolePackageRoot: string;
-        onBeforeRecovery?: (services: {
-            runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
-            reader: MeetingIdentityReader;
-            application: MeetingCommandApplication;
-        }) => void | Promise<void>;
-    }
-): Promise<() => Promise<void>> => {
-    const { rolePackageRoot } = options;
-    if (!rolePackageRoot) {
-        throw new Error("Meeting role package root is required.");
-    }
-    assertTargetLifecycle(config, ctx);
-    let sequence = 0;
-    const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
-    const registry = await DomainRepositoryRegistry.open<MeetingState>({
-        storageDomain: ctx.storageDomain,
-        codec: { encode: encodeMeetingState, decode: decodeMeetingState },
-        authorizationValidator: {
-            validateCreate: () => undefined,
-            validateCommand: () => undefined
-        },
-        onProjectionCommitted: (snapshot) => {
-            for (const listener of refreshListeners) {
-                listener(snapshot.meetingId, snapshot.version);
-            }
-        }
-    });
-    const definitions = parseAgentDefinitions(config.agentDefinitions);
-    const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
-    const catalog: RoleCatalogPort = {
-        readSnapshot: async (request) => {
-            const producer = (ctx as Context & { get?: (key: string) => unknown }).get?.(
-                "convivium.agentCatalog"
-            ) as RoleCatalogPort | undefined;
-            return producer
-                ? producer.readSnapshot(request)
-                : {
-                      kind: "rejected",
-                      error: {
-                          code: "CATALOG_UNAVAILABLE",
-                          message: "Meeting role catalog is unavailable"
-                      }
-                  };
-        }
-    };
-    const resolveCallerScope = createCallerScopeResolver(registry);
-    const agentOwner = createMeetingAgentOwner({ ctx, packageRoot: rolePackageRoot });
-    const application = createMeetingCommandApplication({
-        registry,
-        ids,
-        clock: { now: Date.now },
-        resolveCallerScope,
-        catalog,
-        creation: createMeetingCreationCoordinator({
-            registry,
-            definitions,
-            agentModelOverrides: config.agentModelOverrides,
-            initialContributorRoleIds: config.initialContributorRoleIds,
-            ctx,
-            owner: agentOwner,
-            packageRoot: rolePackageRoot,
-            cwd: process.cwd()
-        })
-    });
-    const identityReader = createMeetingIdentityReader({
-        registry,
-        catalog
-    });
+const createDeliveryManager = (input: {
+    ctx: Context;
+    config: Config;
+    rolePackageRoot: string;
+    registry: DomainRepositoryRegistry<MeetingState>;
+    agentOwner: ReturnType<typeof createMeetingAgentOwner>;
+    definitions: ReturnType<typeof parseAgentDefinitions>;
+    application: MeetingCommandApplication;
+}) => {
+    const { ctx, config, rolePackageRoot, registry, agentOwner, definitions, application } = input;
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const deadlinePollers = new Map<string, { stop(): Promise<void> }>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {
@@ -689,6 +626,92 @@ export const activateTargetMeetingApplication = async (
     };
     const stopDelivery = (meetingId: string) =>
         stopMeetingDelivery(meetingId, deliveryWorkers, deadlinePollers);
+    return { deliveryWorkers, deadlinePollers, ensureDelivery, stopDelivery };
+};
+
+export const activateTargetMeetingApplication = async (
+    ctx: Context,
+    config: Config,
+    options: {
+        rolePackageRoot: string;
+        onBeforeRecovery?: (services: {
+            runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
+            reader: MeetingIdentityReader;
+            application: MeetingCommandApplication;
+        }) => void | Promise<void>;
+    }
+): Promise<() => Promise<void>> => {
+    const { rolePackageRoot } = options;
+    if (!rolePackageRoot) {
+        throw new Error("Meeting role package root is required.");
+    }
+    assertTargetLifecycle(config, ctx);
+    let sequence = 0;
+    const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
+    const registry = await DomainRepositoryRegistry.open<MeetingState>({
+        storageDomain: ctx.storageDomain,
+        codec: { encode: encodeMeetingState, decode: decodeMeetingState },
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        },
+        onProjectionCommitted: (snapshot) => {
+            for (const listener of refreshListeners) {
+                listener(snapshot.meetingId, snapshot.version);
+            }
+        }
+    });
+    const definitions = parseAgentDefinitions(config.agentDefinitions);
+    const ids = { nextId: (kind: string) => `${kind}-${++sequence}-${randomUUID()}` };
+    const catalog: RoleCatalogPort = {
+        readSnapshot: async (request) => {
+            const producer = (ctx as Context & { get?: (key: string) => unknown }).get?.(
+                "convivium.agentCatalog"
+            ) as RoleCatalogPort | undefined;
+            return producer
+                ? producer.readSnapshot(request)
+                : {
+                      kind: "rejected",
+                      error: {
+                          code: "CATALOG_UNAVAILABLE",
+                          message: "Meeting role catalog is unavailable"
+                      }
+                  };
+        }
+    };
+    const resolveCallerScope = createCallerScopeResolver(registry);
+    const agentOwner = createMeetingAgentOwner({ ctx, packageRoot: rolePackageRoot });
+    const application = createMeetingCommandApplication({
+        registry,
+        ids,
+        clock: { now: Date.now },
+        resolveCallerScope,
+        catalog,
+        creation: createMeetingCreationCoordinator({
+            registry,
+            definitions,
+            agentModelOverrides: config.agentModelOverrides,
+            initialContributorRoleIds: config.initialContributorRoleIds,
+            ctx,
+            owner: agentOwner,
+            packageRoot: rolePackageRoot,
+            cwd: process.cwd()
+        })
+    });
+    const identityReader = createMeetingIdentityReader({
+        registry,
+        catalog
+    });
+    const { deliveryWorkers, deadlinePollers, ensureDelivery, stopDelivery } =
+        createDeliveryManager({
+            ctx,
+            config,
+            rolePackageRoot,
+            registry,
+            agentOwner,
+            definitions,
+            application
+        });
     const reconcile = (meetingId?: string) =>
         recoverTargetMeetingDeliveries({
             registry,

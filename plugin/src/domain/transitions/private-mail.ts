@@ -52,14 +52,17 @@ const stateCheck = (s: MeetingState) => {
         ? reject(s, "INVALID_ARGUMENT", "invalid meeting state")
         : undefined;
 };
-function busy(s: MeetingState, id: string, except?: string) {
+const busy = (s: MeetingState, id: string, except?: string) => {
     return (
         s.privateMails.some(
             (m) => m.id !== except && m.recipientId === id && m.status === "processing"
         ) || s.contributions.some((c) => c.contributorId === id && !terminal.has(c.status))
     );
-}
-export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): MeetingTransitionResult {
+};
+export const sendPrivateMail = (
+    s: MeetingState,
+    i: SendPrivateMailInput
+): MeetingTransitionResult => {
     const bad = stateCheck(s);
     if (bad) {
         return bad;
@@ -146,11 +149,11 @@ export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): Meeti
             }
         ]
     };
-}
-export function startPrivateMail(
+};
+export const startPrivateMail = (
     s: MeetingState,
     i: StartPrivateMailInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const bad = stateCheck(s);
     if (bad) {
         return bad;
@@ -201,14 +204,14 @@ export function startPrivateMail(
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     }
     return { kind: "accepted", state: next, relatedIds: [m.id, ...c], effectRequests: [] };
-}
-function finish(
+};
+const finish = (
     s: MeetingState,
     i: { mailId: string; now: number },
     status: "completed" | "cancelled" | "timed_out",
     reason: string,
     actor?: string
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     const bad = stateCheck(s);
     if (bad) {
         return bad;
@@ -290,14 +293,14 @@ function finish(
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
     }
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
-}
-export function completePrivateMail(s: MeetingState, i: CompletePrivateMailInput) {
+};
+export const completePrivateMail = (s: MeetingState, i: CompletePrivateMailInput) => {
     return finish(s, i, "completed", "completed", i?.recipientId);
-}
-export function cancelPrivateMail(s: MeetingState, i: CancelPrivateMailInput) {
+};
+export const cancelPrivateMail = (s: MeetingState, i: CancelPrivateMailInput) => {
     return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
-}
-export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
+};
+export const expirePrivateMail = (s: MeetingState, i: ExpirePrivateMailInput) => {
     const bad = stateCheck(s);
     if (bad) {
         return bad;
@@ -316,4 +319,4 @@ export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
         return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
     }
     return finish(s, i, "timed_out", i.reason);
-}
+};

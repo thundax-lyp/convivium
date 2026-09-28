@@ -19,13 +19,16 @@ export interface MeetingDiagnostic {
 export type DiagnosticSink = (record: MeetingDiagnostic) => void;
 
 /** Diagnostics are a detached, allowlisted projection, never a commit participant. */
-export function emitDiagnostic(sink: DiagnosticSink | undefined, record: MeetingDiagnostic): void {
+export const emitDiagnostic = (
+    sink: DiagnosticSink | undefined,
+    record: MeetingDiagnostic
+): void => {
     try {
         sink?.(record);
     } catch {
         /* A logging failure cannot change committed facts. */
     }
-}
+};
 
 type DiagnosticBase = Pick<
     MeetingDiagnostic,
@@ -33,22 +36,22 @@ type DiagnosticBase = Pick<
 >;
 type DurableOutboxItem = PersistenceProjection["outbox"][string];
 
-function targetLifecycle(value: unknown): string | undefined {
+const targetLifecycle = (value: unknown): string | undefined => {
     const isRecord = (item: unknown): item is Record<string, unknown> =>
         typeof item === "object" && item !== null && !Array.isArray(item);
     if (!isRecord(value) || !isRecord(value.lifecycle)) {
         return undefined;
     }
     return typeof value.lifecycle.status === "string" ? value.lifecycle.status : undefined;
-}
+};
 
-function emitOutboxDiagnostics(
+const emitOutboxDiagnostics = (
     sink: DiagnosticSink,
     base: DiagnosticBase,
     item: DurableOutboxItem,
     old: DurableOutboxItem | undefined,
     now: number
-): void {
+): void => {
     const identity = {
         deliveryId: item.deliveryId,
         outboxKind: item.kind,
@@ -76,16 +79,16 @@ function emitOutboxDiagnostics(
             metrics: { deliveryRetries: 1 }
         });
     }
-}
+};
 
-export function observeCommit(
+export const observeCommit = (
     sink: DiagnosticSink | undefined,
     meetingId: string,
     before: PersistenceProjection | undefined,
     after: PersistenceProjection,
     now: number,
     commandKind?: string
-): void {
+): void => {
     if (sink === undefined || after.snapshot === null) {
         return;
     }
@@ -114,4 +117,4 @@ export function observeCommit(
     for (const [id, item] of Object.entries(after.outbox)) {
         emitOutboxDiagnostics(sink, base, item, before?.outbox[id], now);
     }
-}
+};

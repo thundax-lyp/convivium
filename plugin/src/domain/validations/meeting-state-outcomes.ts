@@ -13,11 +13,11 @@ import {
 
 const fail = (path: string) => path;
 
-function unsatisfiedIds(targets: readonly { id: string; status: string }[]): Set<string> {
+const unsatisfiedIds = (targets: readonly { id: string; status: string }[]): Set<string> => {
     return new Set(targets.filter(({ status }) => status !== "satisfied").map(({ id }) => id));
-}
+};
 
-function validateQuestions(parsedState: MeetingState): string | undefined {
+const validateQuestions = (parsedState: MeetingState): string | undefined => {
     const { objective } = parsedState;
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
@@ -76,9 +76,9 @@ function validateQuestions(parsedState: MeetingState): string | undefined {
         return fail("$.limits.responseDeadlineMs");
     }
     return undefined;
-}
+};
 
-function validateIssues(parsedState: MeetingState): string | undefined {
+const validateIssues = (parsedState: MeetingState): string | undefined => {
     const { objective } = parsedState;
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
@@ -170,17 +170,17 @@ function validateIssues(parsedState: MeetingState): string | undefined {
         }
     }
     return undefined;
-}
+};
 
-function proposalGroups(state: MeetingState): Map<string, { ordinal: number; id: string }> {
+const proposalGroups = (state: MeetingState): Map<string, { ordinal: number; id: string }> => {
     const groups = new Map<string, { ordinal: number; id: string }>();
     for (const proposal of state.proposals) {
         groups.set(proposal.proposalId, { ordinal: proposal.ordinal, id: proposal.id });
     }
     return groups;
-}
+};
 
-function validatePlansRiskAndDeclarations(parsedState: MeetingState): string | undefined {
+const validatePlansRiskAndDeclarations = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
     const agendaIds = ids(parsedState.agenda);
@@ -267,9 +267,9 @@ function validatePlansRiskAndDeclarations(parsedState: MeetingState): string | u
         }
     }
     return undefined;
-}
+};
 
-function validateCompletionFacts(parsedState: MeetingState): string | undefined {
+const validateCompletionFacts = (parsedState: MeetingState): string | undefined => {
     const publishedVersionIds = new Set(
         parsedState.publications.flatMap((item) => item.finalVersionIds)
     );
@@ -318,9 +318,9 @@ function validateCompletionFacts(parsedState: MeetingState): string | undefined 
         }
     }
     return undefined;
-}
+};
 
-function validateEffectiveCompletion(parsedState: MeetingState): string | undefined {
+const validateEffectiveCompletion = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const publications = parsedState.publications;
     const proposals = parsedState.proposals;
@@ -400,9 +400,9 @@ function validateEffectiveCompletion(parsedState: MeetingState): string | undefi
         }
     }
     return undefined;
-}
+};
 
-function validateTasks(parsedState: MeetingState): string | undefined {
+const validateTasks = (parsedState: MeetingState): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
     const publicationIds = ids(parsedState.publications);
@@ -438,15 +438,15 @@ function validateTasks(parsedState: MeetingState): string | undefined {
         }
     }
     return undefined;
-}
+};
 
 type PrivateMail = MeetingState["privateMails"][number];
 
-function validateMailReferences(
+const validateMailReferences = (
     parsedState: MeetingState,
     item: PrivateMail,
     index: number
-): string | undefined {
+): string | undefined => {
     const identityIds = ids(parsedState.identities);
     const agendaIds = ids(parsedState.agenda);
     const publications = parsedState.publications;
@@ -493,9 +493,9 @@ function validateMailReferences(
         return fail(`${path}.deadlineAt`);
     }
     return undefined;
-}
+};
 
-function validateMailStatus(item: PrivateMail, index: number): string | undefined {
+const validateMailStatus = (item: PrivateMail, index: number): string | undefined => {
     const path = `$.privateMails[${index}]`;
     if (
         item.status === "queued" &&
@@ -552,13 +552,13 @@ function validateMailStatus(item: PrivateMail, index: number): string | undefine
         );
     }
     return undefined;
-}
+};
 
-function validateMailTiming(
+const validateMailTiming = (
     parsedState: MeetingState,
     item: PrivateMail,
     index: number
-): string | undefined {
+): string | undefined => {
     const publications = parsedState.publications;
     const path = `$.privateMails[${index}]`;
     if (
@@ -593,13 +593,13 @@ function validateMailTiming(
         }
     }
     return undefined;
-}
+};
 
-function validateMailAvailability(
+const validateMailAvailability = (
     parsedState: MeetingState,
     item: PrivateMail,
     index: number
-): string | undefined {
+): string | undefined => {
     const mails = parsedState.privateMails;
     const path = `$.privateMails[${index}]`;
     const i = index;
@@ -627,9 +627,9 @@ function validateMailAvailability(
         return fail(`${path}.recipientId`);
     }
     return undefined;
-}
+};
 
-function validatePrivateMail(parsedState: MeetingState): string | undefined {
+const validatePrivateMail = (parsedState: MeetingState): string | undefined => {
     for (let i = 0; i < parsedState.privateMails.length; i++) {
         const item = parsedState.privateMails[i];
         const invalidPath =
@@ -642,12 +642,12 @@ function validatePrivateMail(parsedState: MeetingState): string | undefined {
         }
     }
     return undefined;
-}
+};
 
-function validateTerminalRecords(
+const validateTerminalRecords = (
     value: RecordValue,
     parsedState: MeetingState
-): string | undefined {
+): string | undefined => {
     const { lifecycle } = parsedState;
     const decisionIds = ids(parsedState.decisions);
     const completionFactIds = ids(parsedState.completionFacts);
@@ -779,12 +779,12 @@ function validateTerminalRecords(
         return fail("$.archive.status");
     }
     return undefined;
-}
+};
 
-export function validateMeetingStateOutcomes(
+export const validateMeetingStateOutcomes = (
     value: RecordValue,
     parsedState: MeetingState
-): string | undefined {
+): string | undefined => {
     return (
         validateQuestions(parsedState) ??
         validateIssues(parsedState) ??
@@ -795,4 +795,4 @@ export function validateMeetingStateOutcomes(
         validatePrivateMail(parsedState) ??
         validateTerminalRecords(value, parsedState)
     );
-}
+};

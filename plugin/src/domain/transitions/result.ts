@@ -100,12 +100,12 @@ export type MeetingTransitionResult =
           };
       };
 
-export function rejectedTransition(
+export const rejectedTransition = (
     state: MeetingState,
     code: MeetingDomainErrorCode,
     message: string,
     targetId?: OpaqueId
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     return {
         kind: "rejected",
         state,
@@ -113,4 +113,4 @@ export function rejectedTransition(
         effectRequests: [],
         error: { code, message, ...(targetId === undefined ? {} : { targetId }) }
     };
-}
+};

@@ -13,11 +13,11 @@ export type MeetingStateValidationResult =
     | { kind: "valid"; state: MeetingState }
     | { kind: "invalid"; code: "INVALID_ARGUMENT"; path: string };
 
-function fail(path: string): MeetingStateValidationResult {
+const fail = (path: string): MeetingStateValidationResult => {
     return { kind: "invalid", code: "INVALID_ARGUMENT", path };
-}
+};
 
-function legacyCompatibilityFieldPath(value: unknown, path = "$"): string | undefined {
+const legacyCompatibilityFieldPath = (value: unknown, path = "$"): string | undefined => {
     if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) {
             const result = legacyCompatibilityFieldPath(value[i], path + "[" + i + "]");
@@ -42,9 +42,9 @@ function legacyCompatibilityFieldPath(value: unknown, path = "$"): string | unde
         }
     }
     return undefined;
-}
+};
 
-function validateRawMeetingState(value: RecordValue): string | undefined {
+const validateRawMeetingState = (value: RecordValue): string | undefined => {
     const legacyPath = legacyCompatibilityFieldPath(value);
     if (legacyPath) {
         return legacyPath;
@@ -66,9 +66,9 @@ function validateRawMeetingState(value: RecordValue): string | undefined {
         }
     }
     return undefined;
-}
+};
 
-function schemaIssuePath(issue: { path: readonly PropertyKey[] }): string {
+const schemaIssuePath = (issue: { path: readonly PropertyKey[] }): string => {
     const suffix = issue.path.reduce<string>(
         (text, segment) =>
             typeof segment === "number"
@@ -77,9 +77,9 @@ function schemaIssuePath(issue: { path: readonly PropertyKey[] }): string {
         ""
     );
     return `$${suffix}`;
-}
+};
 
-export function validateMeetingState(value: unknown): MeetingStateValidationResult {
+export const validateMeetingState = (value: unknown): MeetingStateValidationResult => {
     if (!record(value)) {
         return fail("$");
     }
@@ -119,4 +119,4 @@ export function validateMeetingState(value: unknown): MeetingStateValidationResu
         return fail(outcomePath);
     }
     return { kind: "valid", state: value as unknown as MeetingState };
-}
+};

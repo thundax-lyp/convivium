@@ -26,7 +26,7 @@ export const catalogDomainSpec = defineDomain({
         meetings: domainTable<CatalogKey, CatalogMeetingRecord>(CatalogMeetingRecordSchema)
     }
 });
-export function createMeetingDomainSpec(name: string) {
+export const createMeetingDomainSpec = (name: string) => {
     return defineDomain({
         name,
         version: 1,
@@ -50,6 +50,6 @@ export function createMeetingDomainSpec(name: string) {
             checkpoint_pointer: domainTable<"current", CheckpointPointer>(CheckpointPointerSchema)
         }
     });
-}
+};
 export type CatalogDomain = Domain<typeof catalogDomainSpec>;
 export type MeetingDomain = Domain<ReturnType<typeof createMeetingDomainSpec>>;

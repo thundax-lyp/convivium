@@ -248,6 +248,41 @@ const serializeMeetingCreation = (
     };
 };
 
+const makeInitialOwnership = (
+    identity: {
+        source: CreateMeetingCommand["action"]["identities"][number];
+        id: string;
+        ownershipId: string;
+        sessionId: string;
+    },
+    descriptor: PreparedDescriptor,
+    meetingId: string
+) => {
+    const role: SessionOwnership["role"] =
+        identity.source.roles[0] === "contributor"
+            ? "participant"
+            : (identity.source.roles[0] as "manager" | "evidence_reviewer");
+    return {
+        id: identity.ownershipId,
+        meetingId,
+        identityId: identity.id,
+        sessionId: identity.sessionId,
+        definition: descriptor.definition,
+        resources: descriptor.resources,
+        agentOptions: descriptor.agentOptions,
+        descriptorId: descriptor.descriptorId,
+        descriptorHash: descriptor.descriptorHash,
+        sessionLabel: encodeMeetingIdentitySessionLabel({
+            role,
+            meetingId,
+            identityId: identity.id
+        }),
+        role,
+        lifecycleStatus: "provisioning" as const,
+        capabilityStatus: "active" as const
+    };
+};
+
 export const createMeetingCreationCoordinator = (
     dependencies: TargetMeetingCreationDependencies
 ): MeetingCreationCoordinator => {
@@ -428,32 +463,9 @@ export const createMeetingCreationCoordinator = (
                 factIds: [],
                 effects
             };
-            const initialOwnership = identities.map((identity, index) => {
-                const descriptor = descriptors[index]!;
-                const role: SessionOwnership["role"] =
-                    identity.source.roles[0] === "contributor"
-                        ? "participant"
-                        : (identity.source.roles[0] as "manager" | "evidence_reviewer");
-                return {
-                    id: identity.ownershipId,
-                    meetingId,
-                    identityId: identity.id,
-                    sessionId: identity.sessionId,
-                    definition: descriptor.definition,
-                    resources: descriptor.resources,
-                    agentOptions: descriptor.agentOptions,
-                    descriptorId: descriptor.descriptorId,
-                    descriptorHash: descriptor.descriptorHash,
-                    sessionLabel: encodeMeetingIdentitySessionLabel({
-                        role,
-                        meetingId,
-                        identityId: identity.id
-                    }),
-                    role,
-                    lifecycleStatus: "provisioning" as const,
-                    capabilityStatus: "active" as const
-                };
-            });
+            const initialOwnership = identities.map((identity, index) =>
+                makeInitialOwnership(identity, descriptors[index]!, meetingId)
+            );
             const createInput: CreateMeetingInput<MeetingState> = {
                 requestId: command.requestId,
                 authorization,

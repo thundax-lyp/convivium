@@ -35,6 +35,16 @@ const failureMessage = (failure: MeetingPanelFailure, t: MeetingTranslate): stri
         : t("panel.error.unavailable");
 };
 
+const endMeetingAction = {
+    kind: "end_meeting" as const,
+    outcome: "partial" as const,
+    reason: "Ended from Meeting panel.",
+    decisionIds: [],
+    completionFactIds: [],
+    unresolvedQuestionIds: [],
+    unresolvedIssueIds: []
+};
+
 export const ConviviumMeetingPanel = ({
     api,
     t,
@@ -271,15 +281,7 @@ export const ConviviumMeetingPanel = ({
         if (!detail) {
             return;
         }
-        await localSubmission.submit(detail.meetingId, detail.version, {
-            kind: "end_meeting",
-            outcome: "partial",
-            reason: "Ended from Meeting panel.",
-            decisionIds: [],
-            completionFactIds: [],
-            unresolvedQuestionIds: [],
-            unresolvedIssueIds: []
-        });
+        await localSubmission.submit(detail.meetingId, detail.version, endMeetingAction);
     };
     const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
         if (!detail) {

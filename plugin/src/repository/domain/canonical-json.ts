@@ -6,7 +6,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 
 const dangerous = new Set(["__proto__", "prototype", "constructor"]);
 
-function normalize(value: unknown, seen = new Set<object>()): JsonValue {
+const normalize = (value: unknown, seen = new Set<object>()): JsonValue => {
     if (value === null || typeof value === "string" || typeof value === "boolean") {
         return value;
     }
@@ -52,16 +52,16 @@ function normalize(value: unknown, seen = new Set<object>()): JsonValue {
         return result;
     }
     throw new TypeError("value is not JSON");
-}
+};
 
-export function encodeCanonicalJson(value: unknown): Uint8Array {
+export const encodeCanonicalJson = (value: unknown): Uint8Array => {
     return new TextEncoder().encode(JSON.stringify(normalize(value)));
-}
+};
 
-export function decodeCanonicalJson(bytes: Uint8Array): JsonValue {
+export const decodeCanonicalJson = (bytes: Uint8Array): JsonValue => {
     return normalize(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
-}
+};
 
-export function sha256Hex(bytes: Uint8Array): string {
+export const sha256Hex = (bytes: Uint8Array): string => {
     return createHash("sha256").update(bytes).digest("hex");
-}
+};

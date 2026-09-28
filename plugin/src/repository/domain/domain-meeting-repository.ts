@@ -28,7 +28,7 @@ import { receiptKey, seqKey } from "./keys.js";
 import { encodeCanonicalJson, type JsonValue } from "./canonical-json.js";
 import { RepositoryError } from "@/repository/errors.js";
 
-function jsonValue(value: unknown): JsonValue {
+const jsonValue = (value: unknown): JsonValue => {
     if (
         value === null ||
         typeof value === "string" ||
@@ -54,7 +54,7 @@ function jsonValue(value: unknown): JsonValue {
         return result;
     }
     throw new TypeError("Repository value is not JSON-compatible");
-}
+};
 
 export class DomainMeetingRepository<TState = JsonObject>
     extends DomainMeetingRepositoryMail<TState>
