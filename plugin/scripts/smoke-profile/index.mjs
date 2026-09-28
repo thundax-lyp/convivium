@@ -350,7 +350,7 @@ async function writeProbePackage(probeDir) {
                 version: "0.0.0",
                 private: true,
                 type: "module",
-                main: "index.js",
+                main: "index.mjs",
                 dependencies: {
                     "@deepseek-ai/dsh-subagent": DSH_VERSION,
                     "@deepseek-ai/dsh-llm": DSH_VERSION,

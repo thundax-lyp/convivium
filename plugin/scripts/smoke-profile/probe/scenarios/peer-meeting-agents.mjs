@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { peerCreateCommand, peerSessionId, waitUntil } from "../support.js";
+import { peerCreateCommand, peerSessionId, waitUntil } from "../support.mjs";
 
 const skillsByRole = {
     meeting_manager: ["meeting-facilitation"],

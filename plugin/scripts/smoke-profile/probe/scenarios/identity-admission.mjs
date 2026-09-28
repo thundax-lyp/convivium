@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { peerCreateCommand, peerSessionId, waitUntil } from "../support.js";
+import { peerCreateCommand, peerSessionId, waitUntil } from "../support.mjs";
 const canonical = (value) =>
     Array.isArray(value)
         ? value.map(canonical)

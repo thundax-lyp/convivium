@@ -1,8 +1,8 @@
 import { request as httpRequest } from "node:http";
-import { runPeerMeetingAgentsScenario } from "./scenarios/peer-meeting-agents.js";
-import { collectAgentPromptEvidence, createProbeSupport } from "./support.js";
-import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
-import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.js";
+import { runPeerMeetingAgentsScenario } from "./scenarios/peer-meeting-agents.mjs";
+import { collectAgentPromptEvidence, createProbeSupport } from "./support.mjs";
+import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.mjs";
+import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.mjs";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
