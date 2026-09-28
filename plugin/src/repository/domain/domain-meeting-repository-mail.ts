@@ -53,13 +53,14 @@ export abstract class DomainMeetingRepositoryMail<
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            if (!this.projection?.snapshot)
+            if (!this.projection?.snapshot) {
                 throw new RepositoryError(
                     "MEETING_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Meeting does not exist"
                 );
+            }
             const snapshot = structuredClone(this.projection.snapshot);
             this.authorizationValidator.validateCommand({
                 snapshot: this.decodeSnapshot(snapshot),
@@ -72,21 +73,23 @@ export abstract class DomainMeetingRepositoryMail<
             );
             const existing = this.projection.receipts[key];
             if (existing) {
-                if (existing.requestHash !== input.requestHash)
+                if (existing.requestHash !== input.requestHash) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
                         this.meetingId,
                         "Request hash conflicts with receipt"
                     );
+                }
                 const replay = this.projection.privateMail[input.mail.mailId];
-                if (!replay)
+                if (!replay) {
                     throw new RepositoryError(
                         "CORRUPT_DATABASE",
                         false,
                         this.meetingId,
                         "Mail receipt points to a missing mail"
                     );
+                }
                 return {
                     requestId: input.requestId,
                     meetingId: this.meetingId,
@@ -98,20 +101,22 @@ export abstract class DomainMeetingRepositoryMail<
                     eventSeqs: [...existing.eventSeqs]
                 };
             }
-            if (!input.isNewDeliveryAvailable())
+            if (!input.isNewDeliveryAvailable()) {
                 throw new RepositoryError(
                     "UNSUPPORTED_CAPABILITY",
                     false,
                     this.meetingId,
                     "Meeting delivery is unavailable until the Captain Session is rebound"
                 );
-            if (snapshot.version !== input.expectedMeetingVersion)
+            }
+            if (snapshot.version !== input.expectedMeetingVersion) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
                     this.meetingId,
                     "Meeting version is stale"
                 );
+            }
             validatePrivateMailSend(
                 snapshot,
                 Object.values(this.projection.sessionOwnership),
@@ -129,13 +134,14 @@ export abstract class DomainMeetingRepositoryMail<
                         Object.values(projection.outbox).some(
                             (item) => item.deliveryId === input.outbox.deliveryId
                         )
-                    )
+                    ) {
                         throw new RepositoryError(
                             "INVALID_INPUT",
                             false,
                             this.meetingId,
                             "Outbox deliveryId already exists"
                         );
+                    }
                     const mail = { ...input.mail, status: "pending" as const, updatedAt: now };
                     projection.privateMail[mail.mailId] = mail;
                     const outboxId = input.outbox.id ?? crypto.randomUUID();
@@ -193,13 +199,14 @@ export abstract class DomainMeetingRepositoryMail<
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const snapshot = this.projection?.snapshot;
-            if (!snapshot)
+            if (!snapshot) {
                 throw new RepositoryError(
                     "MEETING_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Meeting does not exist"
                 );
+            }
             this.authorizationValidator.validateCommand({
                 snapshot: this.decodeSnapshot(snapshot),
                 command: {
@@ -215,36 +222,40 @@ export abstract class DomainMeetingRepositoryMail<
             const receipt = this.projection?.receipts[key];
             const mail = this.projection?.privateMail[input.mailId];
             if (receipt) {
-                if (receipt.requestHash !== input.requestHash)
+                if (receipt.requestHash !== input.requestHash) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
                         this.meetingId,
                         "Request hash conflicts with receipt"
                     );
-                if (!mail)
+                }
+                if (!mail) {
                     throw new RepositoryError(
                         "CORRUPT_DATABASE",
                         false,
                         this.meetingId,
                         "Mail receipt points to a missing mail"
                     );
+                }
                 return structuredClone(mail);
             }
-            if (snapshot.version !== input.expectedMeetingVersion)
+            if (snapshot.version !== input.expectedMeetingVersion) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
                     this.meetingId,
                     "Meeting version is stale"
                 );
-            if (!mail)
+            }
+            if (!mail) {
                 throw new RepositoryError(
                     "OUTBOX_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Private mail does not exist"
                 );
+            }
             const now = input.now ?? this.now();
             validatePrivateMailStart(snapshot, mail, input, now);
             return this.commit({
@@ -283,13 +294,14 @@ export abstract class DomainMeetingRepositoryMail<
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const snapshot = this.projection?.snapshot;
-            if (!snapshot)
+            if (!snapshot) {
                 throw new RepositoryError(
                     "MEETING_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Meeting does not exist"
                 );
+            }
             const commandKind =
                 input.status === "timed_out" ? "timeout_meeting_message" : "finish_meeting_message";
             this.authorizationValidator.validateCommand({
@@ -300,29 +312,32 @@ export abstract class DomainMeetingRepositoryMail<
             const receipt = this.projection?.receipts[key];
             const mail = this.projection?.privateMail[input.mailId];
             if (receipt) {
-                if (receipt.requestHash !== input.requestHash)
+                if (receipt.requestHash !== input.requestHash) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
                         this.meetingId,
                         "Request hash conflicts with receipt"
                     );
-                if (!mail)
+                }
+                if (!mail) {
                     throw new RepositoryError(
                         "CORRUPT_DATABASE",
                         false,
                         this.meetingId,
                         "Mail receipt points to a missing mail"
                     );
+                }
                 return structuredClone(mail);
             }
-            if (snapshot.version !== input.expectedMeetingVersion)
+            if (snapshot.version !== input.expectedMeetingVersion) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
                     this.meetingId,
                     "Meeting version is stale"
                 );
+            }
             validatePrivateMailFinish(this.meetingId, mail, input);
             const now = input.now ?? this.now();
             return this.commit({
@@ -359,13 +374,14 @@ export abstract class DomainMeetingRepositoryMail<
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const snapshot = this.projection?.snapshot;
-            if (!snapshot)
+            if (!snapshot) {
                 throw new RepositoryError(
                     "MEETING_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Meeting does not exist"
                 );
+            }
             const commandKind = "cancel_unfinished_meeting_message";
             this.authorizationValidator.validateCommand({
                 snapshot: this.decodeSnapshot(snapshot),
@@ -374,46 +390,51 @@ export abstract class DomainMeetingRepositoryMail<
             const key = receiptKey(input.requestId, commandKind, input.authorization.callerBinding);
             const receipt = this.projection?.receipts[key];
             if (receipt) {
-                if (receipt.requestHash !== input.requestHash)
+                if (receipt.requestHash !== input.requestHash) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
                         this.meetingId,
                         "Request hash conflicts with receipt"
                     );
+                }
                 const result = receipt.result;
                 if (
                     typeof result !== "object" ||
                     result === null ||
                     Array.isArray(result) ||
                     typeof result.cancelled !== "number"
-                )
+                ) {
                     throw new RepositoryError(
                         "CORRUPT_DATABASE",
                         false,
                         this.meetingId,
                         "Cancel receipt is invalid"
                     );
+                }
                 return result.cancelled;
             }
-            if (snapshot.version !== input.expectedMeetingVersion)
+            if (snapshot.version !== input.expectedMeetingVersion) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
                     this.meetingId,
                     "Meeting version is stale"
                 );
+            }
             const now = input.now ?? this.now();
             const count = Object.values(this.projection?.privateMail ?? {}).filter(
                 (mail) => mail.status === "pending" || mail.status === "processing"
             ).length;
-            if (count === 0) return 0;
+            if (count === 0) {
+                return 0;
+            }
             return this.commit({
                 operation: "mail.cancel",
                 now,
                 mutate: (projection) => {
                     let cancelled = 0;
-                    for (const [id, mail] of Object.entries(projection.privateMail))
+                    for (const [id, mail] of Object.entries(projection.privateMail)) {
                         if (mail.status === "pending" || mail.status === "processing") {
                             projection.privateMail[id] = {
                                 ...mail,
@@ -422,6 +443,7 @@ export abstract class DomainMeetingRepositoryMail<
                             };
                             cancelled += 1;
                         }
+                    }
                     projection.receipts[key] = {
                         formatVersion: 1,
                         requestId: input.requestId,

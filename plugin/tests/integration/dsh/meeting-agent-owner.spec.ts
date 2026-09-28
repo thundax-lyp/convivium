@@ -67,7 +67,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                 ])
             ])
         ];
-        for (const name of toolNames)
+        for (const name of toolNames) {
             ctx.effect(() =>
                 ctx.tools.register({
                     name,
@@ -77,6 +77,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                     execute: async () => ({})
                 })
             );
+        }
         await ctx.plugin(SessionProjections);
         await ctx.plugin(Skills);
         await ctx.plugin(Loader, {
@@ -113,7 +114,9 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                 signal
             });
             expect(preflight.kind).toBe("ready");
-            if (preflight.kind !== "ready") throw new Error(preflight.error.message);
+            if (preflight.kind !== "ready") {
+                throw new Error(preflight.error.message);
+            }
             const descriptor = preflight.descriptor;
             const ownership = {
                 id: `ownership-${index}`,

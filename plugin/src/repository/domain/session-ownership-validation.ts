@@ -46,7 +46,9 @@ export const validateDescriptor = (
     descriptor: PreparedDescriptor
 ): boolean => {
     const parsed = PreparedDescriptorSchema.safeParse(descriptor);
-    if (!parsed.success) return false;
+    if (!parsed.success) {
+        return false;
+    }
     const { descriptorHash, ...body } = parsed.data;
     return (
         descriptorHash === sha256Hex(encodeCanonicalJson(body)) &&

@@ -30,46 +30,58 @@ export function createMeetingIdentityEffectHandler(
 ): { dispatch(outboxItem: OutboxItem, signal: AbortSignal): Promise<void> } {
     return {
         async dispatch(outboxItem, signal) {
-            if (outboxItem.kind !== "dispatch" || outboxItem.payload.kind !== "identity_provision")
+            if (
+                outboxItem.kind !== "dispatch" ||
+                outboxItem.payload.kind !== "identity_provision"
+            ) {
                 throw new Error("INVALID_ARGUMENT");
+            }
             const recommendationId = outboxItem.payload.admissionId;
             if (
                 typeof recommendationId !== "string" ||
                 recommendationId !== outboxItem.payload.recommendationId
-            )
+            ) {
                 throw new Error("INVALID_ARGUMENT");
+            }
             const snapshot = await dependencies.repository.read();
             const recommendation = snapshot.state.identityRecommendations.find(
                 (item) => item.id === recommendationId
             );
             if (recommendation?.status === "active" && recommendation.decision === "admit") {
-                if (snapshot.state.lifecycle.status !== "running") throw new Error("INVALID_STATE");
+                if (snapshot.state.lifecycle.status !== "running") {
+                    throw new Error("INVALID_STATE");
+                }
                 await dependencies.activateProvisioned(recommendationId, signal);
                 return;
             }
-            if (recommendation?.status === "failed") return;
+            if (recommendation?.status === "failed") {
+                return;
+            }
             if (
                 !recommendation ||
                 recommendation.decision !== "admit" ||
                 recommendation.status !== "provisioning"
-            )
+            ) {
                 throw new Error("INVALID_STATE");
-            if (snapshot.state.lifecycle.status !== "running")
+            }
+            if (snapshot.state.lifecycle.status !== "running") {
                 throw Object.assign(new Error("INVALID_STATE"), {
                     code: "INVALID_STATE",
                     retryable: true
                 });
+            }
             const result = await dependencies.provision({
                 recommendation,
                 meetingId: snapshot.meetingId,
                 signal
             });
-            if (result.kind === "rejected" && result.failureCode === "RECOVERY_UNAVAILABLE")
+            if (result.kind === "rejected" && result.failureCode === "RECOVERY_UNAVAILABLE") {
                 throw Object.assign(new Error(result.failureCode), {
                     code: result.failureCode,
                     retryable: true,
                     terminalOnAttemptLimit: false
                 });
+            }
             const context: IdentityAdmissionResultContext =
                 result.kind === "admitted"
                     ? result.result
@@ -83,9 +95,12 @@ export function createMeetingIdentityEffectHandler(
                 latestRecommendation?.decision !== "admit" ||
                 latestRecommendation.status !== "provisioning"
             ) {
-                if (result.kind === "admitted")
+                if (result.kind === "admitted") {
                     await dependencies.cleanupProvisioned(recommendationId);
-                if (latestRecommendation?.status !== "provisioning") return;
+                }
+                if (latestRecommendation?.status !== "provisioning") {
+                    return;
+                }
                 throw Object.assign(new Error("INVALID_STATE"), {
                     code: "INVALID_STATE",
                     retryable: true
@@ -106,8 +121,9 @@ export function createMeetingIdentityEffectHandler(
                 signal
             );
             if (committed.kind === "accepted") {
-                if (result.kind === "admitted")
+                if (result.kind === "admitted") {
                     await dependencies.activateProvisioned(recommendationId, signal);
+                }
                 return;
             }
             const afterCommit = await dependencies.repository.read();
@@ -123,7 +139,9 @@ export function createMeetingIdentityEffectHandler(
                 await dependencies.cleanupProvisioned(recommendationId);
                 return;
             }
-            if (committed.error.code !== "NOT_FOUND") throw new Error(committed.error.code);
+            if (committed.error.code !== "NOT_FOUND") {
+                throw new Error(committed.error.code);
+            }
         }
     };
 }

@@ -58,8 +58,9 @@ import {
 import { writeCheckpoint } from "./checkpoint.js";
 
 function canonicalStateObject(value: unknown): JsonObject {
-    if (value === null || typeof value !== "object" || Array.isArray(value))
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
         throw new TypeError("Meeting state must be an object");
+    }
     const normalized = JSON.parse(JSON.stringify(value)) as unknown;
     return JsonObjectSchema.parse(normalized);
 }
@@ -117,7 +118,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         if (creation?.status === "ready") {
             try {
                 this.projection = loadProjection({ domain: options.meetingDomain });
-                if (this.projection.snapshot) this.decodeState(this.projection.snapshot.state);
+                if (this.projection.snapshot) {
+                    this.decodeState(this.projection.snapshot.state);
+                }
                 const pointer = options.meetingDomain.table("checkpoint_pointer").get("current");
                 const tail = [...options.meetingDomain.table("commits").entries()]
                     .filter(([, record]) => record.seq > (pointer?.baseSeq ?? 0))
@@ -127,7 +130,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 this.headDigest =
                     last?.digest ?? (pointer ? projectionDigest(this.projection) : null);
             } catch (error) {
-                if (error instanceof RepositoryError) throw error;
+                if (error instanceof RepositoryError) {
+                    throw error;
+                }
                 if (error instanceof UnsupportedMeetingStateFormatError) {
                     throw new RepositoryError(
                         "SCHEMA_VERSION_UNSUPPORTED",
@@ -156,8 +161,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     }
 
     protected ensureOpen(): void {
-        if (this.closed)
+        if (this.closed) {
             throw new RepositoryError("CLOSED", false, this.meetingId, "Repository is closed");
+        }
     }
 
     protected encodeState(state: TState): JsonObject {
@@ -222,7 +228,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     }
 
     protected async runMaintenance(): Promise<void> {
-        if (!this.maintenanceRequested || !this.projection) return;
+        if (!this.maintenanceRequested || !this.projection) {
+            return;
+        }
         this.maintenanceRequested = false;
         const projection = this.projection;
         const baseSeq = this.headSeq;
@@ -245,24 +253,28 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         now: number;
         mutate(current: PersistenceProjection): { next: PersistenceProjection; result: T };
     }): Promise<T> {
-        if (!this.projection)
+        if (!this.projection) {
             throw new RepositoryError(
                 "INVALID_STATE",
                 false,
                 this.meetingId,
                 "Meeting is not ready"
             );
+        }
         const current = decodeProjection(encodeProjection(this.projection));
         const previousJson = decodeCanonicalJson(encodeCanonicalJson(current));
         const changed = _input.mutate(current);
         const nextProjection = PersistenceProjectionSchema.parse(changed.next);
         const nextJson = decodeCanonicalJson(encodeCanonicalJson(nextProjection));
         const patch = diff(previousJson, nextJson).map((operation) => {
-            if (operation.op === "splice")
+            if (operation.op === "splice") {
                 return { ...operation, path: [...operation.path], items: [...operation.items] };
+            }
             return { ...operation, path: [...operation.path] };
         });
-        if (patch.length === 0) return changed.result;
+        if (patch.length === 0) {
+            return changed.result;
+        }
         const seq = this.headSeq + 1;
         let record;
         try {
@@ -276,8 +288,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 committedAt: _input.now
             });
         } catch (error) {
-            if (!(error instanceof RangeError) || error.message !== "commit is too large")
+            if (!(error instanceof RangeError) || error.message !== "commit is too large") {
                 throw error;
+            }
             await writeCheckpoint({
                 domain: this.meetingDomain,
                 projection: nextProjection,
@@ -298,10 +311,11 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 _input.now,
                 _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
             );
-            if (this.onProjectionCommitted && this.projection.snapshot)
+            if (this.onProjectionCommitted && this.projection.snapshot) {
                 this.onProjectionCommitted(
                     this.decodeSnapshot(structuredClone(this.projection.snapshot))
                 );
+            }
             return changed.result;
         }
         let pointerBase =
@@ -351,13 +365,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             if (
                 tail.length + 1 > APPLICATION_TAIL_HARD_COMMITS ||
                 tailBytes > APPLICATION_TAIL_HARD_BYTES
-            )
+            ) {
                 throw new RepositoryError(
                     "CONSTRAINT_VIOLATION",
                     false,
                     this.meetingId,
                     "Application commit tail is too large"
                 );
+            }
         }
         await this.meetingDomain.table("commits").put(seqKey(seq), record);
         const previous = this.projection;
@@ -372,16 +387,18 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             _input.now,
             _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
         );
-        if (this.onProjectionCommitted && this.projection.snapshot)
+        if (this.onProjectionCommitted && this.projection.snapshot) {
             this.onProjectionCommitted(
                 this.decodeSnapshot(structuredClone(this.projection.snapshot))
             );
+        }
         const nextTailCount = tail.length + 1;
         if (
             nextTailCount >= APPLICATION_CHECKPOINT_TRIGGER_COMMITS ||
             tailBytes >= APPLICATION_CHECKPOINT_TRIGGER_BYTES
-        )
+        ) {
             this.maintenanceRequested = true;
+        }
         return changed.result;
     }
 
@@ -430,13 +447,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                             .success &&
                         descriptors.some((d) => validateDescriptor(o, d))
                 );
-            if (!valid)
+            if (!valid) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Valid peer bindings must match the initial identities."
                 );
+            }
             const table = this.meetingDomain.table("creation");
             const existing = table.get("current");
             if (existing) {
@@ -453,13 +471,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                             .map(immutableOwnership)
                             .sort((a, b) => a.id.localeCompare(b.id))
                     )
-                )
+                ) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
                         this.meetingId,
                         "Request hash conflicts with bootstrap"
                     );
+                }
                 return {
                     status: existing.status,
                     creator: existing.creator,
@@ -474,13 +493,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 };
             }
             const initialOutbox = (input.outbox ?? []).map((item) => {
-                if (item.kind !== "dispatch")
+                if (item.kind !== "dispatch") {
                     throw new RepositoryError(
                         "INVALID_INPUT",
                         false,
                         this.meetingId,
                         "Outbox kind is not registered"
                     );
+                }
                 return {
                     formatVersion: 1 as const,
                     id: item.id ?? crypto.randomUUID(),
@@ -549,13 +569,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 !creation ||
                 creation.requestId !== input.requestId ||
                 creation.requestHash !== input.requestHash
-            )
+            ) {
                 throw new RepositoryError(
                     "IDEMPOTENCY_CONFLICT",
                     false,
                     this.meetingId,
                     "Request hash conflicts with bootstrap"
                 );
+            }
             const createReceiptKey = receiptKey(
                 input.requestId,
                 "create_meeting",
@@ -569,13 +590,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const existingReceipt = this.projection?.receipts[createReceiptKey];
             if (existingReceipt) {
                 const replayResult = this.projection?.bootstrap.createResult;
-                if (!replayResult)
+                if (!replayResult) {
                     throw new RepositoryError(
                         "CORRUPT_DATABASE",
                         false,
                         this.meetingId,
                         "Create result is missing"
                     );
+                }
                 return {
                     requestId: input.requestId,
                     meetingId: this.meetingId,
@@ -592,13 +614,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 Object.values(creation.sessionOwnership).some(
                     (o) => o.lifecycleStatus !== "active" || o.capabilityStatus !== "active"
                 )
-            )
+            ) {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
                     "Meeting bootstrap cannot be completed"
                 );
+            }
             const now = creation.createdAt;
             const next = createProjection({
                 snapshot: {
@@ -641,7 +664,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 eventSeqs: [1],
                 createdAt: now
             });
-            for (const item of creation.initialOutbox)
+            for (const item of creation.initialOutbox) {
                 next.outbox[item.id] = PersistedOutboxSchema.parse({
                     ...item,
                     status: "pending",
@@ -653,6 +676,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     failedAt: null,
                     lastError: null
                 });
+            }
             next.nextEventSeq = 2;
             const record = createCommitRecord({
                 formatVersion: 1,
@@ -683,10 +707,11 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     updatedAt: now
                 }));
             observeCommit(this.onDiagnostic, this.meetingId, undefined, this.projection, now);
-            if (this.onProjectionCommitted && this.projection.snapshot)
+            if (this.onProjectionCommitted && this.projection.snapshot) {
                 this.onProjectionCommitted(
                     this.decodeSnapshot(structuredClone(this.projection.snapshot))
                 );
+            }
             return {
                 requestId: input.requestId,
                 meetingId: this.meetingId,
@@ -702,24 +727,26 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         return this.enqueueMutation(async () => {
             const creation = this.meetingDomain.table("creation").get("current");
             const snapshot = this.projection?.snapshot;
-            if (!creation || !snapshot || creation.status !== "ready")
+            if (!creation || !snapshot || creation.status !== "ready") {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
                     "Create result can only be updated for a ready meeting"
                 );
+            }
             if (
                 snapshot.version !== input.expectedMeetingVersion ||
                 input.result.meetingId !== this.meetingId ||
                 input.result.meetingVersion !== snapshot.version
-            )
+            ) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
                     this.meetingId,
                     "Create result version does not match the current meeting"
                 );
+            }
             const now = input.now ?? this.now();
             return this.commit({
                 operation: "create.result",
@@ -730,13 +757,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                             candidate.requestId === creation.requestId &&
                             candidate.commandKind === "create_meeting"
                     );
-                    if (matches.length !== 1)
+                    if (matches.length !== 1) {
                         throw new RepositoryError(
                             "CORRUPT_DATABASE",
                             false,
                             this.meetingId,
                             "Create receipt is missing"
                         );
+                    }
                     const [key, receipt] = matches[0]!;
                     const next = PersistenceProjectionSchema.parse({
                         ...current,
@@ -767,7 +795,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const committedBootstrap = this.projection?.bootstrap;
             if (creation && committedBootstrap?.status === "ready") {
                 const updatedAt = committedBootstrap.updatedAt;
-                if (creation.status !== "ready")
+                if (creation.status !== "ready") {
                     await this.meetingDomain.table("creation").put("current", {
                         ...creation,
                         status: "ready",
@@ -775,6 +803,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                         updatedAt,
                         failureCode: null
                     });
+                }
                 await this.catalogDomain
                     .table("meetings")
                     .update(catalogKey(this.meetingId), (catalog) => ({
@@ -785,13 +814,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     }));
                 return structuredClone(committedBootstrap);
             }
-            if (!creation || creation.status === "ready")
+            if (!creation || creation.status === "ready") {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
                     "Bootstrap cannot be updated"
                 );
+            }
             const now = input.now ?? this.now();
             const next = {
                 ...creation,
@@ -838,21 +868,23 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 createdAt: now,
                 updatedAt: now
             });
-            if (!parsed.success || input.meetingId !== this.meetingId)
+            if (!parsed.success || input.meetingId !== this.meetingId) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Invalid peer ownership."
                 );
+            }
             const creation = this.meetingDomain.table("creation").get("current");
-            if (!creation)
+            if (!creation) {
                 throw new RepositoryError(
                     "CORRUPT_DATABASE",
                     false,
                     this.meetingId,
                     "Missing creation record."
                 );
+            }
             const source = this.projection ?? creation;
             const existing = source.sessionOwnership[input.sessionId];
             const proof = source.preparedDescriptors.find(
@@ -863,14 +895,17 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 matchesPendingAdmission(this.projection?.snapshot?.state, input);
             if (existing) {
                 const previous = ownershipInput(existing);
-                if (!isOwnershipUpdateAllowed(previous, input, descriptor, proof))
+                if (!isOwnershipUpdateAllowed(previous, input, descriptor, proof)) {
                     throw new RepositoryError(
                         "INVALID_STATE",
                         false,
                         this.meetingId,
                         "Peer ownership is immutable and cannot move backward."
                     );
-                if (same(previous, input)) return structuredClone(existing);
+                }
+                if (same(previous, input)) {
+                    return structuredClone(existing);
+                }
                 if (
                     input.lifecycleStatus === "active" &&
                     previous.lifecycleStatus === "provisioning" &&
@@ -879,13 +914,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                         creation.status === "creation_failed" ||
                         (input.admissionId !== undefined && !admissionMatches) ||
                         input.capabilityStatus !== "active")
-                )
+                ) {
                     throw new RepositoryError(
                         "INVALID_STATE",
                         false,
                         this.meetingId,
                         "Peer preflight expired or activation was revoked."
                     );
+                }
             } else {
                 if (
                     creation.status !== "ready" ||
@@ -899,13 +935,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                     Object.values(source.sessionOwnership).some(
                         (o) => o.id === input.id || o.identityId === input.identityId
                     )
-                )
+                ) {
                     throw new RepositoryError(
                         "INVALID_STATE",
                         false,
                         this.meetingId,
                         "Peer admission does not match a pending intent."
                     );
+                }
             }
             const ownership = { ...input, createdAt: existing?.createdAt ?? now, updatedAt: now };
             const descriptors = existing
@@ -943,13 +980,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     async read(): Promise<MeetingSnapshot<TState>> {
         this.ensureOpen();
         const snapshot = this.projection?.snapshot;
-        if (!snapshot)
+        if (!snapshot) {
             throw new RepositoryError(
                 "MEETING_NOT_FOUND",
                 false,
                 this.meetingId,
                 "Meeting does not exist"
             );
+        }
         // A read must not serialize unrelated receipts, events, outbox or private mail.
         const result = PersistenceProjectionSchema.shape.snapshot
             .unwrap()
@@ -957,8 +995,9 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         if (
             Object.prototype.hasOwnProperty.call(result.state, "formatVersion") &&
             result.state.formatVersion !== 2
-        )
+        ) {
             throw new UnsupportedMeetingStateFormatError(result.state.formatVersion);
+        }
         return this.decodeSnapshot(result);
     }
 }

@@ -22,7 +22,9 @@ it("decides with captain and local controller while copying candidate fields", (
             relatedIds: ["dec", "cand"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") continue;
+        if (result.kind !== "accepted") {
+            continue;
+        }
         const decision = result.state.decisions[0];
         const candidate = state.decisionCandidates[0];
         expect(decision).toMatchObject({
@@ -51,7 +53,9 @@ const decidedState = () => {
         actor: { kind: "captain_user", id: captainActorIdFor("m") },
         now: 1
     });
-    if (result.kind !== "accepted") throw new Error("fixture decision failed");
+    if (result.kind !== "accepted") {
+        throw new Error("fixture decision failed");
+    }
     return result.state;
 };
 it.each([
@@ -75,7 +79,9 @@ it.each([
         relatedIds: ["old-decision", "new-decision", "replacement", "v"],
         effectRequests: []
     });
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.decisions.map((d) => [d.id, d.status])).toEqual([
         ["old-decision", "superseded"],
         ["new-decision", "accepted"]

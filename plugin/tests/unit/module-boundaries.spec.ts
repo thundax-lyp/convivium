@@ -135,14 +135,20 @@ function allModuleSpecifiersOf(source: string): string[] {
 }
 
 function localImportPath(file: string, specifier: string): string | undefined {
-    if (specifier.startsWith("@/")) return resolve(sourceRoot, specifier.slice(2));
-    if (specifier.startsWith(".")) return resolve(dirname(file), specifier);
+    if (specifier.startsWith("@/")) {
+        return resolve(sourceRoot, specifier.slice(2));
+    }
+    if (specifier.startsWith(".")) {
+        return resolve(dirname(file), specifier);
+    }
     return undefined;
 }
 
 function importedModule(file: string, specifier: string): ModuleName | undefined {
     const candidate = localImportPath(file, specifier);
-    if (candidate === undefined) return undefined;
+    if (candidate === undefined) {
+        return undefined;
+    }
     const candidateWithoutExtension = candidate.replace(/\.(?:m?js|tsx?)$/, "");
     const path = sourceFiles(sourceRoot).find((sourceFile) => {
         const withoutExtension = sourceFile.replace(/\.(?:m?js|tsx?)$/, "");
@@ -153,11 +159,14 @@ function importedModule(file: string, specifier: string): ModuleName | undefined
 
 function violations(module: ModuleName, specifiers: readonly string[]): string[] {
     const boundary = moduleBoundaries.find((item) => item.name === module);
-    if (!boundary) return [`unknown module ${module}`];
+    if (!boundary) {
+        return [`unknown module ${module}`];
+    }
     return specifiers.flatMap((specifier) => {
         const imported = importedModule(join(sourceRoot, module, "index.ts"), specifier);
-        if (imported && imported !== module && !boundary.mayImport.includes(imported))
+        if (imported && imported !== module && !boundary.mayImport.includes(imported)) {
             return [`${module} may not import ${imported}`];
+        }
         if (
             boundary.forbiddenRuntimeImports.some((forbidden) =>
                 forbidden.endsWith("-")
@@ -217,5 +226,4 @@ describe("plugin module boundaries", () => {
             )
         ).toEqual([]);
     });
-
 });

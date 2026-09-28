@@ -38,20 +38,28 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         input.managerId.trim().length === 0 ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return rejected(state, "INVALID_ARGUMENT", "invalid round input");
+    }
     if (
         input.deadlineAt !== undefined &&
         (!Number.isSafeInteger(input.deadlineAt) || input.deadlineAt <= input.now)
-    )
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "round deadline must be after now");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return rejected(state, "MEETING_TERMINAL", "meeting is not running");
-    if (state.messages.length + reservedFormalMessages(state) >= state.limits.maxFormalMessages)
+    }
+    if (state.messages.length + reservedFormalMessages(state) >= state.limits.maxFormalMessages) {
         return rejected(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
+    }
     const agenda = state.agenda.find((item) => item.id === input.agendaId);
-    if (!agenda) return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
-    if (agenda.status !== "active") return rejected(state, "INVALID_STATE", "agenda is not active");
+    if (!agenda) {
+        return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
+    }
+    if (agenda.status !== "active") {
+        return rejected(state, "INVALID_STATE", "agenda is not active");
+    }
     const plan = state.managerPlans.find(
         (candidate) =>
             candidate.id === input.planId &&
@@ -59,20 +67,27 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
             candidate.status === "active" &&
             candidate.kind === "open_round"
     );
-    if (!plan?.roundGoal)
+    if (!plan?.roundGoal) {
         return rejected(state, "PRECONDITION_FAILED", "active open-round plan is required");
+    }
     const manager = state.identities.find((identity) => identity.id === input.managerId);
-    if (!manager || !manager.roles.includes("manager"))
+    if (!manager || !manager.roles.includes("manager")) {
         return rejected(state, "UNAUTHORIZED", "identity is not a manager", input.managerId);
+    }
     if (
         manager.agendaResponsibilityIds.length > 0 &&
         !manager.agendaResponsibilityIds.includes(input.agendaId)
-    )
+    ) {
         return rejected(state, "UNAUTHORIZED", "manager is not assigned to agenda");
-    if (!state.rounds.every((round) => round.id !== input.roundId))
+    }
+    if (!state.rounds.every((round) => round.id !== input.roundId)) {
         return rejected(state, "INVALID_ARGUMENT", "round id already exists", input.roundId);
-    if (state.rounds.some((round) => round.agendaId === input.agendaId && round.status === "open"))
+    }
+    if (
+        state.rounds.some((round) => round.agendaId === input.agendaId && round.status === "open")
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "an open round already exists");
+    }
     const opportunityRequests = state.opportunityRequests.filter(
         (request) => request.agendaId === input.agendaId
     );
@@ -147,18 +162,25 @@ export const abortRound = (
         input.reason.trim() === "" ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return rejected(state, "INVALID_ARGUMENT", "invalid round abort input");
-    if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+    }
+    if (["terminal", "archiving", "archived"].includes(state.lifecycle.status)) {
         return rejected(state, "MEETING_TERMINAL", "meeting is terminal");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return rejected(state, "INVALID_STATE", "meeting is not running");
+    }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round) return rejected(state, "NOT_FOUND", "round not found", input.roundId);
-    if (round.status !== "open")
+    if (!round) {
+        return rejected(state, "NOT_FOUND", "round not found", input.roundId);
+    }
+    if (round.status !== "open") {
         return rejected(state, "INVALID_STATE", "round is not open", input.roundId);
-    if (input.actor.kind !== "captain_user")
+    }
+    if (input.actor.kind !== "captain_user") {
         return rejected(state, "UNAUTHORIZED", "Captain user is required", input.actor.id);
+    }
     const abortedContributionIds = round.contributionIds.filter((id) => {
         const contribution = state.contributions.find((candidate) => candidate.id === id);
         return contribution !== undefined && !terminalContributionStatuses.has(contribution.status);
@@ -211,37 +233,53 @@ export const abortRound = (
 
 export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean => {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
-    if (!round || round.status !== "open") return false;
-    if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) return false;
+    if (!round || round.status !== "open") {
+        return false;
+    }
+    if (state.pendingHandRaises.some((hand) => hand.roundId === roundId)) {
+        return false;
+    }
     for (const contributionId of round.contributionIds) {
         const contribution = state.contributions.find(
             (candidate) => candidate.id === contributionId
         );
-        if (!contribution || !terminalContributionStatuses.has(contribution.status)) return false;
-        if (contribution.packageId === undefined) continue;
+        if (!contribution || !terminalContributionStatuses.has(contribution.status)) {
+            return false;
+        }
+        if (contribution.packageId === undefined) {
+            continue;
+        }
         const pkg = state.evidencePackages.find(
             (candidate) => candidate.id === contribution.packageId
         );
-        if (!pkg) return false;
+        if (!pkg) {
+            return false;
+        }
         const registration = state.registrations.find(
             (candidate) =>
                 candidate.versionId === pkg.currentVersionId && candidate.status === "complete"
         );
-        if (!registration) return false;
+        if (!registration) {
+            return false;
+        }
         const currentVersion = pkg.versions.find((version) => version.id === pkg.currentVersionId);
-        if (currentVersion?.status !== "validated") return false;
+        if (currentVersion?.status !== "validated") {
+            return false;
+        }
         const reviews = state.reviews.filter((review) => review.versionId === pkg.currentVersionId);
         const finalReview = reviews.find(
             (review) => review.reviewerId === state.evidenceReviewerId
         );
-        if (!finalReview || reviews.filter((review) => review.id === finalReview.id).length !== 1)
+        if (!finalReview || reviews.filter((review) => review.id === finalReview.id).length !== 1) {
             return false;
+        }
         if (
             !state.reviewDeliveries.some(
                 (delivery) => delivery.reviewId === finalReview.id && delivery.status === "sent"
             )
-        )
+        ) {
             return false;
+        }
     }
     return true;
 };
@@ -258,8 +296,9 @@ export const roundReadyNotice = (
         round.contributionIds.length === 0 ||
         isRoundClosable(before, roundId) ||
         !isRoundClosable(after, roundId)
-    )
+    ) {
         return [];
+    }
     const manager = after.identities.find(
         (identity) =>
             identity.roles.includes("manager") &&

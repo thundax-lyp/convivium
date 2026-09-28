@@ -130,8 +130,9 @@ export const SubmitManagerPlanActionSchema = z
         blockingReason: text.optional()
     })
     .superRefine((value, ctx) => {
-        if ((value.planKind === "open_round") !== (value.roundGoal !== undefined))
+        if ((value.planKind === "open_round") !== (value.roundGoal !== undefined)) {
             ctx.addIssue({ code: "custom", path: ["roundGoal"] });
+        }
     });
 export const RaiseHandActionSchema = z.object({
     kind: z.literal("raise_hand"),
@@ -213,8 +214,9 @@ export const DisposeAgendaCandidateActionSchema = z
         promotedAgenda: agendaInput.optional()
     })
     .superRefine((value, ctx) => {
-        if ((value.disposition === "promoted") !== (value.promotedAgenda !== undefined))
+        if ((value.disposition === "promoted") !== (value.promotedAgenda !== undefined)) {
             ctx.addIssue({ code: "custom", path: ["promotedAgenda"] });
+        }
     });
 export const ResolveQuestionActionSchema = z.object({
     kind: z.literal("resolve_question"),
@@ -246,8 +248,9 @@ export const ChangeDecisionActionSchema = z
         replacementCandidateId: id.optional()
     })
     .superRefine((value, ctx) => {
-        if ((value.status === "superseded") !== (value.replacementCandidateId !== undefined))
+        if ((value.status === "superseded") !== (value.replacementCandidateId !== undefined)) {
             ctx.addIssue({ code: "custom", path: ["replacementCandidateId"] });
+        }
     });
 export const DisposeRiskActionSchema = z.object({
     kind: z.literal("dispose_risk"),
@@ -269,8 +272,9 @@ export const ChangeCompletionFactActionSchema = z
         replacement: completionInput.optional()
     })
     .superRefine((value, ctx) => {
-        if ((value.status === "superseded") !== (value.replacement !== undefined))
+        if ((value.status === "superseded") !== (value.replacement !== undefined)) {
             ctx.addIssue({ code: "custom", path: ["replacement"] });
+        }
     });
 
 const actions = [
@@ -309,10 +313,12 @@ const actions = [
             failureReason: text.optional()
         })
         .superRefine((value, ctx) => {
-            if (value.status === "sent" && value.failureReason !== undefined)
+            if (value.status === "sent" && value.failureReason !== undefined) {
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
-            if (value.status === "failed" && value.failureReason === undefined)
+            }
+            if (value.status === "failed" && value.failureReason === undefined) {
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
+            }
         }),
     PublishRoundActionSchema,
     PauseMeetingActionSchema,
@@ -335,10 +341,12 @@ const actions = [
             failureReason: text.optional()
         })
         .superRefine((value, ctx) => {
-            if (value.status === "closed" && value.failureReason !== undefined)
+            if (value.status === "closed" && value.failureReason !== undefined) {
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
-            if (value.status === "failed" && value.failureReason === undefined)
+            }
+            if (value.status === "failed" && value.failureReason === undefined) {
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
+            }
         })
 ] as const;
 export const MeetingActionSchema = z.discriminatedUnion("kind", actions);
@@ -356,22 +364,25 @@ export const MeetingCommandSchema = z
         if (
             value.action.kind === "create_meeting" &&
             (value.meetingId !== "new" || value.expectedMeetingVersion !== 0)
-        )
+        ) {
             ctx.addIssue({
                 code: "custom",
                 path: [value.meetingId !== "new" ? "meetingId" : "expectedMeetingVersion"]
             });
+        }
         if (
             value.action.kind !== "create_meeting" &&
             value.action.kind !== "submit_evidence_review" &&
             value.expectedMeetingVersion === undefined
-        )
+        ) {
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
+        }
         if (
             value.action.kind === "submit_evidence_review" &&
             value.expectedMeetingVersion !== undefined
-        )
+        ) {
             ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
+        }
     });
 export type MeetingCommand = z.infer<typeof MeetingCommandSchema>;
 export type MeetingAction = z.infer<typeof MeetingActionSchema>;

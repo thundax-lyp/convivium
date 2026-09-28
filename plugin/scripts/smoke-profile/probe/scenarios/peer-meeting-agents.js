@@ -41,11 +41,17 @@ const successfulTools = (agent) => {
     const calls = new Map();
     const completed = [];
     for (const event of agent.session.ownEvents()) {
-        if (event.type === "tool/call") calls.set(String(event.data.callId), event.data);
-        if (event.type !== "tool/result") continue;
+        if (event.type === "tool/call") {
+            calls.set(String(event.data.callId), event.data);
+        }
+        if (event.type !== "tool/result") {
+            continue;
+        }
         for (const block of event.data.message?.content ?? []) {
             const call = calls.get(String(block.toolCallId));
-            if (!call || block.isError || event.data.error) continue;
+            if (!call || block.isError || event.data.error) {
+                continue;
+            }
             completed.push({
                 name: call.name,
                 arguments: String(call.arguments),
@@ -135,12 +141,13 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
             JSON.stringify(recovered.bindings) === JSON.stringify(checkpoint.bindings),
             "cold resource/options binding changed"
         );
-        for (const field of ["sessionIds", "presetIds", "skills"])
+        for (const field of ["sessionIds", "presetIds", "skills"]) {
             assert(
                 JSON.stringify(recovered.observed[field]) ===
                     JSON.stringify(checkpoint.result.observed[field]),
                 "cold role identity changed"
             );
+        }
         await writeResult({
             ...checkpoint.result,
             observed: { ...checkpoint.result.observed, coldRecovery: true }

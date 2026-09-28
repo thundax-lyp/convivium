@@ -42,7 +42,9 @@ async function waitForAgent(ctx, id) {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
         const agent = ctx.agents.get(id);
-        if (agent) return agent;
+        if (agent) {
+            return agent;
+        }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
     throw new Error(
@@ -57,26 +59,36 @@ function recordInbox(agent, message) {
     const list = observedInboxMessages.get(String(agent.id)) ?? [];
     list.push(message);
     observedInboxMessages.set(String(agent.id), list);
-    for (const waiter of [...inboxWaiters]) waiter(agent, message);
+    for (const waiter of [...inboxWaiters]) {
+        waiter(agent, message);
+    }
 }
 
 function waitForInbox(ctx, agentId, select) {
     return new Promise((resolveInbox, rejectInbox) => {
         let settled = false;
         const finish = (value) => {
-            if (settled) return;
+            if (settled) {
+                return;
+            }
             settled = true;
             clearTimeout(timeout);
             inboxWaiters.delete(onInbox);
             resolveInbox(value);
         };
         const onInbox = (agent, message) => {
-            if (String(agent.id) !== String(agentId) || ctx.agents.get(agent.id) !== agent) return;
+            if (String(agent.id) !== String(agentId) || ctx.agents.get(agent.id) !== agent) {
+                return;
+            }
             const selected = select(message, agent);
-            if (selected !== undefined) finish({ value: selected, agent });
+            if (selected !== undefined) {
+                finish({ value: selected, agent });
+            }
         };
         const timeout = setTimeout(() => {
-            if (settled) return;
+            if (settled) {
+                return;
+            }
             settled = true;
             inboxWaiters.delete(onInbox);
             rejectInbox(new Error("Timed out waiting for live inbox delivery " + agentId + "."));
@@ -84,14 +96,17 @@ function waitForInbox(ctx, agentId, select) {
         inboxWaiters.add(onInbox);
         const live = ctx.agents.get(agentId);
         if (live !== undefined) {
-            for (const message of observedMessages(live, observedInboxMessages))
+            for (const message of observedMessages(live, observedInboxMessages)) {
                 onInbox(live, message);
+            }
         }
     });
 }
 
 async function run(ctx) {
-    if (!outputPath) return;
+    if (!outputPath) {
+        return;
+    }
     if (
         !["identity-admission", "meeting-business-loop", "peer-meeting-agents"].includes(scenario)
     ) {
@@ -209,7 +224,9 @@ async function run(ctx) {
                 await remote("list", {});
                 break;
             } catch (error) {
-                if (Date.now() >= deadline) throw error;
+                if (Date.now() >= deadline) {
+                    throw error;
+                }
                 await new Promise((resolve) => setTimeout(resolve, 100));
             }
         }
@@ -271,7 +288,9 @@ export function apply(ctx) {
         }
     });
     ctx.on("agent/inbox/inserted", ({ agent, message }) => {
-        if (message) recordInbox(agent, message);
+        if (message) {
+            recordInbox(agent, message);
+        }
     });
     ctx.effect(() => {
         void run(ctx);

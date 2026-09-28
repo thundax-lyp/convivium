@@ -75,7 +75,9 @@ export interface AgentDefinitionBinding {
 
 /** Validate and snapshot inline configuration without exposing configuration text in errors. */
 export const parseAgentDefinitions = (value: unknown): readonly MeetingAgentDefinition[] => {
-    if (value === undefined) return Object.freeze([]);
+    if (value === undefined) {
+        return Object.freeze([]);
+    }
     try {
         const parsed = z.array(definition).max(64).parse(value);
         const ids = new Set<string>();
@@ -83,8 +85,9 @@ export const parseAgentDefinitions = (value: unknown): readonly MeetingAgentDefi
             if (
                 ids.has(item.agentDefinitionId) ||
                 Buffer.byteLength(JSON.stringify(item), "utf8") > 16 * 1024
-            )
+            ) {
                 throw new TypeError();
+            }
             ids.add(item.agentDefinitionId);
             item.requiredSkillNames.sort();
             item.toolFilter?.allow?.sort();
@@ -94,8 +97,12 @@ export const parseAgentDefinitions = (value: unknown): readonly MeetingAgentDefi
             Object.freeze(item.expertiseTags);
             Object.freeze(item.evidenceScopes);
             if (item.toolFilter) {
-                if (item.toolFilter.allow) Object.freeze(item.toolFilter.allow);
-                if (item.toolFilter.deny) Object.freeze(item.toolFilter.deny);
+                if (item.toolFilter.allow) {
+                    Object.freeze(item.toolFilter.allow);
+                }
+                if (item.toolFilter.deny) {
+                    Object.freeze(item.toolFilter.deny);
+                }
                 Object.freeze(item.toolFilter);
             }
             Object.freeze(item);

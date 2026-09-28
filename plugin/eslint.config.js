@@ -155,5 +155,10 @@ export default tseslint.config(
             }
         ])
     },
-    prettier
+    prettier,
+    {
+        rules: {
+            curly: ["error", "all"]
+        }
+    }
 );

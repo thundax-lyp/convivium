@@ -62,7 +62,9 @@ const defaultSleep = (delayMs: number, signal: AbortSignal): Promise<void> =>
 function errorCode(error: unknown): string {
     if (error && typeof error === "object" && "code" in error) {
         const code = (error as { code?: unknown }).code;
-        if (typeof code === "string" && code.length > 0) return code;
+        if (typeof code === "string" && code.length > 0) {
+            return code;
+        }
     }
     return "DSH_DISPATCH_FAILED";
 }
@@ -88,8 +90,9 @@ function terminatesOnAttemptLimit(error: unknown): boolean {
 function retryAvailableAt(error: unknown, fallback: number): number {
     if (error && typeof error === "object" && "retryAt" in error) {
         const retryAt = (error as { retryAt?: unknown }).retryAt;
-        if (typeof retryAt === "number" && Number.isSafeInteger(retryAt) && retryAt > fallback)
+        if (typeof retryAt === "number" && Number.isSafeInteger(retryAt) && retryAt > fallback) {
             return retryAt;
+        }
     }
     return fallback;
 }
@@ -107,9 +110,13 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     let running: Promise<void> | undefined;
 
     async function runOnce(at = now()): Promise<OutboxPollResult> {
-        if (controller.signal.aborted) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
+        if (controller.signal.aborted) {
+            return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
+        }
         await options.beforeRun?.(at);
-        if (controller.signal.aborted) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
+        if (controller.signal.aborted) {
+            return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
+        }
         const items = await options.repository.claimOutbox({
             owner: options.owner,
             ttlMs: options.ttlMs,
@@ -124,8 +131,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 // deliveryId is supplied by the committed outbox record. The dispatch adapter
                 // must pass it unchanged so a lease retry cannot create another meeting fact.
                 await options.dispatch(item, controller.signal);
-                if (controller.signal.aborted)
+                if (controller.signal.aborted) {
                     return { claimed: items.length, delivered, retried, failed };
+                }
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
@@ -135,8 +143,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 });
                 delivered += 1;
             } catch (error) {
-                if (controller.signal.aborted)
+                if (controller.signal.aborted) {
                     return { claimed: items.length, delivered, retried, failed };
+                }
                 const code = errorCode(error);
                 const terminal =
                     !isRetryable(error) ||
@@ -155,7 +164,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 if (terminal) {
                     failed += 1;
                     await options.onTerminalFailure?.(item, code, completionNow);
-                } else retried += 1;
+                } else {
+                    retried += 1;
+                }
             }
         }
         return { claimed: items.length, delivered, retried, failed };
@@ -167,7 +178,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 try {
                     await runOnce();
                 } catch (error) {
-                    if (!isRetryable(error)) throw error;
+                    if (!isRetryable(error)) {
+                        throw error;
+                    }
                 }
                 if (!controller.signal.aborted) {
                     const wakePromise = new Promise<void>((resolve) => {
@@ -181,7 +194,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
         try {
             await running;
         } catch (error) {
-            if (!controller.signal.aborted) throw error;
+            if (!controller.signal.aborted) {
+                throw error;
+            }
         }
     }
 
@@ -194,7 +209,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
         try {
             await running;
         } catch (error) {
-            if (!controller.signal.aborted) throw error;
+            if (!controller.signal.aborted) {
+                throw error;
+            }
         }
     }
 

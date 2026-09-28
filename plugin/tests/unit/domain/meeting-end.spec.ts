@@ -17,7 +17,9 @@ describe("meeting end", () => {
             now: 10
         });
         expect(ended.kind).toBe("accepted");
-        if (ended.kind !== "accepted") return;
+        if (ended.kind !== "accepted") {
+            return;
+        }
         expect(ended.state.lifecycle.status).toBe("terminal");
         expect(ended.effectRequests).toEqual([
             { kind: "materialize_archive", terminationId: "termination-v1" }

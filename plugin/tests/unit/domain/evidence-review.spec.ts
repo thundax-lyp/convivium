@@ -46,7 +46,9 @@ function evidenceState() {
         managerId: "manager-v1",
         now: 1
     });
-    if (open.kind !== "accepted") throw new Error("round");
+    if (open.kind !== "accepted") {
+        throw new Error("round");
+    }
     state = open.state;
     const hand = raiseHand(state, {
         roundId: "round-v1",
@@ -54,7 +56,9 @@ function evidenceState() {
         purpose: "提交",
         now: 2
     });
-    if (hand.kind !== "accepted") throw new Error("hand");
+    if (hand.kind !== "accepted") {
+        throw new Error("hand");
+    }
     state = hand.state;
     const accept = disposeHandRaise(state, {
         roundId: "round-v1",
@@ -65,7 +69,9 @@ function evidenceState() {
         contributionId: "contribution-v1",
         now: 3
     });
-    if (accept.kind !== "accepted") throw new Error("accept");
+    if (accept.kind !== "accepted") {
+        throw new Error("accept");
+    }
     state = accept.state;
     const submit = submitEvidence(state, {
         contributionId: "contribution-v1",
@@ -106,7 +112,9 @@ function evidenceState() {
             ]
         }
     });
-    if (submit.kind !== "accepted") throw new Error("submit");
+    if (submit.kind !== "accepted") {
+        throw new Error("submit");
+    }
     return submit.state;
 }
 const dimensions = {
@@ -168,7 +176,9 @@ function submitClaimedReview(
         now: 5,
         expiresAt: 100
     });
-    if (claim.kind !== "accepted") throw new Error("claim");
+    if (claim.kind !== "accepted") {
+        throw new Error("claim");
+    }
     return submitEvidenceReview(claim.state, {
         claimId: "review-claim-v1",
         reviewerId,
@@ -197,7 +207,9 @@ describe("evidence review and delivery", () => {
                 expiresAt: attempt * 10 + 5
             });
             expect(claim.kind).toBe("accepted");
-            if (claim.kind !== "accepted") return;
+            if (claim.kind !== "accepted") {
+                return;
+            }
             expect(claim.state.evidencePackages[0].versions[0].status).toBe("validating");
             const failed = failEvidenceValidation(claim.state, {
                 claimId: `claim-${attempt}`,
@@ -206,7 +218,9 @@ describe("evidence review and delivery", () => {
                 now: attempt * 10 + 5
             });
             expect(failed.kind).toBe("accepted");
-            if (failed.kind !== "accepted") return;
+            if (failed.kind !== "accepted") {
+                return;
+            }
             state = failed.state;
             expect(state.evidencePackages[0].versions[0]).toMatchObject({
                 status: "validation_failed",
@@ -238,7 +252,9 @@ describe("evidence review and delivery", () => {
             now: 6,
             expiresAt: 100
         });
-        if (claim.kind !== "accepted") throw new Error("claim");
+        if (claim.kind !== "accepted") {
+            throw new Error("claim");
+        }
         const paused = transitionMeetingState(
             claim.state,
             { kind: "pause_meeting", reason: "人工暂停" },
@@ -247,7 +263,9 @@ describe("evidence review and delivery", () => {
             "pause-fact"
         );
         expect(paused.kind).toBe("accepted");
-        if (paused.kind !== "accepted") return;
+        if (paused.kind !== "accepted") {
+            return;
+        }
         expect(paused.state.reviewClaims).toEqual([]);
         expect(paused.state.evidencePackages[0].versions[0]).toMatchObject({
             status: "validation_cancelled",
@@ -260,7 +278,9 @@ describe("evidence review and delivery", () => {
             8,
             "resume-fact"
         );
-        if (resumed.kind !== "accepted") throw new Error("resume");
+        if (resumed.kind !== "accepted") {
+            throw new Error("resume");
+        }
         expect(
             claimEvidenceReview(resumed.state, {
                 claimId: "claim-after-resume",
@@ -284,7 +304,9 @@ describe("evidence review and delivery", () => {
         );
 
         expect(paused.kind).toBe("accepted");
-        if (paused.kind !== "accepted") return;
+        if (paused.kind !== "accepted") {
+            return;
+        }
         expect(paused.state.evidencePackages[0].versions[0]).toMatchObject({
             status: "validation_cancelled",
             failureCount: 0
@@ -301,7 +323,9 @@ describe("evidence review and delivery", () => {
             scope: "本轮"
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.evidencePackages[0].versions[0].status).toBe("validated");
         expect(result.state.evidencePackages[1].versions[0].status).toBe("submitted");
         expect(result.effectRequests).toHaveLength(1);
@@ -317,7 +341,9 @@ describe("evidence review and delivery", () => {
             now: 6,
             expiresAt: 100
         });
-        if (first.kind !== "accepted") throw new Error("first claim");
+        if (first.kind !== "accepted") {
+            throw new Error("first claim");
+        }
         const second = claimEvidenceReview(first.state, {
             claimId: "claim-v2",
             sourceEffectId: "effect-v2",
@@ -328,7 +354,9 @@ describe("evidence review and delivery", () => {
             expiresAt: 100
         });
         expect(second.kind).toBe("accepted");
-        if (second.kind !== "accepted") return;
+        if (second.kind !== "accepted") {
+            return;
+        }
         expect(second.state.reviewClaims.map(({ versionId }) => versionId)).toEqual([
             "version-v1",
             "version-v2"
@@ -350,7 +378,9 @@ describe("evidence review and delivery", () => {
             now: 5,
             expiresAt: 10
         });
-        if (first.kind !== "accepted") throw new Error("first claim");
+        if (first.kind !== "accepted") {
+            throw new Error("first claim");
+        }
         const conflict = claimEvidenceReview(first.state, {
             claimId: "claim-conflict",
             sourceEffectId: "review-effect-conflict",
@@ -367,7 +397,9 @@ describe("evidence review and delivery", () => {
             reason: "review_timeout",
             now: 10
         });
-        if (timedOut.kind !== "accepted") throw new Error("timeout");
+        if (timedOut.kind !== "accepted") {
+            throw new Error("timeout");
+        }
         const replaced = claimEvidenceReview(timedOut.state, {
             claimId: "claim-replacement",
             sourceEffectId: "review-effect-replacement",
@@ -392,7 +424,9 @@ describe("evidence review and delivery", () => {
             now: 5,
             expiresAt: 100
         });
-        if (claim.kind !== "accepted") throw new Error("claim");
+        if (claim.kind !== "accepted") {
+            throw new Error("claim");
+        }
 
         const recovered = decodeMeetingState(encodeMeetingState(claim.state));
 
@@ -411,14 +445,18 @@ describe("evidence review and delivery", () => {
             now: 5,
             expiresAt: 100
         });
-        if (claim.kind !== "accepted") throw new Error("claim");
+        if (claim.kind !== "accepted") {
+            throw new Error("claim");
+        }
         const released = failEvidenceValidation(claim.state, {
             claimId: "review-claim-v1",
             roundId: "round-v1",
             reason: "review_timeout",
             now: 6
         });
-        if (released.kind !== "accepted") throw new Error("release");
+        if (released.kind !== "accepted") {
+            throw new Error("release");
+        }
 
         expect(released.state.reviewClaims).toEqual([]);
         expect(
@@ -453,7 +491,9 @@ describe("evidence review and delivery", () => {
             now: 5,
             expiresAt: 100
         });
-        if (claim.kind !== "accepted") throw new Error("claim");
+        if (claim.kind !== "accepted") {
+            throw new Error("claim");
+        }
 
         const aborted = abortRound(claim.state, {
             roundId: "round-v1",
@@ -488,7 +528,9 @@ describe("evidence review and delivery", () => {
             scope: "本轮"
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.reviews[0].baselinePublicationIds).toEqual([]);
         expect(result.effectRequests).toEqual([
             { kind: "review_delivery", reviewId: "review-v1", authorId: "contributor-v1" }
@@ -504,7 +546,9 @@ describe("review delivery and publication", () => {
             dimensions,
             scope: "本轮"
         });
-        if (reviewed.kind !== "accepted") throw new Error("review");
+        if (reviewed.kind !== "accepted") {
+            throw new Error("review");
+        }
         const failed = recordReviewDelivery(reviewed.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
@@ -533,7 +577,9 @@ describe("review delivery and publication", () => {
             dimensions,
             scope: "本轮"
         });
-        if (reviewed.kind !== "accepted") throw new Error("review");
+        if (reviewed.kind !== "accepted") {
+            throw new Error("review");
+        }
         const withdrawn = closeContribution(reviewed.state, {
             contributionId: "contribution-v1",
             actorId: "contributor-v1",
@@ -542,7 +588,9 @@ describe("review delivery and publication", () => {
             reason: "withdraw",
             now: 7
         });
-        if (withdrawn.kind !== "accepted") throw new Error("withdraw");
+        if (withdrawn.kind !== "accepted") {
+            throw new Error("withdraw");
+        }
 
         const delivered = recordReviewDelivery(withdrawn.state, {
             reviewId: "review-v1",
@@ -565,7 +613,9 @@ describe("review delivery and publication", () => {
             dimensions,
             scope: "本轮"
         });
-        if (reviewed.kind !== "accepted") throw new Error("review");
+        if (reviewed.kind !== "accepted") {
+            throw new Error("review");
+        }
         const delivered = recordReviewDelivery(reviewed.state, {
             reviewId: "review-v1",
             dispatcherId: "dispatcher-v1",
@@ -573,7 +623,9 @@ describe("review delivery and publication", () => {
             status: "sent",
             now: 7
         });
-        if (delivered.kind !== "accepted") throw new Error("delivery");
+        if (delivered.kind !== "accepted") {
+            throw new Error("delivery");
+        }
 
         expect(isRoundClosable(delivered.state, "round-v1")).toBe(false);
         const early = publishRound(delivered.state, {
@@ -592,7 +644,9 @@ describe("review delivery and publication", () => {
             reason: "不再补充",
             now: 8
         });
-        if (withdrawn.kind !== "accepted") throw new Error("withdrawal");
+        if (withdrawn.kind !== "accepted") {
+            throw new Error("withdrawal");
+        }
         expect(isRoundClosable(withdrawn.state, "round-v1")).toBe(true);
         expect(withdrawn.effectRequests).toContainEqual({
             kind: "agent_notice",

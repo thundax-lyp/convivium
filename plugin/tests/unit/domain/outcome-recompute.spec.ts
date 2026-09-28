@@ -46,7 +46,9 @@ describe("Recompute/Convergence", () => {
             relatedIds: ["dec", "v"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.decisions[0].status).toBe("revoked");
         expect(result.state.completionFacts[0].status).toBe("active");
         expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
@@ -72,7 +74,9 @@ describe("Recompute/Convergence", () => {
             now: 2
         });
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.decisions.map((d) => d.status)).toEqual(["superseded", "accepted"]);
         expect(result.state.completionFacts[0].status).toBe("active");
         expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
@@ -164,7 +168,9 @@ describe("Recompute/Convergence", () => {
             relatedIds: ["risk", "issue", "v"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.issues[0]).toMatchObject({
             classification: "accepted_risk",
             blocking: false
@@ -211,7 +217,9 @@ describe("Recompute/Convergence", () => {
             now: 3
         });
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.lifecycle.status).toBe("running");
         expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
         expect(result.state.issues[0].blocking).toBe(true);

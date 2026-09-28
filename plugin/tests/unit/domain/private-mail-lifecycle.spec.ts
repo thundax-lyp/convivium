@@ -19,14 +19,18 @@ describe("private mail completion and cancellation", () => {
     function startedState() {
         const sent = sendPrivateMail(privateMailState(), input);
         expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") throw new Error("send failed");
+        if (sent.kind !== "accepted") {
+            throw new Error("send failed");
+        }
         const started = startPrivateMail(sent.state, {
             mailId: "mail-1",
             actorKind: "effect_dispatcher",
             now: 20
         });
         expect(started.kind).toBe("accepted");
-        if (started.kind !== "accepted") throw new Error("start failed");
+        if (started.kind !== "accepted") {
+            throw new Error("start failed");
+        }
         return started.state;
     }
 
@@ -82,7 +86,9 @@ describe("private mail completion and cancellation", () => {
     it("rejects complete on queued mail as INVALID_STATE", () => {
         const before = sendPrivateMail(privateMailState(), input);
         expect(before.kind).toBe("accepted");
-        if (before.kind !== "accepted") return;
+        if (before.kind !== "accepted") {
+            return;
+        }
         const result = completePrivateMail(before.state, {
             mailId: "mail-1",
             recipientId: "recipient",
@@ -106,7 +112,9 @@ describe("private mail completion and cancellation", () => {
     it("rejects cancel for wrong sender, empty reason, and early times atomically", () => {
         const queued = sendPrivateMail(privateMailState(), input);
         expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") return;
+        if (queued.kind !== "accepted") {
+            return;
+        }
         for (const [senderId, reason, now, code] of [
             ["missing", "stop", 20, "UNAUTHORIZED"],
             ["sender", "", 20, "INVALID_ARGUMENT"],
@@ -145,7 +153,9 @@ describe("private mail completion and cancellation", () => {
     it("cancels queued and processing mail while preserving the processing pair", () => {
         const queued = sendPrivateMail(privateMailState(), input);
         expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") return;
+        if (queued.kind !== "accepted") {
+            return;
+        }
         const cancelled = cancelPrivateMail(queued.state, {
             mailId: "mail-1",
             senderId: "sender",
@@ -153,12 +163,13 @@ describe("private mail completion and cancellation", () => {
             now: 20
         });
         expect(cancelled.kind).toBe("accepted");
-        if (cancelled.kind === "accepted")
+        if (cancelled.kind === "accepted") {
             expect(cancelled.state.privateMails[0]).toMatchObject({
                 status: "cancelled",
                 completedAt: 20,
                 failureReason: "stop"
             });
+        }
         const processing = startedState();
         const stopped = cancelPrivateMail(processing, {
             mailId: "mail-1",
@@ -167,7 +178,7 @@ describe("private mail completion and cancellation", () => {
             now: 30
         });
         expect(stopped.kind).toBe("accepted");
-        if (stopped.kind === "accepted")
+        if (stopped.kind === "accepted") {
             expect(stopped.state.privateMails[0]).toMatchObject({
                 status: "cancelled",
                 processingStartedAt: 20,
@@ -175,12 +186,15 @@ describe("private mail completion and cancellation", () => {
                 completedAt: 30,
                 failureReason: "stop"
             });
+        }
     });
 
     it("expires queued and processing mail and rejects early or malformed calls", () => {
         const queued = sendPrivateMail(privateMailState(), input);
         expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") return;
+        if (queued.kind !== "accepted") {
+            return;
+        }
         const early = expirePrivateMail(queued.state, {
             mailId: "mail-1",
             actorKind: "deadline_handler",
@@ -203,7 +217,7 @@ describe("private mail completion and cancellation", () => {
             now: 110
         });
         expect(stopped.kind).toBe("accepted");
-        if (stopped.kind === "accepted")
+        if (stopped.kind === "accepted") {
             expect(stopped.state.privateMails[0]).toMatchObject({
                 status: "timed_out",
                 processingStartedAt: 20,
@@ -211,6 +225,7 @@ describe("private mail completion and cancellation", () => {
                 completedAt: 110,
                 failureReason: "late"
             });
+        }
         const malformed = expirePrivateMail(processing, undefined as never);
         rejected(malformed, "INVALID_ARGUMENT");
         for (const reason of [undefined, 1]) {
@@ -236,10 +251,14 @@ describe("private mail recipient gate", () => {
             now: 30
         });
         expect(cancelled.kind).toBe("accepted");
-        if (cancelled.kind !== "accepted") return;
+        if (cancelled.kind !== "accepted") {
+            return;
+        }
         const next = sendPrivateMail(cancelled.state, { ...input, mailId: "mail-2", now: 31 });
         expect(next.kind).toBe("accepted");
-        if (next.kind !== "accepted") return;
+        if (next.kind !== "accepted") {
+            return;
+        }
         const started = startPrivateMail(next.state, {
             mailId: "mail-2",
             actorKind: "effect_dispatcher",
@@ -437,8 +456,9 @@ describe("private mail recipient gate", () => {
                 reason: "late",
                 now: 110
             })
-        ])
+        ]) {
             rejected(result, "INVALID_STATE");
+        }
     });
 
     it.each(["terminal", "archiving", "archived"] as const)(
@@ -481,7 +501,9 @@ describe("private mail expiry authorization", () => {
     it("rejects expire wrong actor and checks input/state before actor", () => {
         const before = sendPrivateMail(privateMailState(), input);
         expect(before.kind).toBe("accepted");
-        if (before.kind !== "accepted") return;
+        if (before.kind !== "accepted") {
+            return;
+        }
         rejected(
             expirePrivateMail(before.state, {
                 mailId: "mail-1",
@@ -525,8 +547,11 @@ describe("private mail expiry authorization", () => {
         expect(result.kind).toBe("rejected");
         if (result.kind === "rejected") {
             expect(result.error.code).toBe(code);
-            if (targetId === undefined) expect(result.error.targetId).toBeUndefined();
-            else expect(result.error.targetId).toBe(targetId);
+            if (targetId === undefined) {
+                expect(result.error.targetId).toBeUndefined();
+            } else {
+                expect(result.error.targetId).toBe(targetId);
+            }
         }
     }
 

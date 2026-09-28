@@ -66,7 +66,9 @@ describe("identity admission recovery", () => {
             now: 2
         });
         expect(terminal.kind).toBe("accepted");
-        if (terminal.kind !== "accepted") return;
+        if (terminal.kind !== "accepted") {
+            return;
+        }
         expect(terminal.state.lifecycle.status).toBe("terminal");
         expect(terminal.state.identityRecommendations[0]).toMatchObject({
             status: "failed",

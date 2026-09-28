@@ -188,21 +188,24 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                         claim.id === command.action.claimId &&
                         claim.roundId === command.action.roundId
                 );
-                if (!found)
+                if (!found) {
                     return {
                         kind: "rejected" as const,
                         error: { code: "NOT_FOUND", message: "missing", retryable: false }
                     };
+                }
                 state.reviewClaims = state.reviewClaims.filter(
                     (claim) => claim.id !== command.action.claimId
                 );
-                for (const pkg of state.evidencePackages)
-                    for (const version of pkg.versions)
+                for (const pkg of state.evidencePackages) {
+                    for (const version of pkg.versions) {
                         if (version.id === "version-pending") {
                             version.status = "validation_failed";
                             version.failureCount += 1;
                             version.lastFailureReason = command.action.reason as "review_timeout";
                         }
+                    }
+                }
                 return {
                     kind: "accepted" as const,
                     meetingId: state.id,
@@ -213,11 +216,12 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                 };
             }
             state.reviewClaims = state.reviewClaims.filter((claim) => claim.expiresAt > 6);
-            if (state.reviewClaims.some((claim) => claim.versionId === command.action.versionId))
+            if (state.reviewClaims.some((claim) => claim.versionId === command.action.versionId)) {
                 return {
                     kind: "rejected" as const,
                     error: { code: "REVIEWER_CONFLICT", message: "claimed", retryable: true }
                 };
+            }
             state.reviewClaims.push({
                 id: "review-claim-v1",
                 sourceEffectId: command.action.sourceEffectId,
@@ -227,9 +231,13 @@ function claimApplication(state: ReturnType<typeof stateWithPendingReview>["stat
                 claimedAt: 6,
                 expiresAt: 100
             });
-            for (const pkg of state.evidencePackages)
-                for (const version of pkg.versions)
-                    if (version.id === command.action.versionId) version.status = "validating";
+            for (const pkg of state.evidencePackages) {
+                for (const version of pkg.versions) {
+                    if (version.id === command.action.versionId) {
+                        version.status = "validating";
+                    }
+                }
+            }
             return {
                 kind: "accepted" as const,
                 meetingId: state.id,

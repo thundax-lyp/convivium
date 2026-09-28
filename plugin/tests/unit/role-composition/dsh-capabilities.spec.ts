@@ -85,7 +85,9 @@ describe("role resource preflight", () => {
         const f = await fixture();
         const result = await preflightMeetingIdentity(f.input);
         expect(result.kind).toBe("ready");
-        if (result.kind !== "ready") throw new Error(result.error.code);
+        if (result.kind !== "ready") {
+            throw new Error(result.error.code);
+        }
         expect(result.descriptor).toMatchObject({
             meetingId: "meeting",
             identityId: "identity",
@@ -158,19 +160,24 @@ describe("role resource preflight", () => {
         async (mode) => {
             const f = await fixture();
             const snapshot = await f.skills.snapshot();
-            if (mode === "extra")
+            if (mode === "extra") {
                 f.skills.snapshot.mockResolvedValue({
                     complete: true,
                     skills: [...snapshot.skills, { ...snapshot.skills[0], name: "extra" }]
                 });
-            if (mode === "missing")
+            }
+            if (mode === "missing") {
                 f.skills.snapshot.mockResolvedValue({ complete: true, skills: [] });
-            if (mode === "incomplete")
+            }
+            if (mode === "incomplete") {
                 f.skills.snapshot.mockResolvedValue({ complete: false, skills: snapshot.skills });
-            if (mode === "override")
+            }
+            if (mode === "override") {
                 f.skills.get.mockResolvedValue({ ...snapshot.skills[0], content: "replaced" });
-            if (mode === "hidden-load")
+            }
+            if (mode === "hidden-load") {
                 f.skills.get.mockImplementation(async (name) => ({ ...snapshot.skills[0], name }));
+            }
             expect(await preflightMeetingIdentity(f.input)).toMatchObject({
                 kind: "rejected",
                 error: { code: "CAPABILITY_MISSING" }

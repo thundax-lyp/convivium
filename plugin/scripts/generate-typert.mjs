@@ -94,8 +94,9 @@ export async function generateTypert(pluginRoot) {
             ["@convivium/dsh-plugin"],
             ["host"]
         );
-        if (generated.length !== 1)
+        if (generated.length !== 1) {
             throw new Error("Typert generator did not emit one plugin package.");
+        }
         const output = generated[0];
         if (!output.js || !output.dts || !output.remote?.js || !output.remote?.dts) {
             throw new Error("Typert generator did not emit the four required artifacts.");

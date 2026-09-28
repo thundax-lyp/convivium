@@ -42,8 +42,9 @@ function validText(value: string) {
     return value.trim().length > 0;
 }
 function validInput(evidence: EvidenceInput) {
-    if (![evidence.observation, evidence.interpretation, evidence.method].every(validText))
+    if (![evidence.observation, evidence.interpretation, evidence.method].every(validText)) {
         return false;
+    }
     if (
         ![
             evidence.falsifiers,
@@ -52,8 +53,9 @@ function validInput(evidence: EvidenceInput) {
             evidence.claims,
             evidence.materials
         ].every((items) => items.length > 0)
-    )
+    ) {
         return false;
+    }
     if (
         evidence.falsifiers
             .concat(evidence.uncertainties, evidence.limitations)
@@ -62,8 +64,9 @@ function validInput(evidence: EvidenceInput) {
                     !validText(item.value) ||
                     ((item.value === "无" || item.value === "未知") && !item.reason?.trim())
             )
-    )
+    ) {
         return false;
+    }
     const materialIds = new Set(evidence.materials.map((material) => material.id));
     if (
         evidence.claims.some(
@@ -74,8 +77,9 @@ function validInput(evidence: EvidenceInput) {
                 claim.materialIds.length === 0 ||
                 claim.materialIds.some((id) => !materialIds.has(id))
         )
-    )
+    ) {
         return false;
+    }
     return evidence.materials.every(
         (material) =>
             [
@@ -114,16 +118,22 @@ export function submitEvidence(
         !Number.isSafeInteger(input.now) ||
         input.now < 0 ||
         !validInput(input.evidence)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid evidence input");
+    }
     const contribution = state.contributions.find(
         (candidate) => candidate.id === input.contributionId
     );
-    if (!contribution) return reject(state, "NOT_FOUND", "contribution not found");
-    if (contribution.contributorId !== input.authorId)
+    if (!contribution) {
+        return reject(state, "NOT_FOUND", "contribution not found");
+    }
+    if (contribution.contributorId !== input.authorId) {
         return reject(state, "UNAUTHORIZED", "identity is not contribution author");
+    }
     const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
+    if (!round) {
+        return reject(state, "NOT_FOUND", "round not found");
+    }
     const existingPackage =
         contribution.packageId === undefined
             ? undefined
@@ -135,21 +145,26 @@ export function submitEvidence(
             (contribution.status === "under_review" ||
                 contribution.supplementHand?.status !== "accepted" ||
                 contribution.substantiveSupplementCount >= 2))
-    )
+    ) {
         return reject(state, "INVALID_STATE", "contribution cannot register evidence");
-    if (contribution.packageId !== undefined && existingPackage === undefined)
+    }
+    if (contribution.packageId !== undefined && existingPackage === undefined) {
         return reject(state, "INVALID_STATE", "evidence package is missing");
+    }
     const currentVersion =
         existingPackage === undefined
             ? undefined
             : existingPackage.versions.find(
                   (candidate) => candidate.id === existingPackage.currentVersionId
               );
-    if (existingPackage !== undefined && currentVersion === undefined)
+    if (existingPackage !== undefined && currentVersion === undefined) {
         return reject(state, "INVALID_STATE", "current evidence version is missing");
+    }
     if (currentVersion === undefined) {
         const deadlines = [contribution.acceptedAt + state.limits.taskDeadlineMs];
-        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        if (round.deadlineAt !== undefined) {
+            deadlines.push(round.deadlineAt);
+        }
         deadlines.push(
             ...state.tasks
                 .filter(
@@ -161,12 +176,17 @@ export function submitEvidence(
                 )
                 .map((task) => task.deadlineAt!)
         );
-        if (deadlines.some((deadline) => !Number.isSafeInteger(deadline) || input.now >= deadline))
+        if (
+            deadlines.some((deadline) => !Number.isSafeInteger(deadline) || input.now >= deadline)
+        ) {
             return reject(state, "PRECONDITION_FAILED", "evidence deadline has passed");
+        }
     }
     if (currentVersion !== undefined) {
         const deadlines = [currentVersion.submittedAt + state.limits.taskDeadlineMs];
-        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        if (round.deadlineAt !== undefined) {
+            deadlines.push(round.deadlineAt);
+        }
         const currentReview = state.reviews.find(
             (review) => review.versionId === currentVersion.id
         );
@@ -177,8 +197,9 @@ export function submitEvidence(
                       (delivery) =>
                           delivery.reviewId === currentReview.id && delivery.status === "sent"
                   );
-        if (sent?.sentAt !== undefined)
+        if (sent?.sentAt !== undefined) {
             deadlines.push(sent.sentAt + state.limits.responseDeadlineMs);
+        }
         deadlines.push(
             ...state.tasks
                 .filter(
@@ -190,8 +211,9 @@ export function submitEvidence(
                 )
                 .map((task) => task.deadlineAt!)
         );
-        if (deadlines.some((deadline) => input.now >= deadline))
+        if (deadlines.some((deadline) => input.now >= deadline)) {
             return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
+        }
     }
     const version: EvidenceVersion = {
         ...input.evidence,

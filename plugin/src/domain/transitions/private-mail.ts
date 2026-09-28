@@ -61,7 +61,9 @@ function busy(s: MeetingState, id: string, except?: string) {
 }
 export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): MeetingTransitionResult {
     const bad = stateCheck(s);
-    if (bad) return bad;
+    if (bad) {
+        return bad;
+    }
     const text = (value: unknown): value is string =>
         typeof value === "string" && value.trim().length > 0;
     const ids = (value: unknown): value is readonly string[] =>
@@ -77,29 +79,39 @@ export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): Meeti
         !ids(i.relatedIds) ||
         i.relatedIds.length === 0 ||
         new Set(i.relatedIds).size !== i.relatedIds.length
-    )
+    ) {
         return reject(s, "INVALID_ARGUMENT", "invalid private mail input");
-    if (!s.identities.some((x) => x.id === i.senderId))
+    }
+    if (!s.identities.some((x) => x.id === i.senderId)) {
         return reject(s, "UNAUTHORIZED", "sender not found", i.senderId);
-    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
+    }
+    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status)) {
         return reject(s, "MEETING_TERMINAL", "meeting is terminal");
-    if (s.lifecycle.status !== "running")
+    }
+    if (s.lifecycle.status !== "running") {
         return reject(s, "INVALID_STATE", "meeting is not running");
-    if (i.senderId === i.recipientId)
+    }
+    if (i.senderId === i.recipientId) {
         return reject(s, "PRECONDITION_FAILED", "sender and recipient must differ");
-    if (!s.identities.some((x) => x.id === i.recipientId))
+    }
+    if (!s.identities.some((x) => x.id === i.recipientId)) {
         return reject(s, "NOT_FOUND", "recipient not found", i.recipientId);
-    if (i.agendaId !== undefined && !s.agenda.some((x) => x.id === i.agendaId))
+    }
+    if (i.agendaId !== undefined && !s.agenda.some((x) => x.id === i.agendaId)) {
         return reject(s, "NOT_FOUND", "agenda not found", i.agendaId);
-    if (s.privateMails.some((x) => x.id === i.mailId))
+    }
+    if (s.privateMails.some((x) => x.id === i.mailId)) {
         return reject(s, "INVALID_ARGUMENT", "mail id already exists", i.mailId);
+    }
     const pubs = new Set([...s.publications.map((x) => x.id), ...s.messages.map((x) => x.id)]);
     const missingRelated = i.relatedIds.find((x) => !pubs.has(x));
-    if (missingRelated !== undefined)
+    if (missingRelated !== undefined) {
         return reject(s, "NOT_FOUND", "related reference not public", missingRelated);
+    }
     const deadline = i.now + s.limits.taskDeadlineMs;
-    if (!Number.isSafeInteger(deadline))
+    if (!Number.isSafeInteger(deadline)) {
         return reject(s, "PRECONDITION_FAILED", "deadline overflow");
+    }
     const m: PrivateMail = {
         id: i.mailId,
         senderId: i.senderId,
@@ -118,8 +130,9 @@ export function sendPrivateMail(s: MeetingState, i: SendPrivateMailInput): Meeti
         updatedAt: i.now,
         privateMails: [...s.privateMails, m]
     };
-    if (validateMeetingState(n).kind === "invalid")
+    if (validateMeetingState(n).kind === "invalid") {
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
+    }
     return {
         kind: "accepted",
         state: n,
@@ -139,26 +152,39 @@ export function startPrivateMail(
     i: StartPrivateMailInput
 ): MeetingTransitionResult {
     const bad = stateCheck(s);
-    if (bad) return bad;
-    if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !valid(i.now))
+    if (bad) {
+        return bad;
+    }
+    if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !valid(i.now)) {
         return reject(s, "INVALID_ARGUMENT", "invalid start input");
-    if (i.actorKind !== "effect_dispatcher")
+    }
+    if (i.actorKind !== "effect_dispatcher") {
         return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
-    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
+    }
+    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status)) {
         return reject(s, "MEETING_TERMINAL", "meeting is terminal", i.mailId);
-    if (s.lifecycle.status !== "running")
+    }
+    if (s.lifecycle.status !== "running") {
         return reject(s, "INVALID_STATE", "meeting is not running", i.mailId);
+    }
     const n = s.privateMails.findIndex((x) => x.id === i.mailId);
-    if (n < 0) return reject(s, "NOT_FOUND", "mail not found", i.mailId);
+    if (n < 0) {
+        return reject(s, "NOT_FOUND", "mail not found", i.mailId);
+    }
     const m = s.privateMails[n];
-    if (m.status !== "queued") return reject(s, "INVALID_STATE", "mail is not queued", i.mailId);
-    if (i.now < m.createdAt || i.now >= m.deadlineAt)
+    if (m.status !== "queued") {
+        return reject(s, "INVALID_STATE", "mail is not queued", i.mailId);
+    }
+    if (i.now < m.createdAt || i.now >= m.deadlineAt) {
         return reject(s, "PRECONDITION_FAILED", "mail deadline invalid", i.mailId);
-    if (busy(s, m.recipientId, m.id))
+    }
+    if (busy(s, m.recipientId, m.id)) {
         return reject(s, "PRECONDITION_FAILED", "recipient serial busy", i.mailId);
+    }
     const c = s.publications.map((x) => x.id);
-    if (m.sendContextPublicationUpperBound.some((x, j) => c[j] !== x))
+    if (m.sendContextPublicationUpperBound.some((x, j) => c[j] !== x)) {
         return reject(s, "PRECONDITION_FAILED", "send context is not a prefix", i.mailId);
+    }
     const changed = {
         ...m,
         status: "processing" as const,
@@ -171,8 +197,9 @@ export function startPrivateMail(
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingState(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid") {
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
+    }
     return { kind: "accepted", state: next, relatedIds: [m.id, ...c], effectRequests: [] };
 }
 function finish(
@@ -183,7 +210,9 @@ function finish(
     actor?: string
 ): MeetingTransitionResult {
     const bad = stateCheck(s);
-    if (bad) return bad;
+    if (bad) {
+        return bad;
+    }
     if (
         !i ||
         typeof i.mailId !== "string" ||
@@ -191,40 +220,57 @@ function finish(
         typeof reason !== "string" ||
         !reason.trim() ||
         !valid(i.now)
-    )
+    ) {
         return reject(s, "INVALID_ARGUMENT", "invalid terminal input");
-    if (status === "completed" && !s.identities.some((x) => x.id === actor))
+    }
+    if (status === "completed" && !s.identities.some((x) => x.id === actor)) {
         return reject(s, "UNAUTHORIZED", "recipient not found", actor);
-    if (status === "cancelled" && !s.identities.some((x) => x.id === actor))
+    }
+    if (status === "cancelled" && !s.identities.some((x) => x.id === actor)) {
         return reject(s, "UNAUTHORIZED", "sender not found", actor);
-    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
+    }
+    if (["terminal", "archiving", "archived"].includes(s.lifecycle.status)) {
         return reject(s, "MEETING_TERMINAL", "meeting is terminal", i.mailId);
-    if (s.lifecycle.status === "preparing")
+    }
+    if (s.lifecycle.status === "preparing") {
         return reject(s, "INVALID_STATE", "meeting is preparing");
+    }
     const n = s.privateMails.findIndex((x) => x.id === i.mailId);
-    if (n < 0) return reject(s, "NOT_FOUND", "mail not found", i.mailId);
+    if (n < 0) {
+        return reject(s, "NOT_FOUND", "mail not found", i.mailId);
+    }
     const m = s.privateMails[n];
     if (status === "completed") {
-        if (actor !== m.recipientId) return reject(s, "UNAUTHORIZED", "not recipient", m.id);
-        if (m.status !== "processing")
+        if (actor !== m.recipientId) {
+            return reject(s, "UNAUTHORIZED", "not recipient", m.id);
+        }
+        if (m.status !== "processing") {
             return reject(s, "INVALID_STATE", "mail is not processing", m.id);
+        }
         if (
             m.processingStartedAt === undefined ||
             i.now < m.processingStartedAt ||
             i.now >= m.deadlineAt
-        )
+        ) {
             return reject(s, "PRECONDITION_FAILED", "mail cannot complete", m.id);
+        }
     } else if (status === "cancelled") {
-        if (actor !== m.senderId) return reject(s, "UNAUTHORIZED", "not sender", m.id);
-        if (m.status !== "queued" && m.status !== "processing")
+        if (actor !== m.senderId) {
+            return reject(s, "UNAUTHORIZED", "not sender", m.id);
+        }
+        if (m.status !== "queued" && m.status !== "processing") {
             return reject(s, "INVALID_STATE", "mail is terminal", m.id);
-        if (i.now < (m.processingStartedAt ?? m.createdAt))
+        }
+        if (i.now < (m.processingStartedAt ?? m.createdAt)) {
             return reject(s, "PRECONDITION_FAILED", "time invalid", m.id);
+        }
     } else {
-        if (m.status !== "queued" && m.status !== "processing")
+        if (m.status !== "queued" && m.status !== "processing") {
             return reject(s, "INVALID_STATE", "mail is terminal", m.id);
-        if (i.now < m.deadlineAt)
+        }
+        if (i.now < m.deadlineAt) {
             return reject(s, "PRECONDITION_FAILED", "deadline not reached", m.id);
+        }
     }
     const changed = Object.fromEntries(
         Object.entries({
@@ -240,8 +286,9 @@ function finish(
         updatedAt: i.now,
         privateMails: s.privateMails.map((x, j) => (j === n ? changed : x))
     };
-    if (validateMeetingState(next).kind === "invalid")
+    if (validateMeetingState(next).kind === "invalid") {
         return reject(s, "PRECONDITION_FAILED", "mail violates state invariant");
+    }
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }
 export function completePrivateMail(s: MeetingState, i: CompletePrivateMailInput) {
@@ -252,7 +299,9 @@ export function cancelPrivateMail(s: MeetingState, i: CancelPrivateMailInput) {
 }
 export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
     const bad = stateCheck(s);
-    if (bad) return bad;
+    if (bad) {
+        return bad;
+    }
     if (
         !i ||
         typeof i.mailId !== "string" ||
@@ -260,9 +309,11 @@ export function expirePrivateMail(s: MeetingState, i: ExpirePrivateMailInput) {
         typeof i.reason !== "string" ||
         !i.reason.trim() ||
         !valid(i.now)
-    )
+    ) {
         return reject(s, "INVALID_ARGUMENT", "invalid terminal input");
-    if (i.actorKind !== "deadline_handler")
+    }
+    if (i.actorKind !== "deadline_handler") {
         return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
+    }
     return finish(s, i, "timed_out", i.reason);
 }

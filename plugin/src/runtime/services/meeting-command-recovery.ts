@@ -17,6 +17,8 @@ export async function recoverMeetingCommands(
             ? repositoryOrDependencies
             : { repository: repositoryOrDependencies };
     const recovered = await dependencies.repository.recover();
-    if (recovered.pendingOutbox > 0) dependencies.wakeOutbox?.();
+    if (recovered.pendingOutbox > 0) {
+        dependencies.wakeOutbox?.();
+    }
     return recovered;
 }

@@ -29,14 +29,18 @@ function stateWithContribution() {
         managerId: "manager-v1",
         now: 1
     });
-    if (opened.kind !== "accepted") throw new Error("round");
+    if (opened.kind !== "accepted") {
+        throw new Error("round");
+    }
     const raised = raiseHand(opened.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
         now: 2
     });
-    if (raised.kind !== "accepted") throw new Error("hand");
+    if (raised.kind !== "accepted") {
+        throw new Error("hand");
+    }
     const accepted = disposeHandRaise(raised.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
@@ -46,7 +50,9 @@ function stateWithContribution() {
         contributionId: "contribution-v1",
         now: 3
     });
-    if (accepted.kind !== "accepted") throw new Error("accept");
+    if (accepted.kind !== "accepted") {
+        throw new Error("accept");
+    }
     return accepted.state;
 }
 const evidence = {
@@ -89,7 +95,9 @@ describe("format and evidence transitions", () => {
             now: 4
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.evidencePackages[0].versions).toHaveLength(1);
         expect(result.state.registrations[0].status).toBe("complete");
         expect(result.state.registrations[0]).toEqual({
@@ -151,7 +159,9 @@ describe("format and evidence transitions", () => {
             versionId: "version-v1",
             now: 4
         });
-        if (first.kind !== "accepted") throw new Error("initial evidence did not register");
+        if (first.kind !== "accepted") {
+            throw new Error("initial evidence did not register");
+        }
         const awaitingResponse = {
             ...first.state,
             contributions: first.state.contributions.map((contribution) => ({
@@ -165,7 +175,9 @@ describe("format and evidence transitions", () => {
             purpose: "补充反证",
             now: 5
         });
-        if (raised.kind !== "accepted") throw new Error("supplement hand did not raise");
+        if (raised.kind !== "accepted") {
+            throw new Error("supplement hand did not raise");
+        }
         const accepted = disposeSupplementHand(raised.state, {
             contributionId: "contribution-v1",
             managerId: "manager-v1",
@@ -173,7 +185,9 @@ describe("format and evidence transitions", () => {
             reason: "允许补充",
             now: 6
         });
-        if (accepted.kind !== "accepted") throw new Error("supplement hand was not accepted");
+        if (accepted.kind !== "accepted") {
+            throw new Error("supplement hand was not accepted");
+        }
 
         const result = submitEvidence(accepted.state, {
             contributionId: "contribution-v1",
@@ -185,7 +199,9 @@ describe("format and evidence transitions", () => {
         });
 
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.evidencePackages).toHaveLength(1);
         expect(result.state.evidencePackages[0]).toMatchObject({
             id: "package-v1",

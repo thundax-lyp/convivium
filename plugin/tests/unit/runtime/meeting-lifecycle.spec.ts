@@ -70,7 +70,9 @@ describe("target Meeting list", () => {
         };
         const registry = {
             listMeetings: () => {
-                if (!toolsReady) throw new Error("Meeting tools must register before recovery");
+                if (!toolsReady) {
+                    throw new Error("Meeting tools must register before recovery");
+                }
                 return [{ meetingId: state.id }, { meetingId: "meeting-unavailable" }];
             },
             openMeeting: async ({ meetingId }: { meetingId: string }) => ({

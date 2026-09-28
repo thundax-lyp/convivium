@@ -43,8 +43,9 @@ export const Config: Schema<Config> = Schema.transform(
             roleIds.length > contributorRoleDefinitionIds.length ||
             new Set(roleIds).size !== roleIds.length ||
             roleIds.some((id) => !contributorRoleDefinitionIds.includes(id))
-        )
+        ) {
             throw new TypeError("Invalid initial Meeting contributor roles.");
+        }
         const definitions = parseAgentDefinitions(value?.agentDefinitions);
         const overrides = parseAgentModelOverrides(value?.agentModelOverrides, definitions);
         const config = runtimeConfig(value);

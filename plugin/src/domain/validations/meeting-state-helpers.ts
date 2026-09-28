@@ -17,7 +17,11 @@ export function checkRefs(
     ids: ReadonlySet<string>,
     path: string
 ): string | undefined {
-    for (let i = 0; i < values.length; i++) if (!ids.has(values[i])) return `${path}[${i}]`;
+    for (let i = 0; i < values.length; i++) {
+        if (!ids.has(values[i])) {
+            return `${path}[${i}]`;
+        }
+    }
     return undefined;
 }
 

@@ -41,7 +41,9 @@ const visibleVersions = (state: MeetingState, caller: MeetingProjectionCaller): 
             const reviewed = state.reviews.some(
                 ({ versionId }) => versionId === item.currentVersionId
             );
-            if (registered && !reviewed) visible.add(item.currentVersionId);
+            if (registered && !reviewed) {
+                visible.add(item.currentVersionId);
+            }
         }
     } else if (caller.kind === "identity" && !hasRole(caller, "manager")) {
         state.evidencePackages
@@ -75,50 +77,70 @@ const catalogView = (catalog: MeetingAgentCatalog) => {
 };
 
 const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) => {
-    if (!["running", "paused", "converging"].includes(state.lifecycle.status)) return [];
+    if (!["running", "paused", "converging"].includes(state.lifecycle.status)) {
+        return [];
+    }
     if (caller.kind === "captain") {
         const controls: AllowedControl[] = [];
-        if (state.lifecycle.status === "running") controls.push("pause_meeting");
+        if (state.lifecycle.status === "running") {
+            controls.push("pause_meeting");
+        }
         if (
             state.lifecycle.status === "paused" &&
             state.lifecycle.reason !== "message budget exhausted"
-        )
+        ) {
             controls.push("resume_meeting");
+        }
         controls.push("end_meeting");
-        if (state.agendaCandidates.some((item) => item.status === "pending"))
+        if (state.agendaCandidates.some((item) => item.status === "pending")) {
             controls.push("dispose_agenda_candidate");
-        if (state.questions.some((item) => ["open", "deferred"].includes(item.status)))
+        }
+        if (state.questions.some((item) => ["open", "deferred"].includes(item.status))) {
             controls.push("resolve_question");
-        if (state.lifecycle.status !== "running") return controls;
+        }
+        if (state.lifecycle.status !== "running") {
+            return controls;
+        }
         const active = state.agenda.find((item) => item.status === "active");
         if (
             active &&
             state.agenda.some((item) => item.status === "pending") &&
             !state.rounds.some((item) => item.agendaId === active.id && item.status === "open")
-        )
+        ) {
             controls.push("activate_agenda");
-        if (state.rounds.some((item) => item.status === "open")) controls.push("abort_round");
-        if (state.issues.some((item) => ["open", "deferred"].includes(item.status)))
+        }
+        if (state.rounds.some((item) => item.status === "open")) {
+            controls.push("abort_round");
+        }
+        if (state.issues.some((item) => ["open", "deferred"].includes(item.status))) {
             controls.push("dispose_issue");
-        if (pendingDecisionCandidates(state).length > 0) controls.push("decide");
+        }
+        if (pendingDecisionCandidates(state).length > 0) {
+            controls.push("decide");
+        }
         const published = state.publications.flatMap((item) => item.finalVersionIds);
         if (published.length > 0) {
-            if (state.decisions.some((item) => item.status === "accepted"))
+            if (state.decisions.some((item) => item.status === "accepted")) {
                 controls.push("change_decision");
-            if (state.issues.some((item) => item.status === "open")) controls.push("dispose_risk");
+            }
+            if (state.issues.some((item) => item.status === "open")) {
+                controls.push("dispose_risk");
+            }
             if (
                 state.objective.requiredOutputs.length > 0 &&
                 state.decisions.some(
                     (item) => item.status === "accepted" && item.outcome === "adopt"
                 )
-            )
+            ) {
                 controls.push("record_completion_fact");
+            }
         }
-        if (state.completionFacts.some((item) => item.status === "active"))
+        if (state.completionFacts.some((item) => item.status === "active")) {
             controls.push("change_completion_fact");
+        }
         return controls;
     }
-    if (hasRole(caller, "manager"))
+    if (hasRole(caller, "manager")) {
         return [
             "submit_manager_plan",
             "open_round",
@@ -126,8 +148,13 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
             "publish_round",
             "recommend_identity"
         ] as const;
-    if (hasRole(caller, "evidence_reviewer")) return ["submit_evidence_review"] as const;
-    if (hasRole(caller, "contributor")) return ["raise_hand", "submit_evidence"] as const;
+    }
+    if (hasRole(caller, "evidence_reviewer")) {
+        return ["submit_evidence_review"] as const;
+    }
+    if (hasRole(caller, "contributor")) {
+        return ["raise_hand", "submit_evidence"] as const;
+    }
     return [];
 };
 
@@ -180,11 +207,14 @@ export const projectMeetingView = (
             versions.has(versionId) && (caller.kind === "captain" || reviewer || sent.has(id))
     );
     const deliveries = state.reviewDeliveries.filter((delivery) => {
-        if (caller.kind === "captain" || manager) return true;
-        if (reviewer)
+        if (caller.kind === "captain" || manager) {
+            return true;
+        }
+        if (reviewer) {
             return state.reviews.some(
                 ({ id, reviewerId }) => id === delivery.reviewId && reviewerId === caller.identityId
             );
+        }
         return delivery.authorId === caller.identityId;
     });
     const result = {
@@ -268,7 +298,9 @@ export const projectMeetingView = (
         })),
         publications: copy(state.publications),
         evidencePackages: state.evidencePackages.flatMap((item) => {
-            if (!versions.has(item.currentVersionId)) return [];
+            if (!versions.has(item.currentVersionId)) {
+                return [];
+            }
             const currentVersion = item.versions.find(({ id }) => id === item.currentVersionId);
             return currentVersion
                 ? [

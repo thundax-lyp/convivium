@@ -118,8 +118,12 @@ const base = (
     actor: OutcomeActor,
     now: number
 ): MeetingTransitionResult | undefined => {
-    if (validateMeetingState(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
-    if (!validId(actor.id) || !validTime(now)) return bad(s, "INVALID_ARGUMENT");
+    if (validateMeetingState(s).kind !== "valid") {
+        return bad(s, "INVALID_ARGUMENT");
+    }
+    if (!validId(actor.id) || !validTime(now)) {
+        return bad(s, "INVALID_ARGUMENT");
+    }
     return undefined;
 };
 const lifecycle = (s: MeetingState) =>
@@ -138,23 +142,27 @@ const evidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
 const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     ids.every((id) => {
         const owner = s.evidencePackages.find((p) => p.versions.some((v) => v.id === id));
-        if (!owner) return false;
+        if (!owner) {
+            return false;
+        }
         const reviewer = s.identities.find((identity) => identity.id === s.evidenceReviewerId);
         if (
             reviewer === undefined ||
             reviewer.id === owner.authorId ||
             reviewer.roles.length !== 1 ||
             reviewer.roles[0] !== "evidence_reviewer"
-        )
+        ) {
             return false;
+        }
         const reviews = s.reviews.filter((r) => r.versionId === id && r.reviewerId === reviewer.id);
         if (
             reviews.length !== 1 ||
             !s.publications.some(
                 (p) => p.finalVersionIds.includes(id) && p.finalReviewIds.includes(reviews[0].id)
             )
-        )
+        ) {
             return false;
+        }
         return s.reviewDeliveries.some((d) => d.reviewId === reviews[0].id && d.status === "sent");
     });
 const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
@@ -176,7 +184,9 @@ export const recalculateMeetingCompletion = (
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const validDecision = (id: string) => {
         const d = state.decisions.find((x) => x.id === id);
-        if (!d || d.status !== "accepted" || d.outcome !== "adopt") return false;
+        if (!d || d.status !== "accepted" || d.outcome !== "adopt") {
+            return false;
+        }
         return current.has(d.proposalRevisionId);
     };
     const validFact = (f: CompletionFact) =>
@@ -239,7 +249,9 @@ export const recordProposalRevision = (
     input: RecordProposalRevisionInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.revisionId) ||
         !validId(input.proposalId) ||
@@ -247,17 +259,22 @@ export const recordProposalRevision = (
         !validId(input.summary) ||
         !validId(input.body) ||
         !validArray(input.evidenceIds)
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
+    }
     const a = identity(state, input.actor);
-    if (!a || !a.roles.includes("contributor")) return bad(state, "UNAUTHORIZED");
+    if (!a || !a.roles.includes("contributor")) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     if (
         !input.evidenceIds.every((id) =>
             state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
         )
-    )
+    ) {
         return bad(
             state,
             "NOT_FOUND",
@@ -266,14 +283,20 @@ export const recordProposalRevision = (
                 (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
             )
         );
-    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
-    if (!state.agenda.some((x) => x.id === input.agendaId))
-        return bad(state, "NOT_FOUND", "agenda not found", input.agendaId);
-    if (state.proposals.some((x) => x.id === input.revisionId))
-        return bad(state, "INVALID_ARGUMENT");
-    const prev = currentRevision(state, input.proposalId);
-    if (prev ? input.supersedesRevisionId !== prev.id : input.supersedesRevisionId !== undefined)
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED");
+    }
+    if (!state.agenda.some((x) => x.id === input.agendaId)) {
+        return bad(state, "NOT_FOUND", "agenda not found", input.agendaId);
+    }
+    if (state.proposals.some((x) => x.id === input.revisionId)) {
+        return bad(state, "INVALID_ARGUMENT");
+    }
+    const prev = currentRevision(state, input.proposalId);
+    if (prev ? input.supersedesRevisionId !== prev.id : input.supersedesRevisionId !== undefined) {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     const revision: ProposalRevision = {
         id: input.revisionId,
         proposalId: input.proposalId,
@@ -317,29 +340,44 @@ export const recordPosition = (
     input: RecordPositionInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.positionId) ||
         !validId(input.proposalRevisionId) ||
         !validId(input.rationale) ||
         !["support", "oppose", "abstain", "conditional"].includes(input.stance) ||
         !validArray(input.evidenceIds)
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "contributor")) return bad(state, "UNAUTHORIZED");
+    }
+    if (!actorRole(state, input.actor, "contributor")) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
-    if (!revision)
+    if (!revision) {
         return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
-    if (currentRevision(state, revision.proposalId)?.id !== revision.id)
+    }
+    if (currentRevision(state, revision.proposalId)?.id !== revision.id) {
         return bad(state, "PRECONDITION_FAILED", "proposal revision is not current", revision.id);
-    if (uniqueEntity(state, input.positionId, "positions")) return bad(state, "INVALID_ARGUMENT");
+    }
+    if (uniqueEntity(state, input.positionId, "positions")) {
+        return bad(state, "INVALID_ARGUMENT");
+    }
     const position: Position = {
         id: input.positionId,
         proposalRevisionId: input.proposalRevisionId,
@@ -355,7 +393,9 @@ export const recordPosition = (
         updatedAt: input.now,
         positions: [...state.positions, position]
     };
-    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: next,
@@ -368,7 +408,9 @@ export const recordDecisionCandidate = (
     input: RecordDecisionCandidateInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.candidateId) ||
         !validId(input.proposalRevisionId) ||
@@ -376,32 +418,47 @@ export const recordDecisionCandidate = (
         !["adopt", "reject", "defer"].includes(input.outcome) ||
         !validArray(input.positionIds) ||
         !validArray(input.evidenceIds)
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "contributor")) return bad(state, "UNAUTHORIZED");
+    }
+    if (!actorRole(state, input.actor, "contributor")) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
-    if (!revision)
+    if (!revision) {
         return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
-    if (currentRevision(state, revision.proposalId)?.id !== revision.id)
+    }
+    if (currentRevision(state, revision.proposalId)?.id !== revision.id) {
         return bad(state, "PRECONDITION_FAILED", "proposal revision is not current", revision.id);
-    if (uniqueEntity(state, input.candidateId, "decisionCandidates"))
+    }
+    if (uniqueEntity(state, input.candidateId, "decisionCandidates")) {
         return bad(state, "INVALID_ARGUMENT");
+    }
     const positions = input.positionIds.map((id) => state.positions.find((p) => p.id === id));
-    if (positions.some((p) => !p)) return bad(state, "NOT_FOUND", "position not found");
-    if (positions.some((p) => p!.proposalRevisionId !== revision.id))
+    if (positions.some((p) => !p)) {
+        return bad(state, "NOT_FOUND", "position not found");
+    }
+    if (positions.some((p) => p!.proposalRevisionId !== revision.id)) {
         return bad(
             state,
             "PRECONDITION_FAILED",
             "position belongs to another revision",
             revision.id
         );
+    }
     const candidate: DecisionCandidate = {
         id: input.candidateId,
         proposalRevisionId: input.proposalRevisionId,
@@ -418,7 +475,9 @@ export const recordDecisionCandidate = (
         updatedAt: input.now,
         decisionCandidates: [...state.decisionCandidates, candidate]
     };
-    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: next,
@@ -432,7 +491,9 @@ export const recordDecisionCandidate = (
     };
 };
 export const pendingDecisionCandidates = (state: MeetingState): readonly DecisionCandidate[] => {
-    if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") return [];
+    if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") {
+        return [];
+    }
     const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
     const used = new Set(state.decisions.map((d) => d.candidateId));
     return state.decisionCandidates.filter(
@@ -442,28 +503,41 @@ export const pendingDecisionCandidates = (state: MeetingState): readonly Decisio
 export const decide = (state: MeetingState, _input: DecideInput): MeetingTransitionResult => {
     const input = _input;
     const e = base(state, input.actor, input.now);
-    if (e) return e;
-    if (!validId(input.decisionId) || !validId(input.candidateId))
+    if (e) {
+        return e;
+    }
+    if (!validId(input.decisionId) || !validId(input.candidateId)) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    }
+    if (!captainActor(state, input.actor)) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
-    if (uniqueEntity(state, input.decisionId, "decisions")) return bad(state, "INVALID_ARGUMENT");
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
+    if (uniqueEntity(state, input.decisionId, "decisions")) {
+        return bad(state, "INVALID_ARGUMENT");
+    }
     const candidate = state.decisionCandidates.find((c) => c.id === input.candidateId);
-    if (!candidate) return bad(state, "NOT_FOUND", "candidate not found", input.candidateId);
+    if (!candidate) {
+        return bad(state, "NOT_FOUND", "candidate not found", input.candidateId);
+    }
     const revision = state.proposals.find((p) => p.id === candidate.proposalRevisionId);
-    if (!revision || currentRevision(state, revision.proposalId)?.id !== revision.id)
+    if (!revision || currentRevision(state, revision.proposalId)?.id !== revision.id) {
         return bad(
             state,
             "PRECONDITION_FAILED",
             "candidate revision is not current",
             candidate.proposalRevisionId
         );
+    }
     if (
         state.decisions.some((d) => d.candidateId === candidate.id) ||
         state.decisions.some((d) => d.proposalRevisionId === revision.id && d.status === "accepted")
-    )
+    ) {
         return bad(state, "PRECONDITION_FAILED", "candidate already decided", candidate.id);
+    }
     const decision: Decision = {
         ...candidate,
         id: input.decisionId,
@@ -477,8 +551,9 @@ export const decide = (state: MeetingState, _input: DecideInput): MeetingTransit
         decisions: [...state.decisions, decision]
     };
     const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-    if (validateMeetingState(recalculated).kind !== "valid")
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,
@@ -491,40 +566,56 @@ export const changeDecision = (
     input: ChangeDecisionInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
-    if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds))
+    if (e) {
+        return e;
+    }
+    if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds)) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!(input.status === "revoked" || input.status === "superseded"))
+    }
+    if (!(input.status === "revoked" || input.status === "superseded")) {
         return bad(state, "INVALID_ARGUMENT");
+    }
     if (
         (input.status === "revoked" &&
             (input.replacementCandidateId !== undefined ||
                 input.replacementDecisionId !== undefined)) ||
         (input.status === "superseded" &&
             (!validId(input.replacementCandidateId) || !validId(input.replacementDecisionId)))
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    }
+    if (!captainActor(state, input.actor)) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     const old = state.decisions.find((d) => d.id === input.decisionId);
-    if (!old) return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
-    if (old.status !== "accepted")
+    if (!old) {
+        return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
+    }
+    if (old.status !== "accepted") {
         return bad(state, "PRECONDITION_FAILED", "decision is not accepted", old.id);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds))
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
+    }
     const decisions = state.decisions.map((d) =>
         d.id === old.id ? { ...d, status: input.status } : d
     );
     if (input.status === "revoked") {
         const next = { ...state, version: state.version + 1, updatedAt: input.now, decisions };
         const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-        if (validateMeetingState(recalculated).kind !== "valid")
+        if (validateMeetingState(recalculated).kind !== "valid") {
             return bad(state, "PRECONDITION_FAILED");
+        }
         return {
             kind: "accepted",
             state: recalculated,
@@ -536,16 +627,18 @@ export const changeDecision = (
         !validId(input.replacementCandidateId) ||
         !validId(input.replacementDecisionId) ||
         uniqueEntity(state, input.replacementDecisionId, "decisions")
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
+    }
     const candidate = state.decisionCandidates.find((c) => c.id === input.replacementCandidateId);
-    if (!candidate)
+    if (!candidate) {
         return bad(
             state,
             "NOT_FOUND",
             "replacement candidate not found",
             input.replacementCandidateId
         );
+    }
     const oldRevision = state.proposals.find((p) => p.id === old.proposalRevisionId);
     const newRevision = state.proposals.find((p) => p.id === candidate.proposalRevisionId);
     if (
@@ -560,8 +653,9 @@ export const changeDecision = (
                 d.proposalRevisionId === newRevision.id &&
                 d.status === "accepted"
         )
-    )
+    ) {
         return bad(state, "PRECONDITION_FAILED", "replacement candidate is invalid", candidate.id);
+    }
     const replacement: Decision = {
         ...candidate,
         id: input.replacementDecisionId,
@@ -576,8 +670,9 @@ export const changeDecision = (
         decisions: [...decisions, replacement]
     };
     const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-    if (validateMeetingState(recalculated).kind !== "valid")
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,
@@ -590,7 +685,9 @@ export const disposeRisk = (
     input: DisposeRiskInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.dispositionId) ||
         !validId(input.issueId) ||
@@ -600,34 +697,48 @@ export const disposeRisk = (
         input.evidenceIds.length === 0 ||
         new Set(input.evidenceIds).size !== input.evidenceIds.length ||
         !(["accept", "reject"] as string[]).includes(input.action)
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
-    if (uniqueEntity(state, input.dispositionId, "riskDispositions"))
+    }
+    if (uniqueEntity(state, input.dispositionId, "riskDispositions")) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    }
+    if (!captainActor(state, input.actor)) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     const issue = state.issues.find((i) => i.id === input.issueId);
-    if (!issue) return bad(state, "NOT_FOUND", "issue not found", input.issueId);
+    if (!issue) {
+        return bad(state, "NOT_FOUND", "issue not found", input.issueId);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds))
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
-    if (issue.status !== "open")
+    }
+    if (issue.status !== "open") {
         return bad(state, "PRECONDITION_FAILED", "issue is not open", issue.id);
+    }
     if (input.action === "accept") {
         const levels = ["low", "medium", "high"];
-        if (levels.indexOf(issue.riskLevel) > levels.indexOf(state.objective.acceptableRiskLevel))
+        if (levels.indexOf(issue.riskLevel) > levels.indexOf(state.objective.acceptableRiskLevel)) {
             return bad(state, "PRECONDITION_FAILED", "risk exceeds acceptable level", issue.id);
+        }
         if (
             issue.affectedConstraintIds.some(
                 (id) =>
                     state.objective.hardConstraints.find((c) => c.id === id)?.status !== "satisfied"
             )
-        )
+        ) {
             return bad(state, "PRECONDITION_FAILED", "hard constraint is not satisfied", issue.id);
+        }
     }
     const disposition = {
         id: input.dispositionId,
@@ -656,8 +767,9 @@ export const disposeRisk = (
         riskDispositions: [...state.riskDispositions, disposition]
     };
     const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-    if (validateMeetingState(recalculated).kind !== "valid")
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,
@@ -670,7 +782,9 @@ export const submitCompletionDeclaration = (
     input: SubmitCompletionDeclarationInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.declarationId) ||
         !validId(input.outputId) ||
@@ -678,37 +792,51 @@ export const submitCompletionDeclaration = (
         !validArray(input.evidenceIds) ||
         (input.criterionId !== undefined && !validId(input.criterionId)) ||
         (input.taskId !== undefined && !validId(input.taskId))
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
+    }
     const a = identity(state, input.actor);
-    if (!a || !a.roles.includes("contributor")) return bad(state, "UNAUTHORIZED");
+    if (!a || !a.roles.includes("contributor")) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
-    if (uniqueEntity(state, input.declarationId, "completionDeclarations"))
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
+    if (uniqueEntity(state, input.declarationId, "completionDeclarations")) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
+    }
+    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId)) {
         return bad(state, "NOT_FOUND", "output not found", input.outputId);
+    }
     if (
         input.criterionId !== undefined &&
         !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
-    )
+    ) {
         return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds))
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
+    }
     if (input.taskId !== undefined) {
         const task = state.tasks.find((t) => t.id === input.taskId);
-        if (!task) return bad(state, "NOT_FOUND", "task not found", input.taskId);
+        if (!task) {
+            return bad(state, "NOT_FOUND", "task not found", input.taskId);
+        }
         if (
             task.assigneeId !== input.actor.id ||
             task.status !== "completed" ||
             task.authorizationStatus !== "active" ||
             !task.result?.trim()
-        )
+        ) {
             return bad(state, "PRECONDITION_FAILED", "task is not completed", input.taskId);
+        }
     }
     const d: CompletionDeclaration = {
         id: input.declarationId,
@@ -726,7 +854,9 @@ export const submitCompletionDeclaration = (
         updatedAt: input.now,
         completionDeclarations: [...state.completionDeclarations, d]
     };
-    if (validateMeetingState(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    if (validateMeetingState(next).kind !== "valid") {
+        return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: next,
@@ -745,7 +875,9 @@ export const recordCompletionFact = (
     input: RecordCompletionFactInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
+    if (e) {
+        return e;
+    }
     if (
         !validId(input.factId) ||
         !validId(input.outputId) ||
@@ -754,31 +886,46 @@ export const recordCompletionFact = (
         !validArray(input.decisionIds) ||
         !validArray(input.evidenceIds) ||
         (input.criterionId !== undefined && !validId(input.criterionId))
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    }
+    if (!captainActor(state, input.actor)) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
-    if (uniqueEntity(state, input.factId, "completionFacts")) return bad(state, "INVALID_ARGUMENT");
-    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
+    if (uniqueEntity(state, input.factId, "completionFacts")) {
+        return bad(state, "INVALID_ARGUMENT");
+    }
+    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId)) {
         return bad(state, "NOT_FOUND", "output not found", input.outputId);
+    }
     if (
         input.criterionId !== undefined &&
         !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
-    )
+    ) {
         return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    }
     const missingEvidence = input.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    if (!evidenceOk(state, input.evidenceIds))
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
+    if (!evidenceOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
-    if (!requiredReviewOk(state, input.evidenceIds))
+    }
+    if (!requiredReviewOk(state, input.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
+    }
     const missingDecision = input.decisionIds.find(
         (id) => !state.decisions.some((decision) => decision.id === id)
     );
-    if (missingDecision) return bad(state, "NOT_FOUND", "decision not found", missingDecision);
+    if (missingDecision) {
+        return bad(state, "NOT_FOUND", "decision not found", missingDecision);
+    }
     if (
         input.decisionIds.some((id) => {
             const d = state.decisions.find((x) => x.id === id);
@@ -793,8 +940,9 @@ export const recordCompletionFact = (
                 )
             );
         })
-    )
+    ) {
         return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
+    }
     const f: CompletionFact = {
         id: input.factId,
         outputId: input.outputId,
@@ -814,8 +962,9 @@ export const recordCompletionFact = (
         completionFacts: [...state.completionFacts, f]
     };
     const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-    if (validateMeetingState(recalculated).kind !== "valid")
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,
@@ -834,21 +983,35 @@ export const changeCompletionFact = (
     input: ChangeCompletionFactInput
 ): MeetingTransitionResult => {
     const e = base(state, input.actor, input.now);
-    if (e) return e;
-    if (!validId(input.factId) || !validId(input.rationale)) return bad(state, "INVALID_ARGUMENT");
-    if (input.status !== "revoked" && input.status !== "superseded")
+    if (e) {
+        return e;
+    }
+    if (!validId(input.factId) || !validId(input.rationale)) {
         return bad(state, "INVALID_ARGUMENT");
-    if (input.status === "revoked" && input.replacement !== undefined)
+    }
+    if (input.status !== "revoked" && input.status !== "superseded") {
         return bad(state, "INVALID_ARGUMENT");
-    if (input.status === "superseded" && input.replacement === undefined)
+    }
+    if (input.status === "revoked" && input.replacement !== undefined) {
         return bad(state, "INVALID_ARGUMENT");
-    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    }
+    if (input.status === "superseded" && input.replacement === undefined) {
+        return bad(state, "INVALID_ARGUMENT");
+    }
+    if (!captainActor(state, input.actor)) {
+        return bad(state, "UNAUTHORIZED");
+    }
     const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (lifecycleCode) {
+        return bad(state, lifecycleCode);
+    }
     const old = state.completionFacts.find((f) => f.id === input.factId);
-    if (!old) return bad(state, "NOT_FOUND", "completion fact not found", input.factId);
-    if (old.status !== "active")
+    if (!old) {
+        return bad(state, "NOT_FOUND", "completion fact not found", input.factId);
+    }
+    if (old.status !== "active") {
         return bad(state, "PRECONDITION_FAILED", "completion fact is not active", old.id);
+    }
     const facts = state.completionFacts.map((f) =>
         f.id === old.id ? { ...f, status: input.status } : f
     );
@@ -860,8 +1023,9 @@ export const changeCompletionFact = (
             completionFacts: facts
         };
         const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-        if (validateMeetingState(recalculated).kind !== "valid")
+        if (validateMeetingState(recalculated).kind !== "valid") {
             return bad(state, "PRECONDITION_FAILED");
+        }
         return {
             kind: "accepted",
             state: recalculated,
@@ -883,25 +1047,33 @@ export const changeCompletionFact = (
     ) {
         return bad(state, "INVALID_ARGUMENT");
     }
-    if (!state.objective.requiredOutputs.some((output) => output.id === r.outputId))
+    if (!state.objective.requiredOutputs.some((output) => output.id === r.outputId)) {
         return bad(state, "NOT_FOUND", "output not found", r.outputId);
+    }
     if (
         r.criterionId !== undefined &&
         !state.objective.acceptanceCriteria.some((criterion) => criterion.id === r.criterionId)
-    )
+    ) {
         return bad(state, "NOT_FOUND", "criterion not found", r.criterionId);
+    }
     const missingEvidence = r.evidenceIds.find(
         (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
     );
-    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (missingEvidence) {
+        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    }
     const missingDecision = r.decisionIds.find(
         (id) => !state.decisions.some((decision) => decision.id === id)
     );
-    if (missingDecision) return bad(state, "NOT_FOUND", "decision not found", missingDecision);
-    if (!evidenceOk(state, r.evidenceIds))
+    if (missingDecision) {
+        return bad(state, "NOT_FOUND", "decision not found", missingDecision);
+    }
+    if (!evidenceOk(state, r.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
-    if (!requiredReviewOk(state, r.evidenceIds))
+    }
+    if (!requiredReviewOk(state, r.evidenceIds)) {
         return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
+    }
     if (
         r.decisionIds.some((id) => {
             const decision = state.decisions.find((candidate) => candidate.id === id);
@@ -916,8 +1088,9 @@ export const changeCompletionFact = (
                 )
             );
         })
-    )
+    ) {
         return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
+    }
     const replacement: CompletionFact = {
         id: r.factId,
         outputId: r.outputId,
@@ -938,8 +1111,9 @@ export const changeCompletionFact = (
         completionFacts: [...facts, replacement]
     };
     const recalculated = recalculateMeetingCompletion(next, input.actor.id, input.now);
-    if (validateMeetingState(recalculated).kind !== "valid")
+    if (validateMeetingState(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,

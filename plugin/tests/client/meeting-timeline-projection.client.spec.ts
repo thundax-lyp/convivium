@@ -173,8 +173,9 @@ describe("Timeline projection", () => {
             task: { title: "task title", detail: "task result" },
             termination: { title: "partial", detail: "termination reason" }
         };
-        for (const node of nodes)
+        for (const node of nodes) {
             expect(resolveTimelineNodeContent(active, node)).toEqual(expected[node.objectKind]);
+        }
         expect(
             resolveTimelineNodeContent(active, { ...nodes[0]!, objectId: "missing" })
         ).toBeUndefined();

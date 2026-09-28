@@ -29,8 +29,9 @@ function checkedPage(page: CheckpointPage): void {
         Buffer.from(raw).toString("base64") !== page.payloadBase64 ||
         sha256Hex(raw) !== page.payloadDigest ||
         raw.byteLength > CHECKPOINT_PAGE_RAW_BYTES
-    )
+    ) {
         throw new Error("invalid checkpoint page");
+    }
 }
 export async function writeCheckpoint(input: {
     readonly domain: MeetingDomain;
@@ -39,8 +40,9 @@ export async function writeCheckpoint(input: {
     readonly createdAt: number;
 }): Promise<CheckpointPointer> {
     const bytes = encodeProjection(input.projection);
-    if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES)
+    if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES) {
         throw new RangeError("checkpoint too large");
+    }
     const digest = projectionDigest(input.projection);
     const gen = generation(input.baseSeq, digest);
     const pageCount = Math.ceil(bytes.byteLength / CHECKPOINT_PAGE_RAW_BYTES);
@@ -63,8 +65,12 @@ export async function writeCheckpoint(input: {
         const key = pageKey(gen, index);
         const existing = pages.get(key);
         if (existing) {
-            if (!sameBytes(existing, page)) throw new Error("checkpoint page corruption");
-        } else await pages.put(key, page);
+            if (!sameBytes(existing, page)) {
+                throw new Error("checkpoint page corruption");
+            }
+        } else {
+            await pages.put(key, page);
+        }
     }
     const root = CheckpointRootSchema.parse({
         formatVersion: 1,
@@ -78,10 +84,16 @@ export async function writeCheckpoint(input: {
     const roots = input.domain.table("checkpoint_roots");
     const existingRoot = roots.get(gen);
     if (existingRoot) {
-        if (!sameBytes(existingRoot, root)) throw new Error("checkpoint root corruption");
-    } else await roots.put(gen, root);
+        if (!sameBytes(existingRoot, root)) {
+            throw new Error("checkpoint root corruption");
+        }
+    } else {
+        await roots.put(gen, root);
+    }
     const rereadRoot = roots.get(gen);
-    if (!rereadRoot || !sameBytes(rereadRoot, root)) throw new Error("checkpoint root corruption");
+    if (!rereadRoot || !sameBytes(rereadRoot, root)) {
+        throw new Error("checkpoint root corruption");
+    }
     const pointer = CheckpointPointerSchema.parse({
         formatVersion: 1,
         generation: gen,
@@ -91,14 +103,16 @@ export async function writeCheckpoint(input: {
     });
     const pointerTable = input.domain.table("checkpoint_pointer");
     const current = pointerTable.get("current");
-    if (current && current.baseSeq >= pointer.baseSeq) throw new Error("stale checkpoint");
+    if (current && current.baseSeq >= pointer.baseSeq) {
+        throw new Error("stale checkpoint");
+    }
     await pointerTable.put("current", pointer);
     await cleanupPublished(input.domain, pointer);
     return pointer;
 }
 async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointer): Promise<void> {
     const commits = domain.table("commits");
-    for (const [key, commit] of [...commits.entries()])
+    for (const [key, commit] of [...commits.entries()]) {
         if (commit.seq <= pointer.baseSeq) {
             try {
                 await commits.delete(key);
@@ -106,8 +120,9 @@ async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointe
                 /* best effort */
             }
         }
+    }
     const pages = domain.table("checkpoint_pages");
-    for (const [key, page] of [...pages.entries()])
+    for (const [key, page] of [...pages.entries()]) {
         if (page.generation !== pointer.generation) {
             try {
                 await pages.delete(key);
@@ -115,8 +130,9 @@ async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointe
                 /* best effort */
             }
         }
+    }
     const roots = domain.table("checkpoint_roots");
-    for (const [key, root] of [...roots.entries()])
+    for (const [key, root] of [...roots.entries()]) {
         if (root.generation !== pointer.generation) {
             try {
                 await roots.delete(key);
@@ -124,15 +140,22 @@ async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointe
                 /* best effort */
             }
         }
+    }
 }
 export async function collectApplicationOrphans(input: {
     readonly domain: MeetingDomain;
     readonly keepGeneration: string;
 }): Promise<void> {
     const pages = input.domain.table("checkpoint_pages");
-    for (const [key, page] of [...pages.entries()])
-        if (page.generation !== input.keepGeneration) await pages.delete(key);
+    for (const [key, page] of [...pages.entries()]) {
+        if (page.generation !== input.keepGeneration) {
+            await pages.delete(key);
+        }
+    }
     const roots = input.domain.table("checkpoint_roots");
-    for (const [key, root] of [...roots.entries()])
-        if (root.generation !== input.keepGeneration) await roots.delete(key);
+    for (const [key, root] of [...roots.entries()]) {
+        if (root.generation !== input.keepGeneration) {
+            await roots.delete(key);
+        }
+    }
 }

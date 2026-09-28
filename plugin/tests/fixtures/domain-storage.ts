@@ -41,21 +41,29 @@ class Controller implements FakeDomainControls {
         | undefined;
     closeCalls = 0;
     failNextPut(table: string, key: string): void {
-        if (this.putFailure) throw new Error("put failure already armed");
+        if (this.putFailure) {
+            throw new Error("put failure already armed");
+        }
         this.putFailure = { table, key, error: new Error("fake put failure") };
     }
     failNextDelete(table: string, key: string): void {
-        if (this.deleteFailure) throw new Error("delete failure already armed");
+        if (this.deleteFailure) {
+            throw new Error("delete failure already armed");
+        }
         this.deleteFailure = { table, key, error: new Error("fake delete failure") };
     }
     failPutsInTable(table: string): void {
         this.failedPutTable = table;
     }
     allowPutsInTable(table: string): void {
-        if (this.failedPutTable === table) this.failedPutTable = undefined;
+        if (this.failedPutTable === table) {
+            this.failedPutTable = undefined;
+        }
     }
     blockNextPut(table: string): { readonly entered: Promise<void>; release(): void } {
-        if (this.putBlock) throw new Error("put block already armed");
+        if (this.putBlock) {
+            throw new Error("put block already armed");
+        }
         let markEntered = () => undefined;
         let release = () => undefined;
         const entered = new Promise<void>((resolve) => {
@@ -77,7 +85,9 @@ class Controller implements FakeDomainControls {
             this.putFailure = undefined;
             return error;
         }
-        if (this.failedPutTable === table) return new Error("fake persistent put failure");
+        if (this.failedPutTable === table) {
+            return new Error("fake persistent put failure");
+        }
         if (this.putBlock?.table === table) {
             const block = this.putBlock;
             this.putBlock = undefined;
@@ -107,7 +117,9 @@ class FakeTable<K extends string, V> implements KvTable<K, V> {
         initial: ReadonlyMap<K, V>,
         private readonly controller: Controller
     ) {
-        for (const [key, value] of initial) this.values.set(key, value);
+        for (const [key, value] of initial) {
+            this.values.set(key, value);
+        }
     }
     get(key: K): V | undefined {
         return this.values.get(key);
@@ -123,17 +135,23 @@ class FakeTable<K extends string, V> implements KvTable<K, V> {
     }
     async put(key: K, value: V): Promise<void> {
         const error = await this.controller.recordPut(this.tableName, key, value);
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
         this.values.set(key, value);
     }
     async delete(key: K): Promise<boolean> {
         const error = this.controller.recordDelete(this.tableName, key);
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
         return this.values.delete(key);
     }
     async update(key: K, fn: (current: V) => V): Promise<V> {
         const current = this.values.get(key);
-        if (current === undefined) throw new Error("missing-key");
+        if (current === undefined) {
+            throw new Error("missing-key");
+        }
         const next = fn(current);
         await this.put(key, next);
         return next;
@@ -146,12 +164,16 @@ function fakeDomain<S extends DomainSpec>(
     controller: Controller
 ): Domain<S> & FakeDomainControls {
     const tables = new Map<string, FakeTable<string, unknown>>();
-    for (const name of Object.keys(values ?? {}))
-        if (!(name in spec.tables)) throw new Error("unknown table");
+    for (const name of Object.keys(values ?? {})) {
+        if (!(name in spec.tables)) {
+            throw new Error("unknown table");
+        }
+    }
     for (const name of Object.keys(spec.tables)) {
         const parsed = new Map<string, unknown>();
-        for (const [key, value] of values?.[name] ?? [])
+        for (const [key, value] of values?.[name] ?? []) {
             parsed.set(key, spec.tables[name]!.valueSchema.parse(value));
+        }
         tables.set(name, new FakeTable(name, parsed, controller));
     }
     const domain = {
@@ -159,7 +181,9 @@ function fakeDomain<S extends DomainSpec>(
         global: undefined,
         table(name: string) {
             const table = tables.get(name);
-            if (!table) throw new Error("unknown table");
+            if (!table) {
+                throw new Error("unknown table");
+            }
             return table;
         },
         async close() {

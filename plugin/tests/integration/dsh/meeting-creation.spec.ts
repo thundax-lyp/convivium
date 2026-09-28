@@ -39,8 +39,9 @@ const fixture = async (
                 await repository.create(create);
                 created = true;
             }
-            if (!created)
+            if (!created) {
                 throw new RepositoryError("MEETING_NOT_FOUND", false, "meeting", "missing");
+            }
             return repository;
         })
     };
@@ -82,12 +83,15 @@ const fixture = async (
             expect(recovery.bootstrap.status).toBe("creating");
             expect(recovery.sessionOwnership).toHaveLength(contributorRoles.length + 2);
             expect(recovery.pendingOutbox).toBe(0);
-            if (active.size === failAt) throw new Error("factory failed");
+            if (active.size === failAt) {
+                throw new Error("factory failed");
+            }
             active.add(ownership.sessionId);
         }),
         resume: vi.fn(async ({ ownership, purpose }) => {
-            if (purpose === "delivery")
+            if (purpose === "delivery") {
                 expect((await repository.recover()).bootstrap.status).toBe("ready");
+            }
             active.add(ownership.sessionId);
         }),
         stop: vi.fn(async ({ ownership }) => {

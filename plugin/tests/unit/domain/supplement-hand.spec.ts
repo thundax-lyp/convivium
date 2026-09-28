@@ -28,14 +28,18 @@ function contributionState() {
         managerId: "manager-v1",
         now: 1
     });
-    if (opened.kind !== "accepted") throw new Error("round did not open");
+    if (opened.kind !== "accepted") {
+        throw new Error("round did not open");
+    }
     const raised = raiseHand(opened.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
         now: 2
     });
-    if (raised.kind !== "accepted") throw new Error("hand did not raise");
+    if (raised.kind !== "accepted") {
+        throw new Error("hand did not raise");
+    }
     const accepted = disposeHandRaise(raised.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
@@ -45,7 +49,9 @@ function contributionState() {
         contributionId: "contribution-v1",
         now: 3
     });
-    if (accepted.kind !== "accepted") throw new Error("hand did not accept");
+    if (accepted.kind !== "accepted") {
+        throw new Error("hand did not accept");
+    }
     return accepted.state;
 }
 
@@ -58,7 +64,9 @@ describe("supplement hand transitions", () => {
             now: 4
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.contributions[0].supplementHand).toEqual({
             raisedAt: 4,
             purpose: "补充反证",
@@ -74,7 +82,9 @@ describe("supplement hand transitions", () => {
             purpose: "补充",
             now: 4
         });
-        if (raised.kind !== "accepted") throw new Error("supplement did not raise");
+        if (raised.kind !== "accepted") {
+            throw new Error("supplement did not raise");
+        }
         const result = disposeSupplementHand(raised.state, {
             contributionId: "contribution-v1",
             managerId: "manager-v1",
@@ -83,7 +93,9 @@ describe("supplement hand transitions", () => {
             now: 5
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.contributions).toHaveLength(1);
         expect(result.state.contributions[0].supplementHand).toEqual({
             raisedAt: 4,
@@ -101,7 +113,9 @@ describe("supplement hand transitions", () => {
             purpose: "补充",
             now: 4
         });
-        if (first.kind !== "accepted") throw new Error("supplement did not raise");
+        if (first.kind !== "accepted") {
+            throw new Error("supplement did not raise");
+        }
         const second = raiseSupplementHand(first.state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",

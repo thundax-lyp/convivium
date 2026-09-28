@@ -4,22 +4,25 @@ import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
 
 export function createMeeting(state: MeetingState): MeetingTransitionResult {
     const validation = validateMeetingState(state);
-    if (validation.kind === "invalid")
+    if (validation.kind === "invalid") {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
+    }
     if (
         state.version !== 1 ||
         state.lifecycle.status !== "running" ||
         state.termination !== undefined ||
         state.archive !== undefined
-    )
+    ) {
         return rejectedTransition(state, "INVALID_STATE", "meeting is not a new running aggregate");
+    }
     const activeAgenda = state.agenda.filter((agenda) => agenda.status === "active");
-    if (activeAgenda.length !== 1)
+    if (activeAgenda.length !== 1) {
         return rejectedTransition(
             state,
             "INVALID_STATE",
             "meeting creation requires one active agenda"
         );
+    }
     const agendaId = activeAgenda[0]!.id;
     return {
         kind: "accepted",

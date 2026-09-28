@@ -109,7 +109,9 @@ it.each([
         "fact-5"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.questions[0].blocking).toBe(newBlocking);
     expect(result.facts[0]).toEqual({
         id: "fact-5",
@@ -141,7 +143,9 @@ it.each([identity, manager, reviewer])("records an issue for an existing identit
         `issue-${actor.id}`
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.issues[0]).toEqual({
         id: `issue-${actor.id}`,
         actorId: actor.id,
@@ -221,7 +225,9 @@ it.each([
     const current = issueState(oldBlocking);
     const result = transitionMeetingState(current, disposeIssue({ status }), captain, 10, "fact-9");
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.issues[0]).toMatchObject({
         status,
         blocking: newBlocking,
@@ -360,7 +366,9 @@ it("clears the final blocking issue and enters converging in the same transition
         "fact-9"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.lifecycle).toMatchObject({
         status: "converging",
         changedAt: 10,

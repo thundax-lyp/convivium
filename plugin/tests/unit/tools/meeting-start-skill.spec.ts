@@ -32,7 +32,9 @@ describe("chat Meeting start", () => {
                 initialActiveAgendaId: "initial"
             }
         });
-        if (command.action.kind !== "create_meeting") throw new Error("not a create command");
+        if (command.action.kind !== "create_meeting") {
+            throw new Error("not a create command");
+        }
         expect(command.action.identities.map((identity) => identity.identityKey)).toEqual([
             "meeting_manager",
             "verification_reviewer",
@@ -50,7 +52,9 @@ describe("chat Meeting start", () => {
             "runtime_engineer",
             "github_research_analyst"
         ]);
-        if (command.action.kind !== "create_meeting") throw new Error("not a create command");
+        if (command.action.kind !== "create_meeting") {
+            throw new Error("not a create command");
+        }
         expect(command.action.identities.map((identity) => identity.identityKey)).toEqual([
             "meeting_manager",
             "runtime_engineer",

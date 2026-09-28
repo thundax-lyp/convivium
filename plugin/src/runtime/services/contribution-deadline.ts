@@ -7,10 +7,14 @@ import {
 
 const dueExit = (state: MeetingState, now: number) => {
     for (const round of state.rounds) {
-        if (round.status !== "open") continue;
+        if (round.status !== "open") {
+            continue;
+        }
         for (const contributionId of round.contributionIds) {
             const contribution = state.contributions.find((item) => item.id === contributionId);
-            if (!contribution) continue;
+            if (!contribution) {
+                continue;
+            }
             const taskDeadlines = state.tasks
                 .filter(
                     (task) =>
@@ -26,15 +30,18 @@ const dueExit = (state: MeetingState, now: number) => {
                     round.deadlineAt ?? Infinity,
                     ...taskDeadlines
                 );
-                if (now >= deadline) return { contributionId, exit: "submission_missing" as const };
+                if (now >= deadline) {
+                    return { contributionId, exit: "submission_missing" as const };
+                }
                 continue;
             }
             if (
                 contribution.status !== "awaiting_response" ||
                 contribution.packageId === undefined ||
                 contribution.supplementHand?.status === "pending"
-            )
+            ) {
                 continue;
+            }
             const evidence = state.evidencePackages.find(
                 (item) => item.id === contribution.packageId
             );
@@ -45,7 +52,9 @@ const dueExit = (state: MeetingState, now: number) => {
             const delivery = state.reviewDeliveries.find(
                 (item) => item.reviewId === review?.id && item.status === "sent"
             );
-            if (!version || delivery?.sentAt === undefined) continue;
+            if (!version || delivery?.sentAt === undefined) {
+                continue;
+            }
             const deadline =
                 contribution.response === undefined
                     ? delivery.sentAt + state.limits.responseDeadlineMs
@@ -54,7 +63,9 @@ const dueExit = (state: MeetingState, now: number) => {
                           round.deadlineAt ?? Infinity,
                           ...taskDeadlines
                       );
-            if (now >= deadline) return { contributionId, exit: "timed_out" as const };
+            if (now >= deadline) {
+                return { contributionId, exit: "timed_out" as const };
+            }
         }
     }
     return undefined;
@@ -69,9 +80,13 @@ export const runDueContributionDeadline = async (
     signal.throwIfAborted();
     const recovered = await repository.recover();
     const snapshot = recovered.snapshot;
-    if (!snapshot || snapshot.state.lifecycle.status !== "running") return;
+    if (!snapshot || snapshot.state.lifecycle.status !== "running") {
+        return;
+    }
     const due = dueExit(snapshot.state, now);
-    if (!due) return;
+    if (!due) {
+        return;
+    }
     const result = await application.execute(
         {
             protocolVersion: 1,
@@ -89,6 +104,7 @@ export const runDueContributionDeadline = async (
         { caller: { channel: "deadline_handler", principalId: DEADLINE_HANDLER_PRINCIPAL_ID } },
         signal
     );
-    if (result.kind === "rejected" && result.error.code !== "VERSION_CONFLICT")
+    if (result.kind === "rejected" && result.error.code !== "VERSION_CONFLICT") {
         throw new Error(`CONTRIBUTION_DEADLINE_FAILED:${result.error.code}`);
+    }
 };

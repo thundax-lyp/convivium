@@ -41,8 +41,9 @@ describe("target Domain repository recovery", () => {
             codec
         });
         const state = makeRunningMeetingStateV1();
-        for (let i = 0; i < 4; i++)
+        for (let i = 0; i < 4; i++) {
             state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+        }
         const create = {
             requestId: "create-target",
             requestHash: "create-target-hash",
@@ -52,8 +53,9 @@ describe("target Domain repository recovery", () => {
             createdAt: 1
         };
         const created = await first.openMeeting({ meetingId: state.id, create });
-        for (const binding of create.initialOwnership)
+        for (const binding of create.initialOwnership) {
             await created.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
+        }
         await created.completeCreate(create);
 
         const reopened = await DomainRepositoryRegistry.open({
@@ -86,8 +88,9 @@ describe("target Domain repository recovery", () => {
             createdAt: 1
         };
         const repository = await legacy.openMeeting({ meetingId: "meeting-legacy", create });
-        for (const binding of create.initialOwnership)
+        for (const binding of create.initialOwnership) {
             await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
+        }
         await repository.completeCreate(create);
 
         const target = await DomainRepositoryRegistry.open({
@@ -109,8 +112,9 @@ describe("target Domain repository recovery", () => {
             codec
         });
         const state = makeRunningMeetingStateV1();
-        for (let i = 0; i < 4; i++)
+        for (let i = 0; i < 4; i++) {
             state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+        }
         const create = {
             requestId: "create-ownership",
             requestHash: "create-ownership-hash",
@@ -120,8 +124,9 @@ describe("target Domain repository recovery", () => {
             createdAt: 1
         };
         const repository = await first.openMeeting({ meetingId: state.id, create });
-        for (const binding of create.initialOwnership)
+        for (const binding of create.initialOwnership) {
             await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
+        }
         await repository.completeCreate(create);
         const domain = (await facility.open({
             name: meetingDomainName(state.id)

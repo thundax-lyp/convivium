@@ -61,8 +61,9 @@ export const resolveMeetingCaller = async (
             meetingId: found.meetingId,
             sessionId
         })
-    )
+    ) {
         return undefined;
+    }
     const ownershipId = found.ownership.id!;
     const identityId = found.ownership.identityId!;
     return {

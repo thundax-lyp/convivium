@@ -30,8 +30,9 @@ function mediaFixture(initial: boolean) {
         query,
         setMatches(value: boolean) {
             matches = value;
-            for (const listener of listeners)
+            for (const listener of listeners) {
                 listener({ matches: value, media: query.media } as MediaQueryListEvent);
+            }
         }
     };
 }

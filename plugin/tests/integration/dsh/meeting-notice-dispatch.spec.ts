@@ -21,9 +21,13 @@ it.each(["flush-false", "post-revoke", "after-flush-crash"])(
             resume: vi.fn(async () => {}),
             deliver: vi.fn(async ({ authorize }) => {
                 await authorize();
-                if (mode === "post-revoke") ownership.capabilityStatus = "revoked";
+                if (mode === "post-revoke") {
+                    ownership.capabilityStatus = "revoked";
+                }
                 await authorize();
-                if (mode === "after-flush-crash") throw new Error("crash after persisted input");
+                if (mode === "after-flush-crash") {
+                    throw new Error("crash after persisted input");
+                }
                 return false;
             })
         };

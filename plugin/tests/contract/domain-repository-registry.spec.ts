@@ -63,11 +63,12 @@ class Facility implements DomainFacilityPort {
     register<S extends DomainSpec>(domain: Domain<S>): void {
         const wrapped = new Proxy(domain, {
             get: (target, property, receiver) => {
-                if (property === "close")
+                if (property === "close") {
                     return async () => {
                         this.closeOrder.push(target.name);
                         await target.close();
                     };
+                }
                 return Reflect.get(target, property, receiver);
             }
         });
@@ -89,9 +90,13 @@ class Facility implements DomainFacilityPort {
             this.blocks.delete(spec.name);
             await pending;
         }
-        if (this.failures.delete(spec.name)) throw new Error("scripted open failure");
+        if (this.failures.delete(spec.name)) {
+            throw new Error("scripted open failure");
+        }
         const domain = this.domains.get(spec.name);
-        if (!domain) throw new Error(`missing fake domain: ${spec.name}`);
+        if (!domain) {
+            throw new Error(`missing fake domain: ${spec.name}`);
+        }
         return domain as Domain<S>;
     }
 }
@@ -101,7 +106,7 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
         meetings: new Map(records.map((record) => [catalogKey(record.meetingId), record]))
     });
     const facility = new Facility(catalog);
-    for (const record of records)
+    for (const record of records) {
         facility.register(
             createFakeMeetingDomain({
                 name: record.domainName,
@@ -110,6 +115,7 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
                 }
             })
         );
+    }
     return { catalog, facility };
 }
 
@@ -232,8 +238,9 @@ describe("DomainRepositoryRegistry contract", () => {
                 createdAt: 1
             }
         });
-        for (const binding of peerBindings("meeting-1", identities).initialOwnership)
+        for (const binding of peerBindings("meeting-1", identities).initialOwnership) {
             await repository.recordSessionOwnership({ ...binding, lifecycleStatus: "active" }, 2);
+        }
         await repository.completeCreate({
             requestId: "create-meeting-1",
             requestHash: "hash-meeting-1",

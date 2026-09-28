@@ -21,7 +21,9 @@ it("raises a candidate for an existing identity", () => {
         "candidate-1"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.agendaCandidates).toEqual([
         { id: "candidate-1", title: "new agenda", reason: "needed", status: "pending" }
     ]);
@@ -169,7 +171,9 @@ it.each(["parked", "rejected"] as const)("disposes a pending candidate as %s", (
         "fact-3"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.agendaCandidates[0].status).toBe(disposition);
     expect(result.state.agenda).toBe(current.agenda);
     expect(result.facts[0].relatedIds).toEqual(["meeting-1", "candidate-1"]);
@@ -279,7 +283,9 @@ it("promotes a candidate atomically with a pending agenda and reviewer responsib
         "fact-3"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.version).toBe(4);
     expect(result.state.updatedAt).toBe(10);
     expect(result.state.agenda[0]).toBe(current.agenda[0]);
@@ -352,7 +358,9 @@ it.each([{ kind: "identity", id: "identity-1" }, manager, reviewer] as const)(
             `question-${actor.id}`
         );
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         const questionId = `question-${actor.id}`;
         expect(result.state.questions[1]).toEqual({
             id: questionId,

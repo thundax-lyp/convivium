@@ -276,7 +276,9 @@ describe("CompletionFact", () => {
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];
         const result = recordCompletionFact(state, completionInput());
         expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
         expect(result.state.lifecycle.status).toBe("running");
     });

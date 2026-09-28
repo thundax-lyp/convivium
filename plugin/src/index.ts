@@ -38,7 +38,9 @@ const meetingConsumerPlugin = {
             return;
         }
         const stopListening = ctx.on("subagent/provider-added", (provider) => {
-            if (provider.name !== config.provider) return;
+            if (provider.name !== config.provider) {
+                return;
+            }
             stopListening();
             void activate().catch((error: unknown) => {
                 ctx.logger("convivium:meeting").error("Meeting activation failed %o", error);
@@ -81,9 +83,11 @@ const meetingConsumerPlugin = {
                             signal
                         })
                         .catch(() => undefined);
-                    if (skill?.invocation.userInvocable)
+                    if (skill?.invocation.userInvocable) {
                         startGate.observe(agent.id, turn, messages);
-                    else startGate.clear(agent.id, turn);
+                    } else {
+                        startGate.clear(agent.id, turn);
+                    }
                 }
                 return decision;
             });
@@ -99,8 +103,9 @@ const meetingConsumerPlugin = {
                     (await resolveMeetingCaller(agent, runtime, signal)) !== undefined
             });
             ctx.inject(["webServer", "typertGateway", "typert"], (remoteContext) => {
-                if (remoteContext.webServer.host === "127.0.0.1")
+                if (remoteContext.webServer.host === "127.0.0.1") {
                     remoteContext.plugin(ConviviumRemoteService, runtime);
+                }
             });
         }
     }

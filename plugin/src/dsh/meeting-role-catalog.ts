@@ -58,17 +58,20 @@ export async function readMeetingRoleCatalog(
     meetingId: string,
     managerSessionId: string
 ): Promise<ReadCatalogResult> {
-    if (![meetingId, managerSessionId].every((value) => id.safeParse(value).success))
+    if (![meetingId, managerSessionId].every((value) => id.safeParse(value).success)) {
         return {
             kind: "rejected",
             error: { code: "INVALID_ARGUMENT", message: "Catalog request is invalid" }
         };
+    }
     const result = await port.readSnapshot({
         protocolVersion: 1,
         meetingId,
         managerSessionId
     });
-    if (result.kind !== "available") return result;
+    if (result.kind !== "available") {
+        return result;
+    }
     const parsed = snapshotSchema.safeParse(result.snapshot);
     if (
         !parsed.success ||
@@ -76,10 +79,11 @@ export async function readMeetingRoleCatalog(
         new Set(parsed.data.candidates.map((item) => item.candidateId)).size !==
             parsed.data.candidates.length ||
         parsed.data.candidates.some((item) => item.definition.id === "meeting_manager")
-    )
+    ) {
         return {
             kind: "rejected",
             error: { code: "CATALOG_CANDIDATE_MISMATCH", message: "Catalog snapshot is invalid" }
         };
+    }
     return { kind: "available", snapshot: parsed.data };
 }

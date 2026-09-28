@@ -26,7 +26,9 @@ export class MeetingStartGate {
 
     observe = (sessionId: string, turn: number, messages: readonly UserMessage[]): void => {
         for (const message of messages) {
-            if (message.source.kind !== "user") continue;
+            if (message.source.kind !== "user") {
+                continue;
+            }
             const text = message.content
                 .filter((block) => block.type === "text")
                 .map((block) => block.text)
@@ -56,7 +58,9 @@ export class MeetingStartGate {
     };
 
     clear = (sessionId: string, turn: number): void => {
-        if (this.grants.get(sessionId)?.turn === turn) this.grants.delete(sessionId);
+        if (this.grants.get(sessionId)?.turn === turn) {
+            this.grants.delete(sessionId);
+        }
     };
 }
 
@@ -66,7 +70,9 @@ export const createMeetingStartCommand = (
     initialContributorRoleIds: readonly ContributorRoleDefinitionId[]
 ): MeetingCommand => {
     const statement = goal.trim();
-    if (!statement) throw new Error("A Meeting objective is required");
+    if (!statement) {
+        throw new Error("A Meeting objective is required");
+    }
     return MeetingCommandSchema.parse({
         protocolVersion: 1,
         meetingId: "new",
@@ -144,7 +150,7 @@ export const registerMeetingStartTool = (
                 render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
             },
             async execute(_args, exec) {
-                if (!exec.agent)
+                if (!exec.agent) {
                     return {
                         kind: "rejected",
                         error: {
@@ -152,13 +158,15 @@ export const registerMeetingStartTool = (
                             message: "A direct user Skill call is required"
                         }
                     } as JsonValue;
+                }
                 const grant = dependencies.gate.take(exec.agent.id);
-                if (!grant)
+                if (!grant) {
                     return {
                         kind: "rejected",
                         error: { code: "UNAUTHORIZED", message: "No active /convivium invocation" }
                     } as JsonValue;
-                if (await dependencies.isMeetingAgent(exec.agent, exec.signal))
+                }
+                if (await dependencies.isMeetingAgent(exec.agent, exec.signal)) {
                     return {
                         kind: "rejected",
                         error: {
@@ -166,6 +174,7 @@ export const registerMeetingStartTool = (
                             message: "A Meeting Agent cannot start a Meeting"
                         }
                     } as JsonValue;
+                }
                 return dependencies.create(
                     createMeetingStartCommand(
                         grant.goal,

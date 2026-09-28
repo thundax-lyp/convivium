@@ -72,8 +72,9 @@ const expectedExports = {
     "./config/cordis.patch.yml": "./config/cordis.patch.yml"
 };
 const forbiddenPublishedPaths = files.filter((path) => /^(src|tests|docs)(\/|$)|\*\*/.test(path));
-if (existsSync(resolve(packageRoot, "storage-plugin")))
+if (existsSync(resolve(packageRoot, "storage-plugin"))) {
     forbiddenPublishedPaths.push("storage-plugin");
+}
 const missingArtifacts = requiredArtifacts.filter(
     (path) => !existsSync(resolve(packageRoot, path))
 );

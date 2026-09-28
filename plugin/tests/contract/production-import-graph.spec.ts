@@ -28,7 +28,9 @@ function staticSpecifiers(file: string): string[] {
 }
 
 function resolveLocal(importer: string, specifier: string): string | undefined {
-    if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return undefined;
+    if (!specifier.startsWith(".") && !specifier.startsWith("@/")) {
+        return undefined;
+    }
     const base = specifier.startsWith("@/")
         ? resolve(sourceRoot, specifier.slice(2).replace(/\.(?:m?js|tsx?)$/, ""))
         : resolve(dirname(importer), specifier.replace(/\.(?:m?js|tsx?)$/, ""));
@@ -38,7 +40,9 @@ function resolveLocal(importer: string, specifier: string): string | undefined {
         resolve(base, "index.ts"),
         resolve(base, "index.tsx")
     ]) {
-        if (existsSync(candidate)) return candidate;
+        if (existsSync(candidate)) {
+            return candidate;
+        }
     }
     throw new Error(`Unresolved source import ${specifier} from ${relative(sourceRoot, importer)}`);
 }
@@ -49,12 +53,17 @@ function importGraph(entries: readonly string[]) {
     const pending = entries.map((entry) => resolve(sourceRoot, entry));
     while (pending.length > 0) {
         const file = pending.pop()!;
-        if (reached.has(file)) continue;
+        if (reached.has(file)) {
+            continue;
+        }
         reached.add(file);
         for (const specifier of staticSpecifiers(file)) {
             const local = resolveLocal(file, specifier);
-            if (local === undefined) externals.add(specifier);
-            else pending.push(local);
+            if (local === undefined) {
+                externals.add(specifier);
+            } else {
+                pending.push(local);
+            }
         }
     }
     return {
@@ -81,15 +90,17 @@ describe("production import graph", () => {
             "@deepseek-ai/dsh-storage",
             "@deepseek-ai/dsh-storage-sqlite",
             "@deepseek-ai/dsh-storage-json"
-        ])
+        ]) {
             expect(graph.externals).not.toContain(dependency);
+        }
         for (const file of [
             "repository/sqlite-meeting-repository.ts",
             "repository/schema.ts",
             "repository/migrations.ts",
             "runtime/services/meeting-repository-locator.ts"
-        ])
+        ]) {
             expect(graph.files).not.toContain(file);
+        }
         expect(graph.externals).not.toContain("node:sqlite");
     });
 

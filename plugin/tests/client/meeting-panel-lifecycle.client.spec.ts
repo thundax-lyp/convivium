@@ -96,8 +96,11 @@ describe("Meeting panel lifecycle", () => {
                 ).toBeTruthy()
             );
 
-            if (settlement === "resolve") resolveFirst(view);
-            else rejectFirst(new Error("late failure"));
+            if (settlement === "resolve") {
+                resolveFirst(view);
+            } else {
+                rejectFirst(new Error("late failure"));
+            }
             await waitFor(() =>
                 expect(
                     within(screen.getByRole("region", { name: "Objective" })).getByText(

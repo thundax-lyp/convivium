@@ -44,31 +44,44 @@ export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransi
         input.contributorId.trim() === "" ||
         input.purpose.trim() === "" ||
         !validTime(input.now)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid hand request");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return reject(state, "MEETING_TERMINAL", "meeting is not running");
+    }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
-    if (round.status !== "open") return reject(state, "INVALID_STATE", "round is not open");
+    if (!round) {
+        return reject(state, "NOT_FOUND", "round not found");
+    }
+    if (round.status !== "open") {
+        return reject(state, "INVALID_STATE", "round is not open");
+    }
     const agenda = state.agenda.find((candidate) => candidate.id === round.agendaId);
-    if (!agenda) return reject(state, "INVALID_STATE", "round agenda is missing");
+    if (!agenda) {
+        return reject(state, "INVALID_STATE", "round agenda is missing");
+    }
     const contributor = state.identities.find((candidate) => candidate.id === input.contributorId);
-    if (!contributor || !contributor.roles.includes("contributor"))
+    if (!contributor || !contributor.roles.includes("contributor")) {
         return reject(state, "UNAUTHORIZED", "identity is not a contributor");
+    }
     if (
         contributor.agendaResponsibilityIds.length > 0 &&
         !contributor.agendaResponsibilityIds.includes(round.agendaId)
-    )
+    ) {
         return reject(state, "UNAUTHORIZED", "contributor is not assigned to agenda");
+    }
     const manager = managerFor(state, round.agendaId);
-    if (!manager) return reject(state, "PRECONDITION_FAILED", "no eligible manager");
+    if (!manager) {
+        return reject(state, "PRECONDITION_FAILED", "no eligible manager");
+    }
     if (
         state.pendingHandRaises.some(
             (hand) => hand.roundId === input.roundId && hand.contributorId === input.contributorId
         )
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED", "hand is already pending");
+    }
     if (
         state.contributions.some(
             (contribution) =>
@@ -76,12 +89,13 @@ export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransi
                 contribution.contributorId === input.contributorId &&
                 !terminal.has(contribution.status)
         )
-    )
+    ) {
         return reject(
             state,
             "PRECONDITION_FAILED",
             "contributor already has an unfinished contribution"
         );
+    }
     if (
         state.tasks.some(
             (task) =>
@@ -89,8 +103,9 @@ export function raiseHand(state: MeetingState, input: RaiseInput): MeetingTransi
                 (task.status === "open" || task.status === "claimed") &&
                 (task.agendaId === undefined || task.agendaId === round.agendaId)
         )
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
+    }
     const next = {
         ...state,
         version: state.version + 1,
@@ -133,39 +148,50 @@ export function disposeHandRaise(
         input.managerId.trim() === "" ||
         input.reason.trim() === "" ||
         !validTime(input.now)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid hand disposition");
+    }
     const hand = state.pendingHandRaises.find(
         (candidate) =>
             candidate.roundId === input.roundId && candidate.contributorId === input.contributorId
     );
-    if (!hand) return reject(state, "NOT_FOUND", "pending hand not found");
+    if (!hand) {
+        return reject(state, "NOT_FOUND", "pending hand not found");
+    }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
+    if (!round) {
+        return reject(state, "NOT_FOUND", "round not found");
+    }
     const manager = state.identities.find((candidate) => candidate.id === input.managerId);
-    if (!manager || !manager.roles.includes("manager"))
+    if (!manager || !manager.roles.includes("manager")) {
         return reject(state, "UNAUTHORIZED", "identity is not a manager");
+    }
     if (
         manager.agendaResponsibilityIds.length > 0 &&
         !manager.agendaResponsibilityIds.includes(round.agendaId)
-    )
+    ) {
         return reject(state, "UNAUTHORIZED", "manager is not assigned to agenda");
+    }
     if (input.disposition === "accepted") {
-        if (input.contributionId === undefined || input.contributionId.trim() === "")
+        if (input.contributionId === undefined || input.contributionId.trim() === "") {
             return reject(state, "INVALID_ARGUMENT", "accepted hand requires contribution id");
-        if (state.contributions.some((candidate) => candidate.id === input.contributionId))
+        }
+        if (state.contributions.some((candidate) => candidate.id === input.contributionId)) {
             return reject(state, "INVALID_ARGUMENT", "contribution id already exists");
+        }
         if (
             state.messages.length + reservedFormalMessages(state) + 1 >
             state.limits.maxFormalMessages
-        )
+        ) {
             return reject(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
+        }
         if (
             state.privateMails.some(
                 (mail) => mail.recipientId === input.contributorId && mail.status === "processing"
             )
-        )
+        ) {
             return reject(state, "PRECONDITION_FAILED", "contributor is processing private mail");
+        }
         const contribution: Contribution = {
             id: input.contributionId,
             roundId: round.id,

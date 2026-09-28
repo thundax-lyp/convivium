@@ -61,7 +61,9 @@ export const findAdjacentTimelineKey = ({
 }: AdjacentTimelineInput): string | undefined => {
     const visible = nodes.filter((node) => !collapsedLanes.includes(node.lane));
     const current = visible.find((node) => node.key === currentKey);
-    if (!current) return undefined;
+    if (!current) {
+        return undefined;
+    }
     if (direction === "left" || direction === "right") {
         const sameLane = visible.filter((node) => node.lane === current.lane);
         const index = sameLane.findIndex((node) => node.key === currentKey);
@@ -74,7 +76,9 @@ export const findAdjacentTimelineKey = ({
         index += step
     ) {
         const lane = lanes[index]!;
-        if (collapsedLanes.includes(lane)) continue;
+        if (collapsedLanes.includes(lane)) {
+            continue;
+        }
         const candidates = visible.filter((node) => node.lane === lane);
         candidates.sort(
             (a, b) =>
@@ -82,7 +86,9 @@ export const findAdjacentTimelineKey = ({
                 a.time - b.time ||
                 a.key.localeCompare(b.key)
         );
-        if (candidates.length > 0) return candidates[0]?.key;
+        if (candidates.length > 0) {
+            return candidates[0]?.key;
+        }
     }
     return undefined;
 };
@@ -93,7 +99,9 @@ const label = (key: string, fallback: string, t: MeetingTranslate): string => {
 };
 
 const statusLabel = (node: TimelineNode, t: MeetingTranslate): string => {
-    if (node.status === undefined) return "";
+    if (node.status === undefined) {
+        return "";
+    }
     const group: Partial<Record<TimelineNode["objectKind"], string>> = {
         lifecycle: "lifecycle",
         round: "round",
@@ -130,13 +138,17 @@ const contentTitle = (node: TimelineNode, title: string, t: MeetingTranslate): s
         termination: "terminationOutcome",
         archive: "archive"
     };
-    if (node.objectKind === "disposition_fact") return knownEnum("timelinePhase", title, t);
+    if (node.objectKind === "disposition_fact") {
+        return knownEnum("timelinePhase", title, t);
+    }
     const group = groups[node.objectKind];
     return group === undefined ? title : knownEnum(group, title, t);
 };
 
 const identityName = (detail: MeetingView, node: TimelineNode): string => {
-    if (!node.identityId) return "";
+    if (!node.identityId) {
+        return "";
+    }
     const identity =
         detail.lifecycle.status === "archived"
             ? detail.archive?.identityProvenance.find((item) => item.identityId === node.identityId)
@@ -262,8 +274,9 @@ export const TimelineFilters = ({
 
 export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     const { detail, filters, t, onFiltersChange } = props;
-    if (detail.lifecycle.status === "archived" && detail.archive?.status !== "complete")
+    if (detail.lifecycle.status === "archived" && detail.archive?.status !== "complete") {
         return <p>{t("panel.state.archiveUnavailable")}</p>;
+    }
     const allNodes = buildTimelineNodes(detail);
     const nodes = filterTimelineNodes(allNodes, filters);
     return (
@@ -302,7 +315,9 @@ export const TimelineViewport = ({
     );
     const [focusMissing, setFocusMissing] = useState(false);
     useEffect(() => {
-        if (viewportRef.current) viewportRef.current.scrollLeft = 0;
+        if (viewportRef.current) {
+            viewportRef.current.scrollLeft = 0;
+        }
     }, [viewportRevision]);
     useEffect(() => {
         if (
@@ -310,12 +325,15 @@ export const TimelineViewport = ({
             nodes.some(
                 (node) => node.key === activeKey && !filters.collapsedLanes.includes(node.lane)
             )
-        )
+        ) {
             return;
+        }
         setActiveKey(nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key);
     }, [nodes, filters.collapsedLanes, activeKey]);
     useEffect(() => {
-        if (!focusTarget) return;
+        if (!focusTarget) {
+            return;
+        }
         const matches =
             focusTarget.meetingId === detail.meetingId
                 ? nodes.filter(
@@ -435,8 +453,11 @@ export const TimelineViewport = ({
                             <article
                                 key={node.key}
                                 ref={(element: HTMLElement | null) => {
-                                    if (element) nodeRefs.current.set(node.key, element);
-                                    else nodeRefs.current.delete(node.key);
+                                    if (element) {
+                                        nodeRefs.current.set(node.key, element);
+                                    } else {
+                                        nodeRefs.current.delete(node.key);
+                                    }
                                 }}
                                 data-testid="timeline-node"
                                 data-node-key={node.key}
@@ -450,7 +471,9 @@ export const TimelineViewport = ({
                                         ArrowLeft: "left",
                                         ArrowRight: "right"
                                     }[event.key] as TimelineDirection | undefined;
-                                    if (!direction) return;
+                                    if (!direction) {
+                                        return;
+                                    }
                                     event.preventDefault();
                                     const next = findAdjacentTimelineKey({
                                         nodes,
@@ -458,7 +481,9 @@ export const TimelineViewport = ({
                                         direction,
                                         collapsedLanes: collapsed
                                     });
-                                    if (next) nodeRefs.current.get(next)?.focus();
+                                    if (next) {
+                                        nodeRefs.current.get(next)?.focus();
+                                    }
                                 }}
                                 aria-label={[
                                     t("panel.timeline.aria.node"),

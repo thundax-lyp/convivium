@@ -25,8 +25,11 @@ function recoveryFixture(stream?: AsyncIterable<RefreshItem>) {
     let callbacks: MeetingRefreshCallbacks | undefined;
     const refreshStream = {
         async *[Symbol.asyncIterator]() {
-            if (stream) yield* stream;
-            else await new Promise<void>(() => undefined);
+            if (stream) {
+                yield* stream;
+            } else {
+                await new Promise<void>(() => undefined);
+            }
         },
         dispose: vi.fn(async () => undefined)
     };
@@ -90,11 +93,15 @@ describe("Meeting panel refresh recovery", () => {
             const fixture = recoveryFixture();
             await renderSelected(fixture);
             fixture.api.list = vi.fn(async () => {
-                if (failList) throw new Error("list failed");
+                if (failList) {
+                    throw new Error("list failed");
+                }
                 return { meetings: [fixture.summary] };
             });
             fixture.api.read = vi.fn(async () => {
-                if (failDetail) throw new Error("detail failed");
+                if (failDetail) {
+                    throw new Error("detail failed");
+                }
                 return fixture.view;
             });
 

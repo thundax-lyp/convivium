@@ -37,7 +37,9 @@ describe("round publication", () => {
             managerId: "manager-v1",
             now: 1
         });
-        if (opened.kind !== "accepted") throw new Error("round");
+        if (opened.kind !== "accepted") {
+            throw new Error("round");
+        }
         const result = publishRound(opened.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
@@ -46,7 +48,9 @@ describe("round publication", () => {
             now: 2
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.publications).toHaveLength(1);
         expect(result.state.rounds[0]).toMatchObject({
             status: "published",
@@ -75,7 +79,9 @@ describe("round publication", () => {
             }
         );
         expect(opened.kind).toBe("accepted");
-        if (opened.kind !== "accepted") return;
+        if (opened.kind !== "accepted") {
+            return;
+        }
         const result = publishRound(
             {
                 ...opened.state,
@@ -102,7 +108,9 @@ describe("round publication", () => {
             }
         );
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.lifecycle).toMatchObject({
             status: "paused",
             reason: "message budget exhausted"
@@ -130,7 +138,9 @@ describe("round publication", () => {
             }
         );
         expect(opened.kind).toBe("accepted");
-        if (opened.kind !== "accepted") return;
+        if (opened.kind !== "accepted") {
+            return;
+        }
         const result = publishRound(
             {
                 ...opened.state,
@@ -157,7 +167,9 @@ describe("round publication", () => {
             }
         );
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.lifecycle.status).toBe("converging");
     });
 });

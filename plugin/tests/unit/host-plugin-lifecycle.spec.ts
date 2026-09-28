@@ -87,14 +87,18 @@ describe("Convivium local Meeting route lifecycle", () => {
             typert: {},
             inject(keys: string[], callback: (context: unknown) => void) {
                 expect(keys).toEqual(["webServer", "typertGateway", "typert"]);
-                if (ctx.webServer !== undefined) callback(ctx);
+                if (ctx.webServer !== undefined) {
+                    callback(ctx);
+                }
             },
             async plugin(
                 plugin: { name?: string; apply(context: unknown, value: unknown): unknown },
                 value: unknown
             ) {
                 childOrder.push(plugin.name ?? "anonymous");
-                if (plugin.name === "ConviviumRemoteService") return;
+                if (plugin.name === "ConviviumRemoteService") {
+                    return;
+                }
                 if (plugin.name === "convivium-meeting-consumer") {
                     expect(plugin).toMatchObject({
                         inject: [
@@ -127,7 +131,9 @@ describe("Convivium local Meeting route lifecycle", () => {
             childOrder,
             get: ctx.get,
             dispose: async () => {
-                for (const effect of [...effects].reverse()) await effect();
+                for (const effect of [...effects].reverse()) {
+                    await effect();
+                }
             }
         };
     }
@@ -143,7 +149,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(11);
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
     it("registers meeting tools without a WebServer", async () => {
@@ -151,7 +159,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(11);
         await fixture.dispose();
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
     it("requires the exact seven packaged role definitions without resolving their capabilities", async () => {
@@ -176,7 +186,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.toolDisposers).toHaveLength(11);
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
     it("does not register Meeting routes for a localhost host alias", async () => {
@@ -218,8 +230,9 @@ describe("Convivium Cordis service lifecycle", () => {
                     "agentDefaultModel",
                     "skills",
                     "llm"
-                ])
+                ]) {
                     root.provide(service, {});
+                }
                 const spawnProvider: SubagentProvider = {
                     name: "spawn",
                     capabilities: providerCapabilities,

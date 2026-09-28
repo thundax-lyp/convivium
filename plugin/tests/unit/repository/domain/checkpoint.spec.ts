@@ -112,11 +112,11 @@ describe("application checkpoint", () => {
                 await domain
                     .table("checkpoint_roots")
                     .put(pointer.generation, { ...root, projectionDigest: "0".repeat(64) });
-            } else if (kind === "pointer")
+            } else if (kind === "pointer") {
                 await domain
                     .table("checkpoint_pointer")
                     .put("current", { ...pointer, rootDigest: "0".repeat(64) });
-            else {
+            } else {
                 const root = domain.table("checkpoint_roots").get(pointer.generation)!;
                 await domain.table("checkpoint_roots").put(pointer.generation, {
                     ...root,

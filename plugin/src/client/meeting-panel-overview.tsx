@@ -93,16 +93,18 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
                 `${round.roundGoal.question}: ${known("round", round.status, t)}`
             )
         );
-        for (const contribution of round.contributions)
+        for (const contribution of round.contributions) {
             items.push(
                 <li
                     key={`contribution:${contribution.id}`}
                 >{`${contribution.id}: ${known("contribution", contribution.status, t)}${contribution.exitReason ? `: ${contribution.exitReason}` : ""}`}</li>
             );
+        }
     }
-    for (const request of detail.opportunityRequests)
+    for (const request of detail.opportunityRequests) {
         items.push(overviewItem("opportunity_request", request.id, request.purpose));
-    for (const plan of detail.managerPlans)
+    }
+    for (const plan of detail.managerPlans) {
         items.push(
             overviewItem(
                 "manager_plan",
@@ -110,7 +112,8 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
                 `${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`
             )
         );
-    for (const recommendation of detail.identityRecommendations ?? [])
+    }
+    for (const recommendation of detail.identityRecommendations ?? []) {
         items.push(
             overviewItem(
                 "identity_recommendation",
@@ -118,10 +121,12 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
                 `${recommendation.rationale}: ${known("recommendation", recommendation.status, t)}`
             )
         );
-    for (const task of detail.tasks)
+    }
+    for (const task of detail.tasks) {
         items.push(
             overviewItem("task", task.id, `${task.title}: ${known("task", task.status, t)}`)
         );
+    }
     return section(t("panel.overview.progress"), values(items, t));
 };
 
@@ -302,10 +307,13 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
             : undefined;
     const displayed = new Set<string>([overviewKey("lifecycle", detail.meetingId)]);
     const addDisplayed = (kind: string, items: readonly { id: string }[]) => {
-        for (const item of items) displayed.add(overviewKey(kind, item.id));
+        for (const item of items) {
+            displayed.add(overviewKey(kind, item.id));
+        }
     };
-    if (archive) displayed.add(overviewKey("archive", archive.id));
-    else {
+    if (archive) {
+        displayed.add(overviewKey("archive", archive.id));
+    } else {
         addDisplayed("round", detail.rounds);
         addDisplayed("opportunity_request", detail.opportunityRequests);
         addDisplayed("manager_plan", detail.managerPlans);
@@ -340,7 +348,9 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
         ).values()
     ];
     useEffect(() => {
-        if (!focusTarget) return;
+        if (!focusTarget) {
+            return;
+        }
         const item =
             focusTarget.meetingId === detail.meetingId
                 ? Array.from(
@@ -351,8 +361,9 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
                           overviewKey(focusTarget.objectKind, focusTarget.objectId)
                   )
                 : undefined;
-        if (!item) setFocusMissing(true);
-        else {
+        if (!item) {
+            setFocusMissing(true);
+        } else {
             setFocusMissing(false);
             item.scrollIntoView?.({ block: "nearest", inline: "center" });
             item.focus();

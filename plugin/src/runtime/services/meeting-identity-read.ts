@@ -41,14 +41,17 @@ export const createMeetingIdentityReader = (
             caller.ownership.identityId !== caller.identityId ||
             caller.ownership.lifecycleStatus !== "active" ||
             caller.ownership.capabilityStatus !== "active"
-        )
+        ) {
             return undefined;
+        }
         const repository = await dependencies.registry.openMeeting({
             meetingId: request.meetingId
         });
         const recovered = await repository.recover();
         const snapshot = recovered.snapshot;
-        if (snapshot === undefined || snapshot.meetingId !== request.meetingId) return undefined;
+        if (snapshot === undefined || snapshot.meetingId !== request.meetingId) {
+            return undefined;
+        }
         const ownership = recovered.sessionOwnership.find(
             (candidate) => candidate.id === caller.ownership.id
         );
@@ -61,8 +64,9 @@ export const createMeetingIdentityReader = (
             ownership.role !== caller.role ||
             ownership.lifecycleStatus !== "active" ||
             ownership.capabilityStatus !== "active"
-        )
+        ) {
             return undefined;
+        }
         const identity = snapshot.state.identities.find(
             (candidate) => candidate.id === caller.identityId
         );
@@ -71,8 +75,9 @@ export const createMeetingIdentityReader = (
             identity.sessionOwnershipId !== caller.ownership.id ||
             identity.roles.length !== 1 ||
             identity.roles[0] !== expectedMeetingRole(caller.role)
-        )
+        ) {
             return undefined;
+        }
         const catalog =
             caller.role === "manager" && dependencies.catalog !== undefined
                 ? await readMeetingRoleCatalog(

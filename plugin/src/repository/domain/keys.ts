@@ -19,7 +19,9 @@ export function meetingDomainName(meetingId: string): string {
 }
 
 export function seqKey(seq: number): SeqKey {
-    if (!Number.isSafeInteger(seq) || seq < 1) throw new Error("invalid sequence");
+    if (!Number.isSafeInteger(seq) || seq < 1) {
+        throw new Error("invalid sequence");
+    }
     return seq.toString().padStart(20, "0");
 }
 

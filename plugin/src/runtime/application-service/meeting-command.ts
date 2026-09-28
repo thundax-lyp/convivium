@@ -133,8 +133,9 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
             "resume_meeting",
             "end_meeting"
         ].includes(action)
-    )
+    ) {
         return scope.role === "captain";
+    }
     if (
         action === "record_review_delivery" ||
         action === "claim_evidence_review" ||
@@ -142,8 +143,9 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
         action === "start_archive" ||
         action === "record_archive_session_result" ||
         action === "record_identity_admission_result"
-    )
+    ) {
         return scope.role === "runtime";
+    }
     if (
         [
             "submit_manager_plan",
@@ -152,11 +154,15 @@ function authorizedRole(action: MeetingAction["kind"], scope: ResolvedCallerScop
             "publish_round",
             "recommend_identity"
         ].includes(action)
-    )
+    ) {
         return scope.role === "manager";
-    if (action === "submit_evidence_review") return scope.role === "evidence_reviewer";
-    if (action === "close_contribution")
+    }
+    if (action === "submit_evidence_review") {
+        return scope.role === "evidence_reviewer";
+    }
+    if (action === "close_contribution") {
         return scope.role === "participant" || scope.role === "runtime";
+    }
     return scope.role === "participant";
 }
 
@@ -169,8 +175,9 @@ function validScope(
         !scope ||
         scope.meetingId !== command.meetingId ||
         !sameCaller(scope.caller, context.caller)
-    )
+    ) {
         return false;
+    }
     if (context.caller.channel === "dsh_tool") {
         const ownership = scope.ownership;
         return (
@@ -185,12 +192,13 @@ function validScope(
             ownership.capabilityStatus === "active"
         );
     }
-    if (context.caller.channel === "loopback_remote")
+    if (context.caller.channel === "loopback_remote") {
         return (
             scope.role === "captain" &&
             context.caller.principalId === LOCAL_CONTROLLER_PRINCIPAL_ID &&
             context.caller.sessionBindingId === undefined
         );
+    }
     const principal =
         context.caller.channel === "runtime_recovery"
             ? RUNTIME_RECOVERY_PRINCIPAL_ID
@@ -228,10 +236,12 @@ function outbox(
 }
 
 function mapRepositoryError(error: unknown): MeetingCommandResult {
-    if (error instanceof TransitionRejected)
+    if (error instanceof TransitionRejected) {
         return rejected(error.code, error.message, error.targetKind, error.targetId);
-    if (!(error instanceof RepositoryError))
+    }
+    if (!(error instanceof RepositoryError)) {
         return rejected("STORAGE_UNAVAILABLE", "Meeting storage is unavailable");
+    }
     const code = (() => {
         switch (error.code) {
             case "SCHEMA_VERSION_UNSUPPORTED":
@@ -266,8 +276,9 @@ function actionAuthorizationFailure(
     context: MeetingCommandExecutionContext,
     scope: ResolvedCallerScope
 ): MeetingCommandResult | undefined {
-    if (!authorizedRole(command.action.kind, scope))
+    if (!authorizedRole(command.action.kind, scope)) {
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
+    }
     if (
         [
             "record_review_delivery",
@@ -279,18 +290,21 @@ function actionAuthorizationFailure(
         ].includes(command.action.kind) &&
         (context.caller.channel !== "runtime_recovery" ||
             context.caller.principalId !== RUNTIME_RECOVERY_PRINCIPAL_ID)
-    )
+    ) {
         return rejected("UNAUTHORIZED", "Action requires the recovery runtime");
+    }
     if (
         command.action.kind === "close_contribution" &&
         ((command.action.exit === "withdrawn" && context.caller.channel !== "dsh_tool") ||
             (command.action.exit !== "withdrawn" &&
                 (context.caller.channel !== "deadline_handler" ||
                     context.caller.principalId !== DEADLINE_HANDLER_PRINCIPAL_ID)))
-    )
+    ) {
         return rejected("UNAUTHORIZED", "Contribution closure caller is not authorized");
-    if (command.action.kind === "start_archive" && context.archiveEffect === undefined)
+    }
+    if (command.action.kind === "start_archive" && context.archiveEffect === undefined) {
         return rejected("UNAUTHORIZED", "Archive materialization requires its runtime effect");
+    }
     return undefined;
 }
 
@@ -300,25 +314,31 @@ async function prepareIdentityCatalog(
     command: MeetingCommand,
     scope: ResolvedCallerScope
 ): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> {
-    if (command.action.kind !== "recommend_identity") return {};
+    if (command.action.kind !== "recommend_identity") {
+        return {};
+    }
     const replay = await repository.replayReceipt({
         requestId: command.requestId,
         commandKind: command.action.kind,
         authorization: authorization(scope),
         requestHash: JSON.stringify(command.action)
     });
-    if (replay) return { result: replay.result as MeetingCommandResult };
-    if (!deps.catalog || !scope.ownership)
+    if (replay) {
+        return { result: replay.result as MeetingCommandResult };
+    }
+    if (!deps.catalog || !scope.ownership) {
         return {
             result: rejected("PRECONDITION_FAILED", "Meeting role catalog is unavailable")
         };
+    }
     const catalog = await readMeetingRoleCatalog(
         deps.catalog,
         command.meetingId,
         scope.ownership.sessionId
     );
-    if (catalog.kind !== "available")
+    if (catalog.kind !== "available") {
         return { result: rejected("PRECONDITION_FAILED", catalog.error.message) };
+    }
     const action = command.action;
     const candidate = catalog.snapshot.candidates.find(
         (item) => item.candidateId === action.candidateId
@@ -330,8 +350,9 @@ async function prepareIdentityCatalog(
         candidate.definition.version !== action.definitionVersion ||
         catalog.snapshot.catalogId !== action.catalogId ||
         catalog.snapshot.catalogVersion !== action.catalogVersion
-    )
+    ) {
         return { result: rejected("PRECONDITION_FAILED", "Catalog candidate does not match") };
+    }
     return { definitionHash: candidate.definitionHash };
 }
 
@@ -349,13 +370,14 @@ function finalizeMeetingTransition(input: {
     facts: readonly CommittedFactRecord<MeetingState>[];
 } {
     const { transition, deps, command, now, factId, receiptId, actorId, snapshotVersion } = input;
-    if (transition.kind === "rejected")
+    if (transition.kind === "rejected") {
         throw new TransitionRejected(
             transition.error.code,
             transition.error.message,
             transition.error.targetKind,
             transition.error.targetId
         );
+    }
     const action = command.action;
     const effects =
         action.kind === "end_meeting" ? [] : outbox(transition.effectRequests, deps, now);
@@ -504,8 +526,9 @@ async function executeCreateMeeting(
         !["loopback_remote", "skill_invocation"].includes(context.caller.channel) ||
         context.caller.principalId !== LOCAL_CONTROLLER_PRINCIPAL_ID ||
         context.caller.sessionBindingId !== undefined
-    )
+    ) {
         return rejected("UNAUTHORIZED", "Only the trusted local user may create a Meeting");
+    }
     try {
         return await deps.creation.create(
             command,
@@ -527,11 +550,15 @@ async function executeExistingMeeting(
     now: number
 ): Promise<MeetingCommandResult> {
     const authorizationFailure = actionAuthorizationFailure(command, context, scope);
-    if (authorizationFailure) return authorizationFailure;
+    if (authorizationFailure) {
+        return authorizationFailure;
+    }
     try {
         const repository = await deps.registry.openMeeting({ meetingId: command.meetingId });
         const catalog = await prepareIdentityCatalog(deps, repository, command, scope);
-        if (catalog.result) return catalog.result;
+        if (catalog.result) {
+            return catalog.result;
+        }
         const committedFacts =
             command.action.kind === "start_archive" ? await repository.readCommittedFacts() : [];
         const repositoryCommand = createRepositoryCommand({
@@ -546,8 +573,9 @@ async function executeExistingMeeting(
         const committed = await repository.execute(repositoryCommand);
         return committed.result;
     } catch (error) {
-        if (error instanceof TransitionRejected)
+        if (error instanceof TransitionRejected) {
             return rejected(error.code, error.message, error.targetKind, error.targetId);
+        }
         return mapRepositoryError(error);
     }
 }
@@ -559,18 +587,22 @@ async function executeMeetingCommand(
     signal: AbortSignal
 ): Promise<MeetingCommandResult> {
     const parsed = MeetingCommandSchema.safeParse(rawCommand);
-    if (!parsed.success) return rejected("INVALID_ARGUMENT", "Invalid Meeting command");
+    if (!parsed.success) {
+        return rejected("INVALID_ARGUMENT", "Invalid Meeting command");
+    }
     const command = parsed.data;
     signal.throwIfAborted();
     const now = deps.clock.now();
-    if (command.action.kind === "create_meeting")
+    if (command.action.kind === "create_meeting") {
         return executeCreateMeeting(deps, command as CreateMeetingCommand, context, now, signal);
+    }
     const scope = await deps.resolveCallerScope({
         meetingId: command.meetingId,
         caller: context.caller
     });
-    if (!validScope(command, context, scope))
+    if (!validScope(command, context, scope)) {
         return rejected("UNAUTHORIZED", "Caller is not authorized for this action");
+    }
     return executeExistingMeeting(deps, command, context, scope, now);
 }
 

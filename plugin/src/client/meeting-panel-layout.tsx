@@ -159,7 +159,9 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             size="sm"
                             onClick={() => selectMode("overview")}
                             onKeyDown={(event: React.KeyboardEvent) => {
-                                if (event.key === "ArrowRight") moveMode(event, "timeline");
+                                if (event.key === "ArrowRight") {
+                                    moveMode(event, "timeline");
+                                }
                             }}
                         >
                             {t("panel.mode.overview")}
@@ -174,7 +176,9 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             size="sm"
                             onClick={() => selectMode("timeline")}
                             onKeyDown={(event: React.KeyboardEvent) => {
-                                if (event.key === "ArrowLeft") moveMode(event, "overview");
+                                if (event.key === "ArrowLeft") {
+                                    moveMode(event, "overview");
+                                }
                             }}
                         >
                             {t("panel.mode.timeline")}
@@ -227,10 +231,14 @@ const MeetingPanelLayout = ({
     const openerRef = useRef<HTMLButtonElement | null>(null);
     useEffect(() => {
         const query = window.matchMedia?.("(max-width: 760px)");
-        if (query === undefined) return;
+        if (query === undefined) {
+            return;
+        }
         const update = (event: MediaQueryListEvent) => {
             setNarrow(event.matches);
-            if (!event.matches) setDrawerOpen(false);
+            if (!event.matches) {
+                setDrawerOpen(false);
+            }
         };
         query.addEventListener("change", update);
         return () => query.removeEventListener("change", update);
@@ -240,16 +248,22 @@ const MeetingPanelLayout = ({
         openerRef.current?.focus();
     };
     useEffect(() => {
-        if (!drawerOpen) return;
+        if (!drawerOpen) {
+            return;
+        }
         const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === "Escape") closeDrawer();
+            if (event.key === "Escape") {
+                closeDrawer();
+            }
         };
         window.addEventListener("keydown", closeOnEscape);
         return () => window.removeEventListener("keydown", closeOnEscape);
     }, [drawerOpen]);
     const selectMeeting = (meetingId: string) => {
         ctx.selectMeeting(meetingId);
-        if (narrow) closeDrawer();
+        if (narrow) {
+            closeDrawer();
+        }
     };
     const selected = ctx.meetings.find((meeting) => meeting.meetingId === ctx.selectedId);
     const navigator = renderNavigator(ctx, t, selectMeeting);

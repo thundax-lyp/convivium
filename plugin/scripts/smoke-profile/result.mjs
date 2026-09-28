@@ -61,8 +61,9 @@ function validateMeetingBusinessLoopResult(value) {
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
         value.observed.subtopicOrigin !== "manager-round-goal"
-    )
+    ) {
         throw new Error("Meeting business loop smoke result is invalid.");
+    }
 }
 
 export function validateMeetingBusinessLoopHotResult(value) {
@@ -100,8 +101,9 @@ export function validateMeetingBusinessLoopHotResult(value) {
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
         value.observed.subtopicOrigin !== "manager-round-goal"
-    )
+    ) {
         throw new Error("Meeting business loop hot smoke result is invalid.");
+    }
     return value;
 }
 
@@ -136,8 +138,9 @@ export function completeMeetingBusinessLoopResult(hotValue, coldValue) {
         coldValue.meetingId !== hot.meetingId ||
         coldValue.status !== "archived" ||
         coldValue.archiveStatus !== "complete"
-    )
+    ) {
         throw new Error("Meeting business loop cold reopen result is invalid.");
+    }
     const completed = {
         ...hot,
         assertions: [...hot.assertions, "cold-reopen"],
@@ -177,8 +180,9 @@ function validateIdentityAdmissionResult(value) {
         value.rejectedCandidateId !== "candidate-reject" ||
         value.nativeSkillLoaded !== true ||
         value.sessionIndependent !== true
-    )
+    ) {
         throw new Error("Identity admission smoke result is invalid.");
+    }
 }
 
 export const PEER_SKILLS = Object.freeze({
@@ -244,7 +248,8 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
         !exact(observed.review, ["versionId", "reviewId"]) ||
         !Object.values(observed.review).every(nonempty) ||
         observed.coldRecovery !== coldRecovery
-    )
+    ) {
         throw new Error("Peer meeting agents smoke result is invalid.");
+    }
     return value;
 }

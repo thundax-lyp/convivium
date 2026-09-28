@@ -36,23 +36,31 @@ export function raiseSupplementHand(
         input.purpose.trim() === "" ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid supplement request");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return reject(state, "MEETING_TERMINAL", "meeting is not running");
+    }
     const contribution = state.contributions.find(
         (candidate) => candidate.id === input.contributionId
     );
-    if (!contribution) return reject(state, "NOT_FOUND", "contribution not found");
-    if (contribution.contributorId !== input.authorId)
+    if (!contribution) {
+        return reject(state, "NOT_FOUND", "contribution not found");
+    }
+    if (contribution.contributorId !== input.authorId) {
         return reject(state, "UNAUTHORIZED", "identity is not contribution author");
-    if (terminal.has(contribution.status))
+    }
+    if (terminal.has(contribution.status)) {
         return reject(state, "INVALID_STATE", "contribution is terminal");
+    }
     const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
-    if (!round || round.status !== "open")
+    if (!round || round.status !== "open") {
         return reject(state, "INVALID_STATE", "round is not open");
-    if (contribution.supplementHand !== undefined)
+    }
+    if (contribution.supplementHand !== undefined) {
         return reject(state, "PRECONDITION_FAILED", "supplement hand already exists");
+    }
     const packageValue =
         contribution.packageId === undefined
             ? undefined
@@ -83,21 +91,27 @@ export function raiseSupplementHand(
                       (delivery) =>
                           delivery.reviewId === currentReview.id && delivery.status === "sent"
                   );
-        if (sent !== undefined) deadlines.push(sent.sentAt! + 60000);
+        if (sent !== undefined) {
+            deadlines.push(sent.sentAt! + 60000);
+        }
         const version = packageValue.versions.find(
             (candidate) => candidate.id === packageValue.currentVersionId
         );
         if (version !== undefined) {
             const versionDeadline = version.submittedAt + state.limits.taskDeadlineMs;
-            if (!Number.isSafeInteger(versionDeadline))
+            if (!Number.isSafeInteger(versionDeadline)) {
                 return reject(state, "PRECONDITION_FAILED", "invalid supplement deadline");
+            }
             deadlines.push(versionDeadline);
         }
     }
-    if (deadlines.some((deadline) => input.now >= deadline))
+    if (deadlines.some((deadline) => input.now >= deadline)) {
         return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
+    }
     const manager = managerFor(state, round.agendaId);
-    if (!manager) return reject(state, "PRECONDITION_FAILED", "no eligible manager");
+    if (!manager) {
+        return reject(state, "PRECONDITION_FAILED", "no eligible manager");
+    }
     const hand: SupplementHand = {
         purpose: input.purpose,
         raisedAt: input.now,
@@ -140,29 +154,39 @@ export function disposeSupplementHand(
         input.reason.trim() === "" ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid supplement disposition");
+    }
     const contribution = state.contributions.find(
         (candidate) => candidate.id === input.contributionId
     );
-    if (!contribution) return reject(state, "NOT_FOUND", "contribution not found");
-    if (contribution.supplementHand?.status !== "pending")
+    if (!contribution) {
+        return reject(state, "NOT_FOUND", "contribution not found");
+    }
+    if (contribution.supplementHand?.status !== "pending") {
         return reject(state, "NOT_FOUND", "pending supplement hand not found");
+    }
     const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
+    if (!round) {
+        return reject(state, "NOT_FOUND", "round not found");
+    }
     const manager = state.identities.find((candidate) => candidate.id === input.managerId);
-    if (!manager || !manager.roles.includes("manager"))
+    if (!manager || !manager.roles.includes("manager")) {
         return reject(state, "UNAUTHORIZED", "identity is not a manager");
+    }
     if (
         manager.agendaResponsibilityIds.length > 0 &&
         !manager.agendaResponsibilityIds.includes(round.agendaId)
-    )
+    ) {
         return reject(state, "UNAUTHORIZED", "manager is not assigned to agenda");
+    }
     const count = contribution.substantiveSupplementCount;
-    if (count >= 2 && input.disposition === "accepted")
+    if (count >= 2 && input.disposition === "accepted") {
         return reject(state, "LIMIT_EXCEEDED", "supplement limit reached");
-    if (contribution.status === "under_review" && input.disposition === "accepted")
+    }
+    if (contribution.status === "under_review" && input.disposition === "accepted") {
         return reject(state, "INVALID_STATE", "reviewed contribution can only be deferred");
+    }
     const nextStatus =
         input.disposition === "rejected" || count >= 2
             ? "supplement_rejected"

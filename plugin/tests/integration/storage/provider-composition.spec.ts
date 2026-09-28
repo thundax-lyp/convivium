@@ -83,8 +83,12 @@ describe("Storage provider composition", () => {
             expect([...recovered.table("records").entries()]).toEqual([["retained", 1]]);
             await recovered.close();
         } finally {
-            for (const domain of domains.reverse()) await domain.close();
-            for (const ctx of contexts.reverse()) await ctx.fiber.dispose();
+            for (const domain of domains.reverse()) {
+                await domain.close();
+            }
+            for (const ctx of contexts.reverse()) {
+                await ctx.fiber.dispose();
+            }
             await rm(directory, { recursive: true, force: true });
         }
     });

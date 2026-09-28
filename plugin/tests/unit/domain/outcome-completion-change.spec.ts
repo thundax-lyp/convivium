@@ -57,7 +57,9 @@ describe("CompletionFact change", () => {
             now: 1
         });
         expect(result).toMatchObject({ kind: "accepted", relatedIds: ["old"], effectRequests: [] });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.completionFacts).toHaveLength(1);
         expect(result.state.completionFacts[0]).toMatchObject({
             ...before.completionFacts[0],
@@ -100,7 +102,9 @@ describe("CompletionFact change", () => {
             relatedIds: ["old", "new", "o", "criterion", "dec", "v"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.completionFacts).toMatchObject([
             { id: "old", status: "superseded" },
             {
@@ -129,13 +133,14 @@ describe("CompletionFact change", () => {
         ["unpublished evidence", { evidenceIds: ["v2"] }, "PRECONDITION_FAILED", undefined]
     ] as const)("replacement typed ref %s", (_name, overrides, code, targetId) => {
         const state = ready();
-        if (_name === "unpublished evidence")
+        if (_name === "unpublished evidence") {
             state.evidencePackages[0].versions.push({
                 ...state.evidencePackages[0].versions[0],
                 id: "v2",
                 ordinal: 2,
                 status: "submitted"
             });
+        }
         expect(change(state, { replacement: { ...replacement, ...overrides } })).toMatchObject({
             error: { code },
             ...(targetId ? { relatedIds: [] } : {}),

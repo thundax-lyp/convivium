@@ -34,16 +34,22 @@ function jsonValue(value: unknown): JsonValue {
         typeof value === "string" ||
         typeof value === "boolean" ||
         (typeof value === "number" && Number.isFinite(value))
-    )
+    ) {
         return value;
-    if (Array.isArray(value)) return value.map(jsonValue);
+    }
+    if (Array.isArray(value)) {
+        return value.map(jsonValue);
+    }
     if (value !== undefined && typeof value === "object") {
         const prototype = Object.getPrototypeOf(value);
-        if (prototype !== Object.prototype && prototype !== null)
+        if (prototype !== Object.prototype && prototype !== null) {
             throw new TypeError("Repository value contains a non-plain object");
+        }
         const result: Record<string, JsonValue> = Object.create(null);
         for (const [key, item] of Object.entries(value)) {
-            if (item !== undefined) result[key] = jsonValue(item);
+            if (item !== undefined) {
+                result[key] = jsonValue(item);
+            }
         }
         return result;
     }
@@ -69,13 +75,14 @@ export class DomainMeetingRepository<TState = JsonObject>
     ): Promise<CommittedResult<unknown> | undefined> {
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            if (!this.projection?.snapshot)
+            if (!this.projection?.snapshot) {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
                     "Meeting is not ready"
                 );
+            }
             const snapshot = this.decodeSnapshot(structuredClone(this.projection.snapshot));
             this.authorizationValidator.validateCommand({ snapshot, command });
             const existing =
@@ -86,14 +93,17 @@ export class DomainMeetingRepository<TState = JsonObject>
                         command.authorization.callerBinding
                     )
                 ];
-            if (!existing) return undefined;
-            if (existing.requestHash !== command.requestHash)
+            if (!existing) {
+                return undefined;
+            }
+            if (existing.requestHash !== command.requestHash) {
                 throw new RepositoryError(
                     "IDEMPOTENCY_CONFLICT",
                     false,
                     this.meetingId,
                     "Request hash conflicts with receipt"
                 );
+            }
             return {
                 requestId: command.requestId,
                 meetingId: this.meetingId,
@@ -111,13 +121,14 @@ export class DomainMeetingRepository<TState = JsonObject>
     private async executeCommand<T>(
         command: RepositoryCommand<T, TState>
     ): Promise<CommittedResult<T>> {
-        if (!this.projection?.snapshot)
+        if (!this.projection?.snapshot) {
             throw new RepositoryError(
                 "INVALID_STATE",
                 false,
                 this.meetingId,
                 "Meeting is not ready"
             );
+        }
         const snapshot = this.decodeSnapshot(structuredClone(this.projection.snapshot));
         this.authorizationValidator.validateCommand({ snapshot, command });
         const key = receiptKey(
@@ -126,17 +137,20 @@ export class DomainMeetingRepository<TState = JsonObject>
             command.authorization.callerBinding
         );
         const replayed = this.replayCommandReceipt(command, key);
-        if (replayed) return replayed;
+        if (replayed) {
+            return replayed;
+        }
         if (
             command.expectedMeetingVersion !== undefined &&
             snapshot.version !== command.expectedMeetingVersion
-        )
+        ) {
             throw new RepositoryError(
                 "VERSION_CONFLICT",
                 true,
                 this.meetingId,
                 "Meeting version is stale"
             );
+        }
         const archiveContext = this.validateArchiveSessionResult(command);
         const now = this.now();
         const transition = command.transition(snapshot, {
@@ -148,8 +162,9 @@ export class DomainMeetingRepository<TState = JsonObject>
                   })
         });
         const encoded = this.encodeTransition(transition);
-        if (transition.events.length === 0 && (command.facts ?? []).length === 0)
+        if (transition.events.length === 0 && (command.facts ?? []).length === 0) {
             return this.commitNoop(command, key, snapshot.version, transition, encoded.result, now);
+        }
         return this.commitTransition(
             command,
             key,
@@ -166,14 +181,17 @@ export class DomainMeetingRepository<TState = JsonObject>
         key: string
     ): CommittedResult<T> | undefined {
         const existing = this.projection!.receipts[key];
-        if (!existing) return undefined;
-        if (existing.requestHash !== command.requestHash)
+        if (!existing) {
+            return undefined;
+        }
+        if (existing.requestHash !== command.requestHash) {
             throw new RepositoryError(
                 "IDEMPOTENCY_CONFLICT",
                 false,
                 this.meetingId,
                 "Request hash conflicts with receipt"
             );
+        }
         return {
             requestId: command.requestId,
             meetingId: this.meetingId,
@@ -188,29 +206,33 @@ export class DomainMeetingRepository<TState = JsonObject>
         archiveSessionOwnershipKey?: string;
     } {
         const closure = command.archiveSessionResult;
-        if (closure === undefined) return {};
+        if (closure === undefined) {
+            return {};
+        }
         const failureCode = closure.failureCode?.trim();
         if (
             command.commandKind !== "record_archive_session_result" ||
             (closure.status === "closed" && closure.failureCode !== undefined) ||
             (closure.status === "failed" && !failureCode)
-        )
+        ) {
             throw new RepositoryError(
                 "INVALID_INPUT",
                 false,
                 this.meetingId,
                 "Archive Session result is invalid"
             );
+        }
         const ownershipEntry = Object.entries(this.projection!.sessionOwnership).find(
             ([, candidate]) => candidate.id === closure.sessionOwnershipId
         );
-        if (!ownershipEntry)
+        if (!ownershipEntry) {
             throw new RepositoryError(
                 "RECOVERY_UNAVAILABLE",
                 false,
                 this.meetingId,
                 "Archive Session ownership is unavailable"
             );
+        }
         const [ownershipKey, ownership] = ownershipEntry;
         if (
             !ownership.id ||
@@ -219,13 +241,14 @@ export class DomainMeetingRepository<TState = JsonObject>
             !ownership.identityId ||
             ownership.lifecycleStatus === "closed" ||
             ownership.capabilityStatus !== "revoked"
-        )
+        ) {
             throw new RepositoryError(
                 "RECOVERY_UNAVAILABLE",
                 false,
                 this.meetingId,
                 "Archive Session ownership is unavailable"
             );
+        }
         return {
             archiveSessionOwnershipKey: ownershipKey,
             allSessionOwnershipClosedAfterResult:
@@ -265,13 +288,14 @@ export class DomainMeetingRepository<TState = JsonObject>
         transitionResult: JsonValue,
         now: number
     ): Promise<CommittedResult<T>> {
-        if (!command.allowNoop)
+        if (!command.allowNoop) {
             throw new RepositoryError(
                 "INVALID_STATE",
                 false,
                 this.meetingId,
                 "State transitions must emit at least one domain event"
             );
+        }
         return this.commit({
             operation: `command:${command.commandKind}`,
             now,
@@ -288,13 +312,14 @@ export class DomainMeetingRepository<TState = JsonObject>
                     eventSeqs: [],
                     createdAt: now
                 });
-                if (!receipt.success)
+                if (!receipt.success) {
                     throw new RepositoryError(
                         "INVALID_INPUT",
                         false,
                         this.meetingId,
                         "Command result is invalid"
                     );
+                }
                 next.receipts[key] = receipt.data;
                 return {
                     next,
@@ -358,13 +383,14 @@ export class DomainMeetingRepository<TState = JsonObject>
                 attemptId: event.attemptId ?? null,
                 createdAt: now
             });
-            if (!persisted.success)
+            if (!persisted.success) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Command event is invalid"
                 );
+            }
             next.events[seqKey(eventSeq)] = persisted.data;
         }
         return eventSeqs;
@@ -376,26 +402,28 @@ export class DomainMeetingRepository<TState = JsonObject>
         nextVersion: number
     ): void {
         for (const fact of facts) {
-            if (fact.meetingVersion !== nextVersion || next.facts[fact.factId] !== undefined)
+            if (fact.meetingVersion !== nextVersion || next.facts[fact.factId] !== undefined) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Command fact identity or version is invalid"
                 );
+            }
             const persisted = CommittedFactRecordSchema.safeParse({
                 ...fact,
                 relatedIds: [...fact.relatedIds],
                 payload: jsonValue(fact.payload),
                 resultingState: this.encodeState(fact.resultingState)
             });
-            if (!persisted.success)
+            if (!persisted.success) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Command fact is invalid"
                 );
+            }
             next.facts[fact.factId] = persisted.data;
         }
     }
@@ -407,10 +435,16 @@ export class DomainMeetingRepository<TState = JsonObject>
         now: number
     ): void {
         const closure = command.archiveSessionResult;
-        if (closure === undefined) return;
-        if (!archiveSessionOwnershipKey) throw new Error("validated ownership key is missing");
+        if (closure === undefined) {
+            return;
+        }
+        if (!archiveSessionOwnershipKey) {
+            throw new Error("validated ownership key is missing");
+        }
         const ownership = next.sessionOwnership[archiveSessionOwnershipKey];
-        if (!ownership) throw new Error("validated ownership is missing");
+        if (!ownership) {
+            throw new Error("validated ownership is missing");
+        }
         if (closure.status === "closed") {
             next.sessionOwnership[archiveSessionOwnershipKey] = {
                 ...ownership,
@@ -433,20 +467,22 @@ export class DomainMeetingRepository<TState = JsonObject>
     ): void {
         const deliveryIds = new Set(Object.values(next.outbox).map((item) => item.deliveryId));
         for (const item of outbox) {
-            if (item.kind !== "dispatch")
+            if (item.kind !== "dispatch") {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Outbox kind is not registered"
                 );
-            if (deliveryIds.has(item.deliveryId))
+            }
+            if (deliveryIds.has(item.deliveryId)) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Outbox deliveryId already exists"
                 );
+            }
             deliveryIds.add(item.deliveryId);
             const id = item.id ?? crypto.randomUUID();
             const persisted = PersistedOutboxSchema.safeParse({
@@ -467,13 +503,14 @@ export class DomainMeetingRepository<TState = JsonObject>
                 lastError: null,
                 createdAt: now
             });
-            if (!persisted.success)
+            if (!persisted.success) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Command outbox item is invalid"
                 );
+            }
             next.outbox[id] = persisted.data;
         }
     }
@@ -498,13 +535,14 @@ export class DomainMeetingRepository<TState = JsonObject>
             eventSeqs,
             createdAt: now
         });
-        if (!receipt.success)
+        if (!receipt.success) {
             throw new RepositoryError(
                 "INVALID_INPUT",
                 false,
                 this.meetingId,
                 "Command result is invalid"
             );
+        }
         next.receipts[key] = receipt.data;
     }
 
@@ -556,13 +594,14 @@ export class DomainMeetingRepository<TState = JsonObject>
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            if (input.ttlMs < 1 || !Number.isSafeInteger(input.batchSize) || input.batchSize < 1)
+            if (input.ttlMs < 1 || !Number.isSafeInteger(input.batchSize) || input.batchSize < 1) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Outbox lease bounds are invalid"
                 );
+            }
             const now = input.now ?? this.now();
             const candidates = Object.values(this.projection?.outbox ?? {})
                 .filter(
@@ -577,7 +616,9 @@ export class DomainMeetingRepository<TState = JsonObject>
                         (a.id < b.id ? -1 : 1)
                 )
                 .slice(0, input.batchSize);
-            if (candidates.length === 0) return [];
+            if (candidates.length === 0) {
+                return [];
+            }
             return this.commit({
                 operation: "outbox.claim",
                 now,
@@ -634,13 +675,15 @@ export class DomainMeetingRepository<TState = JsonObject>
                     item.status === "delivered" &&
                     ids.has(item.deliveryId)
             );
-            if (items.length === 0) return 0;
+            if (items.length === 0) {
+                return 0;
+            }
             const now = input.now ?? this.now();
             return this.commit({
                 operation: "outbox.requeue-accepted",
                 now,
                 mutate: (current) => {
-                    for (const item of items)
+                    for (const item of items) {
                         current.outbox[item.id] = {
                             ...item,
                             status: "pending",
@@ -650,6 +693,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                             leaseToken: null,
                             leaseDeadline: null
                         };
+                    }
                     return { next: current, result: items.length };
                 }
             });
@@ -661,25 +705,27 @@ export class DomainMeetingRepository<TState = JsonObject>
         return this.enqueueMutation(async () => {
             const now = input.now ?? this.now();
             const current = this.projection?.outbox[input.id];
-            if (!current)
+            if (!current) {
                 throw new RepositoryError(
                     "OUTBOX_NOT_FOUND",
                     false,
                     this.meetingId,
                     "Outbox item does not exist"
                 );
+            }
             if (
                 current.status !== "leased" ||
                 current.leaseOwner !== input.leaseOwner ||
                 current.leaseToken !== input.leaseToken ||
                 (current.leaseDeadline ?? 0) <= now
-            )
+            ) {
                 throw new RepositoryError(
                     "LEASE_LOST",
                     false,
                     this.meetingId,
                     "Outbox lease is no longer valid"
                 );
+            }
             return this.commit({
                 operation: "outbox.complete",
                 now,
@@ -727,13 +773,14 @@ export class DomainMeetingRepository<TState = JsonObject>
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            if (input.ttlMs < 1)
+            if (input.ttlMs < 1) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
                     this.meetingId,
                     "Outbox lease ttlMs must be positive"
                 );
+            }
             const now = input.now ?? this.now();
             const item = this.projection?.outbox[input.id];
             if (
@@ -742,13 +789,14 @@ export class DomainMeetingRepository<TState = JsonObject>
                 item.leaseOwner !== input.leaseOwner ||
                 item.leaseToken !== input.leaseToken ||
                 (item.leaseDeadline ?? 0) <= now
-            )
+            ) {
                 throw new RepositoryError(
                     "LEASE_LOST",
                     false,
                     this.meetingId,
                     "Outbox lease is no longer valid"
                 );
+            }
             return this.commit({
                 operation: "outbox.renew",
                 now,
@@ -769,25 +817,26 @@ export class DomainMeetingRepository<TState = JsonObject>
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const creation = this.meetingDomain.table("creation").get("current");
-            if (!creation)
+            if (!creation) {
                 throw new RepositoryError(
                     "CORRUPT_DATABASE",
                     false,
                     this.meetingId,
                     "Meeting bootstrap is missing"
                 );
+            }
             const now = _input.now ?? this.now();
             let reclaimedOutbox = 0;
             if (this.projection) {
                 const expired = Object.values(this.projection.outbox).filter(
                     (item) => item.status === "leased" && (item.leaseDeadline ?? 0) <= now
                 );
-                if (expired.length)
+                if (expired.length) {
                     reclaimedOutbox = await this.commit({
                         operation: "outbox.recover",
                         now,
                         mutate: (projection) => {
-                            for (const item of expired)
+                            for (const item of expired) {
                                 projection.outbox[item.id] = {
                                     ...item,
                                     status: "pending",
@@ -795,9 +844,11 @@ export class DomainMeetingRepository<TState = JsonObject>
                                     leaseToken: null,
                                     leaseDeadline: null
                                 };
+                            }
                             return { next: projection, result: expired.length };
                         }
                     });
+                }
             }
             const ready = creation.status === "ready" && this.projection !== undefined;
             const bootstrap = ready
@@ -836,7 +887,9 @@ export class DomainMeetingRepository<TState = JsonObject>
     }
 
     async close(): Promise<void> {
-        if (this.closePromise) return this.closePromise;
+        if (this.closePromise) {
+            return this.closePromise;
+        }
         this.closed = true;
         this.closePromise = (async () => {
             await this.mutationChain;
@@ -850,8 +903,12 @@ export class DomainMeetingRepository<TState = JsonObject>
             } catch (error) {
                 domainCloseError = error;
             }
-            if (maintenanceError) throw maintenanceError;
-            if (domainCloseError !== undefined) throw domainCloseError;
+            if (maintenanceError) {
+                throw maintenanceError;
+            }
+            if (domainCloseError !== undefined) {
+                throw domainCloseError;
+            }
         })();
         return this.closePromise;
     }

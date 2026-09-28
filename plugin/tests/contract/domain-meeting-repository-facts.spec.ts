@@ -33,8 +33,9 @@ async function fixture() {
         createdAt: 1
     };
     await repository.create(create);
-    for (const item of create.initialOwnership)
+    for (const item of create.initialOwnership) {
         await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
+    }
     await repository.completeCreate(create);
     return { catalog, meeting, repository, state };
 }
@@ -267,8 +268,9 @@ describe("peer creation and ownership transaction", () => {
                 creator: { ...input.creator, sourceSessionId: "different" }
             })
         ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
-        for (const item of input.initialOwnership)
+        for (const item of input.initialOwnership) {
             await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 11);
+        }
         await repository.completeCreate(input);
         const active = { ...input.initialOwnership[0], lifecycleStatus: "active" as const };
         await expect(
@@ -335,11 +337,12 @@ describe("peer creation and ownership transaction", () => {
                     ...peerBindings(state.id, state.identities)
                 };
                 await repository.create(input);
-                for (const item of input.initialOwnership)
+                for (const item of input.initialOwnership) {
                     await repository.recordSessionOwnership(
                         { ...item, lifecycleStatus: "active" },
                         11
                     );
+                }
                 await repository.completeCreate(input);
                 await repository.recordSessionOwnership(
                     ownership,
@@ -380,9 +383,9 @@ describe("peer creation and ownership transaction", () => {
                     { ...ownership, lifecycleStatus: "active" },
                     13
                 );
-                if (change === "unchanged")
+                if (change === "unchanged") {
                     await expect(activation).resolves.toMatchObject({ lifecycleStatus: "active" });
-                else {
+                } else {
                     await expect(activation).rejects.toMatchObject({ code: "INVALID_STATE" });
                     expect(
                         (await repository.recover()).sessionOwnership.find(

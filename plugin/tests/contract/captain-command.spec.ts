@@ -185,16 +185,21 @@ const mapBusinessAction = (action) => ({
 const businessFixture = async (action, terminal = false) => {
     let state = completionReadyState();
     state.objective.requiredOutputs.push({ id: "pending", text: "remaining", status: "pending" });
-    if (action.kind === "decide") state.decisions = [];
-    if (action.kind === "change_decision" && action.status === "superseded")
+    if (action.kind === "decide") {
+        state.decisions = [];
+    }
+    if (action.kind === "change_decision" && action.status === "superseded") {
         state.decisionCandidates.push({
             ...state.decisionCandidates[0]!,
             id: "replacement-candidate",
             rationale: "new evidence"
         });
+    }
     if (action.kind === "change_completion_fact") {
         const fact = recordCompletionFact(state, completionInput());
-        if (fact.kind !== "accepted") throw new Error("completion fixture rejected");
+        if (fact.kind !== "accepted") {
+            throw new Error("completion fixture rejected");
+        }
         state = fact.state;
     }
     state.version = 1;
@@ -260,10 +265,13 @@ const businessFixture = async (action, terminal = false) => {
             status: "completed"
         });
     }
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 3; i++) {
         state.identities.push({ ...state.identities[1]!, id: `extra-${i}` });
+    }
     const validation = validateMeetingState(state);
-    if (validation.kind !== "valid") throw new Error(JSON.stringify(validation));
+    if (validation.kind !== "valid") {
+        throw new Error(JSON.stringify(validation));
+    }
     if (terminal) {
         const result = endMeeting(state, {
             terminationId: "termination",
@@ -278,8 +286,9 @@ const businessFixture = async (action, terminal = false) => {
             unresolvedQuestionIds: ["q"],
             unresolvedIssueIds: ["i"]
         });
-        if (result.kind !== "accepted")
+        if (result.kind !== "accepted") {
             throw new Error(`terminal fixture rejected ${JSON.stringify(result.error)}`);
+        }
         state = result.state;
         state.version = 1;
     }
@@ -307,8 +316,9 @@ const businessFixture = async (action, terminal = false) => {
         createdAt: 1
     };
     await repository.create(create);
-    for (const ownership of create.initialOwnership)
+    for (const ownership of create.initialOwnership) {
         await repository.recordSessionOwnership({ ...ownership, lifecycleStatus: "active" }, 2);
+    }
     await repository.completeCreate(create);
     let next = 0;
     const ids = { nextId: vi.fn((kind: string) => `${kind}-${++next}`) };

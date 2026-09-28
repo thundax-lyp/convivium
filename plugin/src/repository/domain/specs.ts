@@ -38,8 +38,9 @@ export function createMeetingDomainSpec(name: string) {
                         typeof value === "object" &&
                         "formatVersion" in value &&
                         value.formatVersion !== 2
-                    )
+                    ) {
                         throw new UnsupportedMeetingStateFormatError(value.formatVersion);
+                    }
                     return value;
                 }, CreationRecordSchema)
             ),
