@@ -91,6 +91,32 @@ const resumedEvidenceReviewEffects = (state: MeetingState): readonly MeetingDoma
             }))
     );
 
+const resumedRoundEffects = (state: MeetingState): readonly MeetingDomainEffectRequest[] =>
+    state.rounds
+        .filter((round) => round.status === "open")
+        .flatMap((round) =>
+            (round.invitedContributorIds ?? [])
+                .filter(
+                    (contributorId) =>
+                        !round.participationResponses?.some(
+                            (response) => response.contributorId === contributorId
+                        ) ||
+                        state.contributions.some(
+                            (contribution) =>
+                                contribution.roundId === round.id &&
+                                contribution.contributorId === contributorId &&
+                                contribution.status === "preparing"
+                        )
+                )
+                .map((recipientId) => ({
+                    kind: "agent_notice" as const,
+                    noticeKind: "round_opened" as const,
+                    recipientId,
+                    agendaId: round.agendaId,
+                    roundId: round.id
+                }))
+        );
+
 const runArchiveTransition = (
     input: TransitionInput,
     action: Extract<
@@ -275,7 +301,10 @@ const runUserControlTransition = (
                 factPayload: result.facts[0].payload,
                 effectRequests:
                     action.kind === "resume_meeting"
-                        ? resumedEvidenceReviewEffects(result.state)
+                        ? [
+                              ...resumedRoundEffects(result.state),
+                              ...resumedEvidenceReviewEffects(result.state)
+                          ]
                         : []
             };
             break;

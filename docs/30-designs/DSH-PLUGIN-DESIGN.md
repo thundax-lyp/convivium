@@ -116,7 +116,7 @@ interface MeetingsWorkspaceState {
 6. EvidenceVersion、EvidenceReview 与 ReviewDelivery；
 7. MeetingTask 详情与技术标识。
 
-Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。概览内的 Contribution 授权、Decision 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
+Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。开放轮次不能执行 `EndMeeting`，投影不提供对应 control，避免面板呈现必然被领域拒绝的异常取消入口。概览内的 Contribution 授权、Decision 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
 
 ### 时间线 Client projection
 

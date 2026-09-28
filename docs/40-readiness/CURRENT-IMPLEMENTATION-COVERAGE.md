@@ -76,6 +76,22 @@
 
 ## Executed Validation
 
+### 2026-09-28：固定 Jev 议题的全新人工 Web 冒烟
+
+在 `codex/manager-meeting-closure`、`a7cfff87` 加本次手册修改的工作树上，使用 Node `v22.23.2`、DSH `0.1.2-rc.1`。`pnpm --dir plugin verify` 退出 0：94 个测试文件、824 个测试，格式、lint、类型检查、构建、环境、契约、角色资源与包检查通过。按用户确认的精确路径删除固定人工环境中的 `dsh-home/`、`web-ui/convivium-user/`、`projects/meetings-view/`，从源码以 `--dev-refresh` 重新安装；release artifact SHA-256 为 `b26d589146ab01b1efc83c18adb7147c6a04450a88d299306e5aca6985a92308`。安装根的空 key 占位文件经核对后改为指向仓库根 `dev.env` 的符号链接，未复制或输出 key。
+
+首次误用 SQLite 议题创建的 fixture 不计入本次验收；开放轮次中尝试异常取消返回 `INVALID_STATE`。停止 Host 后再次删除上述三个固定目录并重装，最终从普通 DSH Web 聊天输入手册规定的精确议题 `/convivium TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？`。新会议 `meeting-64f3edbd30c7585aeda93ebdb6cb327d` 完成首轮两位 Contributor 举手、两份 EvidenceVersion、两份逐版本 Review 与送达、一次 Publication；Manager 正常结束并给出 `partial` 结果，说明已交付有界产出，但没有证实 Jev 对长效 Agent 的实质性系统提升。Web 时间线显示归档已完成，会议为 `archived`、版本 23。停止 Host 后用同一 `DSH_HOME`、项目目录和 SQLite 冷重启，原 Captain 对话中的命令、meetingId 与会议面板中的版本 23、证据、Review、Publication、归档均可读回；验收后 Host 已停止，固定目录保留。
+
+本次人工冒烟不证明 Jev 的研究结论、四轮确定性 business-loop、任意来源的可靠性，也未重测暂停/继续、断线禁写或窄屏交互；这些边界不能由本次单轮浏览器观察推断。
+
+### 2026-09-28：开放轮次控制与暂停后通知补投复验
+
+上述误议题 fixture 的开放轮次在 Web Header 呈现“异常取消会议”，实际 `EndMeeting` 按接口契约拒绝并返回 `INVALID_STATE`。投影回归测试先复现失败，修复为开放轮次不提供 `end_meeting` control 后通过。随后再次清空已确认的固定人工环境并部署修复版，使用同一 Jev 议题创建 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`；开轮时 Web 只呈现“暂停会议”。人工暂停和继续分别提交至版本 4、5，但两位 Contributor 的 turn 被 pause 中断，已消费的 `round_opened` 通知没有在 resume 后补投，会议停在待选择举手。Session 记录显示两位 Contributor 的 turn 以 `Meeting paused` 中断，且 resume 前没有后续通知。针对 pending 参与选择的补投测试先失败、后通过。
+
+保留该会议与 Session，停止 Host 后以 `--dev-refresh` 安装补投修复版，release artifact SHA-256 为 `9399161964f11315a612fe8fd74996927c19b2d5b4725344427483048d45911b`。同一会议冷启动读回版本 5；再次人工暂停/继续至版本 7 后，两位 Contributor 均重新读会并举手、提交两份 EvidenceVersion，Reviewer 分别提交并送达两份 Review，Manager 发布一次 Round 并正常以 `partial` 结束，归档完成于版本 27。再停止 Host、使用同一 `DSH_HOME` 和 SQLite 冷启动，原 Captain 对话、meetingId、版本 27、两份证据/Review、Publication 和归档在 Web 可读；最终停止 Host、释放 31828 端口并保留固定目录。`pnpm --dir plugin verify` 最终退出 0：95 个测试文件、826 个测试及格式、lint、类型检查、构建、环境、契约、角色资源和包检查通过。
+
+本次仅实证开放轮次的 pending 选择在暂停后恢复；已接纳但准备中的 Contributor 补投分支有源码实现，尚未由独立人工中断复验。单轮自然会议仍不等价于四轮确定性 business-loop 或 Jev 效果结论。
+
 ### 2026-09-28：`stop_agenda` 后续扫描链路
 
 在 `codex/manager-meeting-closure` 工作树、Node `v22.23.2` 下，先用聚焦测试复现停止计划没有 Manager 后续通知，再实现同事务写入 `agenda_stopped` outbox effect、投递前校验当前有效计划与 Manager 身份，并更新角色指令使 Manager 在独立通知阶段重读会议、扫描后续工作。`pnpm --dir plugin verify` 退出 0：94 个测试文件、824 个测试，以及格式、lint、类型检查、构建、环境、契约、角色资源和包检查通过；`node .github/scripts/check-doc-links.mjs` 检查 491 个本地链接，0 错误。上述自动验证未证明真实 Manager Agent 在收到通知后一定完成正确扫描和正常结束。固定人工 Web Host 仍运行旧部署，原会议的旧角色资源指纹与当前代码不兼容，未在其上重部署或改写 SQLite；该会议的运行恢复仍未覆盖。

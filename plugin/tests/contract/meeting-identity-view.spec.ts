@@ -534,3 +534,25 @@ it("projects user controls from lifecycle and available targets", () => {
     state.lifecycle.status = "terminal";
     expect(view().controls).toEqual([]);
 });
+
+it("does not offer abnormal termination while a round is open", () => {
+    const state = makeRunningMeetingStateV1();
+    state.rounds.push({
+        id: "round-1",
+        agendaId: "agenda-v1",
+        planId: "plan-1",
+        roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+        publicBaselinePublicationIds: [],
+        openedAt: 1,
+        status: "open",
+        contributionIds: [],
+        invitedContributorIds: ["contributor-v1", "contributor-v2"],
+        participationResponses: []
+    });
+    const view = projectMeetingView(
+        { meetingId: state.id, version: state.version, state, createdAt: 0, updatedAt: 1 },
+        { kind: "captain" }
+    );
+    expect(view.controls).toContain("pause_meeting");
+    expect(view.controls).not.toContain("end_meeting");
+});

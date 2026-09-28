@@ -90,7 +90,9 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
         ) {
             controls.push("resume_meeting");
         }
-        controls.push("end_meeting");
+        if (!state.rounds.some((round) => round.status === "open")) {
+            controls.push("end_meeting");
+        }
         if (state.agendaCandidates.some((item) => item.status === "pending")) {
             controls.push("dispose_agenda_candidate");
         }
