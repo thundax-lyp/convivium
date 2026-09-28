@@ -132,11 +132,18 @@ export const runIdentityAdmissionScenario = async (runtime) => {
     }
     const view = await read();
     assert(
-        view.identities.length === 8 &&
+        view.identities.length === 5 &&
             view.identityRecommendations.some(
                 (i) => i.candidateId === "candidate-reject" && i.status === "rejected"
             ),
-        "admit/reject boundary changed"
+        "admit/reject boundary changed: " +
+            JSON.stringify({
+                identities: view.identities.map((identity) => identity.displayName),
+                recommendations: view.identityRecommendations.map((item) => ({
+                    candidateId: item.candidateId,
+                    status: item.status
+                }))
+            })
     );
     // Dynamic intents use their persisted Session identifier, resolved by actual observed ownership.
     let owner;

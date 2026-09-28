@@ -50,13 +50,7 @@ function validateMeetingBusinessLoopResult(value) {
         value.observed.status !== "archived" ||
         value.observed.coldReopen !== true ||
         !validRoundTrace(value.observed.rounds) ||
-        !exact(value.observed.startedNoticeCounts, [
-            "contributor-a",
-            "contributor-b",
-            "contributor-c",
-            "contributor-d",
-            "contributor-e"
-        ]) ||
+        !exact(value.observed.startedNoticeCounts, ["contributor-a", "contributor-b"]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
@@ -90,13 +84,7 @@ export function validateMeetingBusinessLoopHotResult(value) {
         ]) ||
         value.observed.status !== "archived" ||
         !validRoundTrace(value.observed.rounds) ||
-        !exact(value.observed.startedNoticeCounts, [
-            "contributor-a",
-            "contributor-b",
-            "contributor-c",
-            "contributor-d",
-            "contributor-e"
-        ]) ||
+        !exact(value.observed.startedNoticeCounts, ["contributor-a", "contributor-b"]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
@@ -113,7 +101,7 @@ function validRoundTrace(rounds) {
         rounds.length === 4 &&
         isDeepStrictEqual(
             rounds.map((round) => round.id),
-            ["literature", "source", "implementation", "decision"]
+            ["identity", "model", "long-lived-agent", "evaluation"]
         ) &&
         rounds.every(
             (round) =>

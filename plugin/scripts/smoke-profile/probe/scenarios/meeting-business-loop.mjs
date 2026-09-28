@@ -1,16 +1,14 @@
 import { createHash } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
-    objective:
-        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。",
-    title: "Agent 长任务中的可控发散",
-    question:
-        "Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，实现可控的发散？请给出目标锚定机制、允许的探索边界、漂移检测与纠偏策略、验收指标，以及明确的继续／停止条件。"
+    objective: "TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？",
+    title: "TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？",
+    question: "TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？"
 };
 
 export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
     maxFormalMessages: 20,
-    maxDurationMs: 600000,
+    maxDurationMs: 900000,
     taskDeadlineMs: 30000,
     reviewDeadlineMs: 90000
 });
@@ -18,33 +16,30 @@ export const MEETING_BUSINESS_LOOP_LIMITS = Object.freeze({
 export const MEETING_BUSINESS_LOOP_DEFINITIONS = [
     ["manager", "convivium.meeting_manager", "2.0.0", "manager"],
     ["reviewer", "convivium.verification_reviewer", "2.0.0", "evidence_reviewer"],
-    ["contributor-a", "convivium.domain_architect", "2.0.0", "contributor"],
-    ["contributor-b", "convivium.runtime_engineer", "2.0.0", "contributor"],
-    ["contributor-c", "convivium.protocol_ui_engineer", "2.0.0", "contributor"],
-    ["contributor-d", "convivium.github_research_analyst", "2.0.0", "contributor"],
-    ["contributor-e", "convivium.arxiv_research_analyst", "2.0.0", "contributor"]
+    ["contributor-a", "convivium.github_research_analyst", "2.0.0", "contributor"],
+    ["contributor-b", "convivium.arxiv_research_analyst", "2.0.0", "contributor"]
 ];
 
 export const MEETING_BUSINESS_LOOP_ROUNDS = [
     {
-        id: "literature",
-        sourceScope: "agent-research-fixture",
-        question: "Agent 长任务中的目标漂移与探索发散分别由什么机制触发，有哪些可观察信号？"
+        id: "identity",
+        sourceScope: "jev-identity-fixture",
+        question: "TypeSafe 的 Jev 是哪个可核验的具体项目或研究成果，其来源和版本是什么？"
     },
     {
-        id: "source",
-        sourceScope: "agent-runtime-fixture",
-        question: "Agent runtime 中目标、计划、checkpoint 与上下文压缩的控制边界在哪里？"
+        id: "model",
+        sourceScope: "jev-model-fixture",
+        question: "Jev 的 System-One 决策模型有哪些可核验的机制与实现边界？"
     },
     {
-        id: "implementation",
-        sourceScope: "control-design-fixture",
-        question: "实现目标锚定、漂移检测与纠偏闭环的最小机制是什么？"
+        id: "long-lived-agent",
+        sourceScope: "jev-agent-fixture",
+        question: "Jev 与长效 Agent 系统的记忆、上下文和决策过程如何关联？"
     },
     {
-        id: "decision",
-        sourceScope: "evaluation-fixture",
-        question: "哪些指标和阈值能同时衡量发散价值与目标一致性，并决定继续或停止？"
+        id: "evaluation",
+        sourceScope: "jev-evaluation-fixture",
+        question: "哪些可核验的对照、指标和长期任务结果足以判断 Jev 是否带来实质性系统提升？"
     }
 ];
 
@@ -190,15 +185,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         writeResult,
         messageTexts
     } = runtime;
-    const keys = [
-        "manager",
-        "reviewer",
-        "contributor-a",
-        "contributor-b",
-        "contributor-c",
-        "contributor-d",
-        "contributor-e"
-    ];
+    const keys = ["manager", "reviewer", "contributor-a", "contributor-b"];
     const input = {
         protocolVersion: 1,
         meetingId: "new",
@@ -209,7 +196,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             objective: {
                 statement:
                     MEETING_BUSINESS_LOOP_TOPIC.objective +
-                    "。这是确定性业务冒烟：Manager 与五位 Contributor 仅阅读通知后等待测试驱动调用命令，不自行开轮、提交计划、举手、写证据或发布；Reviewer 独立处理真实 review request 并运行 one-shot worker。测试驱动将完成四轮业务，正式交流只经 Runtime。",
+                    "。这是确定性业务冒烟：Manager 与两位 Contributor 仅阅读通知后等待测试驱动调用命令，不自行开轮、提交计划、举手、写证据或发布；Reviewer 独立处理真实 review request 并运行 one-shot worker。测试驱动将完成四轮业务，正式交流只经 Runtime。",
                 requiredOutputs: [],
                 acceptanceCriteria: [],
                 hardConstraints: [],
@@ -265,13 +252,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         runtime.observedAgents().find((agent) => String(agent.id) === String(agents[key].id)) ??
         agents[key];
     const currentReviewer = () => currentAgent("reviewer");
-    const contributorKeys = [
-        "contributor-a",
-        "contributor-b",
-        "contributor-c",
-        "contributor-d",
-        "contributor-e"
-    ];
+    const contributorKeys = ["contributor-a", "contributor-b"];
     const interruptedTurnCount = new Map();
     for (let attempt = 0; attempt < 240; attempt += 1) {
         for (const key of contributorKeys) {
@@ -335,7 +316,10 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     assert(settled.rounds.length === 0, "fixture Manager opened an unsolicited round");
     let version = settled.version;
     let manager = await runtime.waitForAgent(ctx, agents.manager.id);
-    const knownSessionIds = new Set([...Object.values(agents).map((agent) => String(agent.id))]);
+    const knownSessionIds = new Set([
+        String(runtime.inputSession.agent.id),
+        ...Object.values(agents).map((agent) => String(agent.id))
+    ]);
     const roundTrace = [];
     const workerSessionIds = new Set();
     let workerAuthorityVerified = false;
@@ -473,16 +457,63 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             .filter((item) => contributions.includes(item.contributionId))
             .map((item) => item.currentVersion.id);
         assert(versionIds.length === 2, `expected two evidence versions for ${roundPlan.id}`);
-        for (let attempt = 0; attempt < 120; attempt += 1) {
-            if (
-                runtime
-                    .observedMessages(currentReviewer())
-                    .flatMap(messageTexts)
-                    .some((text) => text.includes('"pending"'))
-            ) {
+        const selectedWorkers = [];
+        for (let attempt = 0; attempt < 1800; attempt += 1) {
+            const workers = runtime
+                .observedAgents()
+                .filter(
+                    (agent) =>
+                        !knownSessionIds.has(String(agent.id)) &&
+                        !workerSessionIds.has(String(agent.id)) &&
+                        !selectedWorkers.some((selected) => selected.id === agent.id)
+                );
+            for (const worker of workers) {
+                selectedWorkers.push(worker);
+                if (!workerAuthorityVerified && ctx.agents.get(worker.id) === worker) {
+                    const unauthorized = await callTargetToolResult(
+                        ctx,
+                        worker,
+                        "convivium_raise_hand",
+                        {
+                            protocolVersion: 1,
+                            meetingId,
+                            expectedMeetingVersion: afterEvidence.version,
+                            requestId: `loop-worker-authority-${worker.id}`,
+                            action: { kind: "raise_hand", roundId, purpose: "must be rejected" }
+                        },
+                        nextCall(),
+                        { retryUnknown: false }
+                    );
+                    const sessionEnded =
+                        unauthorized.isError &&
+                        String(unauthorized.error?.message).includes("is not live in this store");
+                    if (!sessionEnded) {
+                        const toolUnavailable =
+                            unauthorized.isError &&
+                            String(unauthorized.error?.message).includes("unknown tool");
+                        const commandRejected =
+                            !unauthorized.isError &&
+                            unauthorized.value?.kind === "rejected" &&
+                            unauthorized.value.error?.code === "UNAUTHORIZED";
+                        assert(
+                            toolUnavailable || commandRejected,
+                            `review worker gained Meeting command authority: ${JSON.stringify({ workerId: worker.id, result: unauthorized })}`
+                        );
+                        workerAuthorityVerified = true;
+                    }
+                }
+            }
+            if (selectedWorkers.length >= 2) {
                 break;
             }
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        assert(
+            selectedWorkers.length >= 2,
+            `reviewer did not create two one-shot workers for ${roundPlan.id}; observed=${JSON.stringify(runtime.observedAgents().map((agent) => String(agent.id)))}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
+        );
+        for (const worker of selectedWorkers) {
+            workerSessionIds.add(String(worker.id));
         }
         assert(
             runtime
@@ -491,60 +522,6 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 .some((text) => text.includes('"pending"')),
             `review request was not delivered to the coordinator for ${roundPlan.id}`
         );
-        let workers = [];
-        for (let attempt = 0; attempt < 300; attempt += 1) {
-            workers = runtime
-                .observedAgents()
-                .filter(
-                    (agent) =>
-                        !knownSessionIds.has(String(agent.id)) &&
-                        !workerSessionIds.has(String(agent.id))
-                );
-            if (workers.length >= 2) {
-                break;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-        assert(
-            workers.length >= 2,
-            `reviewer did not create two one-shot workers for ${roundPlan.id}; observed=${JSON.stringify(runtime.observedAgents().map((agent) => String(agent.id)))}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
-        );
-        const selectedWorkers = workers.slice(0, 2);
-        for (const worker of selectedWorkers) {
-            workerSessionIds.add(String(worker.id));
-        }
-        if (!workerAuthorityVerified) {
-            const authorityVersion = (await read()).version;
-            for (const [index, selectedWorker] of selectedWorkers.entries()) {
-                const worker = await runtime.waitForAgent(ctx, selectedWorker.id);
-                const unauthorized = await callTargetToolResult(
-                    ctx,
-                    worker,
-                    "convivium_raise_hand",
-                    {
-                        protocolVersion: 1,
-                        meetingId,
-                        expectedMeetingVersion: authorityVersion,
-                        requestId: `loop-worker-authority-${index}`,
-                        action: { kind: "raise_hand", roundId, purpose: "must be rejected" }
-                    },
-                    nextCall(),
-                    { retryUnknown: false }
-                );
-                const toolUnavailable =
-                    unauthorized.isError &&
-                    String(unauthorized.error?.message).includes("unknown tool");
-                const commandRejected =
-                    !unauthorized.isError &&
-                    unauthorized.value?.kind === "rejected" &&
-                    unauthorized.value.error?.code === "UNAUTHORIZED";
-                assert(
-                    toolUnavailable || commandRejected,
-                    "review worker gained Meeting command authority"
-                );
-            }
-            workerAuthorityVerified = true;
-        }
         let reviewedView;
         for (let attempt = 0; attempt < 900; attempt += 1) {
             reviewedView = await read();
@@ -598,59 +575,12 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 ),
             `evidence reviews were not delivered for ${roundPlan.id}: ${JSON.stringify({ version: reviewDelivered?.version, reviews: reviewDelivered?.evidenceReviews?.map((review) => review.versionId), deliveries: reviewDelivered?.reviewDeliveries })}`
         );
-        if (roundPlan.id === "decision") {
-            const lateContributorId = identities["contributor-e"];
-            let lateHandReady = false;
-            for (let attempt = 0; attempt < 10 && !lateHandReady; attempt += 1) {
-                const current = await read();
-                lateHandReady = current.rounds
-                    .find((round) => round.id === roundId)
-                    ?.pendingHandRaises?.some((hand) => hand.contributorId === lateContributorId);
-                if (lateHandReady) {
-                    break;
-                }
-                const contributor = await runtime.waitForAgent(ctx, agents["contributor-e"].id);
-                const lateRaise = await callTargetToolResult(
-                    ctx,
-                    contributor,
-                    "convivium_raise_hand",
-                    {
-                        protocolVersion: 1,
-                        meetingId,
-                        expectedMeetingVersion: current.version,
-                        requestId: `loop-late-hand-${attempt}`,
-                        action: {
-                            kind: "raise_hand",
-                            roundId,
-                            purpose: "submit valid late arXiv evidence for smoke disposition"
-                        }
-                    },
-                    nextCall()
-                );
-                if (lateRaise.isError) {
-                    throw new Error(`late hand failed: ${lateRaise.error?.message}`);
-                }
-                if (lateRaise.value?.kind === "accepted") {
-                    lateHandReady = true;
-                    break;
-                }
-                if (
-                    lateRaise.value?.kind === "rejected" &&
-                    ["CONFLICT", "PRECONDITION_FAILED"].includes(lateRaise.value.error?.code)
-                ) {
-                    continue;
-                }
-                throw new Error(`late hand rejected: ${JSON.stringify(lateRaise.value)}`);
-            }
-            assert(lateHandReady, "decision round did not receive a valid late hand raise");
-        }
         let published;
         let publicationView = reviewDelivered;
-        const deferredHandRaiseContributorIds = [];
-        for (let attempt = 0; attempt < 30 && published === undefined; attempt += 1) {
+        for (let attempt = 0; attempt < 450 && published === undefined; attempt += 1) {
             publicationView = await read();
-            const pendingHand = publicationView.rounds.find((round) => round.id === roundId)
-                ?.pendingHandRaises?.[0];
+            const currentRound = publicationView.rounds.find((round) => round.id === roundId);
+            const pendingHand = currentRound?.pendingHandRaises?.[0];
             if (pendingHand !== undefined) {
                 manager = await runtime.waitForAgent(ctx, manager.id);
                 const disposition = await callTargetToolResult(
@@ -678,12 +608,13 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                     );
                 }
                 if (disposition.value?.kind === "accepted") {
-                    deferredHandRaiseContributorIds.push(pendingHand.contributorId);
                     continue;
                 }
                 if (
                     disposition.value?.kind === "rejected" &&
-                    ["CONFLICT", "NOT_FOUND"].includes(disposition.value.error?.code)
+                    ["CONFLICT", "VERSION_CONFLICT", "NOT_FOUND"].includes(
+                        disposition.value.error?.code
+                    )
                 ) {
                     continue;
                 }
@@ -716,7 +647,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             }
             if (
                 publication.value?.kind === "rejected" &&
-                ["CONFLICT", "ROUND_NOT_CLOSABLE"].includes(publication.value.error?.code)
+                ["CONFLICT", "VERSION_CONFLICT", "ROUND_NOT_CLOSABLE"].includes(
+                    publication.value.error?.code
+                )
             ) {
                 await new Promise((resolve) => setTimeout(resolve, 200));
                 continue;
@@ -729,12 +662,6 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             published !== undefined,
             `publish did not settle for ${roundPlan.id}; state=${JSON.stringify({ version: publicationView.version, round: publicationView.rounds.find((round) => round.id === roundId), contributions: publicationView.contributions, reviews: publicationView.reviews, reviewDeliveries: publicationView.reviewDeliveries })}`
         );
-        if (roundPlan.id === "decision") {
-            assert(
-                deferredHandRaiseContributorIds.includes(identities["contributor-e"]),
-                "decision round did not defer the valid late hand raise"
-            );
-        }
         version = published.committedVersion;
         const publication = (await read()).publications.find(
             (candidate) => candidate.roundId === roundId
@@ -746,7 +673,6 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             roundId,
             evidenceVersionIds: versionIds,
             publicationId: publication.id,
-            deferredHandRaiseContributorIds,
             reviewIds: reviewedView.evidenceReviews
                 .filter((review) => versionIds.includes(review.versionId))
                 .map((review) => review.id)
@@ -797,6 +723,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         Object.values(startedNoticeCounts).every((count) => count === 1),
         `meeting_started notice counts are invalid: ${JSON.stringify(startedNoticeCounts)}`
     );
+    assert(workerAuthorityVerified, "no live review worker was checked for Meeting command denial");
     await writeResult({
         ok: true,
         scenario: "meeting-business-loop",

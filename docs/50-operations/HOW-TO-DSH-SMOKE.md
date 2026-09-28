@@ -107,16 +107,16 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 ### meeting-business-loop
 
-场景议题为 Agent 执行长任务时，如何在保证一定发散性的前提下保证任务目标不漂移，即实现“可控的发散”。外部材料使用确定性 fixture，不执行真实论文、代码仓库或 Web 检索，因此运行结果不是 Agent 长任务控制机制的研究结论。
+场景议题为“TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？”。外部材料使用确定性 fixture，不执行真实论文、代码仓库或 Web 检索，因此运行结果不是 Jev 效果的研究结论。
 
 同一已授权 Agenda 依次完成四个 Manager `roundGoal`：
 
-1. 目标漂移与探索发散的机制和可观察信号；
-2. Agent runtime 中目标、计划、checkpoint 与上下文压缩的控制边界；
-3. 目标锚定、漂移检测与纠偏闭环的最小机制；
-4. 同时衡量发散价值与目标一致性的继续／停止条件。
+1. Jev 的具体身份、来源和版本；
+2. System-One 决策模型的机制和实现边界；
+3. 与长效 Agent 的记忆、上下文和决策过程的关联；
+4. 判断系统提升所需的对照、指标和长期任务结果。
 
-每轮必须登记两份 Evidence。Reviewer coordinator 为每份当前 version 独立领取 claim、启动一个 one-shot worker，并在得到 completed 结果后携带对应 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两份 Evidence 都完成 Review 和 delivery 后才能发布 Round。最终结果必须满足：
+新会议仅配置 GitHub 与 arXiv 两位 Contributor，每轮分别登记一份 Evidence。Reviewer coordinator 为每份当前 version 独立领取 claim、启动一个 one-shot worker，并在得到 completed 结果后携带对应 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两位 Contributor 在每轮明确举手；两份 Evidence 都完成 Review 且成功送达后，Contribution 立即结算并可发布 Round。最终结果必须满足：
 
 - 4 个 Round、8 个 EvidenceVersion、8 份逐版本 Review 和 4 个 Publication；
 - 8 个不同 worker Session，且 worker 没有 Meeting command authority；
