@@ -18,12 +18,12 @@ import { encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
 
 const pageKey = (gen: string, index: number): string =>
     `${gen}_${index.toString().padStart(10, "0")}`;
-function sameBytes(a: unknown, b: unknown): boolean {
+const sameBytes = (a: unknown, b: unknown): boolean => {
     const left = encodeCanonicalJson(a);
     const right = encodeCanonicalJson(b);
     return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-function checkedPage(page: CheckpointPage): void {
+};
+const checkedPage = (page: CheckpointPage): void => {
     const raw = Uint8Array.from(Buffer.from(page.payloadBase64, "base64"));
     if (
         Buffer.from(raw).toString("base64") !== page.payloadBase64 ||
@@ -32,13 +32,13 @@ function checkedPage(page: CheckpointPage): void {
     ) {
         throw new Error("invalid checkpoint page");
     }
-}
-export async function writeCheckpoint(input: {
+};
+export const writeCheckpoint = async (input: {
     readonly domain: MeetingDomain;
     readonly projection: PersistenceProjection;
     readonly baseSeq: number;
     readonly createdAt: number;
-}): Promise<CheckpointPointer> {
+}): Promise<CheckpointPointer> => {
     const bytes = encodeProjection(input.projection);
     if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES) {
         throw new RangeError("checkpoint too large");
@@ -109,8 +109,11 @@ export async function writeCheckpoint(input: {
     await pointerTable.put("current", pointer);
     await cleanupPublished(input.domain, pointer);
     return pointer;
-}
-async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointer): Promise<void> {
+};
+const cleanupPublished = async (
+    domain: MeetingDomain,
+    pointer: CheckpointPointer
+): Promise<void> => {
     const commits = domain.table("commits");
     for (const [key, commit] of [...commits.entries()]) {
         if (commit.seq <= pointer.baseSeq) {
@@ -141,11 +144,11 @@ async function cleanupPublished(domain: MeetingDomain, pointer: CheckpointPointe
             }
         }
     }
-}
-export async function collectApplicationOrphans(input: {
+};
+export const collectApplicationOrphans = async (input: {
     readonly domain: MeetingDomain;
     readonly keepGeneration: string;
-}): Promise<void> {
+}): Promise<void> => {
     const pages = input.domain.table("checkpoint_pages");
     for (const [key, page] of [...pages.entries()]) {
         if (page.generation !== input.keepGeneration) {
@@ -158,4 +161,4 @@ export async function collectApplicationOrphans(input: {
             await roots.delete(key);
         }
     }
-}
+};

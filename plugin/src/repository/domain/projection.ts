@@ -31,10 +31,10 @@ export class UnsupportedMeetingStateFormatError extends Error {
     }
 }
 
-function emptyMaps(): Pick<
+const emptyMaps = (): Pick<
     PersistenceProjection,
     "receipts" | "facts" | "events" | "outbox" | "sessionOwnership" | "privateMail"
-> {
+> => {
     return {
         receipts: Object.create(null),
         facts: Object.create(null),
@@ -43,14 +43,14 @@ function emptyMaps(): Pick<
         sessionOwnership: Object.create(null),
         privateMail: Object.create(null)
     };
-}
+};
 
-export function createProjection(input: {
+export const createProjection = (input: {
     readonly snapshot: MeetingSnapshot | null;
     readonly bootstrap: MeetingBootstrap;
     readonly preparedDescriptors: readonly PreparedDescriptor[];
     readonly sessionOwnership: Readonly<Record<string, SessionOwnership>>;
-}): PersistenceProjection {
+}): PersistenceProjection => {
     const maps = emptyMaps();
     for (const [key, value] of Object.entries(input.sessionOwnership)) {
         maps.sessionOwnership[key] = value;
@@ -63,17 +63,17 @@ export function createProjection(input: {
         ...maps,
         nextEventSeq: 1
     });
-}
+};
 
-export function encodeProjection(projection: PersistenceProjection): Uint8Array {
+export const encodeProjection = (projection: PersistenceProjection): Uint8Array => {
     const bytes = encodeCanonicalJson(PersistenceProjectionSchema.parse(projection));
     if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES) {
         throw new RangeError("checkpoint projection is too large");
     }
     return bytes;
-}
+};
 
-export function decodeProjection(bytes: Uint8Array): PersistenceProjection {
+export const decodeProjection = (bytes: Uint8Array): PersistenceProjection => {
     const value = decodeCanonicalJson(bytes);
     if (value && typeof value === "object" && !Array.isArray(value) && value.formatVersion !== 2) {
         throw new UnsupportedMeetingStateFormatError(value.formatVersion);
@@ -87,9 +87,9 @@ export function decodeProjection(bytes: Uint8Array): PersistenceProjection {
         throw new UnsupportedMeetingStateFormatError(state.formatVersion);
     }
     return projection;
-}
+};
 
-function verifyCommitRecord(record: CommitRecord): void {
+const verifyCommitRecord = (record: CommitRecord): void => {
     CommitRecordSchema.parse(record);
     if (
         !Number.isSafeInteger(record.seq) ||
@@ -106,20 +106,20 @@ function verifyCommitRecord(record: CommitRecord): void {
     if (encodeCanonicalJson(record).byteLength > MAX_COMMIT_VALUE_BYTES) {
         throw new RangeError("commit is too large");
     }
-}
+};
 
-export function createCommitRecord(input: Omit<CommitRecord, "digest">): CommitRecord {
+export const createCommitRecord = (input: Omit<CommitRecord, "digest">): CommitRecord => {
     const withoutDigest = { ...input };
     const record = { ...withoutDigest, digest: sha256Hex(encodeCanonicalJson(withoutDigest)) };
     verifyCommitRecord(record);
     return record;
-}
+};
 
-export function foldCommitTail(input: {
+export const foldCommitTail = (input: {
     readonly baseProjection: PersistenceProjection | null;
     readonly baseSeq: number;
     readonly commits: readonly (readonly [SeqKey, CommitRecord])[];
-}): PersistenceProjection {
+}): PersistenceProjection => {
     let projection = input.baseProjection;
     let previous: CommitRecord | undefined;
     for (const [key, commit] of [...input.commits].sort(([a], [b]) =>
@@ -151,9 +151,11 @@ export function foldCommitTail(input: {
         throw new Error("missing projection");
     }
     return projection;
-}
+};
 
-export function loadProjection(input: { readonly domain: MeetingDomain }): PersistenceProjection {
+export const loadProjection = (input: {
+    readonly domain: MeetingDomain;
+}): PersistenceProjection => {
     const pointer = input.domain.table("checkpoint_pointer").get("current");
     let baseProjection: PersistenceProjection | null = null;
     let baseSeq = 0;
@@ -202,8 +204,8 @@ export function loadProjection(input: { readonly domain: MeetingDomain }): Persi
         baseSeq,
         commits: [...input.domain.table("commits").entries()]
     });
-}
+};
 
-export function projectionDigest(projection: PersistenceProjection): string {
+export const projectionDigest = (projection: PersistenceProjection): string => {
     return sha256Hex(encodeProjection(projection));
-}
+};
