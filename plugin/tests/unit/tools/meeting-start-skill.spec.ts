@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     MeetingStartGate,
     createMeetingStartCommand,
+    registerMeetingCancelTool,
     registerMeetingStartTool
 } from "@/tools/meeting-start-skill.js";
 
@@ -164,5 +165,78 @@ describe("chat Meeting start", () => {
             } as ToolRunContext)
         ).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
         expect(create).not.toHaveBeenCalled();
+    });
+});
+
+describe("chat Meeting cancel", () => {
+    it("requires a direct slash invocation with meeting ID and reason", () => {
+        const gate = new MeetingStartGate();
+        gate.observe("session-1", 1, [
+            directMessage("input-1", "/convivium cancel meeting-1 外部依赖故障")
+        ]);
+        expect(gate.take("session-1")).toBeUndefined();
+        expect(gate.takeCancel("session-1")).toEqual({
+            turn: 1,
+            meetingId: "meeting-1",
+            reason: "外部依赖故障",
+            requestId: "skill:input-1"
+        });
+        expect(gate.takeCancel("session-1")).toBeUndefined();
+        gate.observe("session-1", 2, [directMessage("input-2", "取消会议 meeting-1")]);
+        expect(gate.takeCancel("session-1")).toBeUndefined();
+    });
+
+    it("submits one cancelled outcome from current meeting facts", async () => {
+        const gate = new MeetingStartGate();
+        let definition: ToolDefinition | undefined;
+        const read = vi.fn(async () => ({
+            meetingId: "meeting-1",
+            version: 4,
+            outcomes: {
+                decisions: [{ id: "decision-1", status: "accepted" }],
+                completionFacts: []
+            },
+            questions: [{ id: "question-1", status: "open" }],
+            issues: []
+        }));
+        const cancel = vi.fn(async () => ({ kind: "accepted" as const, meetingId: "meeting-1" }));
+        registerMeetingCancelTool({
+            registry: {
+                register: (tool) => {
+                    definition = tool;
+                    return () => undefined;
+                }
+            },
+            gate,
+            read,
+            cancel,
+            isMeetingAgent: vi.fn(async () => false)
+        });
+        const exec = {
+            agent: { id: "session-1" } as Agent,
+            signal: new AbortController().signal
+        } as ToolRunContext;
+        expect(await definition!.execute({}, exec)).toMatchObject({ kind: "rejected" });
+        gate.observe("session-1", 3, [
+            directMessage("input-3", "/convivium cancel meeting-1 外部依赖故障")
+        ]);
+        expect(await definition!.execute({}, exec)).toMatchObject({ kind: "accepted" });
+        expect(cancel).toHaveBeenCalledWith(
+            expect.objectContaining({
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 4,
+                action: {
+                    kind: "end_meeting",
+                    outcome: "cancelled",
+                    reason: "外部依赖故障",
+                    decisionIds: ["decision-1"],
+                    completionFactIds: [],
+                    unresolvedQuestionIds: ["question-1"],
+                    unresolvedIssueIds: []
+                }
+            }),
+            exec.signal
+        );
+        expect(await definition!.execute({}, exec)).toMatchObject({ kind: "rejected" });
     });
 });

@@ -15,7 +15,7 @@
 
 `start.sh` 从 `$DSH_HOME/profiles/web/node_modules/@convivium/dsh-plugin/config` 解析真实路径，设置 `CONVIVIUM_MEETING_ROLES_ROOT`，再加载该目录的 `cordis.patch.yml`。此变量是非敏感部署路径，必须与插件入口的 package root 一致；另一份解包副本即使内容相同也不是运行资源根。不要自行改为源码目录或用 patch baseUrl 猜测路径。
 
-Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/convivium <会议目标>` 直接创建会议，受控方法按 Host 配置自动补齐初始身份、初始议题和限制；`Meetings` 面板只负责查看和控制。七角色 Definition 当前版本均为 `2.0.0`。Captain 就是可信本地用户，无须 Captain Session。聊天 Skill 通过一次性授权工具走同一创建事务，十项控制及暂停/继续/结束经 loopback Remote；Meeting Agent 没有用户控制工具。输入 Session 关闭、面板重新连接均不改变会议授权。
+Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/convivium <会议目标>` 直接创建会议，受控方法按 Host 配置自动补齐初始身份、初始议题和限制；`Meetings` 面板只负责查看和控制。七角色 Definition 与身份资源由内容指纹绑定，不另设版本字段。Captain 就是可信本地用户，无须 Captain Session。聊天 Skill 通过一次性授权工具创建；`/convivium cancel <meetingId> <原因>` 以一次性授权异常取消。结构化用户控制经 loopback Remote；Manager 有专用正常结束工具。输入 Session 关闭、面板重新连接均不改变会议授权。
 
 ## Role Assets And Models
 
@@ -29,7 +29,7 @@ Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/conviviu
 | github_research_analyst | convivium-github-research-analyst | github                                              |
 | arxiv_research_analyst  | convivium-arxiv-research-analyst  | arxiv                                               |
 
-Definition ID 为 `convivium.<后缀>`。`config/agents/<后缀>/2.0.0/AGENTS.md` 由插件在 scoped setup 中显式注册为身份指令；具体目录以发行包 Definition 的资源引用为准。DSH 原生 cwd AGENTS 仍按 Host 规则加载。能力使用 `config/skills/<能力名>/SKILL.md`，可附带 `scripts/`；加载 Skill 不会执行脚本。隔离覆盖模型上下文、Skill 列表和按名称加载，不承诺本机文件系统保密。
+Definition ID 为 `convivium.<后缀>`。`config/agents/<后缀>/AGENTS.md` 由插件在 scoped setup 中显式注册为身份指令；具体目录以发行包 Definition 的资源引用为准。DSH 原生 cwd AGENTS 仍按 Host 规则加载。能力使用 `config/skills/<能力名>/SKILL.md`，可附带 `scripts/`；加载 Skill 不会执行脚本。隔离覆盖模型上下文、Skill 列表和按名称加载，不承诺本机文件系统保密。
 
 模型默认值由 DSH Settings 管理；角色差异通过额外 Host patch 的 `convivium.config.agentModelOverrides` 提供。key 为 Definition ID，value 仅含 provider/model/reasoningEffort，值必须来自 Host 支持的真实路由。该 patch 在角色 patch 后加载；Cordis 整体替换 config，因此须保留 provider、maxParticipants、`initialContributorRoleIds` 和完整 agentDefinitions 表达式。不要编辑 AGENTS/Skill 或凭据实现模型覆盖。
 
