@@ -55,7 +55,9 @@ it("records a manager plan and supersedes the prior active plan atomically", () 
         "plan-new"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.version).toBe(4);
     expect(result.state.updatedAt).toBe(10);
     expect(result.state.managerPlans).toEqual([
@@ -165,7 +167,9 @@ it("appends a plan when the agenda has no active plan", () => {
         "plan-new"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.managerPlans).toEqual([
         current.managerPlans[0],
         {

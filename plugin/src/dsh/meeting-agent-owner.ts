@@ -67,12 +67,16 @@ export const createMeetingAgentOwner = ({
     const pending = new Map<string, Promise<unknown>>();
     let closing = false;
     const serial = <T>(key: string, run: () => Promise<T>): Promise<T> => {
-        if (closing) return Promise.reject(new Error("RECOVERY_UNAVAILABLE: owner is stopping"));
+        if (closing) {
+            return Promise.reject(new Error("RECOVERY_UNAVAILABLE: owner is stopping"));
+        }
         const result = (pending.get(key) ?? Promise.resolve()).catch(() => {}).then(run);
         pending.set(key, result);
         void result
             .finally(() => {
-                if (pending.get(key) === result) pending.delete(key);
+                if (pending.get(key) === result) {
+                    pending.delete(key);
+                }
             })
             .catch(() => {});
         return result;
@@ -83,13 +87,16 @@ export const createMeetingAgentOwner = ({
             current &&
             (current.sessionId !== ownership.sessionId ||
                 current.compositionHash !== ownership.resources.compositionHash)
-        )
+        ) {
             throw new Error("OWNERSHIP_CONFLICT");
+        }
         return current;
     };
     const release = async (ownership: SessionOwnership, reason: string) => {
         const current = entry(ownership);
-        if (!current) return;
+        if (!current) {
+            return;
+        }
         current.handle.agent.cancel({ kind: "hook", reason });
         await current.handle.agent.whenIdle();
         await current.handle.dispose();
@@ -103,15 +110,17 @@ export const createMeetingAgentOwner = ({
             definitionHash(definition) !== ownership.definition.definitionHash ||
             definition.agentDefinitionId !== ownership.definition.agentDefinitionId ||
             definition.definitionVersion !== ownership.definition.definitionVersion
-        )
+        ) {
             throw new Error("RECOVERY_UNAVAILABLE: definition binding differs");
+        }
         const resources = await resolveResourceBinding({
             packageRoot,
             definition,
             agentOptions: ownership.agentOptions
         });
-        if (!isDeepStrictEqual(resources, ownership.resources))
+        if (!isDeepStrictEqual(resources, ownership.resources)) {
             throw new Error("RECOVERY_UNAVAILABLE: resources differ");
+        }
     };
     const setup =
         (
@@ -127,8 +136,9 @@ export const createMeetingAgentOwner = ({
                 !header ||
                 header.agentPreset !== ownership.resources.presetId ||
                 header.parentSession !== undefined
-            )
+            ) {
                 throw new Error("RECOVERY_UNAVAILABLE: Session header differs before publication");
+            }
             await verifyResources(ownership, definition);
             await ctx.agentPresets.mount(agentCtx, definition.dshPresetId);
             const ref = definition.agentInstructions;
@@ -139,9 +149,15 @@ export const createMeetingAgentOwner = ({
                 )
             ).toString("utf8");
             agentCtx.systemPrompt.section({ name: "convivium:role-identity", order: 1, text });
-            if (definition.toolFilter) agentCtx.tools.restrict(definition.toolFilter);
-            if (purpose !== "delivery") agentCtx.tools.restrict({ allow: [] });
-            if (!agentCtx.agent) throw new Error("RECOVERY_UNAVAILABLE: missing scoped Agent");
+            if (definition.toolFilter) {
+                agentCtx.tools.restrict(definition.toolFilter);
+            }
+            if (purpose !== "delivery") {
+                agentCtx.tools.restrict({ allow: [] });
+            }
+            if (!agentCtx.agent) {
+                throw new Error("RECOVERY_UNAVAILABLE: missing scoped Agent");
+            }
             await validateRoleSkills({
                 skills: ctx.skills,
                 definition,
@@ -180,13 +196,19 @@ export const createMeetingAgentOwner = ({
             (purpose === "cleanup" &&
                 (ownership.lifecycleStatus === "closed" ||
                     ownership.capabilityStatus !== "revoked"))
-        )
+        ) {
             throw new Error("RECOVERY_UNAVAILABLE: invalid ownership purpose");
+        }
         const current = entry(ownership);
-        if (current?.purpose === purpose) return;
-        if (current) await release(ownership, "Change meeting Agent scope");
-        if (ctx.agents.get(SessionId(ownership.sessionId)))
+        if (current?.purpose === purpose) {
+            return;
+        }
+        if (current) {
+            await release(ownership, "Change meeting Agent scope");
+        }
+        if (ctx.agents.get(SessionId(ownership.sessionId))) {
             throw new Error("RECOVERY_UNAVAILABLE: unowned live Agent");
+        }
         await verifyResources(ownership, definition);
         const handle = await ctx.agents.resume({
             resumeSessionId: SessionId(ownership.sessionId),
@@ -205,11 +227,15 @@ export const createMeetingAgentOwner = ({
                     ownership.lifecycleStatus !== "provisioning" ||
                     ownership.capabilityStatus !== "active" ||
                     !matchesPreparedDescriptor(descriptor, ownership, Date.now())
-                )
+                ) {
                     throw new Error("PREFLIGHT_EXPIRED: invalid creation binding");
-                if (entry(ownership)) return;
-                if (ctx.agents.get(SessionId(ownership.sessionId)))
+                }
+                if (entry(ownership)) {
+                    return;
+                }
+                if (ctx.agents.get(SessionId(ownership.sessionId))) {
                     throw new Error("RECOVERY_UNAVAILABLE: unowned live Agent");
+                }
                 await verifyResources(ownership, definition);
                 const handle = await ctx.agents.create({
                     sessionId: SessionId(ownership.sessionId),
@@ -220,8 +246,9 @@ export const createMeetingAgentOwner = ({
                 });
                 try {
                     await ctx.sessionPersistence.ensureMaterialized(handle.agent.session);
-                    if (!(await ctx.sessions.flush(handle.agent.session)))
+                    if (!(await ctx.sessions.flush(handle.agent.session))) {
                         throw new Error("RECOVERY_UNAVAILABLE: Session was not persisted");
+                    }
                 } catch (error) {
                     await handle.dispose();
                     throw error;
@@ -241,8 +268,9 @@ export const createMeetingAgentOwner = ({
                     input.ownership.capabilityStatus !== "active" ||
                     !input.text.trim() ||
                     !input.deliveryId.trim()
-                )
+                ) {
                     throw new Error("RECOVERY_UNAVAILABLE: no authorized delivery handle");
+                }
                 current.handle.agent.followup({
                     id: MessageId(input.deliveryId),
                     role: "user",
@@ -258,10 +286,12 @@ export const createMeetingAgentOwner = ({
             serial(input.ownership.id, () => release(input.ownership, input.reason)),
         stop: (input) =>
             serial(input.ownership.id, async () => {
-                if (input.ownership.capabilityStatus !== "revoked")
+                if (input.ownership.capabilityStatus !== "revoked") {
                     throw new Error("RECOVERY_UNAVAILABLE: revoke before stop");
-                if (!entry(input.ownership) && input.ownership.lifecycleStatus !== "closed")
+                }
+                if (!entry(input.ownership) && input.ownership.lifecycleStatus !== "closed") {
                     await resume({ ...input, purpose: "cleanup" });
+                }
                 await release(input.ownership, input.reason);
             }),
         disposeAll: async () => {
@@ -281,7 +311,9 @@ export const createMeetingAgentOwner = ({
                     errors.push(error);
                 }
             }
-            if (errors.length) throw new AggregateError(errors, "Meeting Agent shutdown failed");
+            if (errors.length) {
+                throw new AggregateError(errors, "Meeting Agent shutdown failed");
+            }
         }
     };
 };

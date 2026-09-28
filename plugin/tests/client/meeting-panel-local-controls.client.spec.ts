@@ -176,7 +176,9 @@ it.each([false, true])(
                 meetingId: second.meetingId
             })
         );
-        if (late) rejectControl(new Error("connection lost"));
+        if (late) {
+            rejectControl(new Error("connection lost"));
+        }
         await waitFor(() =>
             expect(
                 (screen.getByRole("button", { name: "Pause meeting" }) as HTMLButtonElement)

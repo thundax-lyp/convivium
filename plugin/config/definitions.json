@@ -25,7 +25,7 @@
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
                 "version": "2.0.0",
-                "sha256": "4810e6fdac1019104a86dcd9665b16fd63ed0696c9c90e3f780b67e2bd80db2e"
+                "sha256": "a0ba78560632c64479aa5b8acf012797d99d9fafec2ac9d77f3ad79303c6aa0b"
             }
         },
         {

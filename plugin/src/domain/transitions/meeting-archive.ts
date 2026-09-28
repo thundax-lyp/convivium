@@ -113,8 +113,9 @@ export const startMeetingArchive = (
     state: MeetingState,
     input: StartMeetingArchiveInput
 ): MeetingTransitionResult => {
-    if (validateMeetingState(state).kind === "invalid")
+    if (validateMeetingState(state).kind === "invalid") {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
+    }
     if (
         state.lifecycle.status !== "terminal" ||
         state.termination === undefined ||
@@ -122,8 +123,9 @@ export const startMeetingArchive = (
         !input.actorId.trim() ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return rejectedTransition(state, "INVALID_STATE", "meeting is not ready for archiving");
+    }
     const next: MeetingState = {
         ...structuredClone(state),
         version: state.version + 1,
@@ -143,14 +145,18 @@ export const completeMeetingArchive = (
     state: MeetingState,
     input: CompleteMeetingArchiveInput
 ): MeetingTransitionResult => {
-    if (validateMeetingState(state).kind === "invalid")
+    if (validateMeetingState(state).kind === "invalid") {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
-    if (state.lifecycle.status !== "archiving" || state.archive?.status !== "complete")
+    }
+    if (state.lifecycle.status !== "archiving" || state.archive?.status !== "complete") {
         return rejectedTransition(state, "INVALID_STATE", "meeting is not archiving");
-    if (!input.allSessionOwnershipClosed)
+    }
+    if (!input.allSessionOwnershipClosed) {
         return rejectedTransition(state, "PRECONDITION_FAILED", "session ownership remains open");
-    if (!input.actorId.trim() || !Number.isSafeInteger(input.now) || input.now < 0)
+    }
+    if (!input.actorId.trim() || !Number.isSafeInteger(input.now) || input.now < 0) {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid archive completion input");
+    }
     const next: MeetingState = {
         ...structuredClone(state),
         version: state.version + 1,

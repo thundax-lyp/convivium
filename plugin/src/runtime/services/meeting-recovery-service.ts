@@ -48,7 +48,9 @@ export const createMeetingRehydrationService = (
         meetingId: string,
         existing?: RecoverableMeeting
     ): Promise<void> => {
-        if (options.isCreating?.(meetingId)) return;
+        if (options.isCreating?.(meetingId)) {
+            return;
+        }
         let repository = existing?.repository;
         try {
             if (repository === undefined) {
@@ -60,7 +62,9 @@ export const createMeetingRehydrationService = (
                 recovered.bootstrap.status === "creating" ||
                 recovered.bootstrap.status === "creation_failed"
             ) {
-                if (existing !== undefined) options.meetings.delete(meetingId);
+                if (existing !== undefined) {
+                    options.meetings.delete(meetingId);
+                }
                 return;
             }
             if (recovered.snapshot === undefined) {
@@ -94,14 +98,17 @@ export const createMeetingRehydrationService = (
                 try {
                     const catalog = (await options.registry).listMeetings();
                     for (const record of catalog) {
-                        if (mode.kind === "local_meeting" && record.meetingId !== mode.meetingId)
+                        if (mode.kind === "local_meeting" && record.meetingId !== mode.meetingId) {
                             continue;
+                        }
                         await recoverLocal(
                             snapshots,
                             record.meetingId,
                             options.meetings.get(record.meetingId)
                         );
-                        if (mode.kind === "local_meeting") return snapshots;
+                        if (mode.kind === "local_meeting") {
+                            return snapshots;
+                        }
                     }
                 } catch (error) {
                     throw unavailable(error);
@@ -113,16 +120,21 @@ export const createMeetingRehydrationService = (
                 if (
                     options.meetings.has(record.meetingId) ||
                     options.isCreating?.(record.meetingId)
-                )
+                ) {
                     continue;
+                }
                 try {
                     const repository = await (
                         await options.registry
                     ).openMeeting({ meetingId: record.meetingId });
                     await options.reconcile?.(repository);
                     const recovered = await repository.recover();
-                    if (recovered.bootstrap.status !== "ready" || recovered.snapshot === undefined)
+                    if (
+                        recovered.bootstrap.status !== "ready" ||
+                        recovered.snapshot === undefined
+                    ) {
                         continue;
+                    }
                     options.meetings.set(record.meetingId, {
                         meetingId: record.meetingId,
                         creator: recovered.bootstrap.creator,

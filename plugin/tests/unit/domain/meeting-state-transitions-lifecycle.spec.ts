@@ -30,7 +30,9 @@ it("records a nonblocking follow-up with all typed references", () => {
         "issue-follow-up"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.issues[0]).toMatchObject({
         id: "issue-follow-up",
         classification: "follow_up",
@@ -103,7 +105,9 @@ it.each([
         "fact-1"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state).toEqual({
         ...current,
         version: 4,
@@ -304,7 +308,9 @@ it("activates a pending agenda and records both agenda references", () => {
         "fact-2"
     );
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.version).toBe(4);
     expect(result.state.agenda.map(({ id, status }) => ({ id, status }))).toEqual([
         { id: "agenda-1", status: "completed" },

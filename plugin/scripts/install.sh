@@ -110,9 +110,11 @@ tar -xzf "$artifact_path" -C "$temporary_root/inspect"
 manifest="$temporary_root/inspect/package/package.json"
 roles_patch="$temporary_root/inspect/package/config/cordis.patch.yml"
 start_script="$temporary_root/inspect/package/scripts/start.sh"
+meeting_skill="$temporary_root/inspect/package/config/skills/convivium/SKILL.md"
 [ -f "$manifest" ] || fail "artifact is missing package/package.json"
 [ -f "$roles_patch" ] || fail "artifact is missing meeting role resources"
 [ -f "$start_script" ] || fail "artifact is missing scripts/start.sh"
+[ -f "$meeting_skill" ] || fail "artifact is missing the /convivium Skill"
 
 manifest_values=$(node -e '
 const manifest = require(process.argv[1]);
@@ -220,6 +222,20 @@ NODE
 fi
 pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add \
     "@deepseek-ai/dsh-storage-sqlite@$DSH_VERSION"
+
+skill_link="$dsh_home/skills/convivium"
+mkdir -p "$dsh_home/skills"
+if [ -e "$skill_link" ] || [ -L "$skill_link" ]; then
+    [ -L "$skill_link" ] || fail "existing /convivium Skill is not managed: $skill_link"
+    case "$(readlink "$skill_link")" in
+        "$install_root"/releases/*/package/config/skills/convivium) ;;
+        *) fail "existing /convivium Skill is not managed: $skill_link" ;;
+    esac
+fi
+skill_pending="$dsh_home/skills/.convivium-$$"
+ln -s "$release_root/package/config/skills/convivium" "$skill_pending"
+if [ -L "$skill_link" ]; then rm -f "$skill_link"; fi
+mv -f "$skill_pending" "$skill_link"
 
 cp "$release_root/package/scripts/start.sh" "$install_root/start.sh"
 chmod 755 "$install_root/start.sh"

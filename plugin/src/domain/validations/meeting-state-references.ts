@@ -23,26 +23,35 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
         const path = `$.agenda[${i}]`;
         for (const [key, ids] of [["requiredOutputIds", outputIds]] as const) {
             const p = checkRefs(item[key], ids, `${path}.${key}`);
-            if (p) return fail(p);
+            if (p) {
+                return fail(p);
+            }
         }
-        if (ownUndefined(item, "ownerId", `${path}.ownerId`)) return fail(`${path}.ownerId`);
+        if (ownUndefined(item, "ownerId", `${path}.ownerId`)) {
+            return fail(`${path}.ownerId`);
+        }
     }
     const activeAgendaIndexes = parsedState.agenda.flatMap((item, index) =>
         item.status === "active" ? [index] : []
     );
-    if (activeAgendaIndexes.length > 1) return fail(`$.agenda[${activeAgendaIndexes[1]}].status`);
+    if (activeAgendaIndexes.length > 1) {
+        return fail(`$.agenda[${activeAgendaIndexes[1]}].status`);
+    }
     if (
         !(["terminal", "archiving", "archived"] as readonly string[]).includes(
             lifecycle.status as string
         ) &&
         activeAgendaIndexes.length !== 1
-    )
+    ) {
         return fail("$.agenda");
+    }
     for (let i = 0; i < parsedState.identities.length; i++) {
         const item = parsedState.identities[i];
         for (const key of ["agendaResponsibilityIds"] as const) {
             const p = checkRefs(item[key], agendaIds, `$.identities[${i}].${key}`);
-            if (p) return fail(p);
+            if (p) {
+                return fail(p);
+            }
         }
     }
     const rounds = parsedState.rounds;
@@ -53,7 +62,9 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
         const path = `$.rounds[${i}]`;
         const r = item;
         roundIds.add(r.id);
-        if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        if (!ref(r.agendaId, agendaIds)) {
+            return fail(`${path}.agendaId`);
+        }
         const plan = managerPlanById.get(r.planId);
         if (
             !plan ||
@@ -64,11 +75,14 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
             plan.roundGoal.question !== r.roundGoal.question ||
             plan.roundGoal.evidenceGap !== r.roundGoal.evidenceGap ||
             plan.roundGoal.expectedOutput !== r.roundGoal.expectedOutput
-        )
+        ) {
             return fail(`${path}.planId`);
+        }
         if (r.status === "open") {
             const agenda = agendaById.get(r.agendaId as string);
-            if (!agenda || agenda.status !== "active") return fail(`${path}.agendaId`);
+            if (!agenda || agenda.status !== "active") {
+                return fail(`${path}.agendaId`);
+            }
         }
     }
     const opportunityRequestIds = new Set<string>();
@@ -76,18 +90,28 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
         const request = parsedState.opportunityRequests[i];
         const path = `$.opportunityRequests[${i}]`;
         opportunityRequestIds.add(request.id);
-        if (!ref(request.agendaId, agendaIds)) return fail(`${path}.agendaId`);
-        if (!ref(request.contributorId, identityIds)) return fail(`${path}.contributorId`);
+        if (!ref(request.agendaId, agendaIds)) {
+            return fail(`${path}.agendaId`);
+        }
+        if (!ref(request.contributorId, identityIds)) {
+            return fail(`${path}.contributorId`);
+        }
     }
     const pendingHandKeys = new Set<string>();
     for (let i = 0; i < parsedState.pendingHandRaises.length; i++) {
         const hand = parsedState.pendingHandRaises[i];
         const path = `$.pendingHandRaises[${i}]`;
         const key = `${hand.roundId}\0${hand.contributorId}`;
-        if (pendingHandKeys.has(key)) return fail(`${path}.contributorId`);
+        if (pendingHandKeys.has(key)) {
+            return fail(`${path}.contributorId`);
+        }
         pendingHandKeys.add(key);
-        if (!ref(hand.roundId, roundIds)) return fail(`${path}.roundId`);
-        if (!ref(hand.contributorId, identityIds)) return fail(`${path}.contributorId`);
+        if (!ref(hand.roundId, roundIds)) {
+            return fail(`${path}.roundId`);
+        }
+        if (!ref(hand.contributorId, identityIds)) {
+            return fail(`${path}.contributorId`);
+        }
     }
     const contributions = parsedState.contributions;
     const contributionIds = new Set<string>();
@@ -98,11 +122,19 @@ function validateAgendaRoundsAndContributions(parsedState: MeetingState): string
         const r = item;
         contributionIds.add(r.id);
         const contributorRound = `${r.contributorId}\0${r.roundId}`;
-        if (contributorRounds.has(contributorRound)) return fail(`${path}.roundId`);
+        if (contributorRounds.has(contributorRound)) {
+            return fail(`${path}.roundId`);
+        }
         contributorRounds.add(contributorRound);
-        if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
-        if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
-        if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
+        if (!ref(r.roundId, roundIds)) {
+            return fail(`${path}.roundId`);
+        }
+        if (!ref(r.contributorId, identityIds)) {
+            return fail(`${path}.contributorId`);
+        }
+        if (ownUndefined(r, "packageId", `${path}.packageId`)) {
+            return fail(`${path}.packageId`);
+        }
     }
     return undefined;
 }
@@ -124,63 +156,87 @@ function validateEvidencePackages(parsedState: MeetingState): string | undefined
         const item = packages[i];
         const path = `$.evidencePackages[${i}]`;
         const r = item;
-        if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
-        if (!ref(r.contributionId, contributionIds)) return fail(`${path}.contributionId`);
-        if (!ref(r.authorId, identityIds)) return fail(`${path}.authorId`);
-        if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        if (!ref(r.roundId, roundIds)) {
+            return fail(`${path}.roundId`);
+        }
+        if (!ref(r.contributionId, contributionIds)) {
+            return fail(`${path}.contributionId`);
+        }
+        if (!ref(r.authorId, identityIds)) {
+            return fail(`${path}.authorId`);
+        }
+        if (!ref(r.agendaId, agendaIds)) {
+            return fail(`${path}.agendaId`);
+        }
         const contribution = contributionById.get(r.contributionId as string);
         const round = roundById.get(r.roundId as string);
-        if (!contribution || contribution.roundId !== r.roundId) return fail(`${path}.roundId`);
-        if (!round || round.agendaId !== r.agendaId) return fail(`${path}.agendaId`);
-        if (!contribution || contribution.contributorId !== r.authorId)
+        if (!contribution || contribution.roundId !== r.roundId) {
+            return fail(`${path}.roundId`);
+        }
+        if (!round || round.agendaId !== r.agendaId) {
+            return fail(`${path}.agendaId`);
+        }
+        if (!contribution || contribution.contributorId !== r.authorId) {
             return fail(`${path}.authorId`);
+        }
         packageIds.add(r.id as string);
         const packageVersionIds = new Set<string>();
         for (let j = 0; j < r.versions.length; j++) {
             const v = r.versions[j];
             const vp = `${path}.versions[${j}]`;
             const vr = v;
-            if (vr.ordinal !== j + 1) return fail(`${vp}.ordinal`);
+            if (vr.ordinal !== j + 1) {
+                return fail(`${vp}.ordinal`);
+            }
             const materialIds = new Set<string>();
             for (const material of vr.materials) {
                 materialIds.add(material.id);
             }
             for (let k = 0; k < vr.claims.length; k++) {
                 const claim = vr.claims[k];
-                for (let m = 0; m < claim.materialIds.length; m++)
-                    if (!materialIds.has(claim.materialIds[m]))
+                for (let m = 0; m < claim.materialIds.length; m++) {
+                    if (!materialIds.has(claim.materialIds[m])) {
                         return fail(`${vp}.claims[${k}].materialIds[${m}]`);
+                    }
+                }
             }
-            if (versionIds.has(vr.id)) return fail(`${vp}.id`);
+            if (versionIds.has(vr.id)) {
+                return fail(`${vp}.id`);
+            }
             versionIds.add(vr.id);
             packageVersionIds.add(vr.id);
             versionOwnerById.set(vr.id, item);
         }
-        if (!packageVersionIds.has(r.currentVersionId as string))
+        if (!packageVersionIds.has(r.currentVersionId as string)) {
             return fail(`${path}.currentVersionId`);
+        }
     }
     for (let i = 0; i < packages.length; i++) {
         const packageValue = packages[i] as unknown as RecordValue;
-        if (!ref(packageValue.currentVersionId, versionIds))
+        if (!ref(packageValue.currentVersionId, versionIds)) {
             return fail(`$.evidencePackages[${i}].currentVersionId`);
+        }
         const contribution = contributionById.get(packageValue.contributionId as string);
-        if (!contribution || contribution.packageId !== packageValue.id)
+        if (!contribution || contribution.packageId !== packageValue.id) {
             return fail(`$.evidencePackages[${i}].contributionId`);
+        }
     }
     for (let i = 0; i < rounds.length; i++) {
         const round = rounds[i] as unknown as RecordValue;
         for (let j = 0; j < (round.contributionIds as readonly unknown[]).length; j++) {
             const contributionId = (round.contributionIds as readonly unknown[])[j];
             const contribution = contributionById.get(contributionId as string);
-            if (!contribution || contribution.roundId !== round.id)
+            if (!contribution || contribution.roundId !== round.id) {
                 return fail(`$.rounds[${i}].contributionIds[${j}]`);
+            }
         }
     }
     for (let i = 0; i < contributions.length; i++) {
         const contribution = contributions[i] as unknown as RecordValue;
         const round = roundById.get(contribution.roundId as string);
-        if (!round || !(round.contributionIds as readonly unknown[]).includes(contribution.id))
+        if (!round || !(round.contributionIds as readonly unknown[]).includes(contribution.id)) {
             return fail(`$.contributions[${i}].roundId`);
+        }
     }
     return undefined;
 }
@@ -197,22 +253,33 @@ function validateRegistrationsAndReviews(parsedState: MeetingState): string | un
     for (let i = 0; i < registrations.length; i++) {
         const r = registrations[i];
         const path = `$.registrations[${i}]`;
-        if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
+        if (!ref(r.versionId, versionIds)) {
+            return fail(`${path}.versionId`);
+        }
     }
     const reviewIds = new Set<string>();
     for (let i = 0; i < reviews.length; i++) {
         const r = reviews[i];
         const path = `$.reviews[${i}]`;
         reviewIds.add(r.id as string);
-        if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
-        if (!ref(r.reviewerId, identityIds)) return fail(`${path}.reviewerId`);
-        const reviewer = identityById.get(r.reviewerId as string);
-        if (!reviewer || !reviewer.roles.includes("evidence_reviewer"))
+        if (!ref(r.versionId, versionIds)) {
+            return fail(`${path}.versionId`);
+        }
+        if (!ref(r.reviewerId, identityIds)) {
             return fail(`${path}.reviewerId`);
+        }
+        const reviewer = identityById.get(r.reviewerId as string);
+        if (!reviewer || !reviewer.roles.includes("evidence_reviewer")) {
+            return fail(`${path}.reviewerId`);
+        }
         const owner = versionOwnerById.get(r.versionId);
-        if (owner?.authorId === r.reviewerId) return fail(`${path}.reviewerId`);
+        if (owner?.authorId === r.reviewerId) {
+            return fail(`${path}.reviewerId`);
+        }
         const version = owner?.versions.find((candidate) => candidate.id === r.versionId);
-        if (version?.status !== "validated") return fail(`${path}.versionId`);
+        if (version?.status !== "validated") {
+            return fail(`${path}.versionId`);
+        }
     }
     for (let i = 0; i < parsedState.evidencePackages.length; i++) {
         const pkg = parsedState.evidencePackages[i];
@@ -222,26 +289,35 @@ function validateRegistrationsAndReviews(parsedState: MeetingState): string | un
             if (
                 (version.status === "validated") !==
                 reviews.some((review) => review.versionId === version.id)
-            )
+            ) {
                 return fail(path);
+            }
             if (
                 (version.status === "validating") !==
                 parsedState.reviewClaims.some((claim) => claim.versionId === version.id)
-            )
+            ) {
                 return fail(path);
-            if (version.status === "validation_failed" && version.failureCount === 0)
+            }
+            if (version.status === "validation_failed" && version.failureCount === 0) {
                 return fail(path);
+            }
         }
     }
     const claimedVersionIds = new Set<string>();
     for (let i = 0; i < parsedState.reviewClaims.length; i++) {
         const claim = parsedState.reviewClaims[i];
         const path = `$.reviewClaims[${i}]`;
-        if (claimedVersionIds.has(claim.versionId)) return fail(`${path}.versionId`);
+        if (claimedVersionIds.has(claim.versionId)) {
+            return fail(`${path}.versionId`);
+        }
         claimedVersionIds.add(claim.versionId);
         const round = roundById.get(claim.roundId);
-        if (!round || round.status !== "open") return fail(`${path}.roundId`);
-        if (claim.reviewerId !== parsedState.evidenceReviewerId) return fail(`${path}.reviewerId`);
+        if (!round || round.status !== "open") {
+            return fail(`${path}.roundId`);
+        }
+        if (claim.reviewerId !== parsedState.evidenceReviewerId) {
+            return fail(`${path}.reviewerId`);
+        }
         const owner = versionOwnerById.get(claim.versionId);
         const version = owner?.versions.find((candidate) => candidate.id === claim.versionId);
         if (
@@ -254,14 +330,16 @@ function validateRegistrationsAndReviews(parsedState: MeetingState): string | un
                     registration.versionId === claim.versionId && registration.status === "complete"
             ) ||
             reviews.some((review) => review.versionId === claim.versionId)
-        )
+        ) {
             return fail(`${path}.versionId`);
+        }
     }
     for (let i = 0; i < contributions.length; i++) {
         const hand = (contributions[i] as unknown as RecordValue).supplementHand as unknown as
             RecordValue | undefined;
-        if (hand && hand.status !== "pending" && hand.status !== "accepted")
+        if (hand && hand.status !== "pending" && hand.status !== "accepted") {
             return fail(`$.contributions[${i}].supplementHand.status`);
+        }
     }
     return undefined;
 }
@@ -279,11 +357,17 @@ function validateDeliveriesAndPublications(parsedState: MeetingState): string | 
     for (let i = 0; i < deliveries.length; i++) {
         const r = deliveries[i];
         const path = `$.reviewDeliveries[${i}]`;
-        if (!ref(r.reviewId, reviewIds)) return fail(`${path}.reviewId`);
-        if (!ref(r.authorId, identityIds)) return fail(`${path}.authorId`);
+        if (!ref(r.reviewId, reviewIds)) {
+            return fail(`${path}.reviewId`);
+        }
+        if (!ref(r.authorId, identityIds)) {
+            return fail(`${path}.authorId`);
+        }
         const review = reviewById.get(r.reviewId);
         const ownerPackage = review && versionOwnerById.get(review.versionId);
-        if (ownerPackage && ownerPackage.authorId !== r.authorId) return fail(`${path}.authorId`);
+        if (ownerPackage && ownerPackage.authorId !== r.authorId) {
+            return fail(`${path}.authorId`);
+        }
     }
     const publications = parsedState.publications;
     const publicationById = indexById(publications);
@@ -293,22 +377,26 @@ function validateDeliveriesAndPublications(parsedState: MeetingState): string | 
         const path = `$.publications[${i}]`;
         publicationIds.add(r.id as string);
         const round = roundById.get(r.roundId as string);
-        if (!round || round.status !== "published" || round.publicationId !== r.id)
+        if (!round || round.status !== "published" || round.publicationId !== r.id) {
             return fail(`${path}.roundId`);
+        }
         for (const [key, ids] of [
             ["finalVersionIds", versionIds],
             ["finalReviewIds", reviewIds]
         ] as const) {
             const p = checkRefs(r[key], ids, `${path}.${key}`);
-            if (p) return fail(p);
+            if (p) {
+                return fail(p);
+            }
         }
     }
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as unknown as RecordValue;
         if (r.status === "published") {
             const publication = publicationById.get(r.publicationId as string);
-            if (!publication || publication.roundId !== r.id)
+            if (!publication || publication.roundId !== r.id) {
                 return fail(`$.rounds[${i}].publicationId`);
+            }
         }
     }
     const publishedVersionIds = new Set<string>();
@@ -318,16 +406,18 @@ function validateDeliveriesAndPublications(parsedState: MeetingState): string | 
         for (let j = 0; j < (publication.finalVersionIds as readonly unknown[]).length; j++) {
             const versionId = (publication.finalVersionIds as readonly unknown[])[j];
             const owner = versionOwnerById.get(versionId as string);
-            if (!owner || owner.roundId !== publication.roundId || round === undefined)
+            if (!owner || owner.roundId !== publication.roundId || round === undefined) {
                 return fail(`$.publications[${i}].finalVersionIds[${j}]`);
+            }
             publishedVersionIds.add(versionId as string);
         }
         for (let j = 0; j < (publication.finalReviewIds as readonly unknown[]).length; j++) {
             const reviewId = (publication.finalReviewIds as readonly unknown[])[j];
             const review = reviewById.get(reviewId as string);
             const owner = review && versionOwnerById.get(review.versionId);
-            if (!review || !owner || owner.roundId !== publication.roundId)
+            if (!review || !owner || owner.roundId !== publication.roundId) {
                 return fail(`$.publications[${i}].finalReviewIds[${j}]`);
+            }
         }
     }
     return undefined;
@@ -346,9 +436,15 @@ function validateDiscussionRecords(parsedState: MeetingState): string | undefine
         const r = messages[i];
         const path = `$.messages[${i}]`;
         messageIds.add(r.id as string);
-        if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
-        if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
-        if (!ref(r.publicationId, publicationIds)) return fail(`${path}.publicationId`);
+        if (!ref(r.actorId, identityIds)) {
+            return fail(`${path}.actorId`);
+        }
+        if (!ref(r.agendaId, agendaIds)) {
+            return fail(`${path}.agendaId`);
+        }
+        if (!ref(r.publicationId, publicationIds)) {
+            return fail(`${path}.publicationId`);
+        }
     }
     const proposals = parsedState.proposals;
     const proposalIds = new Set<string>();
@@ -356,10 +452,16 @@ function validateDiscussionRecords(parsedState: MeetingState): string | undefine
         const r = proposals[i];
         const path = `$.proposals[${i}]`;
         proposalIds.add(r.id as string);
-        if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
-        if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        if (!ref(r.actorId, identityIds)) {
+            return fail(`${path}.actorId`);
+        }
+        if (!ref(r.agendaId, agendaIds)) {
+            return fail(`${path}.agendaId`);
+        }
         const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) return fail(evidencePath);
+        if (evidencePath) {
+            return fail(evidencePath);
+        }
     }
     const positions = parsedState.positions;
     const positionById = indexById(positions);
@@ -368,10 +470,16 @@ function validateDiscussionRecords(parsedState: MeetingState): string | undefine
         const r = positions[i];
         const path = `$.positions[${i}]`;
         positionIds.add(r.id as string);
-        if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
-        if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
+        if (!ref(r.proposalRevisionId, proposalIds)) {
+            return fail(`${path}.proposalRevisionId`);
+        }
+        if (!ref(r.actorId, identityIds)) {
+            return fail(`${path}.actorId`);
+        }
         const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) return fail(evidencePath);
+        if (evidencePath) {
+            return fail(evidencePath);
+        }
     }
     const decisionCandidates = parsedState.decisionCandidates;
     const decisionCandidateIds = new Set<string>();
@@ -379,14 +487,21 @@ function validateDiscussionRecords(parsedState: MeetingState): string | undefine
         const r = decisionCandidates[i];
         const path = `$.decisionCandidates[${i}]`;
         decisionCandidateIds.add(r.id as string);
-        if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
-        if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
+        if (!ref(r.proposalRevisionId, proposalIds)) {
+            return fail(`${path}.proposalRevisionId`);
+        }
+        if (!ref(r.actorId, identityIds)) {
+            return fail(`${path}.actorId`);
+        }
         const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) return fail(evidencePath);
+        if (evidencePath) {
+            return fail(evidencePath);
+        }
         for (let j = 0; j < r.positionIds.length; j++) {
             const position = positionById.get(r.positionIds[j]);
-            if (!position || position.proposalRevisionId !== r.proposalRevisionId)
+            if (!position || position.proposalRevisionId !== r.proposalRevisionId) {
                 return fail(`${path}.positionIds[${j}]`);
+            }
         }
     }
     return undefined;
@@ -407,33 +522,52 @@ function validateDecisions(parsedState: MeetingState): string | undefined {
         const r = decisions[i];
         const path = `$.decisions[${i}]`;
         decisionIds.add(r.id as string);
-        if (!ref(r.candidateId, decisionCandidateIds)) return fail(`${path}.candidateId`);
-        if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
-        if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
+        if (!ref(r.candidateId, decisionCandidateIds)) {
+            return fail(`${path}.candidateId`);
+        }
+        if (!ref(r.proposalRevisionId, proposalIds)) {
+            return fail(`${path}.proposalRevisionId`);
+        }
+        if (!ref(r.actorId, identityIds)) {
+            return fail(`${path}.actorId`);
+        }
         const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) return fail(evidencePath);
-        if (ownUndefined(r, "replacesDecisionId", `${path}.replacesDecisionId`))
+        if (evidencePath) {
+            return fail(evidencePath);
+        }
+        if (ownUndefined(r, "replacesDecisionId", `${path}.replacesDecisionId`)) {
             return fail(`${path}.replacesDecisionId`);
-        if (r.replacesDecisionId !== undefined && !decisionIds.has(r.replacesDecisionId as string))
+        }
+        if (
+            r.replacesDecisionId !== undefined &&
+            !decisionIds.has(r.replacesDecisionId as string)
+        ) {
             return fail(`${path}.replacesDecisionId`);
-        if (r.replacesDecisionId === r.id) return fail(`${path}.replacesDecisionId`);
+        }
+        if (r.replacesDecisionId === r.id) {
+            return fail(`${path}.replacesDecisionId`);
+        }
     }
     const acceptedByRevision = new Set<string>();
     const decidedCandidates = new Set<string>();
     const replacementCounts = new Map<string, number>();
     for (let i = 0; i < decisions.length; i++) {
         const d = decisions[i];
-        if (decidedCandidates.has(d.candidateId)) return fail(`$.decisions[${i}].candidateId`);
+        if (decidedCandidates.has(d.candidateId)) {
+            return fail(`$.decisions[${i}].candidateId`);
+        }
         decidedCandidates.add(d.candidateId);
         if (d.status === "accepted") {
-            if (acceptedByRevision.has(d.proposalRevisionId))
+            if (acceptedByRevision.has(d.proposalRevisionId)) {
                 return fail(`$.decisions[${i}].proposalRevisionId`);
+            }
             acceptedByRevision.add(d.proposalRevisionId);
         }
         if (d.replacesDecisionId !== undefined) {
             const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
-            if (previous < 0 || previous >= i || decisions[previous].status !== "superseded")
+            if (previous < 0 || previous >= i || decisions[previous].status !== "superseded") {
                 return fail(`$.decisions[${i}].replacesDecisionId`);
+            }
             const previousRevision = proposals.find(
                 (revision) => revision.id === decisions[previous].proposalRevisionId
             );
@@ -444,17 +578,20 @@ function validateDecisions(parsedState: MeetingState): string | undefined {
                 !previousRevision ||
                 !replacementRevision ||
                 previousRevision.proposalId !== replacementRevision.proposalId
-            )
+            ) {
                 return fail(`$.decisions[${i}].replacesDecisionId`);
+            }
             replacementCounts.set(
                 d.replacesDecisionId,
                 (replacementCounts.get(d.replacesDecisionId) ?? 0) + 1
             );
         }
     }
-    for (let i = 0; i < decisions.length; i++)
-        if (decisions[i].status === "superseded" && replacementCounts.get(decisions[i].id) !== 1)
+    for (let i = 0; i < decisions.length; i++) {
+        if (decisions[i].status === "superseded" && replacementCounts.get(decisions[i].id) !== 1) {
             return fail(`$.decisions[${i}].status`);
+        }
+    }
     return undefined;
 }
 
@@ -476,18 +613,23 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as unknown as RecordValue;
         const path = `$.rounds[${i}]`;
-        for (let j = 0; j < (r.contributionIds as readonly unknown[]).length; j++)
-            if (!ref((r.contributionIds as readonly unknown[])[j], contributionIds))
+        for (let j = 0; j < (r.contributionIds as readonly unknown[]).length; j++) {
+            if (!ref((r.contributionIds as readonly unknown[])[j], contributionIds)) {
                 return fail(`${path}.contributionIds[${j}]`);
-        for (let j = 0; j < (r.publicBaselinePublicationIds as readonly unknown[]).length; j++)
-            if (!ref((r.publicBaselinePublicationIds as readonly unknown[])[j], publicationIds))
+            }
+        }
+        for (let j = 0; j < (r.publicBaselinePublicationIds as readonly unknown[]).length; j++) {
+            if (!ref((r.publicBaselinePublicationIds as readonly unknown[])[j], publicationIds)) {
                 return fail(`${path}.publicBaselinePublicationIds[${j}]`);
+            }
+        }
     }
     for (let i = 0; i < contributions.length; i++) {
         const r = contributions[i] as unknown as RecordValue;
         const path = `$.contributions[${i}]`;
-        if (r.packageId !== undefined && !packageIds.has(r.packageId as string))
+        if (r.packageId !== undefined && !packageIds.has(r.packageId as string)) {
             return fail(`${path}.packageId`);
+        }
     }
     for (let i = 0; i < publications.length; i++) {
         const r = publications[i] as unknown as RecordValue;
@@ -495,8 +637,9 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
         if (
             i > 0 &&
             ((publications[i - 1] as unknown as RecordValue).seq as number) >= (r.seq as number)
-        )
+        ) {
             return fail(`${path}.seq`);
+        }
     }
     for (let i = 0; i < messages.length; i++) {
         const r = messages[i] as unknown as RecordValue;
@@ -504,8 +647,9 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
         if (
             i > 0 &&
             ((messages[i - 1] as unknown as RecordValue).seq as number) >= (r.seq as number)
-        )
+        ) {
             return fail(`${path}.seq`);
+        }
     }
     for (let i = 0; i < reviews.length; i++) {
         const r = reviews[i] as unknown as RecordValue;
@@ -514,8 +658,9 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
         const round = ownerPackage && roundById.get(ownerPackage.roundId);
         if (round) {
             const baseline = r.baselinePublicationIds as readonly unknown[];
-            if (JSON.stringify(baseline) !== JSON.stringify(round.publicBaselinePublicationIds))
+            if (JSON.stringify(baseline) !== JSON.stringify(round.publicBaselinePublicationIds)) {
                 return fail(`${path}.baselinePublicationIds`);
+            }
         }
     }
     const proposalGroups = new Map<string, { ordinal: number; id: string }>();
@@ -523,26 +668,35 @@ function validateSequencesAndBaselines(parsedState: MeetingState): string | unde
         const r = proposals[i] as unknown as RecordValue;
         const path = `$.proposals[${i}]`;
         const previous = proposalGroups.get(r.proposalId as string);
-        if ((r.ordinal as number) !== (previous?.ordinal ?? 0) + 1) return fail(`${path}.ordinal`);
+        if ((r.ordinal as number) !== (previous?.ordinal ?? 0) + 1) {
+            return fail(`${path}.ordinal`);
+        }
         proposalGroups.set(r.proposalId as string, {
             ordinal: r.ordinal as number,
             id: r.id as string
         });
-        if ((r.ordinal as number) === 1 && r.supersedesRevisionId !== undefined)
+        if ((r.ordinal as number) === 1 && r.supersedesRevisionId !== undefined) {
             return fail(`${path}.supersedesRevisionId`);
-        if ((r.ordinal as number) > 1 && r.supersedesRevisionId !== previous?.id)
+        }
+        if ((r.ordinal as number) > 1 && r.supersedesRevisionId !== previous?.id) {
             return fail(`${path}.supersedesRevisionId`);
+        }
     }
     for (let i = 0; i < decisions.length; i++) {
         const r = decisions[i];
         const candidate = decisionCandidateById.get(r.candidateId);
-        if (candidate && r.proposalRevisionId !== candidate.proposalRevisionId)
+        if (candidate && r.proposalRevisionId !== candidate.proposalRevisionId) {
             return fail(`$.decisions[${i}].proposalRevisionId`);
-        if (candidate && r.actorId !== candidate.actorId) return fail(`$.decisions[${i}].actorId`);
-        if (candidate && JSON.stringify(r.evidenceIds) !== JSON.stringify(candidate.evidenceIds))
+        }
+        if (candidate && r.actorId !== candidate.actorId) {
+            return fail(`$.decisions[${i}].actorId`);
+        }
+        if (candidate && JSON.stringify(r.evidenceIds) !== JSON.stringify(candidate.evidenceIds)) {
             return fail(`$.decisions[${i}].evidenceIds`);
-        if (candidate && JSON.stringify(r.positionIds) !== JSON.stringify(candidate.positionIds))
+        }
+        if (candidate && JSON.stringify(r.positionIds) !== JSON.stringify(candidate.positionIds)) {
             return fail(`$.decisions[${i}].positionIds`);
+        }
     }
     return undefined;
 }

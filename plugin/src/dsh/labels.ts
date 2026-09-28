@@ -16,8 +16,9 @@ function assertIdentitySegment(value: string, field: string): void {
 }
 
 function assertTargetMeetingIdentity(value: MeetingIdentitySessionLabel): void {
-    if (!["manager", "evidence_reviewer", "participant"].includes(value.role))
+    if (!["manager", "evidence_reviewer", "participant"].includes(value.role)) {
         throw new TypeError("role must be a Meeting identity role.");
+    }
     assertIdentitySegment(value.meetingId, "meetingId");
     assertIdentitySegment(value.identityId, "identityId");
 }
@@ -36,8 +37,9 @@ export function decodeMeetingIdentitySessionLabel(
         parts[0] !== LABEL_PREFIX ||
         parts[1] !== MEETING_IDENTITY_KIND ||
         !["manager", "evidence_reviewer", "participant"].includes(parts[2] ?? "")
-    )
+    ) {
         return undefined;
+    }
     const value: MeetingIdentitySessionLabel = {
         role: parts[2] as MeetingIdentitySessionLabel["role"],
         meetingId: parts[3] ?? "",

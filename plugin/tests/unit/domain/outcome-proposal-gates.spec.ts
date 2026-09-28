@@ -81,7 +81,7 @@ describe("proposal revision gates", () => {
     });
     it.each([undefined, "rev-other"] as const)("rejects predecessor %s", (predecessor) => {
         const state = proposalState();
-        if (predecessor === "rev-other")
+        if (predecessor === "rev-other") {
             state.proposals = [
                 {
                     id: "rev-other",
@@ -95,6 +95,7 @@ describe("proposal revision gates", () => {
                     createdAt: 0
                 }
             ];
+        }
         const result = recordProposalRevision(
             state,
             input({ revisionId: "rev-2", supersedesRevisionId: predecessor ?? "rev-1" })

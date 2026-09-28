@@ -3,19 +3,37 @@ import { describe, expect, it } from "vitest";
 import { Config } from "@/config.js";
 
 const validConfig = {
-    provider: "spawn"
+    provider: "spawn",
+    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"]
 };
 
 describe("Convivium runtime config", () => {
     it("requires an explicit provider and supplies bounded runtime defaults", () => {
         expect(Config(validConfig)).toEqual({
             provider: "spawn",
+            initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
             maxParticipants: 3,
             speakerTimeoutMs: 10 * 60_000,
             outboxPollMs: 1_000
         });
-        expect(() => Config({})).toThrow(/provider/);
-        expect(() => Config({ provider: "   " })).toThrow(/provider/);
+        expect(() =>
+            Config({ initialContributorRoleIds: validConfig.initialContributorRoleIds })
+        ).toThrow(/provider/);
+        expect(() => Config({ ...validConfig, provider: "   " })).toThrow(/provider/);
+    });
+
+    it("requires distinct configured contributor roles from the packaged catalog", () => {
+        expect(() => Config({ provider: "spawn" })).toThrow();
+        for (const roles of [
+            [],
+            ["meeting_manager"],
+            ["github_research_analyst", "github_research_analyst"]
+        ]) {
+            expect(() => Config({ ...validConfig, initialContributorRoleIds: roles })).toThrow();
+        }
+        expect(
+            Config({ ...validConfig, initialContributorRoleIds: ["runtime_engineer"] })
+        ).toMatchObject({ initialContributorRoleIds: ["runtime_engineer"] });
     });
 
     it("validates inline definitions and keeps configuration errors safe", () => {

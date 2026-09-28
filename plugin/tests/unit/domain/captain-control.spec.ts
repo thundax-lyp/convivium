@@ -68,7 +68,9 @@ describe("external Captain control", () => {
             now: 10
         });
         expect(d.kind).toBe("accepted");
-        if (d.kind !== "accepted") return;
+        if (d.kind !== "accepted") {
+            return;
+        }
         expect(
             changeDecision(d.state, {
                 decisionId: "decision-user",
@@ -83,7 +85,9 @@ describe("external Captain control", () => {
         c.objective.requiredOutputs.push({ id: "o2", text: "pending", status: "pending" });
         const f = recordCompletionFact(c, { ...completionInput(), actor: captain(c.id), now: 10 });
         expect(f.kind).toBe("accepted");
-        if (f.kind !== "accepted") return;
+        if (f.kind !== "accepted") {
+            return;
+        }
         expect(
             changeCompletionFact(f.state, {
                 factId: f.state.completionFacts[0]!.id,

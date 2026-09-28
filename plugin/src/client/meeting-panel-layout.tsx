@@ -8,9 +8,6 @@ import {
 } from "react";
 import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { MeetingClient } from "./meeting-client.js";
-import { MeetingCreateForm } from "./meeting-create-form.js";
-import { MeetingUserControls } from "./meeting-user-controls.js";
 import type { MeetingTranslate } from "./locales.js";
 import { lifecycleLabel } from "./meeting-panel-sections.js";
 import { MeetingPanelOverview } from "./meeting-panel-overview.js";
@@ -23,11 +20,7 @@ import {
 } from "./meeting-workspace-state.js";
 
 export interface MeetingPanelLayoutProps {
-    client?: MeetingClient;
     localFeedback?: React.ReactNode;
-    createDisabled?: boolean;
-    onCreated?(meetingId: string): void;
-    onCommitted?(): void;
     locale?: string;
     meetings: readonly MeetingSummary[];
     selectedId?: string;
@@ -62,14 +55,6 @@ const renderNavigator = (
     return (
         <nav data-testid="meeting-navigator" aria-label={t("panel.navigator.title")}>
             <h3>{t("panel.navigator.title")}</h3>
-            {ctx.client && (
-                <MeetingCreateForm
-                    client={ctx.client}
-                    disabled={ctx.createDisabled ?? true}
-                    onCreated={ctx.onCreated ?? (() => {})}
-                    t={t}
-                />
-            )}
             {ctx.listCached ? <p>{t("panel.navigator.stale")}</p> : null}
             {ctx.listError === undefined ? null : <p role="alert">{ctx.listError}</p>}
             {ctx.meetings.length === 0 && ctx.listLoading ? (
@@ -162,16 +147,6 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                         ) : null}
                         {ctx.localFeedback}
                     </header>
-                    {ctx.client && (
-                        <MeetingUserControls
-                            key={ctx.detail.meetingId}
-                            client={ctx.client}
-                            view={ctx.detail}
-                            disabled={ctx.detailCached || ctx.writePending}
-                            onCommitted={ctx.onCommitted ?? (() => {})}
-                            t={t}
-                        />
-                    )}
                     {ctx.detailError === undefined ? null : <p role="alert">{ctx.detailError}</p>}
                     <div role="tablist">
                         <Button
@@ -184,7 +159,9 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             size="sm"
                             onClick={() => selectMode("overview")}
                             onKeyDown={(event: React.KeyboardEvent) => {
-                                if (event.key === "ArrowRight") moveMode(event, "timeline");
+                                if (event.key === "ArrowRight") {
+                                    moveMode(event, "timeline");
+                                }
                             }}
                         >
                             {t("panel.mode.overview")}
@@ -199,7 +176,9 @@ const renderWorkspace = (ctx: MeetingPanelLayoutProps, t: MeetingTranslate): Rea
                             size="sm"
                             onClick={() => selectMode("timeline")}
                             onKeyDown={(event: React.KeyboardEvent) => {
-                                if (event.key === "ArrowLeft") moveMode(event, "overview");
+                                if (event.key === "ArrowLeft") {
+                                    moveMode(event, "overview");
+                                }
                             }}
                         >
                             {t("panel.mode.timeline")}
@@ -252,10 +231,14 @@ const MeetingPanelLayout = ({
     const openerRef = useRef<HTMLButtonElement | null>(null);
     useEffect(() => {
         const query = window.matchMedia?.("(max-width: 760px)");
-        if (query === undefined) return;
+        if (query === undefined) {
+            return;
+        }
         const update = (event: MediaQueryListEvent) => {
             setNarrow(event.matches);
-            if (!event.matches) setDrawerOpen(false);
+            if (!event.matches) {
+                setDrawerOpen(false);
+            }
         };
         query.addEventListener("change", update);
         return () => query.removeEventListener("change", update);
@@ -265,16 +248,22 @@ const MeetingPanelLayout = ({
         openerRef.current?.focus();
     };
     useEffect(() => {
-        if (!drawerOpen) return;
+        if (!drawerOpen) {
+            return;
+        }
         const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === "Escape") closeDrawer();
+            if (event.key === "Escape") {
+                closeDrawer();
+            }
         };
         window.addEventListener("keydown", closeOnEscape);
         return () => window.removeEventListener("keydown", closeOnEscape);
     }, [drawerOpen]);
     const selectMeeting = (meetingId: string) => {
         ctx.selectMeeting(meetingId);
-        if (narrow) closeDrawer();
+        if (narrow) {
+            closeDrawer();
+        }
     };
     const selected = ctx.meetings.find((meeting) => meeting.meetingId === ctx.selectedId);
     const navigator = renderNavigator(ctx, t, selectMeeting);

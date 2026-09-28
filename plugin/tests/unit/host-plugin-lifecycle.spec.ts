@@ -11,6 +11,7 @@ import roleResources from "../../config/definitions.json" with { type: "json" };
 const config = {
     provider: "spawn",
     maxParticipants: 3,
+    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
     speakerTimeoutMs: 60_000,
     outboxPollMs: 1_000,
     agentDefinitions: roleResources.definitions
@@ -52,6 +53,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
             },
+            on: vi.fn(() => {
+                const disposer = vi.fn();
+                effects.push(disposer);
+                return disposer;
+            }),
             agents: { get: () => undefined },
             logger: vi.fn(() => ({ warn: vi.fn() })),
             subagents: {
@@ -81,14 +87,18 @@ describe("Convivium local Meeting route lifecycle", () => {
             typert: {},
             inject(keys: string[], callback: (context: unknown) => void) {
                 expect(keys).toEqual(["webServer", "typertGateway", "typert"]);
-                if (ctx.webServer !== undefined) callback(ctx);
+                if (ctx.webServer !== undefined) {
+                    callback(ctx);
+                }
             },
             async plugin(
                 plugin: { name?: string; apply(context: unknown, value: unknown): unknown },
                 value: unknown
             ) {
                 childOrder.push(plugin.name ?? "anonymous");
-                if (plugin.name === "ConviviumRemoteService") return;
+                if (plugin.name === "ConviviumRemoteService") {
+                    return;
+                }
                 if (plugin.name === "convivium-meeting-consumer") {
                     expect(plugin).toMatchObject({
                         inject: [
@@ -121,7 +131,9 @@ describe("Convivium local Meeting route lifecycle", () => {
             childOrder,
             get: ctx.get,
             dispose: async () => {
-                for (const effect of [...effects].reverse()) await effect();
+                for (const effect of [...effects].reverse()) {
+                    await effect();
+                }
             }
         };
     }
@@ -136,19 +148,23 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(10);
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        expect(fixture.toolDisposers).toHaveLength(11);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
         await fixture.dispose();
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
-    it("requires the exact seven enabled role definitions without resolving their capabilities", async () => {
+    it("requires the exact seven packaged role definitions without resolving their capabilities", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
@@ -158,7 +174,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                 ...config,
                 agentDefinitions: roleResources.definitions.slice(0, 6)
             })
-        ).rejects.toThrow("exact seven enabled Meeting role definitions");
+        ).rejects.toThrow("exact seven packaged Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );
@@ -169,15 +185,17 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(10);
-        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+        expect(fixture.toolDisposers).toHaveLength(11);
+        for (const disposer of fixture.toolDisposers) {
+            expect(disposer).toHaveBeenCalledTimes(1);
+        }
     });
 
     it("does not register Meeting routes for a localhost host alias", async () => {
         const fixture = await host("localhost");
         expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(10);
+        expect(fixture.toolDisposers).toHaveLength(11);
     });
 
     it("does not activate legacy workspace projection", async () => {
@@ -212,8 +230,9 @@ describe("Convivium Cordis service lifecycle", () => {
                     "agentDefaultModel",
                     "skills",
                     "llm"
-                ])
+                ]) {
                     root.provide(service, {});
+                }
                 const spawnProvider: SubagentProvider = {
                     name: "spawn",
                     capabilities: providerCapabilities,
@@ -255,7 +274,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(10)
+                    ).toBe(11)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -268,7 +287,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(10);
+                ).toBe(11);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {

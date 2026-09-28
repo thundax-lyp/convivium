@@ -66,19 +66,22 @@ describe("private mail send and start", () => {
                 now: 20
             });
             expect(result.kind).toBe("accepted");
-            if (result.kind === "accepted")
+            if (result.kind === "accepted") {
                 expect(result.state.privateMails[0]).toMatchObject({
                     status: "processing",
                     processingContextPublicationUpperBound: ["pub-1"],
                     processingStartedAt: 20
                 });
+            }
         }
     });
 
     it("captures all publications added after send while preserving send prefix", () => {
         const sent = sendPrivateMail(privateMailState(), input);
         expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") return;
+        if (sent.kind !== "accepted") {
+            return;
+        }
         const withLaterPublication = {
             ...sent.state,
             managerPlans: [
@@ -158,7 +161,9 @@ describe("private mail send and start", () => {
     ] as const)("rejects start %s", (_name, overrides, code, targetId) => {
         const sent = sendPrivateMail(privateMailState(), input);
         expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") return;
+        if (sent.kind !== "accepted") {
+            return;
+        }
         const { lifecycle, ...startInput } = overrides;
         const candidate = lifecycle
             ? { ...sent.state, lifecycle: { ...sent.state.lifecycle, status: lifecycle } }
@@ -176,7 +181,9 @@ describe("private mail send and start", () => {
     it("rejects missing start input without throwing", () => {
         const before = sendPrivateMail(privateMailState(), input);
         expect(before.kind).toBe("accepted");
-        if (before.kind !== "accepted") return;
+        if (before.kind !== "accepted") {
+            return;
+        }
         const result = startPrivateMail(before.state, undefined as never);
         rejected(result, "INVALID_ARGUMENT");
         expect(result.state).toBe(before.state);
@@ -190,7 +197,9 @@ describe("private mail start gates", () => {
         const candidate = withContribution("preparing");
         const sent = sendPrivateMail(candidate, input);
         expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") return;
+        if (sent.kind !== "accepted") {
+            return;
+        }
         const result = startPrivateMail(sent.state, {
             mailId: "mail-1",
             actorKind: "effect_dispatcher",
@@ -206,7 +215,9 @@ describe("private mail start gates", () => {
         const terminalContribution = withContribution("closed", "recipient");
         const sent = sendPrivateMail(terminalContribution, input);
         expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") return;
+        if (sent.kind !== "accepted") {
+            return;
+        }
         const other = {
             id: "mail-other",
             senderId: "sender",
@@ -250,7 +261,9 @@ describe("private mail start gates", () => {
         (status) => {
             const sent = sendPrivateMail(privateMailState(), input);
             expect(sent.kind).toBe("accepted");
-            if (sent.kind !== "accepted") return;
+            if (sent.kind !== "accepted") {
+                return;
+            }
             let candidate = sent.state;
             if (status === "processing") {
                 const started = startPrivateMail(candidate, {
@@ -259,7 +272,9 @@ describe("private mail start gates", () => {
                     now: 20
                 });
                 expect(started.kind).toBe("accepted");
-                if (started.kind === "accepted") candidate = started.state;
+                if (started.kind === "accepted") {
+                    candidate = started.state;
+                }
             } else if (status === "completed") {
                 const started = startPrivateMail(candidate, {
                     mailId: "mail-1",
@@ -267,14 +282,18 @@ describe("private mail start gates", () => {
                     now: 20
                 });
                 expect(started.kind).toBe("accepted");
-                if (started.kind !== "accepted") return;
+                if (started.kind !== "accepted") {
+                    return;
+                }
                 const completed = completePrivateMail(started.state, {
                     mailId: "mail-1",
                     recipientId: "recipient",
                     now: 30
                 });
                 expect(completed.kind).toBe("accepted");
-                if (completed.kind !== "accepted") return;
+                if (completed.kind !== "accepted") {
+                    return;
+                }
                 candidate = completed.state;
             } else if (status === "cancelled") {
                 const cancelled = cancelPrivateMail(candidate, {
@@ -284,7 +303,9 @@ describe("private mail start gates", () => {
                     now: 20
                 });
                 expect(cancelled.kind).toBe("accepted");
-                if (cancelled.kind !== "accepted") return;
+                if (cancelled.kind !== "accepted") {
+                    return;
+                }
                 candidate = cancelled.state;
             } else {
                 const expired = expirePrivateMail(candidate, {
@@ -294,7 +315,9 @@ describe("private mail start gates", () => {
                     now: 110
                 });
                 expect(expired.kind).toBe("accepted");
-                if (expired.kind !== "accepted") return;
+                if (expired.kind !== "accepted") {
+                    return;
+                }
                 candidate = expired.state;
             }
             const result = startPrivateMail(candidate, {

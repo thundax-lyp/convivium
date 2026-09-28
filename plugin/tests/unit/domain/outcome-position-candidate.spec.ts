@@ -60,7 +60,9 @@ it("accepts current Position with exact bookkeeping and immutable input", () => 
         relatedIds: ["pos", "rev", "v"],
         effectRequests: []
     });
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.version).toBe(2);
     expect(result.state.updatedAt).toBe(1);
     expect(state).toEqual(before);
@@ -70,14 +72,18 @@ it("accepts current Candidate without status or Decision and preserves related o
     const state = ready();
     const position = recordPosition(state, positionInput());
     expect(position.kind).toBe("accepted");
-    if (position.kind !== "accepted") return;
+    if (position.kind !== "accepted") {
+        return;
+    }
     const result = recordDecisionCandidate(position.state, candidateInput());
     expect(result).toMatchObject({
         kind: "accepted",
         relatedIds: ["cand", "rev", "pos", "v"],
         effectRequests: []
     });
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.decisionCandidates[0]).not.toHaveProperty("status");
     expect(result.state.decisions).toEqual([]);
     expect(result.state.version).toBe(3);
@@ -89,13 +95,14 @@ it.each([
     ["duplicate evidence", ["v", "v"], "INVALID_ARGUMENT"]
 ] as const)("Position evidence %s", (_name, evidenceIds, code) => {
     const state = ready();
-    if (_name === "unpublished evidence")
+    if (_name === "unpublished evidence") {
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
             ordinal: 2,
             status: "submitted"
         });
+    }
     const result = recordPosition(
         state,
         positionInput({ kind: "identity", id: "contributor" }, { evidenceIds })
@@ -182,7 +189,9 @@ it("accepts captain Position and Candidate writes", () => {
     const state = ready();
     const position = recordPosition(state, positionInput({ kind: "identity", id: "captain" }));
     expect(position).toMatchObject({ kind: "accepted" });
-    if (position.kind !== "accepted") return;
+    if (position.kind !== "accepted") {
+        return;
+    }
     const candidate = recordDecisionCandidate(
         position.state,
         candidateInput({ kind: "identity", id: "captain" })
@@ -245,13 +254,14 @@ it.each([
             createdAt: 0
         }
     ];
-    if (_name === "unpublished")
+    if (_name === "unpublished") {
         state.evidencePackages[0].versions.push({
             ...state.evidencePackages[0].versions[0],
             id: "v2",
             ordinal: 2,
             status: "submitted"
         });
+    }
     const result = recordDecisionCandidate(state, candidateInput(undefined, { evidenceIds }));
     expect(result).toMatchObject({
         kind: "rejected",
@@ -266,7 +276,7 @@ it.each([
     ["missing", ["missing"], "NOT_FOUND"]
 ] as const)("Candidate positionIds %s", (_name, positionIds, code) => {
     const state = ready();
-    if (_name !== "missing")
+    if (_name !== "missing") {
         state.positions = [
             {
                 id: "pos",
@@ -278,6 +288,7 @@ it.each([
                 createdAt: 0
             }
         ];
+    }
     const result = recordDecisionCandidate(state, candidateInput(undefined, { positionIds }));
     expect(result).toMatchObject({
         kind: "rejected",

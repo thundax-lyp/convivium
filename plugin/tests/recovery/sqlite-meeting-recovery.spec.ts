@@ -53,8 +53,9 @@ async function databasePath(): Promise<string> {
 }
 
 afterEach(async () => {
-    for (const directory of directories.splice(0))
+    for (const directory of directories.splice(0)) {
         await rm(directory, { recursive: true, force: true });
+    }
 });
 
 describe("target Meeting persistence on SQLite", () => {
@@ -62,8 +63,9 @@ describe("target Meeting persistence on SQLite", () => {
         const path = await databasePath();
         const first = await open(path, true);
         const state = makeRunningMeetingStateV1();
-        for (let i = 0; i < 4; i++)
+        for (let i = 0; i < 4; i++) {
             state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+        }
         const create = {
             requestId: "create-target",
             requestHash: "create-target-hash",
@@ -73,8 +75,9 @@ describe("target Meeting persistence on SQLite", () => {
             createdAt: 1
         };
         const repository = await first.registry.openMeeting({ meetingId: state.id, create });
-        for (const item of create.initialOwnership)
+        for (const item of create.initialOwnership) {
             await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
+        }
         await repository.completeCreate(create);
         await repository.recordSessionOwnership(
             {
@@ -137,8 +140,9 @@ describe("target Meeting persistence on SQLite", () => {
             const path = await databasePath();
             const first = await open(path, true);
             const state = makeRunningMeetingStateV1();
-            for (let i = 0; i < 4; i++)
+            for (let i = 0; i < 4; i++) {
                 state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+            }
             await first.registry.openMeeting({
                 meetingId: state.id,
                 create: {
@@ -198,8 +202,9 @@ describe("target Meeting persistence on SQLite", () => {
             createdAt: 1
         };
         const legacy = await first.registry.openMeeting({ meetingId: "meeting-legacy", create });
-        for (const item of create.initialOwnership)
+        for (const item of create.initialOwnership) {
             await legacy.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
+        }
         await legacy.completeCreate(create);
         await first.close();
 
@@ -217,8 +222,9 @@ it("cold recovery finishes the original persisted creation and outbox without re
     const path = await databasePath();
     const first = await open(path, true);
     const state = makeRunningMeetingStateV1();
-    for (let i = 0; i < 4; i++)
+    for (let i = 0; i < 4; i++) {
         state.identities.push({ ...state.identities[1]!, id: `extra-${i}` });
+    }
     const bindings = peerBindings(state.id, state.identities);
     state.identities = state.identities.map((i) => ({
         ...i,

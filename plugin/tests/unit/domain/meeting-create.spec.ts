@@ -32,7 +32,9 @@ describe("meeting create", () => {
         );
         const created = createMeeting(state);
         expect(created.kind).toBe("accepted");
-        if (created.kind !== "accepted") return;
+        if (created.kind !== "accepted") {
+            return;
+        }
         expect(created.state).toEqual(state);
         expect(created.state).not.toBe(state);
         expect(created.effectRequests).toEqual([

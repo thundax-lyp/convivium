@@ -24,8 +24,9 @@ describe("generated Remote contract", () => {
             for (const method of ["list", "read", "control", "subscribeRefresh"]) {
                 expect(firstClient).toContain(method);
             }
-            for (const method of ["getStatus", "pause", "resume", "watchUpdates"])
+            for (const method of ["getStatus", "pause", "resume", "watchUpdates"]) {
                 expect(firstClient).not.toContain(method);
+            }
             expect(firstHost).not.toContain(root);
         } finally {
             await rm(root, { recursive: true, force: true });

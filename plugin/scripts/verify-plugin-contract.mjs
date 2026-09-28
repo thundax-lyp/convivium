@@ -10,24 +10,35 @@ const failures = [];
 const runtime = await import(join(root, "lib/index.js"));
 const publicExports = Object.keys(runtime).sort();
 const expectedPublicExports = ["Config", "ConviviumRemoteService", "apply", "inject", "name"];
-if (JSON.stringify(publicExports) !== JSON.stringify(expectedPublicExports))
+if (JSON.stringify(publicExports) !== JSON.stringify(expectedPublicExports)) {
     failures.push(`public exports mismatch: ${publicExports.join(",")}`);
-if (/storage-domain|storage-sqlite/.test(patch))
+}
+if (/storage-domain|storage-sqlite/.test(patch)) {
     failures.push("plugin bundle must not configure a storage provider or domain routing");
+}
 if (
     pkg.dependencies?.["@deepseek-ai/dsh-storage-sqlite"] ||
     pkg.peerDependencies?.["@deepseek-ai/dsh-storage-sqlite"]
-)
+) {
     failures.push("SQLite provider must be installed by the Host/profile");
+}
 
-if (!pkg.dsh?.bundle?.patch) failures.push("package.json must declare dsh.bundle.patch");
-if (!pkg.files?.includes("lib")) failures.push("package files must include lib");
-if (!pkg.files?.includes("cordis.patch.yml"))
+if (!pkg.dsh?.bundle?.patch) {
+    failures.push("package.json must declare dsh.bundle.patch");
+}
+if (!pkg.files?.includes("lib")) {
+    failures.push("package files must include lib");
+}
+if (!pkg.files?.includes("cordis.patch.yml")) {
     failures.push("package files must include cordis.patch.yml");
+}
 
-if (!pkg.files?.includes("config")) failures.push("package files must include config");
-if (pkg.exports?.["./config/cordis.patch.yml"] !== "./config/cordis.patch.yml")
+if (!pkg.files?.includes("config")) {
+    failures.push("package files must include config");
+}
+if (pkg.exports?.["./config/cordis.patch.yml"] !== "./config/cordis.patch.yml") {
     failures.push("config patch export is required");
+}
 try {
     await readFile(join(root, "config/cordis.patch.yml"), "utf8");
 } catch {
@@ -35,21 +46,29 @@ try {
 }
 
 const patchName = patch.match(/^\s*name:\s*['"]?([^'"\s]+)['"]?\s*$/m)?.[1];
-if (!patchName) failures.push("cordis.patch.yml must contain a package name");
+if (!patchName) {
+    failures.push("cordis.patch.yml must contain a package name");
+}
 if (patchName && patchName !== pkg.name) {
     failures.push(`patch package name ${patchName} does not match package name ${pkg.name}`);
 }
 
 if (pkg.dsh?.client) {
-    if (pkg.dsh.client.platform !== "web") failures.push("dsh.client.platform must be web");
-    if (!pkg.exports?.["./client"]) failures.push("client manifest requires exports[./client]");
+    if (pkg.dsh.client.platform !== "web") {
+        failures.push("dsh.client.platform must be web");
+    }
+    if (!pkg.exports?.["./client"]) {
+        failures.push("client manifest requires exports[./client]");
+    }
     if (!pkg.files?.some((entry) => entry === "lib" || entry.startsWith("lib/"))) {
         failures.push("client manifest requires published lib artifacts");
     }
 }
 
 if (failures.length > 0) {
-    for (const failure of failures) console.error(`FAIL ${failure}`);
+    for (const failure of failures) {
+        console.error(`FAIL ${failure}`);
+    }
     process.exitCode = 1;
 } else {
     console.log(`PASS ${pkg.name} plugin contract`);

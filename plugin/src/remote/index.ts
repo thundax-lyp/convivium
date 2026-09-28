@@ -39,7 +39,9 @@ function internalFailure(cause: unknown): RemoteError<"convivium/internal"> {
 }
 
 function mapFailure(signal: AbortSignal, cause: unknown): never {
-    if (signal.aborted) throw signal.reason;
+    if (signal.aborted) {
+        throw signal.reason;
+    }
     throw internalFailure(cause);
 }
 
@@ -120,7 +122,9 @@ export class ConviviumRemoteService extends TypertRemoteService {
                 yield RefreshNoticeSchema.parse(notice);
             }
         } catch (cause) {
-            if (signal.aborted) return;
+            if (signal.aborted) {
+                return;
+            }
             throw internalFailure(cause);
         }
     }

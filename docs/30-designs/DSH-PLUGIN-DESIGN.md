@@ -38,11 +38,13 @@ DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox�
 
 专用 Web 安装根在首次创建 DSH `web` profile 时，将 `dsh.profile.patchReload` 从该版本默认的 `live` 固定为 `startup`：当前解析到的 Cordis HMR 不提供 DSH live watcher 调用的 `registerConfig`，而 Meetings View 不依赖运行中修改 patch。所有 bundle、profile、home 和启动 overlay 仍在每次 Host 启动时完整应用；修改 patch 后须重启 Host。安装器不改写已经存在的 profile manifest，也不复制凭据。
 
-七个初始 Meeting identity 分别持有平级、独立、可持续的 AgentSession；动态接纳身份也单独创建。不同 Meeting、identity 或授权范围不得共享 Session。七个角色各有 Preset，只装分配的能力 Skills；角色 AGENTS 由插件在 scoped setup 中显式读取并注册。Captain 是每场 Meeting 的外部可信控制来源，不是 MeetingIdentity、Participant、notice 目标或任何会议 Agent 的 DSH parent。唯一专职 Evidence Reviewer 的逐版本 one-shot worker 仍作为该 Reviewer 的 DSH Subagent，worker 不取得 Meeting authority。
+新会议的 Manager、Reviewer 和配置选中的 Contributor identity 分别持有平级、独立、可持续的 AgentSession；动态接纳身份也单独创建。不同 Meeting、identity 或授权范围不得共享 Session。七个角色各有 Preset，只装分配的能力 Skills；角色 AGENTS 由插件在 scoped setup 中显式读取并注册。Captain 是每场 Meeting 的外部可信控制来源，不是 MeetingIdentity、Participant、notice 目标或任何会议 Agent 的 DSH parent。唯一专职 Evidence Reviewer 的逐版本 one-shot worker 仍作为该 Reviewer 的 DSH Subagent，worker 不取得 Meeting authority。
 
-每个生产 Meeting identity tool 暴露精确 MeetingCommand/action schema，Definition toolFilter 收窄可见面，Runtime 按 exec.agent 与 active ownership 独立授权。Captain 就是用户，其创建与控制走可信 loopback Remote；不注册 Captain Agent tools。
+Host 冷启动时，先完成 Meeting Runtime 的受控读写入口和全部会议工具注册，再恢复既有 Meeting AgentSession 及其投递 worker。Agent scoped setup 的 `tools.restrict` 要求 Definition 中的全局工具名已注册；若先恢复 Session，任何含会议工具的身份都会在 setup 阶段失败，使后续 Meeting 的投递和期限扫描无法启动。
 
-用户创建与 Captain 控制统一经可信 loopback `conviviumMeetings.control`，Captain 就是本地用户，不是 Agent 或原 Session 授权绑定。DSH tools 仅接受 active MeetingIdentity 的会议操作；输入 Session 关闭不影响七个平级 Agent、投递或用户控制。具体装配、来源审计与恢复见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)。
+每个生产 Meeting identity tool 暴露精确 MeetingCommand/action schema，Definition toolFilter 收窄可见面，Runtime 按 exec.agent 与 active ownership 独立授权。Captain 就是用户；结构化创建与控制走可信 loopback Remote。`convivium_start_meeting` 是仅用于显式用户 Skill 调用的零参数创建工具，以当前 turn 的单次授权和原始目标构造命令，不开放其它 Captain action。
+
+用户可通过可信 loopback `conviviumMeetings.control` 结构化创建并控制会议，也可通过已部署的 `/convivium` Skill 直接创建。Skill 文件随安装包部署到当前 `DSH_HOME/skills/convivium/`，只由用户显式调用；Meeting Agent 的独立 Skill 根不包含它。Captain 是本地用户，不是 Agent 或原 Session 授权绑定。除这条受限创建路径外，DSH tools 仅接受 active MeetingIdentity 的会议操作；输入 Session 关闭不影响已创建的平级 Agent、投递或用户控制。具体装配、来源审计与恢复见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)。
 
 Reviewer 的 `EvidenceReviewClaim` 仍按 EvidenceVersion、sourceEffectId 和 expiry 原子认领；coordinator 仅调用专用 `convivium_run_review_worker`，worker 使用固定 `outputSchema` 和空 toolFilter，返回的结构化结果经 versionId 校验后才由 `submit_evidence_review` 单独提交。worker 失败、超时和 pause 依既有 EvidenceStatus/claim 规则处理，不能以 `followup` 接受推断审核成功。详细状态转换见 [Meeting Design](./MEETING-DESIGN.md)。
 
@@ -52,13 +54,13 @@ Manager 的 `recommend_identity` 只提交 `reject` 事实或不可调度的 `ad
 
 插件入口只构造依赖、注册受控服务和 teardown；所有领域写入通过同一 Meeting Runtime 入口。插件状态机为 new → validating → ready → stopping → stopped，或 validating → rejected。validating 校验精确 DSH 版本、平级 Agent/Session、Preset、Skill、Storage 和 loopback 必需能力；ready 才注册可写 Tools/Remote。stopping 立即拒绝新 command，等待已开始的原子提交，保留未完成 outbox，然后仅释放插件已证明归属的 AgentHandle；不关闭用户输入 Session 或其他 Meeting 的 Agent。
 
-创建阶段先完成七个 Definition 的资源预检，再持久化不可调度的 creating/provisioning 状态；每个平级 Agent 在 unpublished scoped setup 中装配，全部 ownership active 后 Meeting 才 ready。失败先撤权再停止已创建 handle。动态身份也遵守 provisioning→active 的授权边界。pause 取消受影响的 turn 并停止新调度，resume 从已提交状态重新安排；end/archive 先撤权再停止目标 Meeting Agent。Host 冷恢复只按持久 Definition、资源指纹、模型选择及 Session header 恢复原 Agent，不能使用当前默认资源或替代 Session。
+创建阶段先完成全部所选 Definition 的资源预检，再持久化不可调度的 creating/provisioning 状态；每个平级 Agent 在 unpublished scoped setup 中装配，全部 ownership active 后 Meeting 才 ready。失败先撤权再停止已创建 handle。动态身份也遵守 provisioning→active 的授权边界。pause 取消受影响的 turn 并停止新调度，resume 从已提交状态重新安排；end/archive 先撤权再停止目标 Meeting Agent。Host 冷恢复只按持久 Definition、资源指纹、模型选择及 Session header 恢复原 Agent，不能使用当前默认资源或替代 Session。
 
 ## Local Client And Remote Boundary
 
 面板先读取本地 Host 的全部可恢复 Meeting 摘要，选定后才读取完整状态。摘要不含 transcript、Session ID、capability、物理存储路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表返回暂不可用原因而不得伪装为完整可用列表。完整状态由类型化后端接口输出；Client 只展示，不计算领域状态、不写缓存事实。
 
-面板提供 MO-FR-11 的用户创建、十项结构化控制及暂停/恢复/结束，字段与失败行为遵循 Meeting Interface；具体表单接线见 Peer Meeting Agents Design。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
+面板只提供 MO-FR-11 的暂停/恢复/结束，会议创建由 MO-FR-18 的 `/convivium` Skill 提供；十项结构化 Captain 命令保留在可信本地 Remote 契约中。字段与失败行为遵循 Meeting Interface，具体接线见 Peer Meeting Agents Design。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
 
 Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale，Panel body 通过 slot locale seat 取得 typed translator，使已挂载页面随 locale revision 更新而不重新注册 slot。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
 

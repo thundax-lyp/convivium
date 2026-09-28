@@ -1,4 +1,4 @@
-import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
+import { isRoundClosable, type MeetingIdentity, type MeetingState } from "@/domain/index.js";
 import type { MeetingAgentDefinition } from "@/role-composition/model.js";
 import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -6,10 +6,12 @@ import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 
 const supported = new Set([
     "meeting_started",
+    "round_opened",
     "opportunity_request",
     "opportunity_disposition",
     "hand_request",
     "hand_disposition",
+    "round_ready",
     "transcript_update"
 ]);
 
@@ -29,12 +31,16 @@ function fail(code: string): never {
 
 function stringField(payload: Record<string, unknown>, key: string): string {
     const value = payload[key];
-    if (typeof value !== "string" || value.trim() === "") fail("NOTICE_PAYLOAD_INVALID");
+    if (typeof value !== "string" || value.trim() === "") {
+        fail("NOTICE_PAYLOAD_INVALID");
+    }
     return value;
 }
 
 function roleFor(identity: MeetingIdentity): MeetingIdentitySessionLabel["role"] {
-    if (identity.roles.length !== 1) fail("NOTICE_IDENTITY_INVALID");
+    if (identity.roles.length !== 1) {
+        fail("NOTICE_IDENTITY_INVALID");
+    }
     switch (identity.roles[0]) {
         case "manager":
             return "manager";
@@ -59,9 +65,25 @@ function assertRole(
     role: "manager" | "contributor",
     agendaId: string
 ): void {
-    if (!identity.roles.includes(role) || !assigned(identity, agendaId))
+    if (!identity.roles.includes(role) || !assigned(identity, agendaId)) {
         fail("NOTICE_VISIBILITY_INVALID");
+    }
 }
+
+const roundOpenedDetails = (
+    state: MeetingState,
+    identity: MeetingIdentity,
+    payload: Record<string, unknown>,
+    agendaId: string
+): { roundId: string } => {
+    assertRole(identity, "contributor", agendaId);
+    const roundId = stringField(payload, "roundId");
+    const round = state.rounds.find((candidate) => candidate.id === roundId);
+    if (round?.agendaId !== agendaId || round.status !== "open") {
+        fail("NOTICE_VISIBILITY_INVALID");
+    }
+    return { roundId };
+};
 
 function assertNoticeReferences(
     state: MeetingState,
@@ -71,12 +93,17 @@ function assertNoticeReferences(
     agendaId: string
 ): Record<string, unknown> {
     const agenda = state.agenda.find((candidate) => candidate.id === agendaId);
-    if (!agenda) fail("NOTICE_VISIBILITY_INVALID");
+    if (!agenda) {
+        fail("NOTICE_VISIBILITY_INVALID");
+    }
     switch (noticeKind) {
         case "meeting_started":
-            if (state.lifecycle.status !== "running" || agenda.status !== "active")
+            if (state.lifecycle.status !== "running" || agenda.status !== "active") {
                 fail("NOTICE_VISIBILITY_INVALID");
+            }
             return {};
+        case "round_opened":
+            return roundOpenedDetails(state, identity, payload, agendaId);
         case "opportunity_request": {
             assertRole(identity, "manager", agendaId);
             const requestId = stringField(payload, "requestId");
@@ -84,8 +111,9 @@ function assertNoticeReferences(
                 !state.opportunityRequests.some(
                     (request) => request.id === requestId && request.agendaId === agendaId
                 )
-            )
+            ) {
                 fail("NOTICE_VISIBILITY_INVALID");
+            }
             return { requestId };
         }
         case "opportunity_disposition": {
@@ -93,8 +121,9 @@ function assertNoticeReferences(
             const requestId = stringField(payload, "requestId");
             const disposition = stringField(payload, "disposition");
             const reason = stringField(payload, "reason");
-            if (disposition !== "rejected" && disposition !== "deferred")
+            if (disposition !== "rejected" && disposition !== "deferred") {
                 fail("NOTICE_PAYLOAD_INVALID");
+            }
             return { requestId, disposition, reason };
         }
         case "hand_request": {
@@ -110,8 +139,9 @@ function assertNoticeReferences(
                     !state.pendingHandRaises.some(
                         (hand) => hand.roundId === roundId && hand.contributorId === contributorId
                     )
-                )
+                ) {
                     fail("NOTICE_VISIBILITY_INVALID");
+                }
                 return { requestKind, roundId, contributorId };
             }
             if (requestKind === "supplement") {
@@ -125,8 +155,9 @@ function assertNoticeReferences(
                 if (
                     contribution?.supplementHand?.status !== "pending" ||
                     round?.agendaId !== agendaId
-                )
+                ) {
                     fail("NOTICE_VISIBILITY_INVALID");
+                }
                 return { requestKind, contributionId };
             }
             return fail("NOTICE_PAYLOAD_INVALID");
@@ -136,8 +167,9 @@ function assertNoticeReferences(
             const requestKind = stringField(payload, "requestKind");
             const disposition = stringField(payload, "disposition");
             const reason = stringField(payload, "reason");
-            if (!new Set(["accepted", "rejected", "deferred"]).has(disposition))
+            if (!new Set(["accepted", "rejected", "deferred"]).has(disposition)) {
                 fail("NOTICE_PAYLOAD_INVALID");
+            }
             if (requestKind === "initial") {
                 const roundId = stringField(payload, "roundId");
                 const contributorId = stringField(payload, "contributorId");
@@ -146,8 +178,9 @@ function assertNoticeReferences(
                     !state.rounds.some(
                         (round) => round.id === roundId && round.agendaId === agendaId
                     )
-                )
+                ) {
                     fail("NOTICE_VISIBILITY_INVALID");
+                }
                 if (disposition === "accepted") {
                     const contributionId = stringField(payload, "contributionId");
                     if (
@@ -157,8 +190,9 @@ function assertNoticeReferences(
                                 candidate.roundId === roundId &&
                                 candidate.contributorId === contributorId
                         )
-                    )
+                    ) {
                         fail("NOTICE_VISIBILITY_INVALID");
+                    }
                     return {
                         requestKind,
                         roundId,
@@ -178,8 +212,9 @@ function assertNoticeReferences(
                 const round = state.rounds.find(
                     (candidate) => candidate.id === contribution?.roundId
                 );
-                if (contribution?.contributorId !== identity.id || round?.agendaId !== agendaId)
+                if (contribution?.contributorId !== identity.id || round?.agendaId !== agendaId) {
                     fail("NOTICE_VISIBILITY_INVALID");
+                }
                 return { requestKind, contributionId, disposition, reason };
             }
             return fail("NOTICE_PAYLOAD_INVALID");
@@ -190,9 +225,19 @@ function assertNoticeReferences(
                 !state.messages.some(
                     (message) => message.id === publicMessageId && message.agendaId === agendaId
                 )
-            )
+            ) {
                 fail("NOTICE_VISIBILITY_INVALID");
+            }
             return { publicMessageId };
+        }
+        case "round_ready": {
+            assertRole(identity, "manager", agendaId);
+            const roundId = stringField(payload, "roundId");
+            const round = state.rounds.find((candidate) => candidate.id === roundId);
+            if (round?.agendaId !== agendaId || !isRoundClosable(state, roundId)) {
+                fail("NOTICE_VISIBILITY_INVALID");
+            }
+            return { roundId };
         }
         default:
             return fail("OUTBOX_ROUTE_UNAVAILABLE");
@@ -214,7 +259,9 @@ function findOwnership(
             candidate.lifecycleStatus === "active" &&
             candidate.capabilityStatus === "active"
     );
-    if (matches.length !== 1) fail("NOTICE_OWNERSHIP_INVALID");
+    if (matches.length !== 1) {
+        fail("NOTICE_OWNERSHIP_INVALID");
+    }
     return matches[0]!;
 }
 
@@ -230,23 +277,32 @@ export const createMeetingNoticeDispatcher = (
 } => ({
     async dispatch({ outboxItem, signal }) {
         const payload = outboxItem.payload as Record<string, unknown>;
-        if (outboxItem.kind !== "dispatch" || payload.kind !== "agent_notice")
+        if (outboxItem.kind !== "dispatch" || payload.kind !== "agent_notice") {
             fail("OUTBOX_ROUTE_UNAVAILABLE");
+        }
         const noticeKind = stringField(payload, "noticeKind");
-        if (!supported.has(noticeKind)) fail("OUTBOX_ROUTE_UNAVAILABLE");
+        if (!supported.has(noticeKind)) {
+            fail("OUTBOX_ROUTE_UNAVAILABLE");
+        }
         const recipientId = stringField(payload, "recipientId");
         const agendaId = stringField(payload, "agendaId");
         const resolve = async () => {
             signal.throwIfAborted();
             const recovered = await dependencies.repository.recover();
             const snapshot = recovered.snapshot;
-            if (!snapshot) throw new NoticeDispatchError("NOTICE_STATE_UNAVAILABLE", true);
-            if (["terminal", "archiving", "archived"].includes(snapshot.state.lifecycle.status))
+            if (!snapshot) {
+                throw new NoticeDispatchError("NOTICE_STATE_UNAVAILABLE", true);
+            }
+            if (["terminal", "archiving", "archived"].includes(snapshot.state.lifecycle.status)) {
                 fail("INVALID_STATE");
-            if (snapshot.state.lifecycle.status !== "running")
+            }
+            if (snapshot.state.lifecycle.status !== "running") {
                 throw new NoticeDispatchError("INVALID_STATE", true);
+            }
             const identity = snapshot.state.identities.find((i) => i.id === recipientId);
-            if (!identity) fail("NOTICE_VISIBILITY_INVALID");
+            if (!identity) {
+                fail("NOTICE_VISIBILITY_INVALID");
+            }
             const ownership = findOwnership(
                 recovered.sessionOwnership,
                 identity,
@@ -268,15 +324,18 @@ export const createMeetingNoticeDispatcher = (
                 d.agentDefinitionId === initial.ownership.definition.agentDefinitionId &&
                 d.definitionVersion === initial.ownership.definition.definitionVersion
         );
-        if (!definition) throw new NoticeDispatchError("RECOVERY_UNAVAILABLE", true);
+        if (!definition) {
+            throw new NoticeDispatchError("RECOVERY_UNAVAILABLE", true);
+        }
         const authorize = async () => {
             const current = await resolve();
             if (
                 current.meetingId !== initial.meetingId ||
                 current.ownership.id !== initial.ownership.id ||
                 current.ownership.sessionId !== initial.ownership.sessionId
-            )
+            ) {
                 fail("NOTICE_OWNERSHIP_INVALID");
+            }
         };
         await dependencies.owner.resume({
             ownership: initial.ownership,
@@ -297,6 +356,8 @@ export const createMeetingNoticeDispatcher = (
             authorize,
             signal
         });
-        if (!flushed) throw new NoticeDispatchError("SESSION_FLUSH_FAILED", true);
+        if (!flushed) {
+            throw new NoticeDispatchError("SESSION_FLUSH_FAILED", true);
+        }
     }
 });

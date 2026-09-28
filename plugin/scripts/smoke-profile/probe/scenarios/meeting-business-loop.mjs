@@ -49,13 +49,16 @@ export const MEETING_BUSINESS_LOOP_ROUNDS = [
 ];
 
 function canonical(value) {
-    if (Array.isArray(value)) return value.map(canonical);
-    if (value && typeof value === "object")
+    if (Array.isArray(value)) {
+        return value.map(canonical);
+    }
+    if (value && typeof value === "object") {
         return Object.fromEntries(
             Object.entries(value)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([k, v]) => [k, canonical(v)])
         );
+    }
     return value;
 }
 
@@ -78,10 +81,14 @@ function reviewerToolSummary(agent) {
             calls.set(String(event.data.callId), { name: event.data.name, args });
             continue;
         }
-        if (event.type !== "tool/result") continue;
+        if (event.type !== "tool/result") {
+            continue;
+        }
         const block = event.data.message.content[0];
         const call = calls.get(String(block?.toolCallId));
-        if (call === undefined) continue;
+        if (call === undefined) {
+            continue;
+        }
         const text = block.content?.find((part) => part.type === "text")?.text;
         let outcome;
         let errorCode;
@@ -290,7 +297,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                         .filter((text) => text.includes("meeting_started"))
                 ).size === 1
         );
-        if (coordinatorRolesIdle && noticesDelivered) break;
+        if (coordinatorRolesIdle && noticesDelivered) {
+            break;
+        }
         await new Promise((resolve) => setTimeout(resolve, 200));
     }
     const roleTurns = Object.fromEntries(
@@ -470,8 +479,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                     .observedMessages(currentReviewer())
                     .flatMap(messageTexts)
                     .some((text) => text.includes('"pending"'))
-            )
+            ) {
                 break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         assert(
@@ -490,7 +500,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                         !knownSessionIds.has(String(agent.id)) &&
                         !workerSessionIds.has(String(agent.id))
                 );
-            if (workers.length >= 2) break;
+            if (workers.length >= 2) {
+                break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         assert(
@@ -498,7 +510,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             `reviewer did not create two one-shot workers for ${roundPlan.id}; observed=${JSON.stringify(runtime.observedAgents().map((agent) => String(agent.id)))}; turns=${JSON.stringify(reviewerTurnSummary(currentReviewer()))}; tools=${JSON.stringify(reviewerToolSummary(currentReviewer()))}`
         );
         const selectedWorkers = workers.slice(0, 2);
-        for (const worker of selectedWorkers) workerSessionIds.add(String(worker.id));
+        for (const worker of selectedWorkers) {
+            workerSessionIds.add(String(worker.id));
+        }
         if (!workerAuthorityVerified) {
             const authorityVersion = (await read()).version;
             for (const [index, selectedWorker] of selectedWorkers.entries()) {
@@ -536,7 +550,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             reviewedView = await read();
             const reviewedVersionIds =
                 reviewedView.evidenceReviews?.map((review) => review.versionId) ?? [];
-            if (versionIds.every((versionId) => reviewedVersionIds.includes(versionId))) break;
+            if (versionIds.every((versionId) => reviewedVersionIds.includes(versionId))) {
+                break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         assert(
@@ -567,8 +583,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 reviewDelivered.evidenceReviews
                     ?.filter((review) => versionIds.includes(review.versionId))
                     .every((review) => sentReviewIds.has(review.id))
-            )
+            ) {
                 break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
         assert(
@@ -589,7 +606,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 lateHandReady = current.rounds
                     .find((round) => round.id === roundId)
                     ?.pendingHandRaises?.some((hand) => hand.contributorId === lateContributorId);
-                if (lateHandReady) break;
+                if (lateHandReady) {
+                    break;
+                }
                 const contributor = await runtime.waitForAgent(ctx, agents["contributor-e"].id);
                 const lateRaise = await callTargetToolResult(
                     ctx,
@@ -754,7 +773,9 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     let archived;
     for (let attempt = 0; attempt < 900; attempt += 1) {
         archived = await read();
-        if (archived.lifecycle.status === "archived") break;
+        if (archived.lifecycle.status === "archived") {
+            break;
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
     }
     assert(

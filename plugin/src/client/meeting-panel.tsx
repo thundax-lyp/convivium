@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 import type { MeetingSummary, MeetingView } from "@/protocol/index.js";
 import type { MeetingTranslate } from "./locales.js";
 import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.js";
-import { SubmissionFeedback } from "./meeting-create-form.js";
+import { SubmissionFeedback } from "./meeting-submission-feedback.js";
 import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
 import {
     INITIAL_FRESHNESS,
@@ -55,7 +55,9 @@ export const ConviviumMeetingPanel = ({
     const controlClient: MeetingClient = {
         ...api,
         control: async (command, signal) => {
-            if (writeLock.current) throw new Error("A user command is already in flight.");
+            if (writeLock.current) {
+                throw new Error("A user command is already in flight.");
+            }
             writeLock.current = true;
             setWritePending(true);
             try {
@@ -76,12 +78,16 @@ export const ConviviumMeetingPanel = ({
         async (meetingId: string) => {
             try {
                 const result = await api.read({ protocolVersion: 1, meetingId });
-                if (selectedRef.current !== meetingId) return;
+                if (selectedRef.current !== meetingId) {
+                    return;
+                }
                 setDetail(result);
                 setDetailFailure(undefined);
                 setFreshness((current) => ({ ...current, detail: "fresh" }));
             } catch (error) {
-                if (selectedRef.current !== meetingId) return;
+                if (selectedRef.current !== meetingId) {
+                    return;
+                }
                 setDetailFailure(classifyFailure(error));
                 setFreshness((current) => ({ ...current, detail: "stale" }));
             }
@@ -108,8 +114,9 @@ export const ConviviumMeetingPanel = ({
             if (
                 refreshGenerationRef.current !== generation ||
                 selectedRef.current !== capturedMeetingId
-            )
+            ) {
                 return;
+            }
             const listSucceeded = listResult.status === "fulfilled";
             const nextMeetings = listSucceeded ? listResult.value.meetings : undefined;
             const selectedStillExists =
@@ -122,7 +129,9 @@ export const ConviviumMeetingPanel = ({
             if (listSucceeded) {
                 setMeetings(listResult.value.meetings);
                 setListFailure(undefined);
-            } else setListFailure(classifyFailure(listResult.reason));
+            } else {
+                setListFailure(classifyFailure(listResult.reason));
+            }
             settledListFreshnessRef.current = listSucceeded ? "fresh" : "stale";
             if (listSucceeded && capturedMeetingId !== undefined && !selectedStillExists) {
                 selectedRef.current = undefined;
@@ -137,10 +146,11 @@ export const ConviviumMeetingPanel = ({
                 if (detailSucceeded) {
                     setDetail(detailResult.value);
                     setDetailFailure(undefined);
-                } else
+                } else {
                     setDetailFailure(
                         classifyFailure((detailResult as PromiseRejectedResult).reason)
                     );
+                }
             }
             let connection = connectionRef.current;
             if (recovery) {
@@ -186,16 +196,22 @@ export const ConviviumMeetingPanel = ({
         };
         const stream = api.subscribeRefresh({
             carrierFailed: () => {
-                if (!stopped) markDisconnected();
+                if (!stopped) {
+                    markDisconnected();
+                }
             },
             generationReopened: () => {
-                if (!stopped && !streamTerminalRef.current) void refreshAll({ recovery: true });
+                if (!stopped && !streamTerminalRef.current) {
+                    void refreshAll({ recovery: true });
+                }
             }
         });
         void (async () => {
             try {
                 for await (const item of stream) {
-                    if (stopped) break;
+                    if (stopped) {
+                        break;
+                    }
                     item.accept();
                     void refreshAll({
                         recovery: connectionRef.current !== "connected"
@@ -231,7 +247,9 @@ export const ConviviumMeetingPanel = ({
     );
     const selectMeeting = useCallback(
         (meetingId: string) => {
-            if (selectedRef.current === meetingId) return;
+            if (selectedRef.current === meetingId) {
+                return;
+            }
             localSubmission.edit();
             refreshGenerationRef.current += 1;
             selectedRef.current = meetingId;
@@ -250,7 +268,9 @@ export const ConviviumMeetingPanel = ({
         [loadDetail, localSubmission.edit]
     );
     const endMeeting = async () => {
-        if (!detail) return;
+        if (!detail) {
+            return;
+        }
         await localSubmission.submit(detail.meetingId, detail.version, {
             kind: "end_meeting",
             outcome: "partial",
@@ -262,7 +282,9 @@ export const ConviviumMeetingPanel = ({
         });
     };
     const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
-        if (!detail) return;
+        if (!detail) {
+            return;
+        }
         await localSubmission.submit(detail.meetingId, detail.version, {
             kind,
             reason:
@@ -273,7 +295,6 @@ export const ConviviumMeetingPanel = ({
     };
     return renderMeetingPanelLayout(
         {
-            client: controlClient,
             localFeedback: (
                 <SubmissionFeedback
                     submission={localSubmission}
@@ -281,15 +302,6 @@ export const ConviviumMeetingPanel = ({
                     t={t}
                 />
             ),
-            createDisabled:
-                freshness.connection !== "connected" || freshness.list !== "fresh" || writePending,
-            onCreated: (meetingId) => {
-                selectMeeting(meetingId);
-                void refreshAll({ recovery: false });
-            },
-            onCommitted: () => {
-                void refreshAll({ recovery: false });
-            },
             locale,
             meetings,
             selectedId: workspace.selectedMeetingId,

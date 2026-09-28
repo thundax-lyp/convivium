@@ -35,9 +35,10 @@ it("accepts only complete peer evidence", () =>
     expect(validateScenarioResult(valid(), "peer-meeting-agents")).toEqual(valid()));
 it.each([
     (value) =>
-        (value.observed.sessionIds.runtime_engineer = value.observed.sessionIds.domain_architect),
+        (value.observed.sessionIds.arxiv_research_analyst =
+            value.observed.sessionIds.github_research_analyst),
     (value) => (value.observed.presetIds.meeting_manager = "convivium"),
-    (value) => value.observed.skills.domain_architect.push("github"),
+    (value) => value.observed.skills.arxiv_research_analyst.push("github"),
     (value) => (value.observed.github.ref = "main"),
     (value) => (value.observed.arxiv.version = "v1"),
     (value) => (value.observed.review.reviewId = ""),

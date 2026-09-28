@@ -21,25 +21,37 @@ function legacyCompatibilityFieldPath(value: unknown, path = "$"): string | unde
     if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) {
             const result = legacyCompatibilityFieldPath(value[i], path + "[" + i + "]");
-            if (result) return result;
+            if (result) {
+                return result;
+            }
         }
         return undefined;
     }
-    if (!record(value)) return undefined;
+    if (!record(value)) {
+        return undefined;
+    }
     for (const key of ["reviewResponsibilityIds", "requiredReviewerIds", "formatApprovals"]) {
-        if (own(value, key)) return path + "." + key;
+        if (own(value, key)) {
+            return path + "." + key;
+        }
     }
     for (const [key, child] of Object.entries(value)) {
         const result = legacyCompatibilityFieldPath(child, path + "." + key);
-        if (result) return result;
+        if (result) {
+            return result;
+        }
     }
     return undefined;
 }
 
 function validateRawMeetingState(value: RecordValue): string | undefined {
     const legacyPath = legacyCompatibilityFieldPath(value);
-    if (legacyPath) return legacyPath;
-    if (!Array.isArray(value.rounds)) return undefined;
+    if (legacyPath) {
+        return legacyPath;
+    }
+    if (!Array.isArray(value.rounds)) {
+        return undefined;
+    }
     for (let i = 0; i < value.rounds.length; i++) {
         const round = value.rounds[i];
         if (
@@ -49,8 +61,9 @@ function validateRawMeetingState(value: RecordValue): string | undefined {
                 !own(round, "abortedAt") ||
                 round.abortReason === undefined ||
                 round.abortedAt === undefined)
-        )
+        ) {
             return `$.rounds[${i}].abortReason`;
+        }
     }
     return undefined;
 }
@@ -67,27 +80,43 @@ function schemaIssuePath(issue: { path: readonly PropertyKey[] }): string {
 }
 
 export function validateMeetingState(value: unknown): MeetingStateValidationResult {
-    if (!record(value)) return fail("$");
+    if (!record(value)) {
+        return fail("$");
+    }
     const rawPath = validateRawMeetingState(value);
-    if (rawPath) return fail(rawPath);
+    if (rawPath) {
+        return fail(rawPath);
+    }
     const parsed = parseMeetingStateShape(value);
-    if (!parsed.success) return fail(schemaIssuePath(parsed.error.issues[0]));
+    if (!parsed.success) {
+        return fail(schemaIssuePath(parsed.error.issues[0]));
+    }
     const parsedState = parsed.data as MeetingState;
     if (
         own(value, "continuation") &&
         (value.continuation === undefined || !record(value.continuation))
-    )
+    ) {
         return fail("$.continuation");
-    if (ownUndefined(parsedState.lifecycle, "reason", "$.lifecycle.reason"))
+    }
+    if (ownUndefined(parsedState.lifecycle, "reason", "$.lifecycle.reason")) {
         return fail("$.lifecycle.reason");
+    }
     const reviewers = parsedState.identities.filter((identity) =>
         identity.roles.includes("evidence_reviewer")
     );
-    if (reviewers.length !== 1) return fail("$.identities");
-    if (parsedState.evidenceReviewerId !== reviewers[0].id) return fail("$.evidenceReviewerId");
+    if (reviewers.length !== 1) {
+        return fail("$.identities");
+    }
+    if (parsedState.evidenceReviewerId !== reviewers[0].id) {
+        return fail("$.evidenceReviewerId");
+    }
     const referencePath = validateMeetingStateReferences(parsedState);
-    if (referencePath) return fail(referencePath);
+    if (referencePath) {
+        return fail(referencePath);
+    }
     const outcomePath = validateMeetingStateOutcomes(value, parsedState);
-    if (outcomePath) return fail(outcomePath);
+    if (outcomePath) {
+        return fail(outcomePath);
+    }
     return { kind: "valid", state: value as unknown as MeetingState };
 }

@@ -165,13 +165,13 @@
 
 1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 用户 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 用户 专属数组。
 2. 当前面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
-3. 当前插件面板作为可信本地用户入口，必须允许创建会议、十项 Captain 控制，以及暂停、恢复、结束；运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
+3. 当前插件面板作为可信本地用户控制入口，只显示当前状态允许的暂停、恢复、结束；会议创建由 MO-FR-18 的聊天 Skill 提供。两者运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
 7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实；状态 projection、Web 接口响应、Client 只读展示和 archive-facing history 必须对同一已提交事实保持一致。
 8. 会议操作可以出现在 DSH 原生工具调用记录中，但这些记录不得替代正式会议状态、transcript 或审计记录。
-9. Meeting Panel 提供用户结构化控制：创建、议题激活/候选处置、Question/Issue 处置、决策接受/替换/撤销、风险处置、完成事实记录/替换/撤销及中止轮次。字段、授权、幂等和失败以统一 MeetingCommand 为准；Contribution 授权和任务重新分配继续只读。自然语言输入和 Agent 草稿不直接执行控制。
+9. 可信本地结构化 Remote 保留议题激活/候选处置、Question/Issue 处置、决策接受/替换/撤销、风险处置、完成事实记录/替换/撤销及中止轮次的 MeetingCommand 契约，Meetings View 不展示这些操作表单。字段、授权、幂等和失败以统一 MeetingCommand 为准；Contribution 授权和任务重新分配继续只读。除 MO-FR-18 的显式 Skill 调用外，自然语言输入和 Agent 草稿不直接执行控制。
 10. 会议状态提交后，通过刷新通知促使面板重新读取完整事实，替换固定 5 秒轮询；通知不携带或替代会议事实。连接恢复、重新聚焦和重新打开后补读完整状态；断线时保留已验证缓存并禁写，完整补读成功后才解除。
 
 ### MO-FR-12：Agent 内部能力边界
@@ -214,17 +214,17 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
    首发能力集合和分配固定为：`meeting-facilitation` 仅分配给 `meeting_manager`；`repository-analysis` 分配给 `domain_architect`、`runtime_engineer`、`protocol_ui_engineer` 和 `verification_reviewer`；`evidence-review` 仅分配给 `verification_reviewer`；`github` 分配给 `github_research_analyst` 和 `verification_reviewer`；`arxiv` 分配给 `arxiv_research_analyst` 和 `verification_reviewer`。`requiredSkillNames` 精确等于各角色获分配的集合；按能力复用 Skill，角色差异只写入其 AGENTS 身份资源。
 4. `toolFilter` 使用 DSH 原生 ToolRestriction，只能收窄从 global 与祖先 scope 继承的工具；当前 Agent scope 自己注册的工具不受此 filter 屏蔽，不能据此授予工具或扩大 DSH/用户权限。Skill 的角色可见性由其 Preset/Skill 组合保证，不能靠 `toolFilter` 或 persona 声称隔离；文件、网络和执行权限仍由 Host policy 管理。
 5. 每个角色的 AGENTS 身份资源声明“我是谁、职责、可用能力与边界”；可复用的任务工作方法放在按能力命名的原生 DSH `SKILL.md` 中。插件在每个平级 Agent 创建的 scoped setup 中读取所选 Definition 引用的角色 AGENTS 资源，并将其显式注册为该 Agent 的身份指令；DSH 按工作目录读取 AGENTS 的原生规则仍由 Host 管理，不能代替这次角色装载。该 Agent 只获分配自己的 Skills。隔离边界是 Agent 的模型上下文、Skill 目录和按名称加载：其中不得出现其他角色的 AGENTS 身份指令或未分配 Skill；发行包中的静态文件不另承诺文件系统保密。AGENTS 中的能力声明、Skill 名称或正文均不授予 Meeting authority 或实际 DSH Tool/Skill 权限；实际能力由该 Agent 的 Preset、Skill 分配与 Host policy 落实。仓库根 AGENTS.md 不是产品角色资源。
-6. Captain 就是本地用户，不是 Agent、MeetingIdentity、Participant 或 Session parent；创建与控制通过可信用户入口执行并以独立 actor 审计。七个会议身份为平级、独立、meeting-owned 的持续 AgentSession，各自选用 Definition/Preset/Skills；Reviewer 仍专职。只有 provisioning 成功后才能调度，动态准入遵循 MO-FR-13。
+6. Captain 就是本地用户，不是 Agent、MeetingIdentity、Participant 或 Session parent；创建与控制通过可信用户入口执行并以独立 actor 审计。Host 配置 `initialContributorRoleIds` 从五个已打包 Contributor 角色中选择至少一个，确定新会议的初始参会贡献者；Manager、专职 Reviewer 与所选 Contributor 持有平级、独立、meeting-owned 的持续 AgentSession。当前部署配置选择 GitHub Research Analyst 和 arXiv Research Analyst，三个工程角色的资源仍保留在发行包中，但不进入按该配置新建的会议，也不接收其初始通知；既有会议保持原绑定。只有 provisioning 成功后才能调度，动态准入遵循 MO-FR-13。
 7. 所有选定角色在第一个会议身份 Session 创建前完成 Definition、各自 AGENTS 身份资源、Preset、required Skill 及角色可见 Skill 集合的预检。缺失资源、版本或内容指纹不匹配、可见集合超出该角色分配时 fail closed，不允许 persona-only、假 Skill、隐藏 Schema 或自建 installer 降级。
 8. 模型默认值直接使用 DSH 配置。Host 可通过独立 `agentModelOverrides` 按 Definition ID 提供必要的 provider/model/reasoningEffort 原生覆盖；Definition 本身不保存这些值。Captain/Manager/HTTP 不可提交任意模型配置。模型覆盖不改变 Definition 内容指纹，实际有效值由 Runtime 的私有 PreparedDescriptor 与 Session ownership 固化，创建和恢复时传给 DSH Agent。
-9. Captain 创建请求必须为七个初始身份分别选择精确的 Definition ID 和 version；当前范围不提供无 Definition 的初始身份路径。未知定义、版本不匹配、角色不匹配、Definition 引用的 Preset/Skill 不可用、角色能力集合不匹配或非法 Host 绑定不得静默回退。
+9. Captain 创建请求必须为 Manager、Reviewer 和配置选中的每个初始 Contributor 分别选择精确的 Definition ID 和 version；当前范围不提供无 Definition 的初始身份路径。未知定义、版本不匹配、角色不匹配、Definition 引用的 Preset/Skill 不可用、角色能力集合不匹配或非法 Host 绑定不得静默回退。
 10. MeetingState 的身份 provenance 只持久化 Definition ID、版本和内容指纹；Repository 的私有 Session ownership 另固化恢复所需的 AGENTS/Preset/Skill 资源指纹、toolFilter 对应的组合指纹与创建时有效的 provider/model/reasoningEffort，不把正文或凭据放入 MeetingState。DSH Session header 记录所选 Preset ID；插件在冷恢复的 `resume` scoped setup 中按已固化的 Definition 与资源版本重新装配并核对 AGENTS、Preset、Skill、toolFilter 和有效模型，不能假定 DSH 会持久化 scoped 指令与限制的可重装配置。既有会议不得使用当前默认 Definition、角色资源或 Host override 重配，不因配置变化改写已有身份；精确资源或 Session 不可用时 fail closed，不以新定义补建。公开 status/archive 不泄露模型覆盖、角色私有正文或 Skill 正文。
-11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：同一会议的一位 Manager 和六个非 Manager 角色身份均作为平级 Agent 创建成功，分别使用其 Definition 引用的 Preset；七个 Session 的原生 skill 目录只显示各自分配的 Skills，能加载所需正文且不能加载未分配的 Skill。GitHub/arXiv 研究角色的真实搜索与抓取可用；Evidence Reviewer 的专用 Definition 能使用 Host-approved 读取材料、代码核验、Web/GitHub/arXiv 查询与运行验证能力，并能通过原生 workers 并发审核；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。具体工具清单由版本化 Definition 与 Host 配置拥有，不以工具数量作为验收。
+11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：按当前部署配置，同一新会议的一位 Manager、两位 Research Analyst 和一位 Reviewer 作为四个平级 Agent 创建成功，分别使用其 Definition 引用的 Preset；四个 Session 的原生 skill 目录只显示各自分配的 Skills，能加载所需正文且不能加载未分配的 Skill。三个暂不参与的工程角色资源仍可装载，但不创建本会议 Session。GitHub/arXiv 研究角色的真实搜索与抓取可用；Evidence Reviewer 的专用 Definition 能使用 Host-approved 读取材料、代码核验、Web/GitHub/arXiv 查询与运行验证能力，并能通过原生 workers 并发审核；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。具体工具清单由版本化 Definition 与 Host 配置拥有，不以工具数量作为验收。
 12. 初次发布直接采用新契约，不读取或迁移未发布的旧 Definition/schema 样本。差异化插件安装、热切换、完整 Agent 配置平台和日常 profile 改写不属于首发范围。首发模型与上述部署验收全部通过后，MO-FR-14 才可标为已实现。
-13. 七个平级 Meeting Agent 和 Meeting Runtime 投递不得依赖用户输入 Session 常驻；输入 Session 关闭时，已授权会议工作仍按 lifecycle、ownership 与 outbox 继续，不重挂 child、不丢弃待投递效果。
+13. 平级 Meeting Agent 和 Meeting Runtime 投递不得依赖用户输入 Session 常驻；输入 Session 关闭时，已授权会议工作仍按 lifecycle、ownership 与 outbox 继续，不重挂 child、不丢弃待投递效果。
 14. Captain 是当前本地用户，能够管理当前 Host 中多场 Meeting；可信用户入口按每个请求验证 Meeting、版本、幂等与领域前置。原输入 Session 无需恢复，权限不绑定 Session；Agent 不能冒用用户控制身份，Session 来源仅用于审计。
 15. Meeting Agent 之间的正式交流必须经 Meeting Runtime 的会议操作、授权校验和可审计记录进行。即使 DSH 提供 Agent 间直接消息能力，Convivium 也不得为这些会议身份开放绕过 Meeting Runtime、会议记录或可见性规则的直接互发消息路径。
-16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务，不注册 Captain Agent tools；每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
+16. 首发完整提供用户结构化 create、activate_agenda、dispose_agenda_candidate、resolve_question、dispose_issue、abort_round、decide、change_decision、dispose_risk、record_completion_fact、change_completion_fact 和既有 pause/resume/end。统一可信用户入口与 MeetingCommand 事务；除 MO-FR-18 的一次性会议创建授权外，不注册 Captain Agent tools。每项保留领域前置、幂等及可审计事实，用户不提交 Contributor 贡献。
 
 ### MO-FR-15：Developer Markdown Projection
 
@@ -254,7 +254,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和泳道折叠；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
-5. 共享 Header 显示 controls 允许的暂停、继续、结束；概览和列表的用户控制入口依 MO-FR-11 提供创建及十项控制。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。
+5. 共享 Header 显示 controls 允许的暂停、继续、结束；概览只展示已提交事实，列表只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。
 6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review、MeetingTask 和技术标识。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以 Captain、Manager、Contributor、Reviewer 和系统五类泳道展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线只能使用 Meeting Interface 已有时间和身份字段。活动 Meeting 只从顶层 caller-filtered projection 建立节点；归档 Meeting 只从完整 `ArchiveView` 建立历史节点，并必须纳入其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态。
@@ -266,6 +266,14 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘可以遍历节点和相邻泳道；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
 15. Meetings View 的新增标签、筛选、空状态、错误、ARIA 文案和已知 enum label 继续遵守 MO-FR-16 的 `zh`、`en` 本地化与原文保持边界；时间使用 DSH/Host 的 locale 与时区格式，不得从格式化结果反推字段。
 16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
+
+### MO-FR-18：聊天框启动会议
+
+1. 本地用户在普通 DSH Conversation 输入 `/convivium <会议目标>` 时，Host 装载已部署的、仅可由用户显式调用的 `convivium` Skill。目标是斜杠命令后的原始用户文字；普通消息、Agent 文本和会议身份消息不得触发创建授权。
+2. 有非空目标时，Skill 经仅对该次直接用户调用有效的创建方法，直接创建一场 Meeting，并返回 `meetingId`；不要求用户先打开 Meetings View、填写结构化表单或再次确认。提交失败时明确返回失败，不宣称会议已创建。
+3. 用户未提供的初始身份、角色 Definition、议题、目标产出、验收条件、风险等级和会议时限由产品按 Meeting Interface 的固定规则补齐；用户无需逐项填写。没有可识别的会议目标时才追问。自动补齐不得预先标记任何产出已完成，也不得绕过创建预检或领域约束。
+4. 该授权只允许创建一场与本次用户目标绑定的 Meeting，不授予 Agent 其他 Captain 控制、代用户决定风险或跨 Meeting 访问权。创建后的初始 Meeting Agent 按平级 Session 与授权投递运行，用户输入 Session 可以关闭。
+5. Meetings View 用于导航和控制已创建会议，不展示另一个创建入口；既有结构化 `create_meeting` Remote 契约可供可信本地用户集成调用。
 
 ## Collaborative Problem Solving
 
@@ -379,7 +387,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽当前 Agent scope 自己注册的工具，也不是操作系统资源隔离机制；Definition、AGENTS 身份声明、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；自然语言推荐不创建 Session，结构化 `admit` 意图也必须等待独立 Session provisioning 和 durable ownership 成功后才能形成可调度 Participant。
 38. DSH 版本不是精确 `0.1.2-rc.1`，或已选择的 Definition、各角色 Preset、required Skill、Skill 可见集合、必需 lifecycle capability 无法解析和验证时，在第一个会议身份 Session 创建前拒绝；部分 Session 创建失败时撤销其会议权限并清理已创建的会议身份 Session，不发布 ready Meeting。不得将版本或能力缺口降级为 persona-only，也不得使用 Convivium installer workaround。
-39. 发布包内七个启用角色在同一会议中形成七个平级、独立的 AgentSession，各自装载自己的 AGENTS 身份资源并使用选定 Preset；模型上下文不出现其他角色的身份指令，原生 skill 工具只列出并加载该角色分配的 Skills，跨角色未分配 Skill 不可见且不可加载。GitHub/arXiv 两类研究角色的真实搜索与抓取可用，唯一专职 Evidence Reviewer 能取得待审集合并通过 DSH 原生 workers 并发审核。工具限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与身份指令/toolFilter 经 Host 冷重启保持，用户输入 Session 不受影响；目录或样本存在不能替代这些验收。
+39. 发布包内保留七个角色资源；新会议只为 Manager、Reviewer 和 Host 配置选中的 Contributor 创建平级、独立的 AgentSession，未选中的角色不创建初始 Session、不接收初始通知。当前部署配置选中 GitHub Research Analyst 和 arXiv Research Analyst。已创建的 Agent 各自装载自己的 AGENTS 身份资源并使用选定 Preset；模型上下文不出现其他角色的身份指令，原生 skill 工具只列出并加载该角色分配的 Skills，跨角色未分配 Skill 不可见且不可加载。GitHub/arXiv 两类研究角色的真实搜索与抓取可用，唯一专职 Evidence Reviewer 能取得待审集合并通过 DSH 原生 workers 并发审核。工具限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与身份指令/toolFilter 经 Host 冷重启保持，用户输入 Session 不受影响；目录或样本存在不能替代这些验收。
 40. meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。
 42. 新 Meeting commit 后，`current.md` 的 `sourceMeetingVersion` 等于该 committed `MeetingSnapshot.version`，并且只包含 Developer Markdown interface 白名单字段。
@@ -400,8 +408,10 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 57. 普通 Participant、用户、Manager 和 Reviewer 分别只能在概览、时间线、筛选数量和定位结果中观察其 caller-filtered projection；筛选为空或目标不可见时不泄露其他对象是否存在。
 58. 在窄屏下 Navigator 通过按钮与抽屉操作同一个选择状态，Workspace 占满抽屉外内容区，时间线保持可水平滚动的五类泳道；键盘可以按时间访问节点，定位后焦点与可访问文本落在目标卡片。
 59. `zh`、`en` 下新增 View Switcher、Navigator、Timeline、筛选、失败状态和 ARIA 文案均完整本地化，用户或 Agent 内容保持原文；真实 DSH Web profile 中切换 locale 无需重新注册 View 或刷新页面。
-60. 用户输入 Session 关闭后，七个平级 Agent 仍接收授权投递并推进会议；用户重开面板或 Host 重启后仍能控制，不要求恢复原 Session。任一 Agent 冒充用户控制都被拒绝；Agent 间绕过 Runtime 的内容不形成正式会议事实。
-61. 七个角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 的精确版本与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议。
+60. 用户输入 Session 关闭后，已创建的平级 Agent 仍接收授权投递并推进会议；用户重开面板或 Host 重启后仍能控制，不要求恢复原 Session。任一 Agent 冒充用户控制都被拒绝；Agent 间绕过 Runtime 的内容不形成正式会议事实。
+61. 被选入初始会议的角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 的精确版本与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议；三个暂不参与角色的资源保留在发行包。
+62. 在真实本地 DSH Web Conversation 中输入 `/convivium 调查TypeSafe JEV的最新进展`，不操作 Meetings View 表单即可得到已提交的 `meetingId`，其 objective 保留用户目标，Manager、Reviewer、Host 配置选中的 Contributor 与一个 pending active 议题齐全；当前部署配置下两个研究角色参会、三个工程角色未进入会议，且会议启动后的投递不依赖输入 Session 常驻。
+63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
 
 ## Related Documents
 

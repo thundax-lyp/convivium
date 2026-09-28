@@ -52,13 +52,18 @@ export const CORE_SCENARIOS = [
 ];
 
 export function selectScenarios(args, scenario, browserMode) {
-    if (args.some((arg) => !["--all", "--json"].includes(arg)))
+    if (args.some((arg) => !["--all", "--json"].includes(arg))) {
         throw new Error("Usage: smoke:profile [--all] [--json]");
-    if (args.includes("--all") && scenario)
+    }
+    if (args.includes("--all") && scenario) {
         throw new Error("--all cannot be combined with a scenario.");
-    if (scenario && !SMOKE_SCENARIOS.includes(scenario))
+    }
+    if (scenario && !SMOKE_SCENARIOS.includes(scenario)) {
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
-    if (browserMode) throw new Error("Browser smoke is not implemented for the target runtime.");
+    }
+    if (browserMode) {
+        throw new Error("Browser smoke is not implemented for the target runtime.");
+    }
     return scenario
         ? [scenario]
         : args.includes("--all")
@@ -67,7 +72,9 @@ export function selectScenarios(args, scenario, browserMode) {
 }
 
 export async function resolveSmokeStoragePath(value, scenarios) {
-    if (value === undefined || value === "") return undefined;
+    if (value === undefined || value === "") {
+        return undefined;
+    }
     if (scenarios.length !== 1 || scenarios[0] !== "meeting-business-loop") {
         throw new Error(
             "CONVIVIUM_SMOKE_STORAGE_PATH requires the meeting-business-loop selector."
@@ -114,7 +121,9 @@ function runCommand(command, args, options = {}) {
         let stderr = "";
         let settled = false;
         const timeout = setTimeout(() => {
-            if (settled) return;
+            if (settled) {
+                return;
+            }
             child.kill("SIGTERM");
             setTimeout(() => child.kill("SIGKILL"), 5000).unref();
             rejectCommand(new Error(`${command} ${args.join(" ")} timed out.`));
@@ -160,7 +169,9 @@ async function pathExists(path) {
 }
 
 async function createRecordRoot(recordDirectory) {
-    if (recordDirectory === undefined || recordDirectory === "") return undefined;
+    if (recordDirectory === undefined || recordDirectory === "") {
+        return undefined;
+    }
     const resolved = resolve(recordDirectory);
     const details = await stat(resolved).catch(() => undefined);
     if (!details?.isDirectory()) {
@@ -181,7 +192,9 @@ async function copyRecordedText(source, destination, deepSeekApiKey) {
 }
 
 export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
-    if (recordRoot === undefined) return;
+    if (recordRoot === undefined) {
+        return;
+    }
     const files = [
         [result.dumpConfig, "dump-config.yml"],
         ...(["meeting-business-loop", "peer-meeting-agents"].includes(result.scenario)
@@ -206,7 +219,9 @@ export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
 }
 
 export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
-    if (recordRoot === undefined) return;
+    if (recordRoot === undefined) {
+        return;
+    }
     await mkdir(recordRoot, { recursive: true });
     const summary = {
         ...result,
@@ -315,6 +330,7 @@ export async function writeSmokePatch(path, _scenario, storagePath) {
         "  config:",
         `    provider: ${PROVIDER}`,
         `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
+        '    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"]',
         `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`,
         "    maxParticipants: 3",
         "    speakerTimeoutMs: 60000",
@@ -334,7 +350,7 @@ async function writeProbePackage(probeDir) {
                 version: "0.0.0",
                 private: true,
                 type: "module",
-                main: "index.js",
+                main: "index.mjs",
                 dependencies: {
                     "@deepseek-ai/dsh-subagent": DSH_VERSION,
                     "@deepseek-ai/dsh-llm": DSH_VERSION,
@@ -401,8 +417,9 @@ async function dumpConfig(env, patchPath, logsDir, roleAssetRoot, storagePath) {
             throw new Error(`dump-config did not include ${expected}.`);
         }
     }
-    if (/convivium-jsonl|dataRoot/.test(result.stdout))
+    if (/convivium-jsonl|dataRoot/.test(result.stdout)) {
         throw new Error("dump-config contains obsolete Convivium storage configuration.");
+    }
     return dumpPath;
 }
 
@@ -447,7 +464,9 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
     let ready = false;
     const earlyExit = new Promise((_, rejectEarly) => {
         bootProcess.once("exit", (code, signal) => {
-            if (ready) return;
+            if (ready) {
+                return;
+            }
             rejectEarly(
                 new Error(
                     `DSH host exited before readiness: ${code ?? signal}.\n` +
@@ -467,16 +486,21 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRo
 async function waitForJson(path, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-        if (bootProcess && (bootProcess.exitCode !== null || bootProcess.signalCode !== null))
+        if (bootProcess && (bootProcess.exitCode !== null || bootProcess.signalCode !== null)) {
             throw new Error(
                 `DSH Host exited before probe result: ${bootProcess.exitCode ?? bootProcess.signalCode}`
             );
+        }
         if (await pathExists(path)) {
             try {
                 const content = await readFile(path, "utf8");
-                if (content.trim() !== "") return JSON.parse(content);
+                if (content.trim() !== "") {
+                    return JSON.parse(content);
+                }
             } catch (error) {
-                if (!(error?.code === "ENOENT" || error instanceof SyntaxError)) throw error;
+                if (!(error?.code === "ENOENT" || error instanceof SyntaxError)) {
+                    throw error;
+                }
             }
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 250));
@@ -485,10 +509,14 @@ async function waitForJson(path, timeoutMs) {
 }
 
 async function stopHost() {
-    if (bootProcess === undefined) return;
+    if (bootProcess === undefined) {
+        return;
+    }
     const child = bootProcess;
     bootProcess = undefined;
-    if (child.exitCode !== null || child.signalCode !== null) return;
+    if (child.exitCode !== null || child.signalCode !== null) {
+        return;
+    }
     await new Promise((resolveStop) => {
         const timeout = setTimeout(() => {
             child.kill("SIGKILL");
@@ -504,7 +532,9 @@ async function stopHost() {
 
 async function restore(root = tempRoot) {
     await stopHost();
-    if (root === undefined) return;
+    if (root === undefined) {
+        return;
+    }
     const resolvedTempRoot = resolve(root);
     if (!resolvedTempRoot.startsWith(resolve(tmpdir()) + sep)) {
         throw new Error(`Refusing to remove non-temporary smoke root: ${resolvedTempRoot}`);
@@ -676,7 +706,9 @@ export async function assertPortReleased(port) {
             );
             return;
         } catch (error) {
-            if (error?.code !== "EADDRINUSE" || Date.now() >= deadline) throw error;
+            if (error?.code !== "EADDRINUSE" || Date.now() >= deadline) {
+                throw error;
+            }
             await new Promise((resolveWait) => setTimeout(resolveWait, 100));
         }
     }
@@ -712,12 +744,13 @@ async function main() {
                 if (recordRoot !== undefined && tempRoot !== undefined) {
                     for (const file of ["boot.stdout.log", "boot.stderr.log", "dump-config.yml"]) {
                         const source = join(tempRoot, "logs", file);
-                        if (await pathExists(source))
+                        if (await pathExists(source)) {
                             await copyRecordedText(
                                 source,
                                 join(recordRoot, scenario, "failure", file),
                                 deepSeekApiKey
                             );
+                        }
                     }
                     await writeScenarioRecord(
                         join(recordRoot, scenario),
@@ -738,17 +771,20 @@ async function main() {
                 result,
                 deepSeekApiKey
             );
-            if (args.includes("--json"))
+            if (args.includes("--json")) {
                 console.log(
                     JSON.stringify({ ...result, restore: "PASS", durationMs: Date.now() - start })
                 );
-            else console.log(`PASS ${scenario} ${Date.now() - start}ms restore=PASS`);
+            } else {
+                console.log(`PASS ${scenario} ${Date.now() - start}ms restore=PASS`);
+            }
         }
     } finally {
         await restore(buildRoot);
     }
-    if (!args.includes("--json"))
+    if (!args.includes("--json")) {
         console.log(`PASS ${scenarios.length} scenarios ${Date.now() - started}ms (one build)`);
+    }
 }
 
 const isMain =

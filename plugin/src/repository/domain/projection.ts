@@ -52,8 +52,9 @@ export function createProjection(input: {
     readonly sessionOwnership: Readonly<Record<string, SessionOwnership>>;
 }): PersistenceProjection {
     const maps = emptyMaps();
-    for (const [key, value] of Object.entries(input.sessionOwnership))
+    for (const [key, value] of Object.entries(input.sessionOwnership)) {
         maps.sessionOwnership[key] = value;
+    }
     return PersistenceProjectionSchema.parse({
         formatVersion: 2,
         snapshot: input.snapshot,
@@ -66,15 +67,17 @@ export function createProjection(input: {
 
 export function encodeProjection(projection: PersistenceProjection): Uint8Array {
     const bytes = encodeCanonicalJson(PersistenceProjectionSchema.parse(projection));
-    if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES)
+    if (bytes.byteLength > MAX_APPLICATION_CHECKPOINT_BYTES) {
         throw new RangeError("checkpoint projection is too large");
+    }
     return bytes;
 }
 
 export function decodeProjection(bytes: Uint8Array): PersistenceProjection {
     const value = decodeCanonicalJson(bytes);
-    if (value && typeof value === "object" && !Array.isArray(value) && value.formatVersion !== 2)
+    if (value && typeof value === "object" && !Array.isArray(value) && value.formatVersion !== 2) {
         throw new UnsupportedMeetingStateFormatError(value.formatVersion);
+    }
     const projection = PersistenceProjectionSchema.parse(value);
     const state = projection.snapshot?.state;
     if (state === undefined || !Object.prototype.hasOwnProperty.call(state, "formatVersion")) {
@@ -93,13 +96,16 @@ function verifyCommitRecord(record: CommitRecord): void {
         record.seq < 1 ||
         !Number.isSafeInteger(record.previousSeq) ||
         record.previousSeq < 0
-    )
+    ) {
         throw new Error("invalid commit sequence");
+    }
     const { digest, ...withoutDigest } = record;
-    if (sha256Hex(encodeCanonicalJson(withoutDigest)) !== digest)
+    if (sha256Hex(encodeCanonicalJson(withoutDigest)) !== digest) {
         throw new Error("invalid commit digest");
-    if (encodeCanonicalJson(record).byteLength > MAX_COMMIT_VALUE_BYTES)
+    }
+    if (encodeCanonicalJson(record).byteLength > MAX_COMMIT_VALUE_BYTES) {
         throw new RangeError("commit is too large");
+    }
 }
 
 export function createCommitRecord(input: Omit<CommitRecord, "digest">): CommitRecord {
@@ -120,23 +126,30 @@ export function foldCommitTail(input: {
         a < b ? -1 : a > b ? 1 : 0
     )) {
         verifyCommitRecord(commit);
-        if (commit.seq <= input.baseSeq) continue;
+        if (commit.seq <= input.baseSeq) {
+            continue;
+        }
         if (
             key !== seqKey(commit.seq) ||
             commit.seq !== (previous ? previous.seq + 1 : input.baseSeq + 1) ||
             commit.previousSeq !== commit.seq - 1
-        )
+        ) {
             throw new Error("invalid commit chain");
+        }
         const expectedDigest =
             previous?.digest ??
             (input.baseProjection ? projectionDigest(input.baseProjection) : null);
-        if (commit.previousDigest !== expectedDigest) throw new Error("invalid commit predecessor");
+        if (commit.previousDigest !== expectedDigest) {
+            throw new Error("invalid commit predecessor");
+        }
         const source: JsonValue =
             projection === null ? null : decodeCanonicalJson(encodeProjection(projection));
         projection = decodeProjection(encodeCanonicalJson(applyPatch(source, commit.patch)));
         previous = commit;
     }
-    if (!projection) throw new Error("missing projection");
+    if (!projection) {
+        throw new Error("missing projection");
+    }
     return projection;
 }
 
@@ -150,8 +163,9 @@ export function loadProjection(input: { readonly domain: MeetingDomain }): Persi
             !root ||
             root.baseSeq !== pointer.baseSeq ||
             sha256Hex(encodeCanonicalJson(root)) !== pointer.rootDigest
-        )
+        ) {
             throw new Error("invalid checkpoint root");
+        }
         const pages: Uint8Array[] = [];
         for (let index = 0; index < root.pageCount; index++) {
             const page = input.domain
@@ -163,20 +177,23 @@ export function loadProjection(input: { readonly domain: MeetingDomain }): Persi
                 page.pageCount !== root.pageCount ||
                 page.baseSeq !== root.baseSeq ||
                 page.generation !== root.generation
-            )
+            ) {
                 throw new Error("invalid checkpoint page");
+            }
             const bytes = Uint8Array.from(Buffer.from(page.payloadBase64, "base64"));
             if (
                 sha256Hex(bytes) !== page.payloadDigest ||
                 bytes.byteLength > CHECKPOINT_PAGE_RAW_BYTES ||
                 (index < root.pageCount - 1 && bytes.byteLength !== CHECKPOINT_PAGE_RAW_BYTES)
-            )
+            ) {
                 throw new Error("invalid checkpoint page");
+            }
             pages.push(bytes);
         }
         const bytes = Uint8Array.from(pages.flatMap((page) => [...page]));
-        if (bytes.byteLength !== root.totalBytes || sha256Hex(bytes) !== root.projectionDigest)
+        if (bytes.byteLength !== root.totalBytes || sha256Hex(bytes) !== root.projectionDigest) {
             throw new Error("invalid checkpoint projection");
+        }
         baseProjection = decodeProjection(bytes);
         baseSeq = root.baseSeq;
     }

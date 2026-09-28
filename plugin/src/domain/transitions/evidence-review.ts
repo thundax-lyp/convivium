@@ -48,6 +48,7 @@ type DeliveryInput = {
     now: number;
 };
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import { roundReadyNotice } from "./round.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
@@ -102,25 +103,31 @@ export function claimEvidenceReview(
         !valid(input.now) ||
         !Number.isSafeInteger(input.expiresAt) ||
         input.expiresAt <= input.now
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid evidence review claim input");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return reject(state, "INVALID_STATE", "meeting is not running");
+    }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round || round.status !== "open")
+    if (!round || round.status !== "open") {
         return reject(state, "INVALID_STATE", "round is not open");
+    }
     const activeClaims = state.reviewClaims.filter((claim) => claim.expiresAt > input.now);
-    if (activeClaims.some((claim) => claim.versionId === input.versionId))
+    if (activeClaims.some((claim) => claim.versionId === input.versionId)) {
         return reject(state, "REVIEWER_CONFLICT", "evidence already has an active review claim");
-    if (state.reviewClaims.some((claim) => claim.id === input.claimId))
+    }
+    if (state.reviewClaims.some((claim) => claim.id === input.claimId)) {
         return reject(state, "INVALID_ARGUMENT", "review claim id already exists");
+    }
     const reviewer = state.identities.find((identity) => identity.id === input.reviewerId);
     if (
         input.reviewerId !== state.evidenceReviewerId ||
         reviewer?.roles.length !== 1 ||
         reviewer.roles[0] !== "evidence_reviewer"
-    )
+    ) {
         return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
+    }
     const pkg = state.evidencePackages.find(
         (candidate) => candidate.currentVersionId === input.versionId
     );
@@ -135,8 +142,9 @@ export function claimEvidenceReview(
                 registration.versionId === input.versionId && registration.status === "complete"
         ) ||
         state.reviews.some((review) => review.versionId === input.versionId)
-    )
+    ) {
         return reject(state, "REVIEWER_CONFLICT", "evidence version is unavailable");
+    }
     return {
         kind: "accepted",
         state: {
@@ -176,16 +184,18 @@ export function submitEvidenceReview(
         !valid(input.now) ||
         !input.reviewId.trim() ||
         !input.versionId.trim()
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid evidence review input");
+    }
     const reviewer = state.identities.find((candidate) => candidate.id === input.reviewerId);
     if (
         input.reviewerId !== state.evidenceReviewerId ||
         reviewer === undefined ||
         reviewer.roles.length !== 1 ||
         reviewer.roles[0] !== "evidence_reviewer"
-    )
+    ) {
         return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
+    }
     const claim = state.reviewClaims.find(
         (candidate) =>
             candidate.id === input.claimId &&
@@ -194,9 +204,12 @@ export function submitEvidenceReview(
             candidate.versionId === input.versionId &&
             candidate.expiresAt > input.now
     );
-    if (!claim) return reject(state, "REVIEWER_CONFLICT", "evidence review claim is invalid");
-    if (state.reviews.some((review) => review.versionId === input.versionId))
+    if (!claim) {
+        return reject(state, "REVIEWER_CONFLICT", "evidence review claim is invalid");
+    }
+    if (state.reviews.some((review) => review.versionId === input.versionId)) {
         return reject(state, "REVIEWER_CONFLICT", "evidence review is duplicated");
+    }
     const pkg = state.evidencePackages.find((candidate) =>
         candidate.versions.some((version) => version.id === input.versionId)
     );
@@ -215,8 +228,9 @@ export function submitEvidenceReview(
                 registration.versionId === input.versionId && registration.status === "complete"
         ) ||
         !validDimensions(state, input.roundId, input.dimensions)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "evidence review is invalid");
+    }
     const review: EvidenceReview = {
         id: input.reviewId,
         versionId: input.versionId,
@@ -259,12 +273,15 @@ export function failEvidenceValidation(
         !input.roundId.trim() ||
         !["review_timeout", "review_interrupted", "dispatch_failed"].includes(input.reason) ||
         !valid(input.now)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid review claim release");
+    }
     const claim = state.reviewClaims.find(
         (candidate) => candidate.id === input.claimId && candidate.roundId === input.roundId
     );
-    if (!claim) return reject(state, "NOT_FOUND", "review claim not found", input.claimId);
+    if (!claim) {
+        return reject(state, "NOT_FOUND", "review claim not found", input.claimId);
+    }
     return {
         kind: "accepted",
         state: {
@@ -295,23 +312,30 @@ export function recordReviewDelivery(
         !valid(input.now) ||
         (input.status === "failed" && !input.failureReason?.trim()) ||
         (input.status === "sent" && input.failureReason !== undefined)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid review delivery");
+    }
     const review = state.reviews.find((candidate) => candidate.id === input.reviewId);
-    if (!review) return reject(state, "NOT_FOUND", "review not found");
-    if (state.reviewDeliveries.some((delivery) => delivery.id === input.deliveryId))
+    if (!review) {
+        return reject(state, "NOT_FOUND", "review not found");
+    }
+    if (state.reviewDeliveries.some((delivery) => delivery.id === input.deliveryId)) {
         return reject(state, "INVALID_ARGUMENT", "delivery id already exists");
+    }
     if (
         input.status === "sent" &&
         state.reviewDeliveries.some(
             (delivery) => delivery.reviewId === input.reviewId && delivery.status === "sent"
         )
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED", "review already sent");
+    }
     const packageValue = state.evidencePackages.find((candidate) =>
         candidate.versions.some((version) => version.id === review.versionId)
     );
-    if (!packageValue) return reject(state, "INVALID_STATE", "review package is missing");
+    if (!packageValue) {
+        return reject(state, "INVALID_STATE", "review package is missing");
+    }
     const delivery =
         input.status === "sent"
             ? {
@@ -329,24 +353,25 @@ export function recordReviewDelivery(
                   failedAt: input.now,
                   failureReason: input.failureReason!
               };
+    const next: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        contributions:
+            input.status === "sent"
+                ? state.contributions.map((contribution) =>
+                      contribution.packageId === packageValue.id &&
+                      contribution.status === "under_review"
+                          ? { ...contribution, status: "awaiting_response" as const }
+                          : contribution
+                  )
+                : state.contributions,
+        reviewDeliveries: [...state.reviewDeliveries, delivery]
+    };
     return {
         kind: "accepted",
-        state: {
-            ...state,
-            version: state.version + 1,
-            updatedAt: input.now,
-            contributions:
-                input.status === "sent"
-                    ? state.contributions.map((contribution) =>
-                          contribution.packageId === packageValue.id &&
-                          contribution.status === "under_review"
-                              ? { ...contribution, status: "awaiting_response" as const }
-                              : contribution
-                      )
-                    : state.contributions,
-            reviewDeliveries: [...state.reviewDeliveries, delivery]
-        },
+        state: next,
         relatedIds: [delivery.id, delivery.reviewId],
-        effectRequests: []
+        effectRequests: roundReadyNotice(state, next, packageValue.roundId)
     };
 }

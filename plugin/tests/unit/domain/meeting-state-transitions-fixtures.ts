@@ -116,7 +116,7 @@ export function terminalState(status: "terminal" | "archiving" | "archived"): Me
         unresolvedIssueIds: [],
         unclosedContributionIds: []
     };
-    if (status !== "terminal")
+    if (status !== "terminal") {
         current.archive = {
             id: "archive-1",
             status: "complete",
@@ -147,6 +147,7 @@ export function terminalState(status: "terminal" | "archiving" | "archived"): Me
             identityProvenance: [],
             exportMaterials: []
         };
+    }
     return current;
 }
 

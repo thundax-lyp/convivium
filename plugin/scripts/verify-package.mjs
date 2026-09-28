@@ -41,8 +41,6 @@ const requiredArtifacts = [
     "lib/typert.remote-client.d.ts",
     "lib/remote/types.js",
     "lib/types/remote/types.d.ts",
-    "lib/protocol/types.js",
-    "lib/types/protocol/types.d.ts",
     "cordis.patch.yml",
     "config/definitions.json",
     "config/README.md",
@@ -69,17 +67,14 @@ const expectedExports = {
         types: "./lib/types/remote/types.d.ts",
         default: "./lib/remote/types.js"
     },
-    "./protocol-types": {
-        types: "./lib/types/protocol/types.d.ts",
-        default: "./lib/protocol/types.js"
-    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
     "./config/cordis.patch.yml": "./config/cordis.patch.yml"
 };
 const forbiddenPublishedPaths = files.filter((path) => /^(src|tests|docs)(\/|$)|\*\*/.test(path));
-if (existsSync(resolve(packageRoot, "storage-plugin")))
+if (existsSync(resolve(packageRoot, "storage-plugin"))) {
     forbiddenPublishedPaths.push("storage-plugin");
+}
 const missingArtifacts = requiredArtifacts.filter(
     (path) => !existsSync(resolve(packageRoot, path))
 );

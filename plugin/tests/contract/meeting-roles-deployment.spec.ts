@@ -166,6 +166,9 @@ describe("native deployment patch composition", () => {
   config:
     provider: spawn
     maxParticipants: 8
+    initialContributorRoleIds:
+      - github_research_analyst
+      - arxiv_research_analyst
     speakerTimeoutMs: 300000
     outboxPollMs: 1000
     agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions"
@@ -206,6 +209,7 @@ describe("native deployment patch composition", () => {
             expect(meeting).toEqual({
                 provider: "spawn",
                 maxParticipants: 8,
+                initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"],
                 speakerTimeoutMs: 300000,
                 outboxPollMs: 1000,
                 agentDefinitions: deployed.definitions

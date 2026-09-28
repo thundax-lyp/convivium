@@ -10,7 +10,6 @@
         "rootDir": "src",
         "paths": {
             "@/*": ["./src/*"],
-            "@convivium/dsh-plugin/protocol-types": ["./src/protocol/types.ts"],
             "@convivium/dsh-plugin/remote-types": ["./src/remote/types.ts"]
         },
         "types": ["node"],

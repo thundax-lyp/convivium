@@ -27,8 +27,9 @@ describe("domain projection", () => {
             sessionOwnership: {}
         });
         expect(p.nextEventSeq).toBe(1);
-        for (const map of [p.receipts, p.events, p.outbox, p.sessionOwnership, p.privateMail])
+        for (const map of [p.receipts, p.events, p.outbox, p.sessionOwnership, p.privateMail]) {
             expect(Object.getPrototypeOf(map)).toBeNull();
+        }
     });
     it("encodes and decodes a deterministic null-prototype projection", () => {
         const p = createProjection({

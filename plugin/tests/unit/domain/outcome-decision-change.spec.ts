@@ -18,7 +18,9 @@ describe("decision change corrective gates", () => {
             actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
         });
-        if (result.kind !== "accepted") throw new Error("fixture decision failed");
+        if (result.kind !== "accepted") {
+            throw new Error("fixture decision failed");
+        }
         return result.state;
     };
     const change = (state: MeetingState, overrides: Record<string, unknown> = {}) =>
@@ -38,13 +40,14 @@ describe("decision change corrective gates", () => {
         ["unpublished", ["v2"], "PRECONDITION_FAILED"]
     ] as const)("change evidence %s", (_name, evidenceIds, code) => {
         const state = decidedState();
-        if (_name === "unpublished")
+        if (_name === "unpublished") {
             state.evidencePackages[0].versions.push({
                 ...state.evidencePackages[0].versions[0],
                 id: "v2",
                 ordinal: 2,
                 status: "submitted"
             });
+        }
         expect(change(state, { evidenceIds })).toMatchObject({
             kind: "rejected",
             error: { code },

@@ -88,7 +88,9 @@ describe("Meeting client locale integration", () => {
         expect(element?.props.t).toBe(seat);
         expect(element?.props.locale).toBe("zh");
 
-        for (const dispose of lifecycleEffects.reverse()) dispose();
+        for (const dispose of lifecycleEffects.reverse()) {
+            dispose();
+        }
         expect(registration).toBeUndefined();
         expect(translate("tab.meetings")).toBe("tab.meetings");
         expect(disposeDictionary).toHaveBeenCalledOnce();

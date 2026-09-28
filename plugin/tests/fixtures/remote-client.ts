@@ -24,15 +24,18 @@ export function loadRemoteClientModule(): typeof import("@deepseek-ai/dsh-api-ga
             __ModuleLoader__: {
                 load(row: { factory: (resolve: (id: string) => typeof cordis) => typeof result }) {
                     result = row.factory((id) => {
-                        if (id !== "@deepseek-ai/cordis")
+                        if (id !== "@deepseek-ai/cordis") {
                             throw new Error(`Unexpected external: ${id}`);
+                        }
                         return cordis;
                     });
                 }
             }
         }
     });
-    if (!result) throw new Error("Remote Client factory did not load");
+    if (!result) {
+        throw new Error("Remote Client factory did not load");
+    }
     return result;
 }
 

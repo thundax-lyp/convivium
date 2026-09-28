@@ -37,7 +37,9 @@ function retry(code: string, terminalOnAttemptLimit = true, retryAt?: number): n
 
 function stringField(payload: Record<string, unknown>, key: string): string {
     const value = payload[key];
-    if (typeof value !== "string" || value.trim() === "") fail("REVIEW_PAYLOAD_INVALID");
+    if (typeof value !== "string" || value.trim() === "") {
+        fail("REVIEW_PAYLOAD_INVALID");
+    }
     return value;
 }
 
@@ -45,7 +47,9 @@ function claimReleaseReason(
     error: unknown,
     signal: AbortSignal
 ): "review_timeout" | "review_interrupted" | "dispatch_failed" {
-    if (signal.aborted) return "review_interrupted";
+    if (signal.aborted) {
+        return "review_interrupted";
+    }
     const detail =
         error instanceof Error
             ? `${error.name} ${error.message}`.toLowerCase()
@@ -61,8 +65,9 @@ function findIdentity(
     role: "evidence_reviewer" | "contributor"
 ): MeetingIdentity {
     const identity = state.identities.find((candidate) => candidate.id === identityId);
-    if (!identity || identity.roles.length !== 1 || identity.roles[0] !== role)
+    if (!identity || identity.roles.length !== 1 || identity.roles[0] !== role) {
         fail("REVIEW_VISIBILITY_INVALID");
+    }
     return identity;
 }
 
@@ -81,7 +86,9 @@ function findOwnership(
             candidate.lifecycleStatus === "active" &&
             candidate.capabilityStatus === "active"
     );
-    if (matches.length !== 1) fail("REVIEW_OWNERSHIP_INVALID");
+    if (matches.length !== 1) {
+        fail("REVIEW_OWNERSHIP_INVALID");
+    }
     return matches[0]!;
 }
 
@@ -89,8 +96,9 @@ function publicationEvidence(
     state: MeetingState,
     publication: Publication
 ): readonly { version: EvidenceVersion; review: EvidenceReview }[] {
-    if (publication.finalVersionIds.length !== publication.finalReviewIds.length)
+    if (publication.finalVersionIds.length !== publication.finalReviewIds.length) {
         fail("REVIEW_BASELINE_INVALID");
+    }
     return publication.finalVersionIds.map((versionId, index) => {
         const version = state.evidencePackages
             .flatMap((evidencePackage) => evidencePackage.versions)
@@ -98,7 +106,9 @@ function publicationEvidence(
         const review = state.reviews.find(
             (candidate) => candidate.id === publication.finalReviewIds[index]
         );
-        if (!version || !review || review.versionId !== versionId) fail("REVIEW_BASELINE_INVALID");
+        if (!version || !review || review.versionId !== versionId) {
+            fail("REVIEW_BASELINE_INVALID");
+        }
         return { version, review };
     });
 }
@@ -118,15 +128,20 @@ function pendingReviews(state: MeetingState) {
             !registered ||
             !["submitted", "validation_failed", "validation_cancelled"].includes(version.status) ||
             version.failureCount >= MAX_EVIDENCE_VALIDATION_FAILURES
-        )
+        ) {
             return [];
+        }
         const round = state.rounds.find((candidate) => candidate.id === evidencePackage.roundId);
-        if (!round || round.agendaId !== evidencePackage.agendaId) fail("REVIEW_PENDING_INVALID");
+        if (!round || round.agendaId !== evidencePackage.agendaId) {
+            fail("REVIEW_PENDING_INVALID");
+        }
         const baseline = round.publicBaselinePublicationIds.map((publicationId) => {
             const publication = state.publications.find(
                 (candidate) => candidate.id === publicationId
             );
-            if (!publication) fail("REVIEW_BASELINE_INVALID");
+            if (!publication) {
+                fail("REVIEW_BASELINE_INVALID");
+            }
             return {
                 publicationId,
                 evidence: publicationEvidence(state, publication)
@@ -167,7 +182,9 @@ const deliverReviewNotice = async (
             d.agentDefinitionId === input.ownership.definition.agentDefinitionId &&
             d.definitionVersion === input.ownership.definition.definitionVersion
     );
-    if (!definition) retry("RECOVERY_UNAVAILABLE", false);
+    if (!definition) {
+        retry("RECOVERY_UNAVAILABLE", false);
+    }
     await dependencies.owner.resume({
         ownership: input.ownership,
         definition,
@@ -182,8 +199,9 @@ const deliverReviewNotice = async (
             authorize: input.authorize,
             signal: input.signal
         }))
-    )
+    ) {
         retry("SESSION_FLUSH_FAILED", false);
+    }
 };
 
 export function createEvidenceReviewDispatcher(
@@ -197,13 +215,16 @@ export function createEvidenceReviewDispatcher(
     ): Promise<void> {
         for (let attempt = 0; attempt < 5; attempt += 1) {
             const recovered = await dependencies.repository.recover();
-            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (!recovered.snapshot) {
+                retry("REVIEW_STATE_UNAVAILABLE");
+            }
             if (
                 !recovered.snapshot.state.reviewClaims.some(
                     (claim) => claim.id === claimId && claim.roundId === roundId
                 )
-            )
+            ) {
                 return;
+            }
             const released = await dependencies.application.execute(
                 {
                     protocolVersion: 1,
@@ -220,9 +241,15 @@ export function createEvidenceReviewDispatcher(
                 },
                 new AbortController().signal
             );
-            if (released.kind === "accepted") return;
-            if (["NOT_FOUND", "REVIEWER_CONFLICT"].includes(released.error.code)) return;
-            if (released.error.code !== "VERSION_CONFLICT") retry("REVIEW_CLAIM_RELEASE_FAILED");
+            if (released.kind === "accepted") {
+                return;
+            }
+            if (["NOT_FOUND", "REVIEWER_CONFLICT"].includes(released.error.code)) {
+                return;
+            }
+            if (released.error.code !== "VERSION_CONFLICT") {
+                retry("REVIEW_CLAIM_RELEASE_FAILED");
+            }
         }
         retry("REVIEW_CLAIM_RELEASE_FAILED");
     }
@@ -234,18 +261,26 @@ export function createEvidenceReviewDispatcher(
                 outboxItem.kind !== "dispatch" ||
                 payload.kind !== "agent_notice" ||
                 payload.noticeKind !== "review_request"
-            )
+            ) {
                 fail("OUTBOX_ROUTE_UNAVAILABLE");
+            }
             const recipientId = stringField(payload, "recipientId");
             const agendaId = stringField(payload, "agendaId");
             const requestedVersionId = stringField(payload, "versionId");
             const recovered = await dependencies.repository.recover();
-            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (!recovered.snapshot) {
+                retry("REVIEW_STATE_UNAVAILABLE");
+            }
             const { state } = recovered.snapshot;
-            if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
-            if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+            if (recipientId !== state.evidenceReviewerId) {
+                fail("REVIEW_VISIBILITY_INVALID");
+            }
+            if (["terminal", "archiving", "archived"].includes(state.lifecycle.status)) {
                 fail("INVALID_STATE");
-            if (state.lifecycle.status !== "running") retry("INVALID_STATE", false);
+            }
+            if (state.lifecycle.status !== "running") {
+                retry("INVALID_STATE", false);
+            }
             const existingClaim = state.reviewClaims.find(
                 (claim) => claim.versionId === requestedVersionId
             );
@@ -259,12 +294,16 @@ export function createEvidenceReviewDispatcher(
                     );
                     retry("REVIEW_VALIDATION_RETRY", false);
                 }
-                if (existingClaim.sourceEffectId !== outboxItem.id) return;
+                if (existingClaim.sourceEffectId !== outboxItem.id) {
+                    return;
+                }
                 retry("REVIEW_CLAIM_IN_PROGRESS", false, existingClaim.expiresAt);
             }
             const pending = pendingReviews(state);
             const requested = pending.find(({ version }) => version.id === requestedVersionId);
-            if (!requested) return;
+            if (!requested) {
+                return;
+            }
             const allowedBaselineEvidenceIds = [
                 ...new Set(
                     requested.baseline.flatMap((publication) =>
@@ -280,8 +319,9 @@ export function createEvidenceReviewDispatcher(
                             (version) => version.id === requestedVersionId
                         )
                 )
-            )
+            ) {
                 fail("REVIEW_VISIBILITY_INVALID");
+            }
             const identity = findIdentity(state, recipientId, "evidence_reviewer");
             const ownership = findOwnership(
                 recovered.sessionOwnership,
@@ -313,7 +353,9 @@ export function createEvidenceReviewDispatcher(
             if (claim.kind === "rejected") {
                 if (["VERSION_CONFLICT", "REVIEWER_CONFLICT"].includes(claim.error.code)) {
                     const current = await dependencies.repository.recover();
-                    if (!current.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+                    if (!current.snapshot) {
+                        retry("REVIEW_STATE_UNAVAILABLE");
+                    }
                     const activeClaim = current.snapshot.state.reviewClaims.find(
                         (candidate) =>
                             candidate.roundId === requested.roundId &&
@@ -322,7 +364,9 @@ export function createEvidenceReviewDispatcher(
                             candidate.expiresAt > dependencies.clock.now()
                     );
                     if (activeClaim) {
-                        if (activeClaim.sourceEffectId !== outboxItem.id) return;
+                        if (activeClaim.sourceEffectId !== outboxItem.id) {
+                            return;
+                        }
                         retry("REVIEW_CLAIM_IN_PROGRESS", false, activeClaim.expiresAt);
                     }
                     retry("REVIEW_CLAIM_UNAVAILABLE");
@@ -330,7 +374,9 @@ export function createEvidenceReviewDispatcher(
                 fail(claim.error.code);
             }
             const claimId = claim.relatedIds?.[0];
-            if (!claimId) retry("REVIEW_CLAIM_UNAVAILABLE");
+            if (!claimId) {
+                retry("REVIEW_CLAIM_UNAVAILABLE");
+            }
             try {
                 await deliverReviewNotice(dependencies, {
                     deliveryId: outboxItem.deliveryId,
@@ -342,10 +388,13 @@ export function createEvidenceReviewDispatcher(
                         if (
                             !latest.snapshot ||
                             latest.snapshot.meetingId !== recovered.snapshot!.meetingId
-                        )
+                        ) {
                             retry("REVIEW_STATE_UNAVAILABLE");
+                        }
                         const current = latest.snapshot.state;
-                        if (current.lifecycle.status !== "running") retry("INVALID_STATE", false);
+                        if (current.lifecycle.status !== "running") {
+                            retry("INVALID_STATE", false);
+                        }
                         const currentIdentity = findIdentity(
                             current,
                             recipientId,
@@ -360,8 +409,9 @@ export function createEvidenceReviewDispatcher(
                         if (
                             currentOwner.id !== ownership.id ||
                             currentOwner.sessionId !== ownership.sessionId
-                        )
+                        ) {
                             fail("REVIEW_OWNERSHIP_INVALID");
+                        }
                         if (
                             current.evidenceReviewerId !== recipientId ||
                             !current.reviewClaims.some(
@@ -371,8 +421,9 @@ export function createEvidenceReviewDispatcher(
                                     c.sourceEffectId === outboxItem.id &&
                                     c.expiresAt > dependencies.clock.now()
                             )
-                        )
+                        ) {
                             retry("REVIEW_CLAIM_UNAVAILABLE", false);
+                        }
                     },
                     prompt: [
                         {
@@ -466,13 +517,16 @@ export function createEvidenceReviewDispatcher(
                 retry("REVIEW_VALIDATION_RETRY", false);
             }
             const completed = await dependencies.repository.recover();
-            if (!completed.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (!completed.snapshot) {
+                retry("REVIEW_STATE_UNAVAILABLE");
+            }
             if (
                 completed.snapshot.state.reviews.some(
                     (review) => review.versionId === requestedVersionId
                 )
-            )
+            ) {
                 return;
+            }
             const retainedClaim = completed.snapshot.state.reviewClaims.find(
                 (candidate) =>
                     candidate.id === claimId &&
@@ -480,7 +534,9 @@ export function createEvidenceReviewDispatcher(
                     candidate.sourceEffectId === outboxItem.id &&
                     candidate.expiresAt > dependencies.clock.now()
             );
-            if (!retainedClaim) retry("REVIEW_CLAIM_UNAVAILABLE");
+            if (!retainedClaim) {
+                retry("REVIEW_CLAIM_UNAVAILABLE");
+            }
             retry("REVIEW_CLAIM_IN_PROGRESS", false, retainedClaim.expiresAt);
         }
     };
@@ -511,8 +567,12 @@ export function createReviewDeliveryDispatcher(
         const requestId = `review-delivery:${input.outboxItem.id}:${input.outboxItem.attempts}:${status}`;
         for (let recordAttempt = 0; recordAttempt < 5; recordAttempt += 1) {
             const recovered = await dependencies.repository.recover();
-            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
-            if (alreadySent(recovered.snapshot.state, reviewId)) return;
+            if (!recovered.snapshot) {
+                retry("REVIEW_STATE_UNAVAILABLE");
+            }
+            if (alreadySent(recovered.snapshot.state, reviewId)) {
+                return;
+            }
             try {
                 const result = await dependencies.application.execute(
                     {
@@ -536,14 +596,22 @@ export function createReviewDeliveryDispatcher(
                     },
                     input.signal
                 );
-                if (result.kind === "accepted") return;
-                if (result.error.code !== "VERSION_CONFLICT") break;
+                if (result.kind === "accepted") {
+                    return;
+                }
+                if (result.error.code !== "VERSION_CONFLICT") {
+                    break;
+                }
             } catch {
-                if (recordAttempt === 4) break;
+                if (recordAttempt === 4) {
+                    break;
+                }
             }
         }
         const latest = await dependencies.repository.recover();
-        if (latest.snapshot && alreadySent(latest.snapshot.state, reviewId)) return;
+        if (latest.snapshot && alreadySent(latest.snapshot.state, reviewId)) {
+            return;
+        }
         retry("REVIEW_DELIVERY_COMMIT_FAILED");
     }
 
@@ -551,21 +619,28 @@ export function createReviewDeliveryDispatcher(
         async dispatch(input) {
             const { outboxItem, signal } = input;
             const payload = outboxItem.payload as Record<string, unknown>;
-            if (outboxItem.kind !== "dispatch" || payload.kind !== "review_delivery")
+            if (outboxItem.kind !== "dispatch" || payload.kind !== "review_delivery") {
                 fail("OUTBOX_ROUTE_UNAVAILABLE");
+            }
             const reviewId = stringField(payload, "reviewId");
             const authorId = stringField(payload, "authorId");
             const recovered = await dependencies.repository.recover();
-            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (!recovered.snapshot) {
+                retry("REVIEW_STATE_UNAVAILABLE");
+            }
             const state = recovered.snapshot.state;
-            if (alreadySent(state, reviewId)) return;
+            if (alreadySent(state, reviewId)) {
+                return;
+            }
             const review = state.reviews.find((candidate) => candidate.id === reviewId);
             const evidencePackage = state.evidencePackages.find(
                 (candidate) =>
                     candidate.authorId === authorId &&
                     candidate.versions.some((version) => version.id === review?.versionId)
             );
-            if (!review || !evidencePackage) fail("REVIEW_VISIBILITY_INVALID");
+            if (!review || !evidencePackage) {
+                fail("REVIEW_VISIBILITY_INVALID");
+            }
             try {
                 const identity = findIdentity(state, authorId, "contributor");
                 const ownership = findOwnership(
@@ -584,10 +659,13 @@ export function createReviewDeliveryDispatcher(
                         if (
                             !latest.snapshot ||
                             latest.snapshot.meetingId !== recovered.snapshot!.meetingId
-                        )
+                        ) {
                             retry("REVIEW_STATE_UNAVAILABLE");
+                        }
                         const current = latest.snapshot.state;
-                        if (current.lifecycle.status !== "running") retry("INVALID_STATE", false);
+                        if (current.lifecycle.status !== "running") {
+                            retry("INVALID_STATE", false);
+                        }
                         const currentIdentity = findIdentity(current, authorId, "contributor");
                         const currentOwner = findOwnership(
                             latest.sessionOwnership,
@@ -598,8 +676,9 @@ export function createReviewDeliveryDispatcher(
                         if (
                             currentOwner.id !== ownership.id ||
                             currentOwner.sessionId !== ownership.sessionId
-                        )
+                        ) {
                             fail("REVIEW_OWNERSHIP_INVALID");
+                        }
                         if (
                             alreadySent(current, reviewId) ||
                             !current.reviews.some(
@@ -610,8 +689,9 @@ export function createReviewDeliveryDispatcher(
                                     p.authorId === authorId &&
                                     p.versions.some((v) => v.id === review.versionId)
                             )
-                        )
+                        ) {
                             fail("REVIEW_VISIBILITY_INVALID");
+                        }
                     },
                     prompt: [
                         {
@@ -631,7 +711,9 @@ export function createReviewDeliveryDispatcher(
                         ? error.code
                         : "REVIEW_DELIVERY_FAILED";
                 await record(input, "failed", reviewId, errorCode);
-                if (error instanceof EvidenceReviewDispatchError && !error.retryable) throw error;
+                if (error instanceof EvidenceReviewDispatchError && !error.retryable) {
+                    throw error;
+                }
                 retry(errorCode);
             }
             await record(input, "sent", reviewId);

@@ -26,7 +26,9 @@ const terminalState = (): MeetingState => {
         actorId: "local",
         now: 2
     });
-    if (result.kind !== "accepted") throw new Error("terminal fixture rejected");
+    if (result.kind !== "accepted") {
+        throw new Error("terminal fixture rejected");
+    }
     return result.state;
 };
 
@@ -37,7 +39,9 @@ const archivingState = (): MeetingState => {
         now: 3,
         questionIssueDispositionFacts: []
     });
-    if (result.kind !== "accepted") throw new Error("archive fixture rejected");
+    if (result.kind !== "accepted") {
+        throw new Error("archive fixture rejected");
+    }
     return result.state;
 };
 
@@ -78,23 +82,28 @@ const fixture = (terminal = false) => {
                 now: 3,
                 questionIssueDispositionFacts: []
             });
-            if (result.kind !== "accepted") throw new Error("start rejected");
+            if (result.kind !== "accepted") {
+                throw new Error("start rejected");
+            }
             state = result.state;
         } else {
             calls.push(`commit:${command.action.sessionOwnershipId}:${command.action.status}`);
-            if (command.action.status === "closed")
+            if (command.action.status === "closed") {
                 current = current.map((o) =>
                     o.id === command.action.sessionOwnershipId
                         ? { ...o, lifecycleStatus: "closed" }
                         : o
                 );
+            }
             if (current.every((o) => o.lifecycleStatus === "closed")) {
                 const result = completeMeetingArchive(state, {
                     actorId: "runtime-recovery",
                     now: 4,
                     allSessionOwnershipClosed: true
                 });
-                if (result.kind !== "accepted") throw new Error("complete rejected");
+                if (result.kind !== "accepted") {
+                    throw new Error("complete rejected");
+                }
                 state = result.state;
             }
         }

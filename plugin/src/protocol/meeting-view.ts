@@ -233,7 +233,9 @@ export const ReviewDeliveryViewSchema = z
                 : value.sentAt === undefined &&
                   value.failedAt !== undefined &&
                   value.failureReason !== undefined;
-        if (!valid) ctx.addIssue({ code: "custom", path: ["status"] });
+        if (!valid) {
+            ctx.addIssue({ code: "custom", path: ["status"] });
+        }
     });
 export const FormalMessageViewSchema = z.object({
     id,
@@ -559,11 +561,13 @@ export const ArchiveViewSchema = z
         exportMaterials: z.array(ArchiveMaterialViewSchema)
     })
     .superRefine((value, ctx) => {
-        if (value.terminationId !== value.termination.id)
+        if (value.terminationId !== value.termination.id) {
             ctx.addIssue({ code: "custom", path: ["terminationId"] });
+        }
         const actual = value.unclosedContributions.map(({ contributionId }) => contributionId);
-        if (JSON.stringify(actual) !== JSON.stringify(value.termination.unclosedContributionIds))
+        if (JSON.stringify(actual) !== JSON.stringify(value.termination.unclosedContributionIds)) {
             ctx.addIssue({ code: "custom", path: ["unclosedContributions"] });
+        }
     });
 
 export const IdentityViewSchema = z.object({ id, displayName: text, roles: z.array(role) });

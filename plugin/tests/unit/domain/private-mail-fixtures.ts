@@ -145,13 +145,17 @@ export function privateMailStateWithContribution(
 
 export function startedPrivateMailState(): MeetingState {
     const sent = sendPrivateMail(privateMailState(), privateMailInput);
-    if (sent.kind !== "accepted") throw new Error("send failed");
+    if (sent.kind !== "accepted") {
+        throw new Error("send failed");
+    }
     const started = startPrivateMail(sent.state, {
         mailId: "mail-1",
         actorKind: "effect_dispatcher",
         now: 20
     });
-    if (started.kind !== "accepted") throw new Error("start failed");
+    if (started.kind !== "accepted") {
+        throw new Error("start failed");
+    }
     return started.state;
 }
 
@@ -161,8 +165,13 @@ export function expectPrivateMailRejection(
     targetId?: string
 ): void {
     expect(result.kind).toBe("rejected");
-    if (result.kind !== "rejected") return;
+    if (result.kind !== "rejected") {
+        return;
+    }
     expect(result.error.code).toBe(code);
-    if (targetId === undefined) expect(result.error.targetId).toBeUndefined();
-    else expect(result.error.targetId).toBe(targetId);
+    if (targetId === undefined) {
+        expect(result.error.targetId).toBeUndefined();
+    } else {
+        expect(result.error.targetId).toBe(targetId);
+    }
 }

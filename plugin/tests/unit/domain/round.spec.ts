@@ -14,8 +14,9 @@ const openRoundWithPlan = (
     state: Parameters<typeof openRoundTransition>[0],
     input: OpenRoundFixtureInput
 ) => {
-    if (state.managerPlans.some((plan) => plan.id === "plan-v1"))
+    if (state.managerPlans.some((plan) => plan.id === "plan-v1")) {
         return openRoundTransition(state, { ...input, planId: "plan-v1" });
+    }
     return openRoundTransition(
         {
             ...state,
@@ -43,8 +44,30 @@ const openRoundWithPlan = (
 
 describe("round transitions", () => {
     it("opens with all current publications as baseline and transfers queued requests to hands", () => {
+        const initial = makeRunningMeetingStateV1();
         const state = {
-            ...makeRunningMeetingStateV1(),
+            ...initial,
+            identities: [
+                ...initial.identities,
+                {
+                    id: "contributor-other",
+                    displayName: "Other agenda contributor",
+                    roles: ["contributor" as const],
+                    agendaResponsibilityIds: ["agenda-other"],
+                    riskAuthority: false,
+                    required: false
+                }
+            ],
+            agenda: [
+                ...initial.agenda,
+                {
+                    id: "agenda-other",
+                    title: "Other agenda",
+                    question: "Other question",
+                    status: "pending" as const,
+                    requiredOutputIds: ["output-v1"]
+                }
+            ],
             publications: [
                 {
                     id: "publication-1",
@@ -65,7 +88,9 @@ describe("round transitions", () => {
             now: 10
         });
         expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") return;
+        if (queued.kind !== "accepted") {
+            return;
+        }
         const result = openRoundWithPlan(queued.state, {
             roundId: "round-v1",
             agendaId: "agenda-v1",
@@ -74,7 +99,9 @@ describe("round transitions", () => {
             deadlineAt: 100
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.rounds).toEqual([
             {
                 id: "round-v1",
@@ -97,6 +124,15 @@ describe("round transitions", () => {
                 raisedAt: 10
             }
         ]);
+        expect(result.effectRequests).toEqual([
+            {
+                kind: "agent_notice",
+                noticeKind: "round_opened",
+                recipientId: "contributor-v1",
+                agendaId: "agenda-v1",
+                roundId: "round-v1"
+            }
+        ]);
     });
 
     it("rejects a second open round and an invalid deadline atomically", () => {
@@ -108,7 +144,9 @@ describe("round transitions", () => {
             now: 10
         });
         expect(opened.kind).toBe("accepted");
-        if (opened.kind !== "accepted") return;
+        if (opened.kind !== "accepted") {
+            return;
+        }
         const duplicate = openRoundWithPlan(opened.state, {
             roundId: "round-v2",
             agendaId: "agenda-v1",
@@ -140,7 +178,9 @@ describe("round transitions", () => {
             now: 10
         });
         expect(opened.kind).toBe("accepted");
-        if (opened.kind !== "accepted") return;
+        if (opened.kind !== "accepted") {
+            return;
+        }
         expect(isRoundClosable(opened.state, "round-v1")).toBe(true);
         const blocked = {
             ...opened.state,
@@ -160,7 +200,9 @@ describe("round transitions", () => {
             now: 1
         });
         expect(opened.kind).toBe("accepted");
-        if (opened.kind !== "accepted") return;
+        if (opened.kind !== "accepted") {
+            return;
+        }
         const state = {
             ...opened.state,
             rounds: [{ ...opened.state.rounds[0], contributionIds: ["contribution-v1"] }],
@@ -186,7 +228,9 @@ describe("round transitions", () => {
             now: 3
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.rounds[0]).toMatchObject({
             status: "aborted",
             abortReason: "无法继续",

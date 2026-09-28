@@ -43,10 +43,13 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
         !input.publicationId.trim() ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "invalid publication input");
+    }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
+    if (!round) {
+        return reject(state, "NOT_FOUND", "round not found");
+    }
     const agenda = state.agenda.find((candidate) => candidate.id === round.agendaId);
     const manager = state.identities.find((candidate) => candidate.id === input.managerId);
     if (
@@ -55,12 +58,15 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
         !manager.roles.includes("manager") ||
         (manager.agendaResponsibilityIds.length > 0 &&
             !manager.agendaResponsibilityIds.includes(round.agendaId))
-    )
+    ) {
         return reject(state, "UNAUTHORIZED", "manager is not assigned to agenda");
-    if (!isRoundClosable(state, round.id))
+    }
+    if (!isRoundClosable(state, round.id)) {
         return reject(state, "ROUND_NOT_CLOSABLE", "round is not closable");
-    if (input.now >= state.createdAt + state.limits.maxDurationMs)
+    }
+    if (input.now >= state.createdAt + state.limits.maxDurationMs) {
         return reject(state, "PRECONDITION_FAILED", "meeting duration has elapsed");
+    }
     const packages = round.contributionIds
         .map((id) => state.contributions.find((candidate) => candidate.id === id))
         .filter((candidate) => candidate?.packageId !== undefined)
@@ -77,16 +83,19 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
                 )
             );
         })
-    )
+    ) {
         return reject(state, "ROUND_NOT_CLOSABLE", "current evidence review is not delivered");
+    }
     const finalVersionIds = packages.map((pkg) => pkg.currentVersionId);
     const finalReviewIds = packages.map(
         (pkg) => state.reviews.find((review) => review.versionId === pkg.currentVersionId)!.id
     );
-    if (input.messageIds.length !== finalVersionIds.length)
+    if (input.messageIds.length !== finalVersionIds.length) {
         return reject(state, "INVALID_ARGUMENT", "message count does not match final versions");
-    if (state.publications.some((publication) => publication.id === input.publicationId))
+    }
+    if (state.publications.some((publication) => publication.id === input.publicationId)) {
         return reject(state, "INVALID_ARGUMENT", "publication id already exists");
+    }
     const publicationSeq =
         Math.max(
             0,
@@ -107,11 +116,13 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
     if (
         new Set(input.messageIds).size !== input.messageIds.length ||
         input.messageIds.some((id) => state.messages.some((message) => message.id === id))
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT", "message id already exists");
+    }
     const nextFormalMessageCount = state.messages.length + messages.length;
-    if (nextFormalMessageCount > state.limits.maxFormalMessages)
+    if (nextFormalMessageCount > state.limits.maxFormalMessages) {
         return reject(state, "PRECONDITION_FAILED", "publication exceeds message budget");
+    }
     const publicationExitReasons = round.contributionIds.map(
         (id) =>
             state.contributions.find((candidate) => candidate.id === id)?.exitReason ?? "published"

@@ -46,21 +46,26 @@ export const resolveDynamicMeetingDefinition = (
     expectedHash: string
 ): DynamicDefinitionResolution => {
     const definition = definitions.find((item) => item.agentDefinitionId === definitionRef.id);
-    if (!definition) return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
-    if (definition.definitionVersion !== definitionRef.version)
+    if (!definition) {
+        return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
+    }
+    if (definition.definitionVersion !== definitionRef.version) {
         return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
+    }
     if (
         definition.roleDefinitionId === "meeting_manager" ||
         definition.roleDefinitionId === "verification_reviewer"
-    )
+    ) {
         return { kind: "rejected", code: "ROLE_NOT_ALLOWED" };
+    }
     const binding = {
         agentDefinitionId: definition.agentDefinitionId,
         definitionVersion: definition.definitionVersion,
         definitionHash: definitionHash(definition)
     };
-    if (binding.definitionHash !== expectedHash)
+    if (binding.definitionHash !== expectedHash) {
         return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
+    }
     return { kind: "resolved", definition, binding };
 };
 
@@ -102,11 +107,16 @@ export const resolveMeetingRoles = async (
         id: string | undefined,
         manager: boolean
     ): ResolvedRoleComposition | undefined => {
-        if (id === undefined) return undefined;
-        if (typeof id !== "string" || !id.trim()) throw new RoleCompositionError();
-        const d = definitions.find((item) => item.agentDefinitionId === id);
-        if (!d || (d.roleDefinitionId === "meeting_manager") !== manager)
+        if (id === undefined) {
+            return undefined;
+        }
+        if (typeof id !== "string" || !id.trim()) {
             throw new RoleCompositionError();
+        }
+        const d = definitions.find((item) => item.agentDefinitionId === id);
+        if (!d || (d.roleDefinitionId === "meeting_manager") !== manager) {
+            throw new RoleCompositionError();
+        }
         selected.push(d);
         return Object.freeze({
             agentInstructions: d.agentInstructions,
@@ -123,9 +133,13 @@ export const resolveMeetingRoles = async (
     const participants: Record<string, ResolvedRoleComposition> = Object.create(null);
     for (const participant of input.participants) {
         const composition = resolve(participant.agentDefinitionId, false);
-        if (composition) participants[participant.participantKey] = composition;
+        if (composition) {
+            participants[participant.participantKey] = composition;
+        }
     }
-    if (selected.length) await validate(Object.freeze(selected));
+    if (selected.length) {
+        await validate(Object.freeze(selected));
+    }
     return Object.freeze({
         ...(manager === undefined ? {} : { manager }),
         participants: Object.freeze(participants)

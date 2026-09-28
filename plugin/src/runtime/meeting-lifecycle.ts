@@ -23,6 +23,7 @@ import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
 import { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
+import { runDueContributionDeadline } from "./services/contribution-deadline.js";
 import {
     createMeetingIdentityReader,
     type MeetingIdentityReader
@@ -54,28 +55,33 @@ export function createTargetMeetingEffectDispatcher(dependencies: {
 }): (item: OutboxItem, signal: AbortSignal) => Promise<void> {
     return async (item, signal) => {
         const payload = item.payload as { kind?: string; noticeKind?: string };
-        if (payload.kind === "identity_provision")
+        if (payload.kind === "identity_provision") {
             return dependencies.identity.dispatch(item, signal);
-        if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
+        }
+        if (payload.kind === "agent_notice" && payload.noticeKind === "review_request") {
             return dependencies.review.dispatch({
                 outboxItem: item,
                 signal
             });
-        if (payload.kind === "agent_notice")
+        }
+        if (payload.kind === "agent_notice") {
             return dependencies.notice.dispatch({
                 outboxItem: item,
                 signal
             });
-        if (payload.kind === "archive")
+        }
+        if (payload.kind === "archive") {
             return dependencies.archive.dispatch({
                 outboxItem: item,
                 signal
             });
-        if (payload.kind === "review_delivery")
+        }
+        if (payload.kind === "review_delivery") {
             return dependencies.reviewDelivery.dispatch({
                 outboxItem: item,
                 signal
             });
+        }
         throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
     };
 }
@@ -103,28 +109,35 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                 d.agentDefinitionId === ownership.definition.agentDefinitionId &&
                 d.definitionVersion === ownership.definition.definitionVersion
         );
-        if (!definition) throw new Error("RECOVERY_UNAVAILABLE: definition missing");
+        if (!definition) {
+            throw new Error("RECOVERY_UNAVAILABLE: definition missing");
+        }
         return definition;
     };
     for (const record of dependencies.registry.listMeetings()) {
-        if (dependencies.meetingId !== undefined && dependencies.meetingId !== record.meetingId)
+        if (dependencies.meetingId !== undefined && dependencies.meetingId !== record.meetingId) {
             continue;
+        }
         try {
             const repository = await dependencies.registry.openMeeting({
                 meetingId: record.meetingId
             });
             let recovered = await repository.recover();
-            if (recovered.sessionOwnership.some((o) => o.meetingId !== record.meetingId))
+            if (recovered.sessionOwnership.some((o) => o.meetingId !== record.meetingId)) {
                 throw new Error("RECOVERY_UNAVAILABLE: ownership mismatch");
+            }
             if (recovered.bootstrap.status === "creating") {
                 try {
                     for (const ownership of recovered.sessionOwnership) {
-                        if (ownership.lifecycleStatus === "active") continue;
+                        if (ownership.lifecycleStatus === "active") {
+                            continue;
+                        }
                         const descriptor = recovered.preparedDescriptors.find(
                             (d) => d.descriptorId === ownership.descriptorId
                         );
-                        if (!descriptor || descriptor.expiresAt <= now())
+                        if (!descriptor || descriptor.expiresAt <= now()) {
                             throw new Error("PREFLIGHT_EXPIRED");
+                        }
                         await dependencies.owner.resume({
                             ownership,
                             definition: definitionFor(ownership),
@@ -148,19 +161,22 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                 } catch {
                     // If completion committed but its response was lost, ready remains authoritative.
                     recovered = await repository.recover();
-                    if (recovered.bootstrap.status !== "ready")
+                    if (recovered.bootstrap.status !== "ready") {
                         await repository.updateBootstrap({
                             status: "creation_failed",
                             failureCode: "RECOVERY_UNAVAILABLE",
                             now: now()
                         });
+                    }
                 }
                 recovered = await repository.recover();
             }
             if (recovered.bootstrap.status === "creation_failed") {
                 await dependencies.stopDelivery(record.meetingId);
                 for (const ownership of recovered.sessionOwnership) {
-                    if (ownership.lifecycleStatus === "closed") continue;
+                    if (ownership.lifecycleStatus === "closed") {
+                        continue;
+                    }
                     const revoked =
                         ownership.capabilityStatus === "revoked"
                             ? ownership
@@ -179,8 +195,9 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                         if (
                             !(error instanceof SessionPersistenceNotFoundError) ||
                             revoked.lifecycleStatus !== "provisioning"
-                        )
+                        ) {
                             throw error;
+                        }
                     }
                     await repository.recordSessionOwnership(
                         { ...binding(revoked), lifecycleStatus: "closed" },
@@ -190,21 +207,25 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                 continue;
             }
             const snapshot = recovered.snapshot;
-            if (!snapshot) throw new Error("RECOVERY_UNAVAILABLE: snapshot missing");
+            if (!snapshot) {
+                throw new Error("RECOVERY_UNAVAILABLE: snapshot missing");
+            }
             const status = snapshot.state.lifecycle.status;
             if (status === "paused" || status === "archived") {
                 await dependencies.stopDelivery(record.meetingId);
-                for (const ownership of recovered.sessionOwnership)
+                for (const ownership of recovered.sessionOwnership) {
                     await dependencies.owner.suspend({ ownership, reason: `Meeting ${status}` });
+                }
                 continue;
             }
             if (status === "terminal" || status === "archiving") {
                 for (const ownership of recovered.sessionOwnership) {
-                    if (ownership.capabilityStatus === "active")
+                    if (ownership.capabilityStatus === "active") {
                         await repository.recordSessionOwnership(
                             { ...binding(ownership), capabilityStatus: "revoked" },
                             now()
                         );
+                    }
                 }
             } else {
                 try {
@@ -217,10 +238,11 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                             !ownership ||
                             ownership.lifecycleStatus !== "active" ||
                             ownership.capabilityStatus !== "active"
-                        )
+                        ) {
                             throw new Error(
                                 "RECOVERY_UNAVAILABLE: active identity ownership missing"
                             );
+                        }
                         await dependencies.owner.resume({
                             ownership,
                             definition: definitionFor(ownership),
@@ -230,17 +252,20 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
                     }
                 } catch (error) {
                     await dependencies.stopDelivery(record.meetingId);
-                    for (const ownership of recovered.sessionOwnership)
+                    for (const ownership of recovered.sessionOwnership) {
                         await dependencies.owner.suspend({
                             ownership,
                             reason: "Meeting recovery failed"
                         });
+                    }
                     throw error;
                 }
             }
             await dependencies.ensureDelivery(record.meetingId);
         } catch (error) {
-            if (!dependencies.onError) throw error;
+            if (!dependencies.onError) {
+                throw error;
+            }
             dependencies.onError(record.meetingId, error);
         }
     }
@@ -284,7 +309,9 @@ const createIdentityProvisionOwner = (dependencies: {
                     d.agentDefinitionId === owner.definition.agentDefinitionId &&
                     d.definitionVersion === owner.definition.definitionVersion
             );
-            if (!definition) throw new Error("RECOVERY_UNAVAILABLE");
+            if (!definition) {
+                throw new Error("RECOVERY_UNAVAILABLE");
+            }
             try {
                 await agents.stop({
                     ownership: revoked,
@@ -293,7 +320,9 @@ const createIdentityProvisionOwner = (dependencies: {
                     signal: new AbortController().signal
                 });
             } catch (error) {
-                if (!(error instanceof SessionPersistenceNotFoundError)) throw error;
+                if (!(error instanceof SessionPersistenceNotFoundError)) {
+                    throw error;
+                }
             }
             await repository.recordSessionOwnership(
                 { ...inputOwnership(revoked), lifecycleStatus: "closed" },
@@ -307,11 +336,13 @@ const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const identityReaders = new WeakMap<object, MeetingIdentityReader>();
 function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">): void {
-    if (dshAgentPackage.version !== "0.1.2-rc.1")
+    if (dshAgentPackage.version !== "0.1.2-rc.1") {
         throw new Error("Convivium requires DSH version 0.1.2-rc.1.");
+    }
     const spawn = ctx.subagents.getProvider("spawn");
-    if (!spawn || spawn.name !== "spawn" || spawn.capabilities.outputSchema !== true)
+    if (!spawn || spawn.name !== "spawn" || spawn.capabilities.outputSchema !== true) {
         throw new Error('Convivium requires one-shot provider "spawn" with outputSchema.');
+    }
     const definitions = parseAgentDefinitions(config.agentDefinitions);
     const expected = new Set([
         "meeting_manager",
@@ -326,13 +357,16 @@ function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">):
         definitions.length !== 7 ||
         new Set(definitions.map((item) => item.roleDefinitionId)).size !== 7 ||
         definitions.some((item) => !expected.has(item.roleDefinitionId))
-    )
-        throw new Error("Convivium requires the exact seven enabled Meeting role definitions.");
+    ) {
+        throw new Error("Convivium requires the exact seven packaged Meeting role definitions.");
+    }
 }
 
 export function getMeetingCommandApplication(owner: object): MeetingCommandApplication {
     const application = applications.get(owner);
-    if (!application) throw new Error("Target Meeting application is not active.");
+    if (!application) {
+        throw new Error("Target Meeting application is not active.");
+    }
     return application;
 }
 
@@ -340,13 +374,17 @@ export function getLocalMeetingWebRuntime(
     owner: object
 ): LocalMeetingWebRuntime & MeetingOwnershipLookup {
     const runtime = runtimes.get(owner);
-    if (!runtime) throw new Error("Target Meeting runtime is not active.");
+    if (!runtime) {
+        throw new Error("Target Meeting runtime is not active.");
+    }
     return runtime;
 }
 
 export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader => {
     const reader = identityReaders.get(owner);
-    if (!reader) throw new Error("Target Meeting identity reader is not active.");
+    if (!reader) {
+        throw new Error("Target Meeting identity reader is not active.");
+    }
     return reader;
 };
 
@@ -355,7 +393,12 @@ const createCallerScopeResolver =
     async (input: {
         meetingId: string;
         caller: {
-            channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
+            channel:
+                | "dsh_tool"
+                | "loopback_remote"
+                | "skill_invocation"
+                | "runtime_recovery"
+                | "deadline_handler";
             principalId: string;
             sessionBindingId?: string;
         };
@@ -364,8 +407,9 @@ const createCallerScopeResolver =
             if (
                 input.caller.principalId !== "local-controller" ||
                 input.caller.sessionBindingId !== undefined
-            )
+            ) {
                 return undefined;
+            }
             return {
                 caller: input.caller,
                 meetingId: input.meetingId,
@@ -377,14 +421,16 @@ const createCallerScopeResolver =
                 input.caller.principalId === RUNTIME_RECOVERY_PRINCIPAL_ID) ||
             (input.caller.channel === "deadline_handler" &&
                 input.caller.principalId === DEADLINE_HANDLER_PRINCIPAL_ID)
-        )
+        ) {
             return {
                 caller: input.caller,
                 meetingId: input.meetingId,
                 role: "runtime" as const
             };
-        if (input.caller.channel !== "dsh_tool" || input.caller.sessionBindingId === undefined)
+        }
+        if (input.caller.channel !== "dsh_tool" || input.caller.sessionBindingId === undefined) {
             return undefined;
+        }
         const repository = await registry.openMeeting({ meetingId: input.meetingId });
         const recovery = await repository.recover();
         const ownership = recovery.sessionOwnership.find(
@@ -394,7 +440,9 @@ const createCallerScopeResolver =
                 item.lifecycleStatus === "active" &&
                 item.capabilityStatus === "active"
         );
-        if (!ownership || !ownership.identityId) return undefined;
+        if (!ownership || !ownership.identityId) {
+            return undefined;
+        }
         return {
             caller: input.caller,
             meetingId: input.meetingId,
@@ -404,13 +452,75 @@ const createCallerScopeResolver =
         };
     };
 
+const startContributionDeadlinePoller = (
+    repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">,
+    application: MeetingCommandApplication,
+    onError: (error: unknown) => void
+): { stop(): Promise<void> } => {
+    const controller = new AbortController();
+    let busy = false;
+    let current: Promise<void> = Promise.resolve();
+    const poll = () => {
+        if (busy || controller.signal.aborted) {
+            return;
+        }
+        busy = true;
+        current = (async () => {
+            try {
+                await runDueContributionDeadline(
+                    repository,
+                    application,
+                    Date.now(),
+                    controller.signal
+                );
+            } catch (error) {
+                if (!controller.signal.aborted) {
+                    onError(error);
+                }
+            } finally {
+                busy = false;
+            }
+        })();
+    };
+    const timer = setInterval(poll, 1_000);
+    poll();
+    return {
+        stop: async () => {
+            clearInterval(timer);
+            controller.abort();
+            await current;
+        }
+    };
+};
+
+const stopMeetingDelivery = async (
+    meetingId: string,
+    workers: Map<string, ReturnType<typeof createOutboxWorker>>,
+    pollers: Map<string, { stop(): Promise<void> }>
+): Promise<void> => {
+    const worker = workers.get(meetingId);
+    worker?.stop();
+    await Promise.all([worker?.wait(), pollers.get(meetingId)?.stop()]);
+    workers.delete(meetingId);
+    pollers.delete(meetingId);
+};
+
 export const activateTargetMeetingApplication = async (
     ctx: Context,
     config: Config,
-    options: { rolePackageRoot: string }
+    options: {
+        rolePackageRoot: string;
+        onBeforeRecovery?: (services: {
+            runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
+            reader: MeetingIdentityReader;
+            application: MeetingCommandApplication;
+        }) => void | Promise<void>;
+    }
 ): Promise<() => Promise<void>> => {
     const { rolePackageRoot } = options;
-    if (!rolePackageRoot) throw new Error("Meeting role package root is required.");
+    if (!rolePackageRoot) {
+        throw new Error("Meeting role package root is required.");
+    }
     assertTargetLifecycle(config, ctx);
     let sequence = 0;
     const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
@@ -422,7 +532,9 @@ export const activateTargetMeetingApplication = async (
             validateCommand: () => undefined
         },
         onProjectionCommitted: (snapshot) => {
-            for (const listener of refreshListeners) listener(snapshot.meetingId, snapshot.version);
+            for (const listener of refreshListeners) {
+                listener(snapshot.meetingId, snapshot.version);
+            }
         }
     });
     const definitions = parseAgentDefinitions(config.agentDefinitions);
@@ -455,6 +567,7 @@ export const activateTargetMeetingApplication = async (
             registry,
             definitions,
             agentModelOverrides: config.agentModelOverrides,
+            initialContributorRoleIds: config.initialContributorRoleIds,
             ctx,
             owner: agentOwner,
             packageRoot: rolePackageRoot,
@@ -466,6 +579,7 @@ export const activateTargetMeetingApplication = async (
         catalog
     });
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
+    const deadlinePollers = new Map<string, { stop(): Promise<void> }>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {
         const repository = await registry.openMeeting({ meetingId });
         const existing = deliveryWorkers.get(meetingId);
@@ -527,19 +641,24 @@ export const activateTargetMeetingApplication = async (
                         (i) =>
                             i.id === ownership.identityId && i.sessionOwnershipId === ownership.id
                     )
-                )
+                ) {
                     throw new Error("INVALID_STATE");
+                }
                 const definition = definitions.find(
                     (d) =>
                         d.agentDefinitionId === ownership.definition.agentDefinitionId &&
                         d.definitionVersion === ownership.definition.definitionVersion
                 );
-                if (!definition) throw new Error("RECOVERY_UNAVAILABLE");
+                if (!definition) {
+                    throw new Error("RECOVERY_UNAVAILABLE");
+                }
                 await agentOwner.resume({ ownership, definition, purpose: "delivery", signal });
             },
             cleanupProvisioned: async (recommendationId) => {
                 const ownership = await identityOwner.readOwnership(recommendationId);
-                if (ownership !== undefined) await identityOwner.revokeAndDrainOwned(ownership);
+                if (ownership !== undefined) {
+                    await identityOwner.revokeAndDrainOwned(ownership);
+                }
             }
         });
         const dispatch = createTargetMeetingEffectDispatcher({
@@ -557,16 +676,19 @@ export const activateTargetMeetingApplication = async (
             pollMs: 1_000,
             dispatch
         });
+        deadlinePollers.set(
+            meetingId,
+            startContributionDeadlinePoller(repository, application, (error) =>
+                ctx
+                    .logger("convivium:meeting")
+                    .error("Meeting %s deadline recovery failed %o", meetingId, error)
+            )
+        );
         deliveryWorkers.set(meetingId, worker);
         void worker.start().catch(() => undefined);
     };
-    const stopDelivery = async (meetingId: string) => {
-        const worker = deliveryWorkers.get(meetingId);
-        if (!worker) return;
-        worker.stop();
-        await worker.wait();
-        deliveryWorkers.delete(meetingId);
-    };
+    const stopDelivery = (meetingId: string) =>
+        stopMeetingDelivery(meetingId, deliveryWorkers, deadlinePollers);
     const reconcile = (meetingId?: string) =>
         recoverTargetMeetingDeliveries({
             registry,
@@ -579,7 +701,6 @@ export const activateTargetMeetingApplication = async (
                 ctx.logger("convivium:meeting").error("Meeting %s recovery failed %o", id, error);
             }
         });
-    await reconcile();
     const runtime = {
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
@@ -587,7 +708,9 @@ export const activateTargetMeetingApplication = async (
             for (const record of registry.listMeetings()) {
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const snapshot = (await repository.recover()).snapshot;
-                if (!snapshot) throw new Error("Meeting is not ready.");
+                if (!snapshot) {
+                    throw new Error("Meeting is not ready.");
+                }
                 meetings.push(projectMeetingSummary(snapshot));
             }
             return { meetings };
@@ -596,7 +719,9 @@ export const activateTargetMeetingApplication = async (
             signal.throwIfAborted();
             const repository = await registry.openMeeting({ meetingId: request.meetingId });
             const snapshot = (await repository.recover()).snapshot;
-            if (!snapshot) throw new Error("Meeting is not ready.");
+            if (!snapshot) {
+                throw new Error("Meeting is not ready.");
+            }
             return projectMeetingView(snapshot, { kind: "captain" });
         },
         async control(command: MeetingCommand, signal: AbortSignal) {
@@ -617,7 +742,7 @@ export const activateTargetMeetingApplication = async (
                     "resume_meeting",
                     "end_meeting"
                 ].includes(command.action.kind)
-            )
+            ) {
                 return MeetingCommandResultSchema.parse({
                     kind: "rejected",
                     error: {
@@ -625,6 +750,7 @@ export const activateTargetMeetingApplication = async (
                         message: "The action is not a local Meeting control."
                     }
                 });
+            }
             const result = await application.execute(
                 command,
                 {
@@ -632,7 +758,26 @@ export const activateTargetMeetingApplication = async (
                 },
                 signal
             );
-            if (result.kind === "accepted") await reconcile(result.meetingId);
+            if (result.kind === "accepted") {
+                await reconcile(result.meetingId);
+            }
+            return result;
+        },
+        async startFromSkill(command: MeetingCommand, signal: AbortSignal) {
+            if (command.action.kind !== "create_meeting") {
+                return MeetingCommandResultSchema.parse({
+                    kind: "rejected",
+                    error: { code: "UNAUTHORIZED", message: "Only Meeting creation is delegated" }
+                });
+            }
+            const result = await application.execute(
+                command,
+                { caller: { channel: "skill_invocation", principalId: "local-controller" } },
+                signal
+            );
+            if (result.kind === "accepted") {
+                await reconcile(result.meetingId);
+            }
             return result;
         },
         async *subscribeRefresh(signal: AbortSignal) {
@@ -645,12 +790,15 @@ export const activateTargetMeetingApplication = async (
             refreshListeners.add(listener);
             try {
                 while (!signal.aborted) {
-                    if (notices.length === 0)
+                    if (notices.length === 0) {
                         await new Promise<void>((resolve) => {
                             wake = resolve;
                             signal.addEventListener("abort", () => resolve(), { once: true });
                         });
-                    while (notices.length > 0) yield { kind: "refresh", ...notices.shift()! };
+                    }
+                    while (notices.length > 0) {
+                        yield { kind: "refresh", ...notices.shift()! };
+                    }
                 }
             } finally {
                 refreshListeners.delete(listener);
@@ -664,7 +812,9 @@ export const activateTargetMeetingApplication = async (
                 const ownership = (await repository.recover()).sessionOwnership.find(
                     (item) => item.sessionId === sessionId
                 );
-                if (ownership) return { meetingId: record.meetingId, ownership };
+                if (ownership) {
+                    return { meetingId: record.meetingId, ownership };
+                }
             }
             return undefined;
         }
@@ -672,10 +822,18 @@ export const activateTargetMeetingApplication = async (
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     identityReaders.set(ctx, identityReader);
+    await options.onBeforeRecovery?.({ runtime, reader: identityReader, application });
+    await reconcile();
     return async () => {
-        for (const worker of deliveryWorkers.values()) worker.stop();
-        await Promise.all([...deliveryWorkers.values()].map((worker) => worker.wait()));
+        for (const worker of deliveryWorkers.values()) {
+            worker.stop();
+        }
+        await Promise.all([
+            ...[...deliveryWorkers.values()].map((worker) => worker.wait()),
+            ...[...deadlinePollers.values()].map((poller) => poller.stop())
+        ]);
         deliveryWorkers.clear();
+        deadlinePollers.clear();
         runtimes.delete(ctx);
         identityReaders.delete(ctx);
         applications.delete(ctx);

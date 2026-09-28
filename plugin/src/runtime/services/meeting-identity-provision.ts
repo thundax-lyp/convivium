@@ -53,14 +53,17 @@ export const provisionMeetingIdentity = async (
     dependencies: MeetingIdentityProvisionDependencies
 ): Promise<IdentityProvisionResult> => {
     const { recommendation, meetingId, signal } = input;
-    if (!recommendation.definitionHash || !recommendation.identityId || !recommendation.sessionId)
+    if (!recommendation.definitionHash || !recommendation.identityId || !recommendation.sessionId) {
         return { kind: "rejected", failureCode: "INVALID_STATE" };
+    }
     const resolved = resolveDynamicMeetingDefinition(
         dependencies.definitions,
         { id: recommendation.definitionId, version: recommendation.definitionVersion },
         recommendation.definitionHash
     );
-    if (resolved.kind !== "resolved") return { kind: "rejected", failureCode: resolved.code };
+    if (resolved.kind !== "resolved") {
+        return { kind: "rejected", failureCode: resolved.code };
+    }
     const existing = await dependencies.owner.readOwnership(recommendation.id);
     const ownershipId = `session_ownership-${sha256Hex(encodeCanonicalJson([meetingId, "session_ownership", recommendation.identityId])).slice(0, 32)}`;
     if (
@@ -71,17 +74,21 @@ export const provisionMeetingIdentity = async (
             existing.sessionId !== recommendation.sessionId ||
             existing.admissionId !== recommendation.id ||
             existing.definition.definitionHash !== recommendation.definitionHash)
-    )
+    ) {
         return { kind: "rejected", failureCode: "OWNERSHIP_CONFLICT" };
+    }
     if (
         existing &&
         (existing.capabilityStatus !== "active" || existing.lifecycleStatus === "closed")
-    )
+    ) {
         return { kind: "rejected", failureCode: "INVALID_STATE" };
+    }
     let descriptor = existing
         ? await dependencies.owner.readDescriptor(existing.descriptorId)
         : undefined;
-    if (existing && !descriptor) return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    if (existing && !descriptor) {
+        return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    }
     if (!existing) {
         const preflight = await preflightMeetingIdentity({
             ctx: dependencies.ctx,
@@ -99,14 +106,17 @@ export const provisionMeetingIdentity = async (
             now: dependencies.now(),
             signal
         });
-        if (preflight.kind !== "ready")
+        if (preflight.kind !== "ready") {
             return { kind: "rejected", failureCode: preflight.error.code };
+        }
         descriptor = preflight.descriptor;
     }
-    if (!descriptor) return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    if (!descriptor) {
+        return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    }
     let ownership = existing;
     try {
-        if (!ownership)
+        if (!ownership) {
             ownership = await dependencies.owner.putProvisioning(
                 {
                     id: ownershipId,
@@ -130,25 +140,27 @@ export const provisionMeetingIdentity = async (
                 },
                 descriptor
             );
+        }
         if (ownership.lifecycleStatus === "provisioning") {
             if (dependencies.now() >= descriptor.expiresAt) {
                 await dependencies.owner.revokeAndDrainOwned(ownership);
                 return { kind: "rejected", failureCode: "PREFLIGHT_EXPIRED" };
             }
-            if (existing)
+            if (existing) {
                 await dependencies.agents.resume({
                     ownership,
                     definition: resolved.definition,
                     purpose: "provisioning",
                     signal
                 });
-            else
+            } else {
                 await dependencies.agents.create({
                     ownership,
                     descriptor,
                     definition: resolved.definition,
                     signal
                 });
+            }
             ownership = await dependencies.owner.markActive(ownership, descriptor);
         }
         return {
@@ -169,8 +181,12 @@ export const provisionMeetingIdentity = async (
         };
     } catch {
         // Recovery never creates a replacement or refreshes the original capability proof.
-        if (existing) return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
-        if (ownership) await dependencies.owner.revokeAndDrainOwned(ownership);
+        if (existing) {
+            return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+        }
+        if (ownership) {
+            await dependencies.owner.revokeAndDrainOwned(ownership);
+        }
         return { kind: "rejected", failureCode: "ADMISSION_FAILED" };
     }
 };

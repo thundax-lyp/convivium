@@ -26,16 +26,21 @@ export function parseAgentModelOverrides(
 ): MeetingAgentModelOverrides {
     try {
         const input = value === undefined ? {} : value;
-        if (input === null || typeof input !== "object" || Array.isArray(input))
+        if (input === null || typeof input !== "object" || Array.isArray(input)) {
             throw new TypeError();
+        }
         const entries = Object.entries(input);
         const ids = new Set(definitions.map((definition) => definition.agentDefinitionId));
-        if (entries.length > 64 || entries.some(([id]) => !ids.has(id))) throw new TypeError();
+        if (entries.length > 64 || entries.some(([id]) => !ids.has(id))) {
+            throw new TypeError();
+        }
         const result: Record<
             string,
             Readonly<Pick<AgentOptions, "provider" | "model" | "reasoningEffort">>
         > = Object.create(null);
-        for (const [id, entry] of entries) result[id] = Object.freeze(options.parse(entry));
+        for (const [id, entry] of entries) {
+            result[id] = Object.freeze(options.parse(entry));
+        }
         return Object.freeze(result);
     } catch {
         throw new TypeError("Invalid meeting agent model overrides.");

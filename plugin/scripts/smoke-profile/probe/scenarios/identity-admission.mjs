@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { peerCreateCommand, peerSessionId, waitUntil } from "../support.js";
+import { peerCreateCommand, peerSessionId, waitUntil } from "../support.mjs";
 const canonical = (value) =>
     Array.isArray(value)
         ? value.map(canonical)
@@ -144,7 +144,9 @@ export const runIdentityAdmissionScenario = async (runtime) => {
         const found = await ctx
             .get("conviviumMeetingRuntime")
             .findBySessionId(String(agent.id), new AbortController().signal);
-        if (found?.ownership.identityId === admitted.identityId) owner = found.ownership;
+        if (found?.ownership.identityId === admitted.identityId) {
+            owner = found.ownership;
+        }
     }
     assert(
         owner?.lifecycleStatus === "active" && owner.capabilityStatus === "active",

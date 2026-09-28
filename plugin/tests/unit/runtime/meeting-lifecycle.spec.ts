@@ -49,8 +49,9 @@ describe("target Meeting effect routing", () => {
 });
 
 describe("target Meeting list", () => {
-    it("rejects the whole list when a discovered Meeting has no recoverable snapshot", async () => {
+    it("registers tools before recovery and rejects a list with an unavailable Meeting", async () => {
         const state = makeRunningMeetingStateV1();
+        let toolsReady = false;
         const ready = {
             bootstrap: { status: "ready" },
             snapshot: {
@@ -68,7 +69,12 @@ describe("target Meeting list", () => {
             sessionOwnership: []
         };
         const registry = {
-            listMeetings: () => [{ meetingId: state.id }, { meetingId: "meeting-unavailable" }],
+            listMeetings: () => {
+                if (!toolsReady) {
+                    throw new Error("Meeting tools must register before recovery");
+                }
+                return [{ meetingId: state.id }, { meetingId: "meeting-unavailable" }];
+            },
             openMeeting: async ({ meetingId }: { meetingId: string }) => ({
                 recover: async () => (meetingId === state.id ? ready : unavailable)
             }),
@@ -97,7 +103,10 @@ describe("target Meeting list", () => {
             agentDefinitions: roleResources.definitions
         };
         const dispose = await activateTargetMeetingApplication(owner as never, config, {
-            rolePackageRoot: "/fixture"
+            rolePackageRoot: "/fixture",
+            onBeforeRecovery: () => {
+                toolsReady = true;
+            }
         });
 
         try {

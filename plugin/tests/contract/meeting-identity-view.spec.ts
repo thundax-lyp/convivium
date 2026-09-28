@@ -198,12 +198,13 @@ describe("identity filtered view and archive provenance", () => {
             updatedAt: 3
         };
 
-        for (const caller of [{ kind: "captain" as const }])
+        for (const caller of [{ kind: "captain" as const }]) {
             expect(
                 projectMeetingView(snapshot, caller).outcomes.pendingDecisionCandidates?.map(
                     ({ id }) => id
                 )
             ).toEqual(["candidate-pending"]);
+        }
 
         state.lifecycle = { status: "terminal", changedAt: 4 };
         expect(
@@ -291,7 +292,9 @@ describe("archive provenance", () => {
             now: 2
         });
         expect(terminal.kind).toBe("accepted");
-        if (terminal.kind !== "accepted") return;
+        if (terminal.kind !== "accepted") {
+            return;
+        }
         const archiving = startMeetingArchive(terminal.state, {
             archiveId: "archive-1",
             actorId: "runtime-recovery",
@@ -299,7 +302,9 @@ describe("archive provenance", () => {
             questionIssueDispositionFacts: []
         });
         expect(archiving.kind).toBe("accepted");
-        if (archiving.kind !== "accepted") return;
+        if (archiving.kind !== "accepted") {
+            return;
+        }
         const view = projectMeetingView(
             {
                 meetingId: archiving.state.id,

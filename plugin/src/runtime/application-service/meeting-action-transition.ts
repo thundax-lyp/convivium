@@ -185,8 +185,9 @@ const runAdmissionTransition = (
                 },
                 now
             );
-            if (result.kind === "rejected")
+            if (result.kind === "rejected") {
                 throw new TransitionRejected(result.errorCode, result.errorCode);
+            }
             transition = {
                 kind: "accepted",
                 state: result.state,
@@ -196,19 +197,21 @@ const runAdmissionTransition = (
             break;
         }
         case "record_identity_admission_result": {
-            if (context.identityAdmissionResult === undefined)
+            if (context.identityAdmissionResult === undefined) {
                 throw new TransitionRejected(
                     "PRECONDITION_FAILED",
                     "Identity admission result is required"
                 );
+            }
             const result = recordIdentityAdmissionResult(
                 snapshot.state,
                 action.recommendationId,
                 context.identityAdmissionResult,
                 now
             );
-            if (result.kind === "rejected")
+            if (result.kind === "rejected") {
                 throw new TransitionRejected(result.errorCode, result.errorCode);
+            }
             transition = {
                 kind: "accepted",
                 state: result.state,
@@ -261,7 +264,9 @@ const runUserControlTransition = (
                 now,
                 factId
             );
-            if (result.kind === "rejected") throw new TransitionRejected(result.code, result.code);
+            if (result.kind === "rejected") {
+                throw new TransitionRejected(result.code, result.code);
+            }
             transition = {
                 kind: "accepted",
                 state: result.state,
@@ -375,7 +380,9 @@ const runManagerPlanTransition = (
         factId,
         generated("manager_plan")
     );
-    if (result.kind === "rejected") throw new TransitionRejected(result.code, result.code);
+    if (result.kind === "rejected") {
+        throw new TransitionRejected(result.code, result.code);
+    }
     return {
         kind: "accepted",
         state: result.state,

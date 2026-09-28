@@ -23,6 +23,7 @@ export const definitionAssetFiles = [
     "README.md",
     "definitions.json",
     "cordis.patch.yml",
+    "skills/convivium/SKILL.md",
     ...roles.flatMap(([role, preset]) => [
         `agents/${role}/2.0.0/AGENTS.md`,
         `presets/convivium-${preset}/preset.yml`,
@@ -58,8 +59,12 @@ export async function verifyMeetingAgentDefinitions(root) {
     const add = (code, location) => errors.push({ code, location });
     try {
         const stat = await lstat(root);
-        if (stat.isSymbolicLink()) return [{ code: "SYMLINK_FORBIDDEN", location: "." }];
-        if (!stat.isDirectory()) return [{ code: "ROOT_NOT_READABLE", location: "." }];
+        if (stat.isSymbolicLink()) {
+            return [{ code: "SYMLINK_FORBIDDEN", location: "." }];
+        }
+        if (!stat.isDirectory()) {
+            return [{ code: "ROOT_NOT_READABLE", location: "." }];
+        }
     } catch {
         return [{ code: "ROOT_NOT_READABLE", location: "." }];
     }
@@ -74,10 +79,13 @@ export async function verifyMeetingAgentDefinitions(root) {
                 add("SYMLINK_FORBIDDEN", location);
                 continue;
             }
-            if (stat.isDirectory() && directories.has(location)) await walk(location);
-            else if (stat.isFile() && files.includes(location))
+            if (stat.isDirectory() && directories.has(location)) {
+                await walk(location);
+            } else if (stat.isFile() && files.includes(location)) {
                 contents.set(location, await readFile(join(root, location), "utf8"));
-            else add("FILE_SET_MISMATCH", location);
+            } else {
+                add("FILE_SET_MISMATCH", location);
+            }
         }
     }
     try {
@@ -85,7 +93,11 @@ export async function verifyMeetingAgentDefinitions(root) {
     } catch {
         add("ROOT_NOT_READABLE", ".");
     }
-    for (const file of files) if (!seen.has(file)) add("FILE_SET_MISMATCH", file);
+    for (const file of files) {
+        if (!seen.has(file)) {
+            add("FILE_SET_MISMATCH", file);
+        }
+    }
     if (contents.has("definitions.json")) {
         let doc;
         try {
@@ -100,9 +112,9 @@ export async function verifyMeetingAgentDefinitions(root) {
                 doc.schemaVersion !== 1 ||
                 !Array.isArray(doc.definitions) ||
                 doc.definitions.length !== 7
-            )
+            ) {
                 add("DEFINITION_INVALID", "definitions.json");
-            else
+            } else {
                 doc.definitions.forEach((d, i) => {
                     const [role, preset, assigned] = roles[i];
                     const contributorDeny = [
@@ -165,15 +177,19 @@ export async function verifyMeetingAgentDefinitions(root) {
                         new Set(d.evidenceScopes).size !== d.evidenceScopes.length ||
                         !same(d.toolFilter, toolFilter) ||
                         Buffer.byteLength(JSON.stringify(d)) > 16384
-                    )
+                    ) {
                         add("DEFINITION_INVALID", `definitions.json/${i}`);
+                    }
                 });
+            }
         }
     }
     for (const skill of skills) {
         const location = `skills/${skill}/SKILL.md`;
         const text = contents.get(location);
-        if (text === undefined) continue;
+        if (text === undefined) {
+            continue;
+        }
         const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
         const meta = match?.[1];
         const body = match?.[2];
@@ -184,8 +200,19 @@ export async function verifyMeetingAgentDefinitions(root) {
             !/^description: ['"]?\S.+$/m.test(meta) ||
             !/^# \S.+$/m.test(body) ||
             ![1, 2, 3, 4].every((n) => new RegExp(`^${n}\\. \\S.+$`, "m").test(body))
-        )
+        ) {
             add("SKILL_INVALID", location);
+        }
+    }
+    const userSkill = contents.get("skills/convivium/SKILL.md") ?? "";
+    if (
+        !/^---\r?\n[\s\S]*?\r?\n---\r?\n/.test(userSkill) ||
+        !/^name: convivium$/m.test(userSkill) ||
+        !/^disable-model-invocation: true$/m.test(userSkill) ||
+        !/^user-invocable: true$/m.test(userSkill) ||
+        !userSkill.includes("convivium_start_meeting")
+    ) {
+        add("SKILL_INVALID", "skills/convivium/SKILL.md");
     }
     for (const [role, preset, assigned] of roles) {
         const path = `presets/convivium-${preset}/agent.cordis.yml`;
@@ -197,10 +224,12 @@ export async function verifyMeetingAgentDefinitions(root) {
             !same(visible, assigned) ||
             !config.includes("includeDefaultRoots: false") ||
             !config.includes(`providerName: convivium-${preset}`)
-        )
+        ) {
             add("PRESET_INVALID", path);
-        if (!nonempty(contents.get(`agents/${role}/2.0.0/AGENTS.md`)))
+        }
+        if (!nonempty(contents.get(`agents/${role}/2.0.0/AGENTS.md`))) {
             add("DEFINITION_INVALID", `agents/${role}/2.0.0/AGENTS.md`);
+        }
     }
     return errors.sort((a, b) =>
         a.location < b.location
@@ -218,7 +247,11 @@ const defaultRoot = fileURLToPath(new URL("../config/", import.meta.url));
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     const errors = await verifyMeetingAgentDefinitions(defaultRoot);
     if (errors.length) {
-        for (const error of errors) console.error(`FAIL ${error.code} ${error.location}`);
+        for (const error of errors) {
+            console.error(`FAIL ${error.code} ${error.location}`);
+        }
         process.exitCode = 1;
-    } else console.log("PASS 7 enabled Meeting Agent Definition deployment roles");
+    } else {
+        console.log("PASS 7 packaged Meeting Agent Definition deployment roles");
+    }
 }

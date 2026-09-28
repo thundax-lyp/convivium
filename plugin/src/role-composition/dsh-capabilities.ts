@@ -34,13 +34,16 @@ export const validateRoleSkills = async (input: {
     const snapshot = await skills.snapshot(view);
     const names = snapshot.skills.map((item) => item.name).sort();
     const expected = [...definition.requiredSkillNames].sort();
-    if (!snapshot.complete || JSON.stringify(names) !== JSON.stringify(expected))
+    if (!snapshot.complete || JSON.stringify(names) !== JSON.stringify(expected)) {
         throw new Error("Role Skill catalog differs from its allocation.");
+    }
     for (const name of abilityNames) {
         const skill = await skills.get(name, view);
         view.signal?.throwIfAborted();
         if (!expected.includes(name)) {
-            if (skill) throw new Error("Unassigned Skill is loadable.");
+            if (skill) {
+                throw new Error("Unassigned Skill is loadable.");
+            }
             continue;
         }
         const path = resolve(packageRoot, "config", "skills", name, "SKILL.md");
@@ -57,8 +60,9 @@ export const validateRoleSkills = async (input: {
             skill.path !== path ||
             skill.resourceBase?.kind !== "directory" ||
             resolve(skill.resourceBase.path) !== resolve(packageRoot, "config", "skills", name)
-        )
+        ) {
             throw new Error("Role Skill body or resource origin differs from its binding.");
+        }
     }
 };
 
@@ -92,8 +96,9 @@ export const preflightMeetingIdentity = async (input: {
             binding.agentDefinitionId !== definition.agentDefinitionId ||
             binding.definitionVersion !== definition.definitionVersion ||
             binding.definitionHash !== definitionHash(definition)
-        )
+        ) {
             throw new Error("Invalid preflight binding.");
+        }
         await input.ctx.llm.resolveCallConfig(
             {
                 provider: agentOptions.provider,
@@ -116,8 +121,9 @@ export const preflightMeetingIdentity = async (input: {
         });
         input.signal.throwIfAborted();
         // Standing mount and reads may yield; refuse files changed during preflight.
-        if ((await resolveResourceBinding(input)).compositionHash !== resources.compositionHash)
+        if ((await resolveResourceBinding(input)).compositionHash !== resources.compositionHash) {
             throw new Error("Role resources changed during preflight.");
+        }
         const descriptor = {
             descriptorId: `descriptor-${sha256Hex(encodeCanonicalJson([meetingId, "descriptor", identityId])).slice(0, 32)}`,
             meetingId,

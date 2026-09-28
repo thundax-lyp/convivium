@@ -58,45 +58,60 @@ export function requestEvidenceOpportunity(
         !hasCommonValidInput(input.requestId, input.purpose, input.now) ||
         input.agendaId.trim().length === 0 ||
         input.contributorId.trim().length === 0
-    )
+    ) {
         return rejected(state, "INVALID_ARGUMENT", "invalid opportunity request");
-    if (state.lifecycle.status !== "running")
+    }
+    if (state.lifecycle.status !== "running") {
         return rejected(state, "MEETING_TERMINAL", "meeting is not running");
+    }
     const agenda = state.agenda.find((item) => item.id === input.agendaId);
-    if (!agenda) return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
-    if (agenda.status !== "active") return rejected(state, "INVALID_STATE", "agenda is not active");
+    if (!agenda) {
+        return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
+    }
+    if (agenda.status !== "active") {
+        return rejected(state, "INVALID_STATE", "agenda is not active");
+    }
     const contributor = state.identities.find((identity) => identity.id === input.contributorId);
-    if (!contributor || !contributor.roles.includes("contributor"))
+    if (!contributor || !contributor.roles.includes("contributor")) {
         return rejected(
             state,
             "UNAUTHORIZED",
             "identity is not a contributor",
             input.contributorId
         );
+    }
     if (
         contributor.agendaResponsibilityIds.length > 0 &&
         !contributor.agendaResponsibilityIds.includes(input.agendaId)
-    )
+    ) {
         return rejected(state, "UNAUTHORIZED", "contributor is not assigned to agenda");
+    }
     const manager = findManager(state, input.agendaId);
-    if (!manager) return rejected(state, "PRECONDITION_FAILED", "no eligible manager");
-    if (state.rounds.some((round) => round.agendaId === input.agendaId && round.status === "open"))
+    if (!manager) {
+        return rejected(state, "PRECONDITION_FAILED", "no eligible manager");
+    }
+    if (
+        state.rounds.some((round) => round.agendaId === input.agendaId && round.status === "open")
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "an open round already exists");
+    }
     if (
         state.opportunityRequests.some(
             (request) =>
                 request.agendaId === input.agendaId && request.contributorId === input.contributorId
         )
-    )
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "opportunity request already pending");
+    }
     if (
         state.contributions.some(
             (contribution) =>
                 contribution.contributorId === input.contributorId &&
                 !terminalContributionStatuses.has(contribution.status)
         )
-    )
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished contribution");
+    }
     if (
         state.tasks.some(
             (task) =>
@@ -104,10 +119,12 @@ export function requestEvidenceOpportunity(
                 (task.status === "open" || task.status === "claimed") &&
                 (task.agendaId === undefined || task.agendaId === input.agendaId)
         )
-    )
+    ) {
         return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
-    if (state.opportunityRequests.some((request) => request.id === input.requestId))
+    }
+    if (state.opportunityRequests.some((request) => request.id === input.requestId)) {
         return rejected(state, "INVALID_ARGUMENT", "request id already exists", input.requestId);
+    }
     const request: EvidenceOpportunityRequest = {
         id: input.requestId,
         agendaId: input.agendaId,
@@ -139,19 +156,23 @@ export function disposeEvidenceOpportunity(
     state: MeetingState,
     input: DisposeInput
 ): MeetingTransitionResult {
-    if (!hasCommonValidInput(input.requestId, input.reason, input.now))
+    if (!hasCommonValidInput(input.requestId, input.reason, input.now)) {
         return rejected(state, "INVALID_ARGUMENT", "invalid opportunity disposition");
+    }
     const request = state.opportunityRequests.find((item) => item.id === input.requestId);
-    if (!request)
+    if (!request) {
         return rejected(state, "NOT_FOUND", "opportunity request not found", input.requestId);
+    }
     const manager = state.identities.find((identity) => identity.id === input.managerId);
-    if (!manager || !manager.roles.includes("manager"))
+    if (!manager || !manager.roles.includes("manager")) {
         return rejected(state, "UNAUTHORIZED", "identity is not a manager", input.managerId);
+    }
     if (
         manager.agendaResponsibilityIds.length > 0 &&
         !manager.agendaResponsibilityIds.includes(request.agendaId)
-    )
+    ) {
         return rejected(state, "UNAUTHORIZED", "manager is not assigned to agenda");
+    }
     const next = state.opportunityRequests.filter((item) => item.id !== input.requestId);
     return accepted(
         { ...state, version: state.version + 1, updatedAt: input.now, opportunityRequests: next },

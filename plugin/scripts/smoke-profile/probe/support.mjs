@@ -19,7 +19,9 @@ export function collectAgentPromptEvidence(observedAgents, observedInboxMessages
 
 export function createProbeSupport(outputPath) {
     function assert(condition, message) {
-        if (!condition) throw new Error(message);
+        if (!condition) {
+            throw new Error(message);
+        }
     }
 
     async function callTool(ctx, agent, name, input, index) {
@@ -30,16 +32,23 @@ export function createProbeSupport(outputPath) {
             agent,
             signal: new AbortController().signal
         });
-        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
-        if (!result.value?.ok) throw new Error(name + " failed: " + JSON.stringify(result.value));
+        if (result.isError) {
+            throw new Error(name + "#" + index + ": " + result.error.message);
+        }
+        if (!result.value?.ok) {
+            throw new Error(name + " failed: " + JSON.stringify(result.value));
+        }
         return result.value;
     }
 
     async function callTargetTool(ctx, agent, name, input, index) {
         const result = await callTargetToolResult(ctx, agent, name, input, index);
-        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
-        if (result.value?.kind === "rejected")
+        if (result.isError) {
+            throw new Error(name + "#" + index + ": " + result.error.message);
+        }
+        if (result.value?.kind === "rejected") {
             throw new Error(name + " rejected: " + JSON.stringify(result.value));
+        }
         return result.value;
     }
 
@@ -56,7 +65,9 @@ export function createProbeSupport(outputPath) {
                 agent,
                 signal: new AbortController().signal
             });
-            if (!result.isError || !String(result.error?.message).includes("unknown tool")) break;
+            if (!result.isError || !String(result.error?.message).includes("unknown tool")) {
+                break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
         return result;
@@ -98,7 +109,9 @@ export function createProbeSupport(outputPath) {
     }
 
     async function writeResult(value) {
-        if (!outputPath) return;
+        if (!outputPath) {
+            return;
+        }
         const fs = await import("node:fs/promises");
         const tempPath = outputPath + ".tmp";
         await fs.writeFile(tempPath, JSON.stringify(value, null, 2), "utf8");
@@ -167,22 +180,31 @@ export const peerCreateCommand = async (requestId, statement) => {
                 hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
-            identities: definitions.map((d) => ({
-                identityKey: d.roleDefinitionId,
-                definitionId: d.agentDefinitionId,
-                definitionVersion: d.definitionVersion,
-                displayName: d.roleDefinitionId,
-                roles: [
-                    d.roleDefinitionId === "meeting_manager"
-                        ? "manager"
-                        : d.roleDefinitionId === "verification_reviewer"
-                          ? "evidence_reviewer"
-                          : "contributor"
-                ],
-                agendaResponsibilityIds: ["agenda"],
-                riskAuthority: false,
-                required: true
-            })),
+            identities: definitions
+                .filter((d) =>
+                    [
+                        "meeting_manager",
+                        "verification_reviewer",
+                        "github_research_analyst",
+                        "arxiv_research_analyst"
+                    ].includes(d.roleDefinitionId)
+                )
+                .map((d) => ({
+                    identityKey: d.roleDefinitionId,
+                    definitionId: d.agentDefinitionId,
+                    definitionVersion: d.definitionVersion,
+                    displayName: d.roleDefinitionId,
+                    roles: [
+                        d.roleDefinitionId === "meeting_manager"
+                            ? "manager"
+                            : d.roleDefinitionId === "verification_reviewer"
+                              ? "evidence_reviewer"
+                              : "contributor"
+                    ],
+                    agendaResponsibilityIds: ["agenda"],
+                    riskAuthority: false,
+                    required: true
+                })),
             managerIdentityKey: "meeting_manager",
             evidenceReviewerIdentityKey: "verification_reviewer",
             initialAgenda: [
@@ -202,7 +224,9 @@ export const waitUntil = async (check, message, timeout = 300000) => {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
         const result = await check();
-        if (result) return result;
+        if (result) {
+            return result;
+        }
         await new Promise((resolve) => setTimeout(resolve, 200));
     }
     throw new Error(message);

@@ -102,13 +102,14 @@ export function validatePrivateMailSend(
         input.outbox.payload.role !== "meeting_mail" ||
         input.outbox.payload.mailId !== input.mail.mailId ||
         input.outbox.payload.participantId !== input.mail.recipientParticipantId
-    )
+    ) {
         throw new RepositoryError(
             "INVALID_INPUT",
             false,
             snapshot.meetingId,
             "Meeting mail participants, context, or delivery are invalid"
         );
+    }
 }
 
 export function validatePrivateMailStart(
@@ -130,13 +131,14 @@ export function validatePrivateMailStart(
             "archiving",
             "archived"
         ].includes(typeof status === "string" ? status : "")
-    )
+    ) {
         throw new RepositoryError(
             "INVALID_STATE",
             status === "paused",
             snapshot.meetingId,
             "Meeting mail is not dispatchable"
         );
+    }
     const messageSeq = snapshot.state.messageSeq;
     if (
         !Number.isSafeInteger(input.processingThroughSeq) ||
@@ -145,13 +147,14 @@ export function validatePrivateMailStart(
         input.processingThroughSeq > messageSeq ||
         !Number.isFinite(input.deadlineAt) ||
         input.deadlineAt <= now
-    )
+    ) {
         throw new RepositoryError(
             "INVALID_INPUT",
             false,
             snapshot.meetingId,
             "Meeting mail processing bounds are invalid"
         );
+    }
 }
 
 export function validatePrivateMailFinish(
@@ -164,11 +167,12 @@ export function validatePrivateMailFinish(
         mail.status !== "processing" ||
         mail.handlingAttemptId !== input.handlingAttemptId ||
         mail.deliveryId !== input.deliveryId
-    )
+    ) {
         throw new RepositoryError(
             "INVALID_STATE",
             false,
             meetingId,
             "Mail handling is stale or terminal"
         );
+    }
 }

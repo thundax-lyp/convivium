@@ -34,7 +34,9 @@ function safeRecord<T>(valueSchema: z.ZodType<T>): z.ZodType<Record<string, T>> 
                 : value,
         z.record(z.string(), valueSchema).transform((value) => {
             const output: Record<string, T> = Object.create(null);
-            for (const [key, item] of Object.entries(value)) output[key] = item;
+            for (const [key, item] of Object.entries(value)) {
+                output[key] = item;
+            }
             return output;
         })
     );

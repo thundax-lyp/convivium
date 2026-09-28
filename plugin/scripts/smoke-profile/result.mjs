@@ -61,8 +61,9 @@ function validateMeetingBusinessLoopResult(value) {
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
         value.observed.subtopicOrigin !== "manager-round-goal"
-    )
+    ) {
         throw new Error("Meeting business loop smoke result is invalid.");
+    }
 }
 
 export function validateMeetingBusinessLoopHotResult(value) {
@@ -100,8 +101,9 @@ export function validateMeetingBusinessLoopHotResult(value) {
         value.observed.workerSessionIds.length !== 8 ||
         new Set(value.observed.workerSessionIds).size !== 8 ||
         value.observed.subtopicOrigin !== "manager-round-goal"
-    )
+    ) {
         throw new Error("Meeting business loop hot smoke result is invalid.");
+    }
     return value;
 }
 
@@ -136,8 +138,9 @@ export function completeMeetingBusinessLoopResult(hotValue, coldValue) {
         coldValue.meetingId !== hot.meetingId ||
         coldValue.status !== "archived" ||
         coldValue.archiveStatus !== "complete"
-    )
+    ) {
         throw new Error("Meeting business loop cold reopen result is invalid.");
+    }
     const completed = {
         ...hot,
         assertions: [...hot.assertions, "cold-reopen"],
@@ -177,21 +180,19 @@ function validateIdentityAdmissionResult(value) {
         value.rejectedCandidateId !== "candidate-reject" ||
         value.nativeSkillLoaded !== true ||
         value.sessionIndependent !== true
-    )
+    ) {
         throw new Error("Identity admission smoke result is invalid.");
+    }
 }
 
 export const PEER_SKILLS = Object.freeze({
     meeting_manager: ["meeting-facilitation"],
-    domain_architect: ["repository-analysis"],
-    runtime_engineer: ["repository-analysis"],
-    protocol_ui_engineer: ["repository-analysis"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
     arxiv_research_analyst: ["arxiv"]
 });
 export const PEER_ASSERTIONS = [
-    "seven-peer-sessions",
+    "four-peer-sessions",
     "role-skill-isolation",
     "input-session-independent-delivery",
     "user-control-authorization",
@@ -222,7 +223,7 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
         ]) ||
         !exact(observed.sessionIds, roles) ||
         !Object.values(observed.sessionIds).every(nonempty) ||
-        new Set(Object.values(observed.sessionIds)).size !== 7 ||
+        new Set(Object.values(observed.sessionIds)).size !== 4 ||
         !exact(observed.presetIds, roles) ||
         roles.some(
             (role) =>
@@ -247,7 +248,8 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
         !exact(observed.review, ["versionId", "reviewId"]) ||
         !Object.values(observed.review).every(nonempty) ||
         observed.coldRecovery !== coldRecovery
-    )
+    ) {
         throw new Error("Peer meeting agents smoke result is invalid.");
+    }
     return value;
 }

@@ -15,7 +15,7 @@ async function fixture() {
     const meeting = createFakeMeetingDomain();
     const catalog = createFakeCatalogDomain();
     const state = makeRunningMeetingStateV1();
-    for (let i = 0; i < 4; i++) state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+    state.identities.push({ ...state.identities[1], id: "extra-researcher" });
     const repository = await DomainMeetingRepository.open<MeetingState>({
         catalogDomain: catalog,
         meetingDomain: meeting,
@@ -33,8 +33,9 @@ async function fixture() {
         createdAt: 1
     };
     await repository.create(create);
-    for (const item of create.initialOwnership)
+    for (const item of create.initialOwnership) {
         await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
+    }
     await repository.completeCreate(create);
     return { catalog, meeting, repository, state };
 }
@@ -226,10 +227,9 @@ describe("target repository facts contract", () => {
 });
 
 describe("peer creation and ownership transaction", () => {
-    it("requires seven matching bindings, activates before ready and freezes ownership", async () => {
+    it("requires four matching bindings, activates before ready and freezes ownership", async () => {
         const state = makeRunningMeetingStateV1();
-        for (let i = 0; i < 4; i++)
-            state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+        state.identities.push({ ...state.identities[1], id: "extra-researcher" });
         const meeting = createFakeMeetingDomain();
         const catalog = createFakeCatalogDomain();
         const repository = await DomainMeetingRepository.open<MeetingState>({
@@ -268,8 +268,9 @@ describe("peer creation and ownership transaction", () => {
                 creator: { ...input.creator, sourceSessionId: "different" }
             })
         ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
-        for (const item of input.initialOwnership)
+        for (const item of input.initialOwnership) {
             await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 11);
+        }
         await repository.completeCreate(input);
         const active = { ...input.initialOwnership[0], lifecycleStatus: "active" as const };
         await expect(
@@ -306,8 +307,7 @@ describe("peer creation and ownership transaction", () => {
         "rechecks dynamic activation against %s",
         async (change) => {
             const state = makeRunningMeetingStateV1();
-            for (let i = 0; i < 4; i++)
-                state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+            state.identities.push({ ...state.identities[1], id: "extra-researcher" });
             const dynamic = peerBindings(state.id, [{ id: "dynamic", roles: ["contributor"] }]);
             const ownership = { ...dynamic.initialOwnership[0], admissionId: "admission" };
             const intent = {
@@ -337,11 +337,12 @@ describe("peer creation and ownership transaction", () => {
                     ...peerBindings(state.id, state.identities)
                 };
                 await repository.create(input);
-                for (const item of input.initialOwnership)
+                for (const item of input.initialOwnership) {
                     await repository.recordSessionOwnership(
                         { ...item, lifecycleStatus: "active" },
                         11
                     );
+                }
                 await repository.completeCreate(input);
                 await repository.recordSessionOwnership(
                     ownership,
@@ -382,9 +383,9 @@ describe("peer creation and ownership transaction", () => {
                     { ...ownership, lifecycleStatus: "active" },
                     13
                 );
-                if (change === "unchanged")
+                if (change === "unchanged") {
                     await expect(activation).resolves.toMatchObject({ lifecycleStatus: "active" });
-                else {
+                } else {
                     await expect(activation).rejects.toMatchObject({ code: "INVALID_STATE" });
                     expect(
                         (await repository.recover()).sessionOwnership.find(
@@ -400,8 +401,7 @@ describe("peer creation and ownership transaction", () => {
 
     it("revokes every ownership in the same failed creation record", async () => {
         const state = makeRunningMeetingStateV1();
-        for (let i = 0; i < 4; i++)
-            state.identities.push({ ...state.identities[1], id: `extra-${i}` });
+        state.identities.push({ ...state.identities[1], id: "extra-researcher" });
         const repository = await DomainMeetingRepository.open<MeetingState>({
             catalogDomain: createFakeCatalogDomain(),
             meetingDomain: createFakeMeetingDomain(),
@@ -425,7 +425,7 @@ describe("peer creation and ownership transaction", () => {
         });
         const recovered = await repository.recover();
         expect(recovered.bootstrap.status).toBe("creation_failed");
-        expect(recovered.sessionOwnership).toHaveLength(7);
+        expect(recovered.sessionOwnership).toHaveLength(4);
         expect(
             recovered.sessionOwnership.every((item) => item.capabilityStatus === "revoked")
         ).toBe(true);

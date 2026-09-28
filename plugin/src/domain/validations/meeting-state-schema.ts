@@ -11,8 +11,9 @@ const textSchema = z.string().refine((value) => value.trim().length > 0);
 const uniqueIdArraySchema = z.array(opaqueIdSchema).superRefine((values, ctx) => {
     const seen = new Set<string>();
     values.forEach((value, index) => {
-        if (seen.has(value))
+        if (seen.has(value)) {
             ctx.addIssue({ code: "custom", path: [index], message: "duplicate id" });
+        }
         seen.add(value);
     });
 });
@@ -20,8 +21,9 @@ function uniqueEntityArray<T extends z.ZodType<{ id: string }>>(schema: T) {
     return z.array(schema).superRefine((values, ctx) => {
         const seen = new Set<string>();
         values.forEach((value, index) => {
-            if (seen.has(value.id))
+            if (seen.has(value.id)) {
                 ctx.addIssue({ code: "custom", path: [index, "id"], message: "duplicate id" });
+            }
             seen.add(value.id);
         });
     });
@@ -33,8 +35,9 @@ const roleSchema = z.enum(["manager", "contributor", "evidence_reviewer"]);
 const uniqueRoleArraySchema = z.array(roleSchema).superRefine((values, ctx) => {
     const seen = new Set<string>();
     values.forEach((value, index) => {
-        if (seen.has(value))
+        if (seen.has(value)) {
             ctx.addIssue({ code: "custom", path: [index], message: "duplicate role" });
+        }
         seen.add(value);
     });
 });
@@ -42,9 +45,11 @@ const isAbsentOrDefined = (value: Record<string, unknown>, key: string) =>
     !own(value, key) || value[key] !== undefined;
 function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly string[]) {
     return schema.superRefine((value, ctx) => {
-        for (const key of keys)
-            if (!isAbsentOrDefined(value as Record<string, unknown>, key))
+        for (const key of keys) {
+            if (!isAbsentOrDefined(value as Record<string, unknown>, key)) {
                 ctx.addIssue({ code: "custom", path: [key], message: "undefined" });
+            }
+        }
     });
 }
 const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied"]);
@@ -156,8 +161,9 @@ const identityRecommendationSchema = withDefinedOptionals(
             value.definitionHash !== undefined ||
             value.failureCode !== undefined ||
             value.resolvedAt === undefined
-        )
+        ) {
             ctx.addIssue({ code: "custom", path: ["status"] });
+        }
     } else if (
         value.identityId === undefined ||
         value.sessionId === undefined ||
@@ -380,8 +386,9 @@ const evidenceVersionSchema = withDefinedOptionals(
     }),
     ["lastFailureReason"]
 ).superRefine((version, ctx) => {
-    if ((version.status === "validation_failed") !== (version.lastFailureReason !== undefined))
+    if ((version.status === "validation_failed") !== (version.lastFailureReason !== undefined)) {
         ctx.addIssue({ code: "custom", path: ["lastFailureReason"] });
+    }
 });
 const evidencePackageSchema = z.object({
     id: opaqueIdSchema,

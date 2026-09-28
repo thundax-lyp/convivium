@@ -82,7 +82,9 @@ describe("outbox worker", () => {
             repository: {
                 claimOutbox: async () => {
                     claims += 1;
-                    if (claims === 1) throw Object.assign(new Error("busy"), { retryable: true });
+                    if (claims === 1) {
+                        throw Object.assign(new Error("busy"), { retryable: true });
+                    }
                     worker.stop();
                     return [];
                 },

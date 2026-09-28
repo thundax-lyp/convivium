@@ -39,6 +39,130 @@ function fixture() {
     return { state, ownership };
 }
 
+describe("round ready notice", () => {
+    it("wakes only the Manager for a committed ready round", async () => {
+        const { state, ownership } = fixture();
+        state.rounds = [
+            {
+                id: "round-1",
+                agendaId: "agenda-v1",
+                publicBaselinePublicationIds: [],
+                openedAt: 1,
+                status: "open",
+                contributionIds: ["contribution-1"]
+            }
+        ];
+        state.contributions = [
+            {
+                id: "contribution-1",
+                roundId: "round-1",
+                contributorId: "contributor-v1",
+                handRaise: { raisedAt: 1, purpose: "Contribute" },
+                acceptedAt: 2,
+                status: "withdrawn",
+                exitReason: "Author withdrew",
+                substantiveSupplementCount: 0
+            }
+        ];
+        const deliver = vi.fn().mockResolvedValue(true);
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { deliver, resume: vi.fn(async () => {}) },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 2,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 2
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+        const notice = {
+            kind: "agent_notice",
+            noticeKind: "round_ready",
+            agendaId: "agenda-v1",
+            roundId: "round-1"
+        };
+
+        await dispatcher.dispatch({
+            outboxItem: item({ ...notice, recipientId: "manager-v1" }),
+            signal: new AbortController().signal
+        });
+        expect(JSON.parse(deliver.mock.calls[0]?.[0].text)).toMatchObject({
+            noticeKind: "round_ready",
+            roundId: "round-1",
+            meetingId: state.id
+        });
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: item({ ...notice, recipientId: "contributor-v1" }),
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({ code: "NOTICE_VISIBILITY_INVALID" });
+    });
+});
+
+describe("round opened notice", () => {
+    it("wakes an assigned contributor while the round is open and rejects the reviewer", async () => {
+        const { state, ownership } = fixture();
+        state.rounds = [
+            {
+                id: "round-1",
+                agendaId: "agenda-v1",
+                planId: "plan-1",
+                roundGoal: { question: "q", evidenceGap: "gap", expectedOutput: "output" },
+                publicBaselinePublicationIds: [],
+                openedAt: 1,
+                status: "open",
+                contributionIds: []
+            }
+        ];
+        const deliver = vi.fn().mockResolvedValue(true);
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { deliver, resume: vi.fn(async () => {}) },
+            definitions: [{ agentDefinitionId: "fixture", definitionVersion: "1" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 2,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 2
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+        const notice = {
+            kind: "agent_notice",
+            noticeKind: "round_opened",
+            agendaId: "agenda-v1",
+            roundId: "round-1"
+        };
+
+        await dispatcher.dispatch({
+            outboxItem: item({ ...notice, recipientId: "contributor-v1" }),
+            signal: new AbortController().signal
+        });
+        expect(JSON.parse(deliver.mock.calls[0]?.[0].text)).toMatchObject({
+            meetingId: state.id,
+            noticeKind: "round_opened",
+            roundId: "round-1"
+        });
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: item({ ...notice, recipientId: "reviewer-v1" }),
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({ code: "NOTICE_VISIBILITY_INVALID" });
+    });
+});
+
 describe("meeting notice dispatcher v1", () => {
     it.each([
         ["manager-v1", "session:manager-v1"],

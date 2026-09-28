@@ -47,7 +47,9 @@ describe("identity domain transitions", () => {
             1
         );
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.identityRecommendations[0]).toMatchObject({
             status: "rejected",
             decision: "reject"
@@ -80,7 +82,9 @@ describe("identity domain transitions", () => {
             1
         );
         expect(admitted.kind).toBe("accepted");
-        if (admitted.kind !== "accepted") return;
+        if (admitted.kind !== "accepted") {
+            return;
+        }
         expect(admitted.state.identityRecommendations[0]?.definitionHash).toBe("a".repeat(64));
         const result = recordIdentityAdmissionResult(
             admitted.state,
@@ -101,7 +105,9 @@ describe("identity domain transitions", () => {
             2
         );
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.identityRecommendations[0].status).toBe("active");
         expect(result.state.identities.at(-1)).toMatchObject({
             id: "identity-1",
@@ -133,7 +139,9 @@ describe("identity domain transitions", () => {
             },
             1
         );
-        if (admitted.kind !== "accepted") throw new Error("recommendation");
+        if (admitted.kind !== "accepted") {
+            throw new Error("recommendation");
+        }
 
         const result = recordIdentityAdmissionResult(
             admitted.state,
@@ -182,7 +190,9 @@ describe("identity domain transitions", () => {
             },
             1
         );
-        if (first.kind !== "accepted") throw new Error("recommendation");
+        if (first.kind !== "accepted") {
+            throw new Error("recommendation");
+        }
         const active = recordIdentityAdmissionResult(
             first.state,
             "recommendation-1",
@@ -201,7 +211,9 @@ describe("identity domain transitions", () => {
             },
             2
         );
-        if (active.kind !== "accepted") throw new Error("admission");
+        if (active.kind !== "accepted") {
+            throw new Error("admission");
+        }
         const reused = recommendIdentity(
             active.state,
             {
@@ -221,7 +233,9 @@ describe("identity domain transitions", () => {
             3
         );
         expect(reused.kind).toBe("accepted");
-        if (reused.kind !== "accepted") return;
+        if (reused.kind !== "accepted") {
+            return;
+        }
         expect(reused.state.identityRecommendations.at(-1)).toMatchObject({
             status: "active",
             identityId: "identity-1",
@@ -280,7 +294,9 @@ describe("identity domain transitions", () => {
             },
             1
         );
-        if (provisioning.kind !== "accepted") throw new Error("provisioning");
+        if (provisioning.kind !== "accepted") {
+            throw new Error("provisioning");
+        }
         expect(
             recommendIdentity(
                 provisioning.state,

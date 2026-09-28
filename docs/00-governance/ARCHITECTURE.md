@@ -57,7 +57,7 @@
 - 同目录和子目录的 `./` 引用在符合公开入口规则时保留；保留 `.js` 扩展名，不改变导入符号的实现归属。
 - `plugin/tests/` 引用 `src/` 必须使用 `@/`；测试 fixture 和辅助文件之间允许使用相对路径，`@/` 不指向测试目录。
 - `plugin/scripts/` 中直接由 Node 执行的脚本不使用 TypeScript 路径别名；文件系统路径和 `new URL(..., import.meta.url)` 不属于模块导入规则。
-- `plugin/eslint.config.js` 强制检查上述源码引用和测试静态导入。不得通过禁用 lint、扩大例外或创建转发文件绕过规则。
+- `plugin/eslint.config.mjs` 强制检查上述源码引用和测试静态导入。不得通过禁用 lint、扩大例外或创建转发文件绕过规则。
 
 ### Public Module Entrypoints
 

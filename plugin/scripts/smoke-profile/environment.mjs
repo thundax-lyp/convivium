@@ -6,7 +6,9 @@ const DEEPSEEK_API_KEY = "DEEPSEEK_API_KEY";
 export function createSmokeEnvironment(baseEnvironment, overrides = {}, deepSeekApiKey) {
     const environment = { ...baseEnvironment, ...overrides };
     delete environment.DEEPSEEK_API_KEY;
-    if (deepSeekApiKey !== undefined) environment.DEEPSEEK_API_KEY = deepSeekApiKey;
+    if (deepSeekApiKey !== undefined) {
+        environment.DEEPSEEK_API_KEY = deepSeekApiKey;
+    }
     return environment;
 }
 

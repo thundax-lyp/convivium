@@ -86,25 +86,35 @@ export function recommendIdentity(
         !valid(managerId) ||
         !Number.isSafeInteger(now) ||
         !valid(ids.recommendationId)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT");
-    if (!validRecommendationDraft(action)) return reject(state, "INVALID_ARGUMENT");
-    if (state.lifecycle.status !== "running") return reject(state, "INVALID_STATE");
+    }
+    if (!validRecommendationDraft(action)) {
+        return reject(state, "INVALID_ARGUMENT");
+    }
+    if (state.lifecycle.status !== "running") {
+        return reject(state, "INVALID_STATE");
+    }
     if (
         !state.identities.some(
             (identity) => identity.id === managerId && identity.roles.includes("manager")
         )
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED");
-    if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
+    }
+    if (!state.agenda.some((agenda) => agenda.id === action.agendaId)) {
         return reject(state, "NOT_FOUND");
+    }
     const candidateRecommendations = state.identityRecommendations.filter(
         (item) => item.candidateId === action.candidateId
     );
-    if (candidateRecommendations.some((item) => item.status === "provisioning"))
+    if (candidateRecommendations.some((item) => item.status === "provisioning")) {
         return reject(state, "INVALID_STATE");
+    }
     const active = candidateRecommendations.find((item) => item.status === "active");
-    if (active?.agendaId === action.agendaId) return reject(state, "INVALID_STATE");
+    if (active?.agendaId === action.agendaId) {
+        return reject(state, "INVALID_STATE");
+    }
     if (
         active !== undefined &&
         (action.decision !== "admit" ||
@@ -112,8 +122,9 @@ export function recommendIdentity(
             active.definitionVersion !== action.definitionVersion ||
             active.definitionHash === undefined ||
             active.definitionHash !== ids.definitionHash)
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED");
+    }
     const recommendation: IdentityRecommendation =
         action.decision === "reject"
             ? {
@@ -149,10 +160,14 @@ export function recommendIdentity(
                     definitionHash: active.definitionHash,
                     resolvedAt: now
                 };
-    if (action.decision === "admit" && !/^[a-f0-9]{64}$/.test(ids.definitionHash ?? ""))
+    if (action.decision === "admit" && !/^[a-f0-9]{64}$/.test(ids.definitionHash ?? "")) {
         return reject(state, "INVALID_ARGUMENT");
-    if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.sessionId)))
-        if (active === undefined) return reject(state, "INVALID_ARGUMENT");
+    }
+    if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.sessionId))) {
+        if (active === undefined) {
+            return reject(state, "INVALID_ARGUMENT");
+        }
+    }
     const nextState = {
         ...state,
         version: state.version + 1,
@@ -192,11 +207,13 @@ export function recordIdentityAdmissionResult(
         validateMeetingState(state).kind !== "valid" ||
         !valid(recommendationId) ||
         !Number.isSafeInteger(now)
-    )
+    ) {
         return reject(state, "INVALID_ARGUMENT");
+    }
     const intent = state.identityRecommendations.find((item) => item.id === recommendationId);
-    if (!intent || intent.decision !== "admit" || intent.status !== "provisioning")
+    if (!intent || intent.decision !== "admit" || intent.status !== "provisioning") {
         return reject(state, "NOT_FOUND");
+    }
     if (
         result.kind === "admitted" &&
         (result.admissionId !== intent.id ||
@@ -210,8 +227,9 @@ export function recordIdentityAdmissionResult(
             !valid(result.descriptorId) ||
             !valid(result.displayName) ||
             !valid(result.definitionHash))
-    )
+    ) {
         return reject(state, "PRECONDITION_FAILED");
+    }
     const updated =
         result.kind === "admitted"
             ? {

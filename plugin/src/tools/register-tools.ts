@@ -285,11 +285,13 @@ function parseCommand(
     definition: ToolDefinition
 ): MeetingCommand | MeetingCommandResult {
     const parsed = MeetingCommandSchema.safeParse(input);
-    if (!parsed.success || parsed.data.action.kind !== definition.kind)
+    if (!parsed.success || parsed.data.action.kind !== definition.kind) {
         return rejected("INVALID_ARGUMENT", `Expected ${definition.kind} command input.`);
+    }
     const action = definition.schema.safeParse(parsed.data.action);
-    if (!action.success)
+    if (!action.success) {
         return rejected("INVALID_ARGUMENT", `Expected valid ${definition.kind} command input.`);
+    }
     return { ...parsed.data, action: action.data } as MeetingCommand;
 }
 
@@ -308,18 +310,22 @@ function registerTool(
             },
             async execute(args, exec) {
                 const command = parseCommand(args, definition);
-                if ("kind" in command) return command as unknown as JsonValue;
-                if (exec.agent === undefined)
+                if ("kind" in command) {
+                    return command as unknown as JsonValue;
+                }
+                if (exec.agent === undefined) {
                     return rejected(
                         "UNAUTHORIZED",
                         "A Meeting tool requires an Agent caller."
                     ) as unknown as JsonValue;
+                }
                 const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
-                if (caller === undefined)
+                if (caller === undefined) {
                     return rejected(
                         "UNAUTHORIZED",
                         "The caller is not an active Meeting identity."
                     ) as unknown as JsonValue;
+                }
                 return (await dependencies.application.execute(
                     command,
                     {
@@ -351,22 +357,25 @@ const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => 
             },
             async execute(args, exec) {
                 const request = ReadMeetingRequestSchema.safeParse(args.input);
-                if (!request.success)
+                if (!request.success) {
                     return rejected(
                         "INVALID_ARGUMENT",
                         "Expected a valid Meeting read request."
                     ) as unknown as JsonValue;
-                if (exec.agent === undefined)
+                }
+                if (exec.agent === undefined) {
                     return rejected(
                         "UNAUTHORIZED",
                         "A Meeting tool requires an Agent caller."
                     ) as unknown as JsonValue;
+                }
                 const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
-                if (caller === undefined || caller.meetingId !== request.data.meetingId)
+                if (caller === undefined || caller.meetingId !== request.data.meetingId) {
                     return rejected(
                         "UNAUTHORIZED",
                         "The caller is not an active identity of the requested Meeting."
                     ) as unknown as JsonValue;
+                }
                 const result = await dependencies.reader.read(request.data, caller, exec.signal);
                 return (result ??
                     rejected(
@@ -398,26 +407,29 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                     typeof meetingId !== "string" ||
                     typeof versionId !== "string" ||
                     typeof prompt !== "string"
-                )
+                ) {
                     return rejected(
                         "INVALID_ARGUMENT",
                         "Expected meetingId, versionId and prompt strings."
                     ) as unknown as JsonValue;
-                if (exec.agent === undefined)
+                }
+                if (exec.agent === undefined) {
                     return rejected(
                         "UNAUTHORIZED",
                         "A review worker requires an Agent caller."
                     ) as unknown as JsonValue;
+                }
                 const caller = await dependencies.callers.resolve(exec.agent, exec.signal);
                 if (
                     caller === undefined ||
                     caller.meetingId !== meetingId ||
                     caller.role !== "evidence_reviewer"
-                )
+                ) {
                     return rejected(
                         "UNAUTHORIZED",
                         "Only the active Evidence Reviewer may run a review worker."
                     ) as unknown as JsonValue;
+                }
                 const run = await dependencies.reviewWorkers.start("spawn", {
                     label: `convivium:review:${versionId}`,
                     prompt: [{ type: "text", text: prompt }],
@@ -434,7 +446,7 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                         typeof result.structured !== "object" ||
                         result.structured === null ||
                         (result.structured as { versionId?: unknown }).versionId !== versionId
-                    )
+                    ) {
                         return {
                             kind: "failed",
                             code:
@@ -442,6 +454,7 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                                     ? "REVIEW_WORKER_VERSION_MISMATCH"
                                     : "REVIEW_WORKER_NOT_COMPLETED"
                         } as JsonValue;
+                    }
                     const output = result.structured as Record<string, unknown>;
                     const parsed = SubmitEvidenceReviewActionSchema.safeParse({
                         kind: "submit_evidence_review",
@@ -451,11 +464,12 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                         dimensions: output.dimensions,
                         scope: output.scope
                     });
-                    if (!parsed.success)
+                    if (!parsed.success) {
                         return {
                             kind: "failed",
                             code: "REVIEW_WORKER_OUTPUT_INVALID"
                         } as JsonValue;
+                    }
                     return {
                         kind: "completed",
                         review: {

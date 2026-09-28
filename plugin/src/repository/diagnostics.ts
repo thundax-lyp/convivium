@@ -36,7 +36,9 @@ type DurableOutboxItem = PersistenceProjection["outbox"][string];
 function targetLifecycle(value: unknown): string | undefined {
     const isRecord = (item: unknown): item is Record<string, unknown> =>
         typeof item === "object" && item !== null && !Array.isArray(item);
-    if (!isRecord(value) || !isRecord(value.lifecycle)) return undefined;
+    if (!isRecord(value) || !isRecord(value.lifecycle)) {
+        return undefined;
+    }
     return typeof value.lifecycle.status === "string" ? value.lifecycle.status : undefined;
 }
 
@@ -84,7 +86,9 @@ export function observeCommit(
     now: number,
     commandKind?: string
 ): void {
-    if (sink === undefined || after.snapshot === null) return;
+    if (sink === undefined || after.snapshot === null) {
+        return;
+    }
     const rawState: unknown = after.snapshot.state;
     const lifecycle = targetLifecycle(rawState);
     const base = {

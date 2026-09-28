@@ -19,6 +19,7 @@ export interface AgentNoticeEffectBase {
 
 export type AgentNoticeEffectRequest =
     | (AgentNoticeEffectBase & { noticeKind: "meeting_started" })
+    | (AgentNoticeEffectBase & { noticeKind: "round_opened"; roundId: OpaqueId })
     | (AgentNoticeEffectBase & { noticeKind: "opportunity_request"; requestId: OpaqueId })
     | (AgentNoticeEffectBase & {
           noticeKind: "opportunity_disposition";
@@ -62,6 +63,7 @@ export type AgentNoticeEffectRequest =
           reason: string;
       })
     | (AgentNoticeEffectBase & { noticeKind: "review_request"; versionId: OpaqueId })
+    | (AgentNoticeEffectBase & { noticeKind: "round_ready"; roundId: OpaqueId })
     | (AgentNoticeEffectBase & {
           noticeKind: "transcript_update";
           publicMessageId: OpaqueId;

@@ -20,7 +20,9 @@ describe("meeting archive", () => {
             now: 10
         });
         expect(ended.kind).toBe("accepted");
-        if (ended.kind !== "accepted") return;
+        if (ended.kind !== "accepted") {
+            return;
+        }
         const archiving = startMeetingArchive(ended.state, {
             archiveId: "archive-v1",
             actorId: "runtime",
@@ -28,7 +30,9 @@ describe("meeting archive", () => {
             questionIssueDispositionFacts: []
         });
         expect(archiving.kind).toBe("accepted");
-        if (archiving.kind !== "accepted") return;
+        if (archiving.kind !== "accepted") {
+            return;
+        }
         expect(archiving.state.archive?.status).toBe("complete");
         expect(archiving.state.archive?.controlActorProvenance).toEqual([
             { actorId: "captain_actor-be6579378dcba3083c1af7ecd7d4590f", kind: "captain" }

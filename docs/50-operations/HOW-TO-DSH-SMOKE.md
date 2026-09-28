@@ -8,7 +8,7 @@
 
 - `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立平级 AgentSession。
 - `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer 逐版本 worker/Review、Publication、Archive 和 SQLite cold reopen。
-- `peer-meeting-agents`：验证七个独立 Preset/Session、精确 Skill 隔离、用户控制、真实 GitHub/arXiv 读取、Reviewer worker 和同绑定冷恢复。
+- `peer-meeting-agents`：按场景配置验证新会议四个独立 Preset/Session、精确 Skill 隔离、用户控制、真实 GitHub/arXiv 读取、Reviewer worker 和同绑定冷恢复。
 
 Browser smoke 尚未接入 target runtime；`CONVIVIUM_SMOKE_BROWSER_MODE=1` 会在 Host 启动前失败，不能作为 Browser 验收证据。
 
@@ -40,7 +40,7 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
   ./scripts/install-from-source.sh --workspace "$web_ui_workspace" --dev-refresh
 ```
 
-按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再从 `Meetings` 面板创建人工 fixture；若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
+按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径，再从普通聊天输入 `/convivium <会议目标>` 创建人工 fixture，并在 `Meetings` 面板查看；若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
 
 ## Prerequisites
 
@@ -128,7 +128,9 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 ### peer-meeting-agents
 
-真实 Loader 创建七个无 parent 的 Session，逐角色比较 Skill 列表并逐名称验证可加载边界；输入 Session 在创建前关闭，notice 仍投递。研究角色实际读取 GitHub 固定 ref 和 arXiv 固定版本并提交证据，Reviewer 运行真实 one-shot worker。Agent 调用用户创建入口被拒绝，独立用户连接可以暂停；冷 Host 使用同一 DSH_HOME/SQLite 继续，并逐项核对原 Session、Preset、Skills、资源与模型绑定。八项 observed 必须通过精确结果校验。
+真实 Loader 按场景中选定的两位研究贡献者配置为新会议创建四个无 parent 的 Session，逐角色比较 Skill 列表并逐名称验证可加载边界；输入 Session 在创建前关闭，notice 仍投递。研究角色实际读取 GitHub 固定 ref 和 arXiv 固定版本并提交证据，Reviewer 运行真实 one-shot worker。Agent 调用用户创建入口被拒绝，独立用户连接可以暂停；冷 Host 使用同一 DSH_HOME/SQLite 继续，并逐项核对原 Session、Preset、Skills、资源与模型绑定。八项 observed 必须通过精确结果校验。
+
+此处的独立用户连接是重新建立的 loopback HTTP 请求；资源与模型绑定核对的是 Repository ownership 哈希，并未直接检查恢复后 Agent 的有效模型、角色身份指令或 `toolFilter`。一次 worker 不构成并发审核证据，结果中的固定来源标识也不能脱离工具调用记录单独证明实际内容读取。完整 MO-FR-14 验收边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md#acceptance) 与 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ## Review Records
 

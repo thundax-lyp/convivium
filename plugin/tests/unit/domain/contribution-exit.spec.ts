@@ -26,14 +26,18 @@ function stateWithContribution() {
         managerId: "manager-v1",
         now: 1
     });
-    if (open.kind !== "accepted") throw new Error("round");
+    if (open.kind !== "accepted") {
+        throw new Error("round");
+    }
     const hand = raiseHand(open.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
         purpose: "提交",
         now: 2
     });
-    if (hand.kind !== "accepted") throw new Error("hand");
+    if (hand.kind !== "accepted") {
+        throw new Error("hand");
+    }
     const accepted = disposeHandRaise(hand.state, {
         roundId: "round-v1",
         contributorId: "contributor-v1",
@@ -43,7 +47,9 @@ function stateWithContribution() {
         contributionId: "contribution-v1",
         now: 3
     });
-    if (accepted.kind !== "accepted") throw new Error("accept");
+    if (accepted.kind !== "accepted") {
+        throw new Error("accept");
+    }
     return accepted.state;
 }
 
@@ -59,7 +65,9 @@ describe("contribution exit", () => {
             now: 4
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.contributions[0]).toMatchObject({
             status: "withdrawn",
             exitReason: "无法在本轮完成"
@@ -166,11 +174,20 @@ describe("contribution exit", () => {
             now: responseDeadline
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.contributions[0]).toMatchObject({
             status: "timed_out",
             exitReason: "响应期限已到"
         });
         expect(isRoundClosable(result.state, "round-v1")).toBe(true);
+        expect(result.effectRequests).toContainEqual({
+            kind: "agent_notice",
+            noticeKind: "round_ready",
+            recipientId: "manager-v1",
+            agendaId: "agenda-v1",
+            roundId: "round-v1"
+        });
     });
 });

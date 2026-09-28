@@ -13,9 +13,16 @@ import {
     type MeetingListResult,
     type MeetingReadResult,
     type ReadMeetingRequest,
-    type RefreshNotice,
-    type ProtocolError
+    type RefreshNotice
 } from "@/protocol/index.js";
+
+interface ProtocolError {
+    protocolVersion: 1;
+    ok: false;
+    code: string;
+    message: string;
+    retryable: boolean;
+}
 
 export class ProtocolFailure extends Error {
     constructor(readonly protocolError: ProtocolError) {
@@ -38,7 +45,7 @@ export interface MeetingClient {
 
 const protocolFailure = (value: unknown): ProtocolFailure => {
     const error = value as ProtocolError;
-    if (error.code === "convivium/invalid-request")
+    if (error.code === "convivium/invalid-request") {
         return new ProtocolFailure({
             protocolVersion: 1,
             ok: false,
@@ -46,6 +53,7 @@ const protocolFailure = (value: unknown): ProtocolFailure => {
             message: "Invalid meeting request.",
             retryable: false
         });
+    }
     return new ProtocolFailure({
         protocolVersion: 1,
         ok: false,
@@ -64,7 +72,7 @@ const remoteFailure = (error: unknown): never => {
                 }
             ).code
         );
-        if (code === "convivium/invalid-request")
+        if (code === "convivium/invalid-request") {
             throw new ProtocolFailure({
                 protocolVersion: 1,
                 ok: false,
@@ -72,6 +80,7 @@ const remoteFailure = (error: unknown): never => {
                 message: "Invalid meeting request.",
                 retryable: false
             });
+        }
     }
     throw error;
 };
@@ -86,7 +95,9 @@ const unwrap = async <T>(
     } catch (error) {
         return remoteFailure(error);
     }
-    if (!result.ok) throw protocolFailure(result.error);
+    if (!result.ok) {
+        throw protocolFailure(result.error);
+    }
     try {
         return schema(result.value);
     } catch (error) {
@@ -114,8 +125,11 @@ export const createMeetingClient = (remote: ClientRemote): MeetingClient => {
             return remote.$stream({
                 name: "convivium-meetings-refresh",
                 open: (signal) => {
-                    if (opened) callbacks.generationReopened();
-                    else opened = true;
+                    if (opened) {
+                        callbacks.generationReopened();
+                    } else {
+                        opened = true;
+                    }
                     return service.subscribeRefresh(signal);
                 },
                 ended: () => new Error("Meeting refresh stream ended."),
@@ -142,7 +156,9 @@ export const useMeetingSubmission = (
         setMessage(undefined);
     }, []);
     const send = async (command: MeetingCommand) => {
-        if (disabled || inFlight.current) return;
+        if (disabled || inFlight.current) {
+            return;
+        }
         const sentGeneration = generation.current;
         inFlight.current = true;
         setPending(true);
@@ -159,24 +175,32 @@ export const useMeetingSubmission = (
             setPending(false);
             return;
         }
-        if (generation.current === sentGeneration) setUncertain(undefined);
+        if (generation.current === sentGeneration) {
+            setUncertain(undefined);
+        }
         try {
             if (result.kind === "accepted") {
-                if (generation.current === sentGeneration) setMessage("committed");
+                if (generation.current === sentGeneration) {
+                    setMessage("committed");
+                }
                 await Promise.all([
                     client.list(),
                     client.read({ protocolVersion: 1, meetingId: result.meetingId })
                 ]);
                 onCommitted(result.meetingId);
             } else {
-                if (generation.current === sentGeneration) setMessage(result.error.code);
+                if (generation.current === sentGeneration) {
+                    setMessage(result.error.code);
+                }
                 if (result.error.code === "VERSION_CONFLICT") {
                     await client.read({ protocolVersion: 1, meetingId: command.meetingId });
                     onCommitted(command.meetingId);
                 }
             }
         } catch {
-            if (generation.current === sentGeneration) setMessage("refresh_failed");
+            if (generation.current === sentGeneration) {
+                setMessage("refresh_failed");
+            }
         } finally {
             inFlight.current = false;
             setPending(false);
@@ -189,7 +213,9 @@ export const useMeetingSubmission = (
         edit,
         invalid: () => setMessage("invalid"),
         submit: (meetingId: string, version: number, action: MeetingCommand["action"]) => {
-            if (disabled || inFlight.current) return;
+            if (disabled || inFlight.current) {
+                return;
+            }
             const parsed = MeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId,

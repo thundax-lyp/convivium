@@ -16,7 +16,9 @@ describe("evidence opportunity transitions", () => {
             now: 10
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.opportunityRequests).toEqual([
             {
                 id: "request-v1",
@@ -50,7 +52,9 @@ describe("evidence opportunity transitions", () => {
             now: 10
         });
         expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") return;
+        if (queued.kind !== "accepted") {
+            return;
+        }
         const result = disposeEvidenceOpportunity(queued.state, {
             requestId: "request-v1",
             managerId: "manager-v1",
@@ -59,7 +63,9 @@ describe("evidence opportunity transitions", () => {
             now: 11
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.opportunityRequests).toEqual([]);
         expect(result.state.rounds).toEqual([]);
         expect(result.state.contributions).toEqual([]);

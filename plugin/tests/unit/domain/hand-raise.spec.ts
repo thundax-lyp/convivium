@@ -75,7 +75,9 @@ function openState() {
         now: 1
     });
     expect(opened.kind).toBe("accepted");
-    if (opened.kind !== "accepted") throw new Error("round did not open");
+    if (opened.kind !== "accepted") {
+        throw new Error("round did not open");
+    }
     return opened.state;
 }
 
@@ -119,7 +121,9 @@ describe("hand raise", () => {
             now: 2
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.pendingHandRaises).toEqual([
             {
                 roundId: "round-v1",
@@ -149,7 +153,9 @@ describe("hand raise", () => {
             now: 2
         });
         expect(raised.kind).toBe("accepted");
-        if (raised.kind !== "accepted") return;
+        if (raised.kind !== "accepted") {
+            return;
+        }
         const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
@@ -160,7 +166,9 @@ describe("hand raise", () => {
             now: 3
         });
         expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.pendingHandRaises).toEqual([]);
         expect(result.state.contributions[0]).toMatchObject({
             id: "contribution-v1",
@@ -200,7 +208,9 @@ describe("hand raise", () => {
             }
         );
         expect(raised.kind).toBe("accepted");
-        if (raised.kind !== "accepted") return;
+        if (raised.kind !== "accepted") {
+            return;
+        }
         const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
@@ -211,7 +221,9 @@ describe("hand raise", () => {
             now: 3
         });
         expect(result.kind).toBe("rejected");
-        if (result.kind === "rejected") expect(result.error.code).toBe("LIMIT_EXCEEDED");
+        if (result.kind === "rejected") {
+            expect(result.error.code).toBe("LIMIT_EXCEEDED");
+        }
         expect(result.state).toBe(raised.state);
     });
 
@@ -224,7 +236,9 @@ describe("hand raise", () => {
             now: 2
         });
         expect(first.kind).toBe("accepted");
-        if (first.kind !== "accepted") return;
+        if (first.kind !== "accepted") {
+            return;
+        }
         const rejected = disposeHandRaise(first.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
@@ -234,7 +248,9 @@ describe("hand raise", () => {
             now: 3
         });
         expect(rejected.kind).toBe("accepted");
-        if (rejected.kind !== "accepted") return;
+        if (rejected.kind !== "accepted") {
+            return;
+        }
         const second = raiseHand(rejected.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",
@@ -242,7 +258,9 @@ describe("hand raise", () => {
             now: 4
         });
         expect(second.kind).toBe("accepted");
-        if (second.kind !== "accepted") return;
+        if (second.kind !== "accepted") {
+            return;
+        }
         expect(second.state.contributions).toEqual([]);
         expect(second.state.pendingHandRaises).toHaveLength(1);
     });
@@ -255,7 +273,9 @@ describe("hand raise", () => {
             now: 2
         });
         expect(raised.kind).toBe("accepted");
-        if (raised.kind !== "accepted") return;
+        if (raised.kind !== "accepted") {
+            return;
+        }
         const before = raised.state;
         const result = disposeHandRaise(before, {
             roundId: "round-v1",
@@ -267,7 +287,9 @@ describe("hand raise", () => {
             now: 3
         });
         expect(result.kind).toBe("rejected");
-        if (result.kind === "rejected") expect(result.error.code).toBe("PRECONDITION_FAILED");
+        if (result.kind === "rejected") {
+            expect(result.error.code).toBe("PRECONDITION_FAILED");
+        }
         expect(result.state).toBe(before);
         expect(result.state.pendingHandRaises).toBe(before.pendingHandRaises);
         expect(result.state.rounds).toBe(before.rounds);
@@ -286,7 +308,9 @@ describe("hand raise", () => {
                 now: 2
             });
             expect(raised.kind).toBe("accepted");
-            if (raised.kind !== "accepted") return;
+            if (raised.kind !== "accepted") {
+                return;
+            }
             const result = disposeHandRaise(raised.state, {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
@@ -296,7 +320,9 @@ describe("hand raise", () => {
                 now: 3
             });
             expect(result.kind).toBe("accepted");
-            if (result.kind === "accepted") expect(result.state.pendingHandRaises).toEqual([]);
+            if (result.kind === "accepted") {
+                expect(result.state.pendingHandRaises).toEqual([]);
+            }
         }
     );
 
@@ -310,7 +336,9 @@ describe("hand raise", () => {
                 now: 2
             });
             expect(raised.kind).toBe("accepted");
-            if (raised.kind !== "accepted") return;
+            if (raised.kind !== "accepted") {
+                return;
+            }
             const result = disposeHandRaise(raised.state, {
                 roundId: "round-v1",
                 contributorId: "contributor-v1",
@@ -332,7 +360,9 @@ describe("hand raise", () => {
             now: 2
         });
         expect(raised.kind).toBe("accepted");
-        if (raised.kind !== "accepted") return;
+        if (raised.kind !== "accepted") {
+            return;
+        }
         const result = disposeHandRaise(raised.state, {
             roundId: "round-v1",
             contributorId: "contributor-v1",

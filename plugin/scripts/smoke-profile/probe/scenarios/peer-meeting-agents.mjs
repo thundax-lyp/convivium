@@ -1,12 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { peerCreateCommand, peerSessionId, waitUntil } from "../support.js";
+import { peerCreateCommand, peerSessionId, waitUntil } from "../support.mjs";
 
 const skillsByRole = {
     meeting_manager: ["meeting-facilitation"],
-    domain_architect: ["repository-analysis"],
-    runtime_engineer: ["repository-analysis"],
-    protocol_ui_engineer: ["repository-analysis"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
     arxiv_research_analyst: ["arxiv"]
@@ -19,7 +16,7 @@ const abilities = [
     "repository-analysis"
 ];
 const assertions = [
-    "seven-peer-sessions",
+    "four-peer-sessions",
     "role-skill-isolation",
     "input-session-independent-delivery",
     "user-control-authorization",
@@ -44,11 +41,17 @@ const successfulTools = (agent) => {
     const calls = new Map();
     const completed = [];
     for (const event of agent.session.ownEvents()) {
-        if (event.type === "tool/call") calls.set(String(event.data.callId), event.data);
-        if (event.type !== "tool/result") continue;
+        if (event.type === "tool/call") {
+            calls.set(String(event.data.callId), event.data);
+        }
+        if (event.type !== "tool/result") {
+            continue;
+        }
         for (const block of event.data.message?.content ?? []) {
             const call = calls.get(String(block.toolCallId));
-            if (!call || block.isError || event.data.error) continue;
+            if (!call || block.isError || event.data.error) {
+                continue;
+            }
             completed.push({
                 name: call.name,
                 arguments: String(call.arguments),
@@ -138,12 +141,13 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
             JSON.stringify(recovered.bindings) === JSON.stringify(checkpoint.bindings),
             "cold resource/options binding changed"
         );
-        for (const field of ["sessionIds", "presetIds", "skills"])
+        for (const field of ["sessionIds", "presetIds", "skills"]) {
             assert(
                 JSON.stringify(recovered.observed[field]) ===
                     JSON.stringify(checkpoint.result.observed[field]),
                 "cold role identity changed"
             );
+        }
         await writeResult({
             ...checkpoint.result,
             observed: { ...checkpoint.result.observed, coldRecovery: true }
@@ -162,7 +166,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
     const read = () => remote("read", { request: { protocolVersion: 1, meetingId } });
     const initial = await read();
     const { observed, bindings } = await observeBindings(runtime, meetingId, initial.identities);
-    assert(new Set(Object.values(observed.sessionIds)).size === 7, "peer sessions overlap");
+    assert(new Set(Object.values(observed.sessionIds)).size === 4, "peer sessions overlap");
     await waitUntil(
         () =>
             Object.values(observed.sessionIds).every((id) =>

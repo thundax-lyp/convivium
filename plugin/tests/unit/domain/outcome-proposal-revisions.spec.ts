@@ -71,7 +71,9 @@ describe("risk disposition gates", () => {
             relatedIds: ["rd", "issue", "v"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.riskDispositions[0]).toMatchObject({
             id: "rd",
             issueId: "issue",
@@ -158,8 +160,12 @@ describe("risk disposition gates", () => {
     it.each(["resolved", "deferred"] as const)("rejects %s issue", (status) => {
         const state = riskState();
         state.issues[0].status = status;
-        if (status === "resolved" || status === "out_of_scope") state.issues[0].blocking = false;
-        if (status === "out_of_scope") state.issues[0].classification = "out_of_scope";
+        if (status === "resolved" || status === "out_of_scope") {
+            state.issues[0].blocking = false;
+        }
+        if (status === "out_of_scope") {
+            state.issues[0].classification = "out_of_scope";
+        }
         expect(
             disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
         ).toMatchObject({
@@ -176,7 +182,9 @@ describe("risk disposition gates", () => {
         ["duplicate disposition", {}, "INVALID_ARGUMENT"]
     ] as const)("rejects %s", (_name, overrides, code) => {
         const state = riskState();
-        if (_name === "duplicate disposition") state.riskDispositions = [{ id: "rd" } as never];
+        if (_name === "duplicate disposition") {
+            state.riskDispositions = [{ id: "rd" } as never];
+        }
         expect(
             disposeRisk(
                 state,
@@ -211,7 +219,9 @@ describe("risk disposition gates", () => {
             input({ kind: "captain_user", id: captainActorIdFor("m") })
         );
         expect(first.kind).toBe("accepted");
-        if (first.kind !== "accepted") return;
+        if (first.kind !== "accepted") {
+            return;
+        }
         const second = disposeRisk(
             first.state,
             input(
@@ -220,7 +230,9 @@ describe("risk disposition gates", () => {
             )
         );
         expect(second.kind).toBe("accepted");
-        if (second.kind !== "accepted") return;
+        if (second.kind !== "accepted") {
+            return;
+        }
         const third = disposeRisk(
             second.state,
             input(
@@ -229,7 +241,9 @@ describe("risk disposition gates", () => {
             )
         );
         expect(third).toMatchObject({ kind: "accepted" });
-        if (third.kind !== "accepted") return;
+        if (third.kind !== "accepted") {
+            return;
+        }
         expect(third.state.riskDispositions.map((d) => d.action)).toEqual([
             "accept",
             "reject",
@@ -306,7 +320,9 @@ describe("completion declaration gates", () => {
             relatedIds: ["decl", "o", "v"],
             effectRequests: []
         });
-        if (result.kind !== "accepted") return;
+        if (result.kind !== "accepted") {
+            return;
+        }
         expect(result.state.completionDeclarations[0]).toMatchObject({
             id: "decl",
             actorId: actor.id,
@@ -382,7 +398,9 @@ describe("completion declaration gates", () => {
         ["missing evidence", { evidenceIds: ["missing"] }, "NOT_FOUND"]
     ] as const)("rejects %s", (_name, overrides, code) => {
         const state = declarationState();
-        if (_name === "duplicate id") state.completionDeclarations = [{ id: "decl" } as never];
+        if (_name === "duplicate id") {
+            state.completionDeclarations = [{ id: "decl" } as never];
+        }
         expect(
             submitCompletionDeclaration(
                 state,
@@ -433,9 +451,15 @@ describe("completion declaration gates", () => {
                     completedAt: 1
                 }
             ];
-            if (variant === "assignee") state.tasks[0].assigneeId = "manager";
-            if (variant === "status") state.tasks[0].status = "open";
-            if (variant === "authorization") state.tasks[0].authorizationStatus = "revoked";
+            if (variant === "assignee") {
+                state.tasks[0].assigneeId = "manager";
+            }
+            if (variant === "status") {
+                state.tasks[0].status = "open";
+            }
+            if (variant === "authorization") {
+                state.tasks[0].authorizationStatus = "revoked";
+            }
             if (variant === "result") {
                 const { result: _result, ...withoutResult } = state.tasks[0];
                 state.tasks[0] = withoutResult;
@@ -558,7 +582,9 @@ it("records a fully reviewed completion fact and converges without termination",
         now: 7
     });
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
     expect(result.state.objective.acceptanceCriteria[0].status).toBe("satisfied");
     expect(result.state.lifecycle).toMatchObject({
@@ -642,7 +668,9 @@ it("records a fact but remains running while a blocking issue exists", () => {
         now: 7
     });
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.lifecycle.status).toBe("running");
     expect(result.state.completionFacts).toHaveLength(1);
 });
@@ -721,7 +749,9 @@ it("makes an active fact basis stale when a new proposal revision is recorded", 
         now: 1
     });
     expect(result.kind).toBe("accepted");
-    if (result.kind !== "accepted") return;
+    if (result.kind !== "accepted") {
+        return;
+    }
     expect(result.state.completionFacts[0].status).toBe("active");
     expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
     expect(result.state.lifecycle.status).toBe("running");

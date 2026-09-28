@@ -94,11 +94,14 @@ const relatedObjects = (source: object): TimelineObjectRef[] => {
     const record = source as Record<string, unknown>;
     return relationFields.flatMap(([field, objectKind]) => {
         const value = record[field];
-        if (typeof value === "string") return [{ objectKind, objectId: value }];
-        if (Array.isArray(value))
+        if (typeof value === "string") {
+            return [{ objectKind, objectId: value }];
+        }
+        if (Array.isArray(value)) {
             return value
                 .filter((id): id is string => typeof id === "string")
                 .map((objectId) => ({ objectKind, objectId }));
+        }
         return [];
     });
 };
@@ -112,14 +115,18 @@ const actorLane = (view: MeetingView, identityId: string): TimelineLane => {
               })) ?? [])
             : view.identities;
     const identity = identities.find(({ id }) => id === identityId);
-    if (identity?.roles.length !== 1) return "system";
+    if (identity?.roles.length !== 1) {
+        return "system";
+    }
     const role = identity.roles[0];
     return role === "evidence_reviewer" ? "reviewer" : (role ?? "system");
 };
 
 export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] => {
     const archived = view.lifecycle.status === "archived";
-    if (archived && view.archive?.status !== "complete") return [];
+    if (archived && view.archive?.status !== "complete") {
+        return [];
+    }
     const archive = archived ? view.archive : undefined;
     const nodes: TimelineNode[] = [];
     const add = (
@@ -132,7 +139,9 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
         identityId?: string,
         status?: string
     ): void => {
-        if (time === undefined) return;
+        if (time === undefined) {
+            return;
+        }
         nodes.push({
             key: `${kind}:${objectId}:${phase}`,
             objectKind: kind,
@@ -197,7 +206,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 undefined,
                 round.status
             );
-            for (const raise of round.pendingHandRaises)
+            for (const raise of round.pendingHandRaises) {
                 add(
                     "hand_raise",
                     `${raise.roundId}:${raise.contributorId}`,
@@ -207,8 +216,9 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                     "contributor",
                     raise.contributorId
                 );
+            }
         }
-        for (const request of view.opportunityRequests)
+        for (const request of view.opportunityRequests) {
             add(
                 "opportunity_request",
                 request.id,
@@ -218,7 +228,8 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 "contributor",
                 request.contributorId
             );
-        for (const pkg of view.evidencePackages)
+        }
+        for (const pkg of view.evidencePackages) {
             add(
                 "evidence_version",
                 pkg.currentVersion.id,
@@ -228,7 +239,8 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 "contributor",
                 pkg.authorId
             );
-        for (const review of view.evidenceReviews)
+        }
+        for (const review of view.evidenceReviews) {
             add(
                 "evidence_review",
                 review.id,
@@ -238,7 +250,8 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 "reviewer",
                 review.reviewerId
             );
-        for (const delivery of view.reviewDeliveries)
+        }
+        for (const delivery of view.reviewDeliveries) {
             add(
                 "review_delivery",
                 delivery.id,
@@ -249,7 +262,8 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 undefined,
                 delivery.status
             );
-        for (const recommendation of view.identityRecommendations ?? [])
+        }
+        for (const recommendation of view.identityRecommendations ?? []) {
             add(
                 "identity_recommendation",
                 recommendation.id,
@@ -260,9 +274,11 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 undefined,
                 recommendation.status
             );
-        for (const candidate of view.outcomes.pendingDecisionCandidates ?? [])
+        }
+        for (const candidate of view.outcomes.pendingDecisionCandidates ?? []) {
             actor("decision_candidate", candidate, candidate.outcome);
-        for (const plan of view.managerPlans)
+        }
+        for (const plan of view.managerPlans) {
             add(
                 "manager_plan",
                 plan.id,
@@ -273,6 +289,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 plan.managerId,
                 plan.status
             );
+        }
         for (const task of view.tasks) {
             add("task", task.id, "started", task.startedAt, task, "system", undefined, task.status);
             add(
@@ -308,13 +325,16 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 bundle.review.reviewerId
             );
         }
-        for (const revision of completeArchive.proposalRevisions)
+        for (const revision of completeArchive.proposalRevisions) {
             actor("proposal_revision", revision);
-        for (const position of completeArchive.positions)
+        }
+        for (const position of completeArchive.positions) {
             actor("position", position, position.stance);
-        for (const candidate of completeArchive.decisionCandidates)
+        }
+        for (const candidate of completeArchive.decisionCandidates) {
             actor("decision_candidate", candidate, candidate.outcome);
-        for (const fact of completeArchive.questionIssueDispositionFacts)
+        }
+        for (const fact of completeArchive.questionIssueDispositionFacts) {
             add(
                 "disposition_fact",
                 fact.factId,
@@ -325,6 +345,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
                 fact.actorId,
                 fact.payload.newStatus
             );
+        }
         add(
             "archive",
             completeArchive.id,
@@ -336,20 +357,28 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
             completeArchive.status
         );
     };
-    if (archive) appendArchiveNodes(archive);
-    else appendActiveNodes();
-    for (const publication of archive?.publications ?? view.publications)
+    if (archive) {
+        appendArchiveNodes(archive);
+    } else {
+        appendActiveNodes();
+    }
+    for (const publication of archive?.publications ?? view.publications) {
         add("publication", publication.id, "published", publication.publishedAt, publication);
-    for (const message of archive?.messages ?? view.messages)
+    }
+    for (const message of archive?.messages ?? view.messages) {
         actor("formal_message", message, message.kind);
-    for (const decision of archive?.decisions ?? view.outcomes.decisions)
+    }
+    for (const decision of archive?.decisions ?? view.outcomes.decisions) {
         actor("decision", decision, decision.status);
-    for (const fact of archive?.completionFacts ?? view.outcomes.completionFacts)
+    }
+    for (const fact of archive?.completionFacts ?? view.outcomes.completionFacts) {
         actor("completion_fact", fact, fact.status);
-    for (const risk of archive?.riskDispositions ?? view.outcomes.riskDispositions)
+    }
+    for (const risk of archive?.riskDispositions ?? view.outcomes.riskDispositions) {
         actor("risk_disposition", risk, risk.action);
+    }
     const termination = archive?.termination ?? view.outcomes.termination;
-    if (termination)
+    if (termination) {
         add(
             "termination",
             termination.id,
@@ -360,6 +389,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
             undefined,
             termination.outcome
         );
+    }
     return nodes.sort(
         (a, b) =>
             a.time - b.time ||
@@ -557,7 +587,9 @@ export const resolveTimelineNodeContent = (
         view.lifecycle.status === "archived" && view.archive?.status === "complete"
             ? view.archive
             : undefined;
-    if (view.lifecycle.status === "archived" && !archive) return undefined;
+    if (view.lifecycle.status === "archived" && !archive) {
+        return undefined;
+    }
     return (
         resolveEarlyContent(view, node, archive) ??
         resolveMiddleContent(view, node, archive) ??

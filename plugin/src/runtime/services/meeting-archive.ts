@@ -30,7 +30,9 @@ const retry: (code: string) => never = (code) => {
 
 const stringField = (payload: Record<string, unknown>, key: string): string => {
     const value = payload[key];
-    if (typeof value !== "string" || value.trim() === "") unavailable();
+    if (typeof value !== "string" || value.trim() === "") {
+        unavailable();
+    }
     return value;
 };
 
@@ -50,7 +52,9 @@ interface MeetingArchiveDispatcherDependencies {
 }
 
 const roleFor = (identity: MeetingIdentity): SessionOwnership["role"] => {
-    if (identity.roles.length !== 1) unavailable();
+    if (identity.roles.length !== 1) {
+        unavailable();
+    }
     switch (identity.roles[0]) {
         case "manager":
             return "manager";
@@ -73,10 +77,13 @@ const targetOwnerships = (
     if (
         archiveIdentityIds.size !== state.identities.length ||
         state.identities.some((identity) => !archiveIdentityIds.has(identity.id))
-    )
+    ) {
         unavailable();
+    }
     const targets = ownerships;
-    if (targets.some((o) => o.meetingId !== state.id)) unavailable();
+    if (targets.some((o) => o.meetingId !== state.id)) {
+        unavailable();
+    }
     const ids = new Set<string>();
     const sessions = new Set<string>();
     let managers = 0;
@@ -86,32 +93,45 @@ const targetOwnerships = (
             (ownership) =>
                 ownership.id === identity.sessionOwnershipId && ownership.identityId === identity.id
         );
-        if (matches.length !== 1) unavailable();
-        const ownership = matches[0]!;
-        if (!ownership.id || ids.has(ownership.id) || sessions.has(ownership.sessionId))
+        if (matches.length !== 1) {
             unavailable();
+        }
+        const ownership = matches[0]!;
+        if (!ownership.id || ids.has(ownership.id) || sessions.has(ownership.sessionId)) {
+            unavailable();
+        }
         ids.add(ownership.id);
         sessions.add(ownership.sessionId);
         const role = roleFor(identity);
         if (
             ownership.role !== role ||
             (ownership.lifecycleStatus === "closed" && ownership.capabilityStatus !== "revoked")
-        )
+        ) {
             unavailable();
+        }
         const label = decodeMeetingIdentitySessionLabel(ownership.sessionLabel);
         if (
             !label ||
             label.meetingId !== state.id ||
             label.identityId !== identity.id ||
             label.role !== role
-        )
+        ) {
             unavailable();
-        if (role === "manager") managers += 1;
-        if (role === "evidence_reviewer") reviewers += 1;
+        }
+        if (role === "manager") {
+            managers += 1;
+        }
+        if (role === "evidence_reviewer") {
+            reviewers += 1;
+        }
     }
-    if (managers !== 1 || reviewers !== 1) unavailable();
+    if (managers !== 1 || reviewers !== 1) {
+        unavailable();
+    }
     for (const ownership of targets) {
-        if (state.identities.some((i) => i.sessionOwnershipId === ownership.id)) continue;
+        if (state.identities.some((i) => i.sessionOwnershipId === ownership.id)) {
+            continue;
+        }
         const admission = state.identityRecommendations.find((r) => r.id === ownership.admissionId);
         if (
             !admission ||
@@ -119,8 +139,9 @@ const targetOwnerships = (
             admission.sessionId !== ownership.sessionId ||
             ids.has(ownership.id) ||
             sessions.has(ownership.sessionId)
-        )
+        ) {
             unavailable();
+        }
         ids.add(ownership.id);
         sessions.add(ownership.sessionId);
     }
@@ -145,12 +166,18 @@ export const createMeetingArchiveDispatcher = (
     ): Promise<void> => {
         const recovered = await dependencies.repository.recover();
         const snapshot = recovered.snapshot;
-        if (!snapshot || !ownership.id) unavailable();
+        if (!snapshot || !ownership.id) {
+            unavailable();
+        }
         const current = recovered.sessionOwnership.find(
             (candidate) => candidate.id === ownership.id
         );
-        if (!current) unavailable();
-        if (current.lifecycleStatus === "closed") return;
+        if (!current) {
+            unavailable();
+        }
+        if (current.lifecycleStatus === "closed") {
+            return;
+        }
         const failureReason = status === "failed" ? "SESSION_CLOSE_FAILED" : undefined;
         try {
             const result = await dependencies.application.execute(
@@ -169,7 +196,9 @@ export const createMeetingArchiveDispatcher = (
                 context,
                 input.signal
             );
-            if (result.kind === "accepted") return;
+            if (result.kind === "accepted") {
+                return;
+            }
         } catch {
             // A storage response can be lost after commit; recovery below is the authority.
         }
@@ -177,20 +206,28 @@ export const createMeetingArchiveDispatcher = (
         const persisted = latest.sessionOwnership.find(
             (candidate) => candidate.id === ownership.id
         );
-        if (persisted?.lifecycleStatus === "closed") return;
+        if (persisted?.lifecycleStatus === "closed") {
+            return;
+        }
         retry("ARCHIVE_SESSION_RESULT_COMMIT_FAILED");
     };
 
     return {
         async dispatch(input) {
             const payload = input.outboxItem.payload as Record<string, unknown>;
-            if (input.outboxItem.kind !== "dispatch" || payload.kind !== "archive") unavailable();
+            if (input.outboxItem.kind !== "dispatch" || payload.kind !== "archive") {
+                unavailable();
+            }
             const archiveId = stringField(payload, "archiveId");
             let recovered = await dependencies.repository.recover();
             let snapshot = recovered.snapshot;
-            if (!snapshot) unavailable();
+            if (!snapshot) {
+                unavailable();
+            }
             if (snapshot.state.lifecycle.status === "archived") {
-                if (snapshot.state.archive?.id !== archiveId) unavailable();
+                if (snapshot.state.archive?.id !== archiveId) {
+                    unavailable();
+                }
                 return;
             }
             if (snapshot.state.lifecycle.status === "terminal") {
@@ -217,24 +254,31 @@ export const createMeetingArchiveDispatcher = (
                 }
                 recovered = await dependencies.repository.recover();
                 snapshot = recovered.snapshot;
-                if (!snapshot) unavailable();
+                if (!snapshot) {
+                    unavailable();
+                }
             }
             if (snapshot.state.lifecycle.status === "archived") {
-                if (snapshot.state.archive?.id !== archiveId) unavailable();
+                if (snapshot.state.archive?.id !== archiveId) {
+                    unavailable();
+                }
                 return;
             }
             if (
                 snapshot.state.lifecycle.status !== "archiving" ||
                 snapshot.state.archive?.id !== archiveId ||
                 snapshot.state.archive.status !== "complete"
-            )
+            ) {
                 unavailable();
+            }
             const ownerships = targetOwnerships(snapshot.state, recovered.sessionOwnership);
             // Revoke the entire Meeting before stopping any handle. A partial cleanup never
             // leaves another owned Agent authorized while the Meeting is archiving.
             const pending: SessionOwnership[] = [];
             for (const ownership of ownerships) {
-                if (ownership.lifecycleStatus === "closed") continue;
+                if (ownership.lifecycleStatus === "closed") {
+                    continue;
+                }
                 const { createdAt: _created, updatedAt: _updated, ...binding } = ownership;
                 pending.push(
                     ownership.capabilityStatus === "revoked"
@@ -251,7 +295,9 @@ export const createMeetingArchiveDispatcher = (
                         d.agentDefinitionId === ownership.definition.agentDefinitionId &&
                         d.definitionVersion === ownership.definition.definitionVersion
                 );
-                if (!definition) retry("RECOVERY_UNAVAILABLE");
+                if (!definition) {
+                    retry("RECOVERY_UNAVAILABLE");
+                }
                 try {
                     await dependencies.owner.stop({
                         ownership,
@@ -275,8 +321,9 @@ export const createMeetingArchiveDispatcher = (
             if (
                 completed.snapshot?.state.lifecycle.status !== "archived" ||
                 completed.snapshot.state.archive?.id !== archiveId
-            )
+            ) {
                 unavailable();
+            }
         }
     };
 };

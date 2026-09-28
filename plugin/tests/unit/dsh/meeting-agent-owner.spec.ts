@@ -83,7 +83,9 @@ const fixture = async () => {
         now: Date.now(),
         signal
     });
-    if (preflight.kind !== "ready") throw new Error(preflight.error.message);
+    if (preflight.kind !== "ready") {
+        throw new Error(preflight.error.message);
+    }
     const d = preflight.descriptor;
     const ownership = {
         id: "ownership",
