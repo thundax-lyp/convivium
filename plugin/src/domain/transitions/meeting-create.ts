@@ -2,7 +2,7 @@ import type { MeetingState } from "@/domain/meeting-state.js";
 import { validateMeetingState } from "@/domain/meeting-state-validation.js";
 import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
 
-export function createMeeting(state: MeetingState): MeetingTransitionResult {
+export const createMeeting = (state: MeetingState): MeetingTransitionResult => {
     const validation = validateMeetingState(state);
     if (validation.kind === "invalid") {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
@@ -35,4 +35,4 @@ export function createMeeting(state: MeetingState): MeetingTransitionResult {
             agendaId
         }))
     };
-}
+};

@@ -24,7 +24,7 @@ const terminalContributionStatuses = new Set([
     "closed"
 ]);
 
-function accepted(
+const accepted = (
     state: MeetingState,
     relatedIds: readonly OpaqueId[],
     effectRequests: MeetingTransitionResult extends infer _T
@@ -33,27 +33,27 @@ function accepted(
               { kind: "accepted" }
           >["effectRequests"][number][]
         : never
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     return { kind: "accepted", state, relatedIds, effectRequests };
-}
+};
 
-function hasCommonValidInput(id: string, text: string, now: number) {
+const hasCommonValidInput = (id: string, text: string, now: number) => {
     return id.trim().length > 0 && text.trim().length > 0 && Number.isSafeInteger(now) && now >= 0;
-}
+};
 
-function findManager(state: MeetingState, agendaId: OpaqueId) {
+const findManager = (state: MeetingState, agendaId: OpaqueId) => {
     return state.identities.find(
         (identity) =>
             identity.roles.includes("manager") &&
             (identity.agendaResponsibilityIds.length === 0 ||
                 identity.agendaResponsibilityIds.includes(agendaId))
     );
-}
+};
 
-export function requestEvidenceOpportunity(
+export const requestEvidenceOpportunity = (
     state: MeetingState,
     input: RequestInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         !hasCommonValidInput(input.requestId, input.purpose, input.now) ||
         input.agendaId.trim().length === 0 ||
@@ -150,12 +150,12 @@ export function requestEvidenceOpportunity(
             }
         ]
     );
-}
+};
 
-export function disposeEvidenceOpportunity(
+export const disposeEvidenceOpportunity = (
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (!hasCommonValidInput(input.requestId, input.reason, input.now)) {
         return rejected(state, "INVALID_ARGUMENT", "invalid opportunity disposition");
     }
@@ -189,4 +189,4 @@ export function disposeEvidenceOpportunity(
             }
         ]
     );
-}
+};

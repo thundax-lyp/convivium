@@ -17,19 +17,19 @@ const terminal = new Set([
     "supplement_rejected",
     "closed"
 ]);
-function managerFor(state: MeetingState, agendaId: OpaqueId) {
+const managerFor = (state: MeetingState, agendaId: OpaqueId) => {
     return state.identities.find(
         (identity) =>
             identity.roles.includes("manager") &&
             (identity.agendaResponsibilityIds.length === 0 ||
                 identity.agendaResponsibilityIds.includes(agendaId))
     );
-}
+};
 
-export function raiseSupplementHand(
+export const raiseSupplementHand = (
     state: MeetingState,
     input: RaiseInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         input.contributionId.trim() === "" ||
         input.authorId.trim() === "" ||
@@ -142,12 +142,12 @@ export function raiseSupplementHand(
             }
         ]
     };
-}
+};
 
-export function disposeSupplementHand(
+export const disposeSupplementHand = (
     state: MeetingState,
     input: DisposeInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         input.contributionId.trim() === "" ||
         input.managerId.trim() === "" ||
@@ -230,4 +230,4 @@ export function disposeSupplementHand(
             ...roundReadyNotice(state, next, round.id)
         ]
     };
-}
+};

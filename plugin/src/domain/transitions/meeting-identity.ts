@@ -54,7 +54,7 @@ const reject = (
 const valid = (value: unknown): value is string =>
     typeof value === "string" && value.trim().length > 0;
 
-function validRecommendationDraft(action: IdentityRecommendationDraft): boolean {
+const validRecommendationDraft = (action: IdentityRecommendationDraft): boolean => {
     return (
         !!action &&
         valid(action.candidateId) &&
@@ -67,9 +67,9 @@ function validRecommendationDraft(action: IdentityRecommendationDraft): boolean 
         valid(action.expectedContribution) &&
         valid(action.evidenceGap)
     );
-}
+};
 
-export function recommendIdentity(
+export const recommendIdentity = (
     state: MeetingState,
     action: IdentityRecommendationDraft,
     managerId: string,
@@ -80,7 +80,7 @@ export function recommendIdentity(
         definitionHash?: string;
     },
     now: EpochMs
-): IdentityTransitionResult {
+): IdentityTransitionResult => {
     if (
         validateMeetingState(state).kind !== "valid" ||
         !valid(managerId) ||
@@ -195,14 +195,14 @@ export function recommendIdentity(
               }
             : {})
     };
-}
+};
 
-export function recordIdentityAdmissionResult(
+export const recordIdentityAdmissionResult = (
     state: MeetingState,
     recommendationId: string,
     result: IdentityAdmissionResultContext,
     now: number
-): IdentityTransitionResult {
+): IdentityTransitionResult => {
     if (
         validateMeetingState(state).kind !== "valid" ||
         !valid(recommendationId) ||
@@ -277,4 +277,4 @@ export function recordIdentityAdmissionResult(
         relatedIds: [recommendationId]
     };
     return { kind: "accepted", state: nextState, fact, facts: [fact] };
-}
+};

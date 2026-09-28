@@ -24,7 +24,10 @@ const nonTerminalContributionStatuses = new Set([
     "awaiting_response"
 ]);
 
-export function endMeeting(state: MeetingState, input: EndMeetingInput): MeetingTransitionResult {
+export const endMeeting = (
+    state: MeetingState,
+    input: EndMeetingInput
+): MeetingTransitionResult => {
     if (validateMeetingState(state).kind === "invalid") {
         return rejectedTransition(state, "INVALID_ARGUMENT", "invalid meeting state");
     }
@@ -136,4 +139,4 @@ export function endMeeting(state: MeetingState, input: EndMeetingInput): Meeting
         ],
         effectRequests: [{ kind: "materialize_archive", terminationId: input.terminationId }]
     };
-}
+};

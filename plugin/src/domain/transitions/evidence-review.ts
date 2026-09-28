@@ -49,14 +49,14 @@ type DeliveryInput = {
 };
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
 import { roundReadyNotice } from "./round.js";
-function valid(now: number) {
+const valid = (now: number) => {
     return Number.isSafeInteger(now) && now >= 0;
-}
-function validDimensions(
+};
+const validDimensions = (
     state: MeetingState,
     roundId: OpaqueId,
     dimensions: ReviewDimensionsInput
-) {
+) => {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     return (
         round !== undefined &&
@@ -73,27 +73,27 @@ function validDimensions(
                 )
         )
     );
-}
+};
 
-function updateVersion(
+const updateVersion = (
     state: MeetingState,
     versionId: OpaqueId,
     transform: (
         version: MeetingState["evidencePackages"][number]["versions"][number]
     ) => MeetingState["evidencePackages"][number]["versions"][number]
-) {
+) => {
     return state.evidencePackages.map((pkg) => ({
         ...pkg,
         versions: pkg.versions.map((version) =>
             version.id === versionId ? transform(version) : version
         )
     }));
-}
+};
 
-export function claimEvidenceReview(
+export const claimEvidenceReview = (
     state: MeetingState,
     input: ClaimEvidenceReviewInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         !input.claimId.trim() ||
         !input.sourceEffectId.trim() ||
@@ -171,12 +171,12 @@ export function claimEvidenceReview(
         relatedIds: [input.claimId, input.versionId],
         effectRequests: []
     };
-}
+};
 
-export function submitEvidenceReview(
+export const submitEvidenceReview = (
     state: MeetingState,
     input: SubmitEvidenceReviewInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         !input.reviewerId.trim() ||
         !input.roundId.trim() ||
@@ -262,12 +262,12 @@ export function submitEvidenceReview(
             }
         ]
     };
-}
+};
 
-export function failEvidenceValidation(
+export const failEvidenceValidation = (
     state: MeetingState,
     input: FailEvidenceValidationInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         !input.claimId.trim() ||
         !input.roundId.trim() ||
@@ -299,12 +299,12 @@ export function failEvidenceValidation(
         relatedIds: [claim.id, claim.roundId, claim.versionId],
         effectRequests: []
     };
-}
+};
 
-export function recordReviewDelivery(
+export const recordReviewDelivery = (
     state: MeetingState,
     input: DeliveryInput
-): MeetingTransitionResult {
+): MeetingTransitionResult => {
     if (
         input.reviewId.trim() === "" ||
         input.dispatcherId.trim() === "" ||
@@ -374,4 +374,4 @@ export function recordReviewDelivery(
         relatedIds: [delivery.id, delivery.reviewId],
         effectRequests: roundReadyNotice(state, next, packageValue.roundId)
     };
-}
+};

@@ -35,7 +35,10 @@ const identityProvenance = (state: MeetingState) =>
               })
     }));
 
-function materializeArchive(state: MeetingState, input: StartMeetingArchiveInput): ArchivePackage {
+const materializeArchive = (
+    state: MeetingState,
+    input: StartMeetingArchiveInput
+): ArchivePackage => {
     const termination = state.termination!;
     const unclosedContributions = termination.unclosedContributionIds.map((contributionId) => {
         const contribution = state.contributions.find((item) => item.id === contributionId)!;
@@ -107,7 +110,7 @@ function materializeArchive(state: MeetingState, input: StartMeetingArchiveInput
         controlActorProvenance: [{ actorId: captainActorIdFor(state.id), kind: "captain" }],
         exportMaterials: []
     };
-}
+};
 
 export const startMeetingArchive = (
     state: MeetingState,

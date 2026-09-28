@@ -9,7 +9,7 @@ type Input = {
     messageIds: readonly OpaqueId[];
     now: number;
 };
-function body(version: {
+const body = (version: {
     observation: string;
     interpretation: string;
     method: string;
@@ -17,7 +17,7 @@ function body(version: {
     falsifiers: readonly { value: string; reason?: string }[];
     uncertainties: readonly { value: string; reason?: string }[];
     limitations: readonly { value: string; reason?: string }[];
-}) {
+}) => {
     const suffix = (reason?: string) => (reason === undefined ? "" : `｜原因：${reason}`);
     return [
         `观察：${version.observation}`,
@@ -35,8 +35,8 @@ function body(version: {
         "限制：",
         ...version.limitations.map((item) => `- ${item.value}${suffix(item.reason)}`)
     ].join("\n");
-}
-export function publishRound(state: MeetingState, input: Input): MeetingTransitionResult {
+};
+export const publishRound = (state: MeetingState, input: Input): MeetingTransitionResult => {
     if (
         !input.roundId.trim() ||
         !input.managerId.trim() ||
@@ -186,4 +186,4 @@ export function publishRound(state: MeetingState, input: Input): MeetingTransiti
             }))
         )
     };
-}
+};
