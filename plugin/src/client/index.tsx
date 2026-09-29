@@ -1,1 +1,1 @@
-export { name, inject, apply } from "./client-entry.tsx";
+export { name, inject, apply } from "./entry.tsx";
