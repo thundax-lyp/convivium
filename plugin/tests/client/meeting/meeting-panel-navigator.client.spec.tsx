@@ -1,9 +1,12 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { translatedLayout } from "./meeting-panel-locale-fixtures.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 function mediaFixture(initial: boolean) {
     let matches = initial;
@@ -124,7 +127,7 @@ describe("Meeting navigator", () => {
         expect(splitter.getAttribute("aria-valuenow")).toBe("364");
     });
 
-    it("restores the intended navigator width after a temporary container shrink", () => {
+    it("uses a drawer when Host content narrows and restores the wide navigator", () => {
         const media = mediaFixture(false);
         vi.stubGlobal(
             "matchMedia",
@@ -137,13 +140,15 @@ describe("Meeting navigator", () => {
         vi.spyOn(shell, "getBoundingClientRect").mockImplementation(
             () => ({ width: shellWidth }) as DOMRect
         );
-        const splitter = screen.getByRole("separator", { name: "Resize meeting navigator" });
-
         fireEvent.resize(window);
-        expect(splitter.getAttribute("aria-valuenow")).toBe("220");
+        expect(screen.queryByRole("separator", { name: "Resize meeting navigator" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Open meeting navigator" }));
+        expect(screen.getByRole("dialog", { name: "Meeting navigator" })).toBeTruthy();
         shellWidth = 700;
         fireEvent.resize(window);
+        const splitter = screen.getByRole("separator", { name: "Resize meeting navigator" });
         expect(splitter.getAttribute("aria-valuenow")).toBe("280");
+        expect(screen.queryByRole("dialog", { name: "Meeting navigator" })).toBeNull();
     });
 
     it("shows loading before an empty meeting list is confirmed", () => {
@@ -184,6 +189,29 @@ describe("Meeting navigator", () => {
         expect(screen.getByText("No meetings.")).toBeTruthy();
         expect(screen.getByTestId("meeting-navigator-empty")).toBeTruthy();
         expect(screen.queryByText("Loading meetings.")).toBeNull();
+    });
+
+    it("updates relative meeting time while the list remains open", () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-09-29T00:00:00Z"));
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props, summary } = layoutProps();
+        const recent = { ...summary, updatedAt: Date.now() };
+        render(
+            translatedLayout(
+                { ...props, meetings: [recent], selectedId: undefined, detail: undefined },
+                "en"
+            )
+        );
+
+        const time = screen.getByRole("treeitem", { name: /核对议题 A/ }).querySelector("time");
+        expect(time?.textContent).toBe("now");
+        act(() => vi.advanceTimersByTime(60_000));
+        expect(time?.textContent).toBe("1min");
     });
 
     it("sorts session tree items newest first and filters summaries without changing selection", () => {

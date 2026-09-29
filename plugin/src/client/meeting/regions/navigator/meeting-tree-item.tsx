@@ -16,17 +16,19 @@ import styles from "./navigator.module.css";
 
 export const MeetingTreeItem = ({
     meeting,
+    now,
     selected,
     selectMeeting
 }: {
     meeting: MeetingSummary;
+    now: number;
     selected: boolean;
     selectMeeting(meetingId: string): void;
 }): ReactElement => {
     const t = useMeetingTranslate();
     const [menuOpen, setMenuOpen] = useState(false);
     const status = lifecycleLabel(meeting.lifecycle, t);
-    const time = relativeTime(meeting.updatedAt, Date.now());
+    const time = relativeTime(meeting.updatedAt, now);
 
     const activate = () => {
         setMenuOpen(false);

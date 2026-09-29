@@ -18,12 +18,15 @@ const NAVIGATOR_MIN_WIDTH = 220;
 const NAVIGATOR_MAX_WIDTH = 480;
 const WORKSPACE_MIN_WIDTH = 320;
 const SPLITTER_AND_GAPS_WIDTH = 16;
+const MIN_WIDE_WIDTH = NAVIGATOR_MIN_WIDTH + WORKSPACE_MIN_WIDTH + SPLITTER_AND_GAPS_WIDTH;
 
 export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement => {
     const t = useMeetingTranslate();
-    const [narrow, setNarrow] = useState(
+    const [viewportNarrow, setViewportNarrow] = useState(
         () => window.matchMedia?.("(max-width: 760px)").matches ?? false
     );
+    const [containerNarrow, setContainerNarrow] = useState(false);
+    const narrow = viewportNarrow || containerNarrow;
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [navigatorWidth, setNavigatorWidth] = useState(280);
     const [maxNavigatorWidth, setMaxNavigatorWidth] = useState(NAVIGATOR_MAX_WIDTH);
@@ -37,14 +40,16 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             return;
         }
         const update = (event: MediaQueryListEvent) => {
-            setNarrow(event.matches);
-            if (!event.matches) {
-                setDrawerOpen(false);
-            }
+            setViewportNarrow(event.matches);
         };
         query.addEventListener("change", update);
         return () => query.removeEventListener("change", update);
     }, []);
+    useEffect(() => {
+        if (!narrow) {
+            setDrawerOpen(false);
+        }
+    }, [narrow]);
     const closeDrawer = () => {
         setDrawerOpen(false);
         openerRef.current?.focus();
@@ -62,7 +67,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
         return () => window.removeEventListener("keydown", closeOnEscape);
     }, [drawerOpen]);
     useEffect(() => {
-        if (narrow || shellRef.current === null) {
+        if (shellRef.current === null) {
             return;
         }
         const shell = shellRef.current;
@@ -71,6 +76,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             if (width <= 0) {
                 return;
             }
+            setContainerNarrow(width < MIN_WIDE_WIDTH);
             const maximum = Math.max(
                 NAVIGATOR_MIN_WIDTH,
                 Math.min(NAVIGATOR_MAX_WIDTH, width - WORKSPACE_MIN_WIDTH - SPLITTER_AND_GAPS_WIDTH)
@@ -85,7 +91,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             observer?.disconnect();
             window.removeEventListener("resize", measure);
         };
-    }, [narrow]);
+    }, []);
     useLayoutEffect(() => {
         const panel = panelRef.current;
         if (panel === null) {

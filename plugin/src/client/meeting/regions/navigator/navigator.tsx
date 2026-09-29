@@ -29,6 +29,7 @@ export const MeetingNavigator = ({
     const t = useMeetingTranslate();
     const [searchOpen, setSearchOpen] = React.useState(false);
     const [query, setQuery] = React.useState("");
+    const [now, setNow] = React.useState(() => Date.now());
     const inputRef = React.useRef<HTMLInputElement>(null);
     const searchSlotRef = React.useRef<HTMLDivElement>(null);
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -44,6 +45,10 @@ export const MeetingNavigator = ({
             inputRef.current?.focus();
         }
     }, [searchOpen]);
+    React.useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     const onTreeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         if ((event.target as HTMLElement).getAttribute("role") !== "treeitem") {
@@ -161,6 +166,7 @@ export const MeetingNavigator = ({
                         <MeetingTreeItem
                             key={meeting.meetingId}
                             meeting={meeting}
+                            now={now}
                             selected={meeting.meetingId === selectedId}
                             selectMeeting={selectMeeting}
                         />
