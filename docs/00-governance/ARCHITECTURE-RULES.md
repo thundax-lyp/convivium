@@ -10,11 +10,12 @@
 
 - `NO_PARENT_RELATIVE_IMPORT`：`plugin/src/` 禁止 `../` 等父级相对模块导入；跨父目录使用 `@/`。ESLint 检查普通导入、重新导出、动态导入和类型导入。
 - `DIRECTORY_INDEX`：`plugin/src/` 下每个目录，包括源码根目录，都必须有 `index.ts` 或 `index.tsx`。ESLint 扫描完整源码目录树，无须维护目录名单。
+- `INDEX_REEXPORTS_ONLY`：`index.ts` 与 `index.tsx` 只包含具名的 `export { ... } from "..."` 再导出声明，类型使用 `type` 修饰；实现、类型定义和装配代码放在同目录的其他文件。ESLint 检查所有源码目录入口。
 - `DIRECTORY_ENTRY`：引用目标一旦越过目录边界，只能通过所进入目录的 `index.ts` 或 `index.tsx`。直接父层使用 `./<dir>/index.ts` 或 `./<dir>/index.tsx`，其他目录使用 `@/<path>/index.ts` 或 `@/<path>/index.tsx`；目录内文件可直接互相引用。ESLint 根据实际目录层级检查。
 - `TYPESCRIPT_IMPORT_EXTENSION`：源码与测试引用仓库内 TypeScript 文件时，显式使用目标文件的 `.ts` 或 `.tsx` 扩展名。ESLint 拒绝对这些文件使用 `.js` 扩展名。
 - `PLUGIN_TEST_SOURCE_ALIAS`：`plugin/tests/` 引用 `src/` 使用 `@/`，测试 fixture 和辅助文件之间可使用相对路径。ESLint 检查测试源码导入。
 
-TypeScript 源码导入显式使用目标文件的 `.ts` 或 `.tsx` 扩展名；编译后的 JavaScript 产物继续使用 `.js`。当前 NodeNext/ESM 不支持将 `./xxx` 目录直接作为运行时导入目标，源码必须写出入口文件名。
+TypeScript 源码导入显式使用目标文件的 `.ts` 或 `.tsx` 扩展名；编译后的 JavaScript 产物继续使用 `.js`。当前 NodeNext/ESM 不支持将 `./<dir>` 目录直接作为运行时导入目标，源码必须写出入口文件名。
 
 ## Review Rules
 

@@ -105,12 +105,36 @@ const directoryIndex = {
     })
 };
 
+const indexReexportsOnly = {
+    meta: {
+        type: "problem",
+        docs: { description: "Keep source index files as re-export lists" },
+        messages: {
+            reexport: '入口 {{path}} 只能包含具名再导出声明：export { ... } from "..."。'
+        },
+        schema: []
+    },
+    create: (context) => ({
+        Program: (node) => {
+            for (const statement of node.body) {
+                if (statement.type !== "ExportNamedDeclaration" || !statement.source) {
+                    context.report({
+                        node: statement,
+                        messageId: "reexport",
+                        data: { path: relative(sourceRoot, context.filename) }
+                    });
+                }
+            }
+        }
+    })
+};
+
 const directoryBoundary = {
     meta: {
         type: "problem",
         docs: { description: "Require imports through the nearest directory boundary" },
         messages: {
-            parentRelative: "禁止父级相对导入；跨父目录使用 @/。",
+            parentRelative: "禁止父级相对导入 {{specifier}}；跨父目录使用 @/。",
             entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。"
         },
         schema: []
@@ -123,7 +147,7 @@ const directoryBoundary = {
                 return;
             }
             if (specifier.split("/").includes("..")) {
-                context.report({ node, messageId: "parentRelative" });
+                context.report({ node, messageId: "parentRelative", data: { specifier } });
                 return;
             }
             if (!specifier.startsWith("@/") && !specifier.startsWith("./")) {
@@ -217,6 +241,7 @@ const conviviumPlugin = {
     rules: {
         "no-version-suffix": noVersionSuffix,
         "directory-index": directoryIndex,
+        "index-reexports-only": indexReexportsOnly,
         "directory-boundary": directoryBoundary,
         "typescript-import-extension": typescriptImportExtension
     }
@@ -272,6 +297,10 @@ export default tseslint.config(
                 }
             ]
         }
+    },
+    {
+        files: ["src/**/index.{ts,tsx}"],
+        rules: { "convivium/index-reexports-only": "error" }
     },
     {
         files: ["src/**/*.{ts,tsx}"],
