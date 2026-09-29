@@ -5,14 +5,9 @@ import type { MeetingTranslate } from "./shared/index.ts";
 import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./client.ts";
 import { SubmissionFeedback } from "./submission-feedback.tsx";
 import { renderMeetingPanelLayout } from "./layout/index.ts";
-import {
-    INITIAL_FRESHNESS,
-    INITIAL_WORKSPACE,
-    controlsEnabled,
-    resetWorkspaceForMeeting,
-    type MeetingsFreshnessState,
-    type MeetingsWorkspaceState
-} from "./shared/index.ts";
+import { INITIAL_FRESHNESS, controlsEnabled } from "./shared/index.ts";
+import type { MeetingsFreshnessState } from "./shared/index.ts";
+import { useMeetingWorkspace } from "./hooks/index.ts";
 
 type MeetingPanelFailure =
     | {
@@ -63,7 +58,8 @@ export const ConviviumMeetingPanel = ({
     locale?: string;
 }): ReactElement => {
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
-    const [workspace, setWorkspace] = useState<MeetingsWorkspaceState>(INITIAL_WORKSPACE);
+    const meetingWorkspace = useMeetingWorkspace();
+    const { workspace } = meetingWorkspace;
     const [freshness, setFreshness] = useState<MeetingsFreshnessState>(INITIAL_FRESHNESS);
     const [detail, setDetail] = useState<MeetingView>();
     const [listFailure, setListFailure] = useState<MeetingPanelFailure>();
@@ -153,11 +149,7 @@ export const ConviviumMeetingPanel = ({
             settledListFreshnessRef.current = listSucceeded ? "fresh" : "stale";
             if (listSucceeded && capturedMeetingId !== undefined && !selectedStillExists) {
                 selectedRef.current = undefined;
-                setWorkspace((current) => ({
-                    ...current,
-                    selectedMeetingId: undefined,
-                    focusTarget: undefined
-                }));
+                meetingWorkspace.clearSelection();
                 setDetail(undefined);
                 setDetailFailure(undefined);
             } else if (capturedMeetingId !== undefined) {
@@ -191,7 +183,7 @@ export const ConviviumMeetingPanel = ({
                           : "stale"
             });
         },
-        [api]
+        [api, meetingWorkspace.clearSelection]
     );
     const refresh = useCallback(() => {
         const recovery = !streamTerminalRef.current && connectionRef.current !== "connected";
@@ -271,9 +263,7 @@ export const ConviviumMeetingPanel = ({
             localSubmission.edit();
             refreshGenerationRef.current += 1;
             selectedRef.current = meetingId;
-            setWorkspace((current) =>
-                resetWorkspaceForMeeting(meetingId, current.viewportRevision)
-            );
+            meetingWorkspace.selectMeeting(meetingId);
             setDetail(undefined);
             setDetailFailure(undefined);
             setFreshness((current) => ({
@@ -283,7 +273,7 @@ export const ConviviumMeetingPanel = ({
             }));
             void loadDetail(meetingId);
         },
-        [loadDetail, localSubmission.edit]
+        [loadDetail, localSubmission.edit, meetingWorkspace.selectMeeting]
     );
     const endMeeting = async () => {
         if (!detail) {
@@ -324,26 +314,14 @@ export const ConviviumMeetingPanel = ({
                 writePending
             }),
             activeMode: workspace.activeMode,
-            setMode: (activeMode) => setWorkspace((current) => ({ ...current, activeMode })),
+            setMode: meetingWorkspace.setMode,
             timelineFilters: workspace.timeline,
             viewportRevision: workspace.viewportRevision,
-            onTimelineFiltersChange: (timeline) =>
-                setWorkspace((current) => ({ ...current, timeline })),
+            onTimelineFiltersChange: meetingWorkspace.setTimelineFilters,
             focusTarget: workspace.focusTarget,
-            onFocusConsumed: () =>
-                setWorkspace((current) => ({ ...current, focusTarget: undefined })),
-            onLocateInTimeline: (focusTarget) =>
-                setWorkspace((current) => ({
-                    ...current,
-                    activeMode: "timeline",
-                    focusTarget
-                })),
-            onLocateInOverview: (focusTarget) =>
-                setWorkspace((current) => ({
-                    ...current,
-                    activeMode: "overview",
-                    focusTarget
-                })),
+            onFocusConsumed: meetingWorkspace.consumeFocus,
+            onLocateInTimeline: meetingWorkspace.locateInTimeline,
+            onLocateInOverview: meetingWorkspace.locateInOverview,
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,
