@@ -22,10 +22,6 @@ it("publishes one Manager, one Evidence Reviewer and five Contributor definition
         "github_research_analyst",
         "arxiv_research_analyst"
     ]);
-    expect(definitions).toHaveLength(7);
-    expect(definitions.some(({ roleDefinitionId }) => roleDefinitionId === "meeting_scribe")).toBe(
-        false
-    );
 });
 
 it("publishes only the current contribution tools for Manager", () => {

@@ -4,7 +4,6 @@ export {
     createReviewDeliveryDispatcher
 } from "./evidence-review-dispatch.ts";
 export { createMeetingArchiveDispatcher } from "./meeting-archive.ts";
-export { recoverMeetingCommands } from "./meeting-command-recovery.ts";
 export {
     provisionMeetingIdentity,
     type IdentityProvisionResult,

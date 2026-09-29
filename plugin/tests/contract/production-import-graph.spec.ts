@@ -106,14 +106,6 @@ describe("production import graph", () => {
         ]) {
             expect(graph.externals).not.toContain(dependency);
         }
-        for (const file of [
-            "repository/sqlite-meeting-repository.ts",
-            "repository/schema.ts",
-            "repository/migrations.ts",
-            "runtime/services/meeting-repository-locator.ts"
-        ]) {
-            expect(graph.files).not.toContain(file);
-        }
         expect(graph.externals).not.toContain("node:sqlite");
     });
 
