@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/meeting-state.ts";
+import type { MeetingState } from "@/domain/index.ts";
 import {
     checkRefs,
     ids,

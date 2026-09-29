@@ -2,7 +2,7 @@ import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persis
 import dshAgentPackage from "@deepseek-ai/dsh-agent/package.json" with { type: "json" };
 import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
-import type { Config } from "@/config.ts";
+import type { Config } from "@/index.ts";
 import type { MeetingState } from "@/domain/index.ts";
 import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";

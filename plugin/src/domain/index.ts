@@ -18,7 +18,16 @@ export {
     type FormalMessage,
     type PrivateMail,
     type ArchivePackage,
-    type MeetingState
+    type MeetingState,
+    type ArchiveQuestionIssueDispositionFact,
+    type IdentityRecommendation,
+    type CompletionFact,
+    type Position,
+    type DecisionCandidate,
+    type ProposalRevision,
+    type Decision,
+    type Issue,
+    type CompletionDeclaration
 } from "./meeting-state.ts";
 export {
     openRound,

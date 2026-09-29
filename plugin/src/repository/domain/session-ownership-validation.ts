@@ -1,5 +1,5 @@
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
-import type { JsonObject, SessionOwnership, SessionOwnershipInput } from "@/repository/types.ts";
+import type { JsonObject, SessionOwnership, SessionOwnershipInput } from "@/repository/index.ts";
 import { PreparedDescriptorSchema } from "./schemas.ts";
 import { encodeCanonicalJson, sha256Hex } from "./canonical-json.ts";
 

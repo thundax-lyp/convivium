@@ -1,5 +1,5 @@
-import { captainActorIdFor } from "@/domain/control-actor.ts";
-import type { MeetingState } from "@/domain/meeting-state.ts";
+import { captainActorIdFor } from "@/domain/index.ts";
+import type { MeetingState } from "@/domain/index.ts";
 import {
     checkRefs,
     ids,

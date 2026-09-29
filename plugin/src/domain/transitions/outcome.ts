@@ -7,7 +7,7 @@ import type {
     Issue,
     CompletionDeclaration,
     CompletionFact
-} from "@/domain/meeting-state.ts";
+} from "@/domain/index.ts";
 import type {
     OutcomeActor,
     RecordProposalRevisionInput,
@@ -39,7 +39,7 @@ export type {
     ChangeCompletionFactInput
 } from "./outcome-types.ts";
 export { recalculateMeetingCompletion, isObjectiveSatisfied } from "./outcome-completion.ts";
-import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import { validateMeetingState } from "@/domain/index.ts";
 import type { MeetingTransitionResult } from "./result.ts";
 import { rejectedTransition } from "./result.ts";
 

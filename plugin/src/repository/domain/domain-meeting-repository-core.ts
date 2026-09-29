@@ -8,7 +8,7 @@ import {
 } from "./session-ownership-validation.ts";
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
 import { DomainError } from "@/domain/index.ts";
-import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.ts";
+import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/index.ts";
 import type { CatalogDomain, MeetingDomain } from "./specs.ts";
 import {
     SessionOwnershipSchema,
@@ -35,7 +35,7 @@ import type {
     SessionOwnershipInput,
     UpdateBootstrapInput,
     UpdateCreateResultInput
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 import {
     createProjection,
     createCommitRecord,
@@ -48,7 +48,7 @@ import { diff } from "./json-patch.ts";
 import { catalogKey, receiptKey, seqKey } from "./keys.ts";
 import { loadProjection } from "./projection.ts";
 import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.ts";
-import { RepositoryError } from "@/repository/errors.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
     APPLICATION_CHECKPOINT_TRIGGER_COMMITS,

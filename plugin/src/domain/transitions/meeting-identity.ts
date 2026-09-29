@@ -1,5 +1,5 @@
-import type { EpochMs, IdentityRecommendation, MeetingState } from "@/domain/meeting-state.ts";
-import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import type { EpochMs, IdentityRecommendation, MeetingState } from "@/domain/index.ts";
+import { validateMeetingState } from "@/domain/index.ts";
 
 export type IdentityRecommendationDraft = {
     candidateId: string;

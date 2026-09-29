@@ -1,5 +1,5 @@
 import { DomainMeetingRepositoryCore } from "./domain-meeting-repository-core.ts";
-import { RepositoryError } from "@/repository/errors.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import { receiptKey } from "./keys.ts";
 import type {
     CommittedResult,
@@ -9,7 +9,7 @@ import type {
     FinishPrivateMeetingMailInput,
     CancelPrivateMeetingMailInput,
     JsonObject
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 import {
     validatePrivateMailSend,
     validatePrivateMailStart,

@@ -1,5 +1,5 @@
-import type { MeetingState, OpaqueId } from "@/domain/meeting-state.ts";
-import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import type { MeetingState, OpaqueId } from "@/domain/index.ts";
+import { validateMeetingState } from "@/domain/index.ts";
 import { isObjectiveSatisfied } from "./outcome.ts";
 import { rejectedTransition, type MeetingTransitionResult } from "./result.ts";
 

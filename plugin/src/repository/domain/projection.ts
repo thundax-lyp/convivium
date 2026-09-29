@@ -1,5 +1,5 @@
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
-import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/types.ts";
+import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/index.ts";
 import { applyPatch } from "./json-patch.ts";
 import {
     decodeCanonicalJson,

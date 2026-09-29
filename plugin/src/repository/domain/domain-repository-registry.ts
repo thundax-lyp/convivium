@@ -1,7 +1,7 @@
 import { DomainError as StorageDomainError } from "@deepseek-ai/dsh-storage-domain";
-import type { DiagnosticSink } from "@/repository/diagnostics.ts";
+import type { DiagnosticSink } from "@/repository/index.ts";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import { RepositoryError } from "@/repository/errors.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import { UnsupportedMeetingStateFormatError } from "./projection.ts";
 import type {
     CreateMeetingInput,
@@ -9,7 +9,7 @@ import type {
     MeetingStateCodec,
     MeetingSnapshot,
     RepositoryAuthorizationValidator
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 import { DomainMeetingRepository } from "./domain-meeting-repository.ts";
 import { catalogKey, meetingDomainName } from "./keys.ts";
 import { loadProjection } from "./projection.ts";

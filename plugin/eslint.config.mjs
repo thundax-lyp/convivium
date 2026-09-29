@@ -56,8 +56,12 @@ const sourceFile = (path) => {
             .map((name) => join(path, name))
             .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
     }
+    if (path.endsWith(".ts") || path.endsWith(".tsx")) {
+        return existsSync(path) && statSync(path).isFile() ? path : undefined;
+    }
+    const stem = path.endsWith(".js") ? path.slice(0, -3) : path;
     return [".ts", ".tsx"]
-        .map((extension) => path.replace(/\.js$/, extension))
+        .map((extension) => `${stem}${extension}`)
         .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
 };
 const hasDirectoryIndex = (directory) =>
@@ -164,18 +168,18 @@ const directoryBoundary = {
             const to = sourceParts(dirname(target));
             const common = from.findIndex((part, index) => part !== to[index]);
             const shared = common === -1 ? Math.min(from.length, to.length) : common;
-            if (shared === to.length) {
+            if (from.length === to.length && shared === to.length) {
                 return;
             }
             const boundary = to.slice(0, shared + 1);
-            const directory = boundary.join("/");
+            const directory = boundary.join("/") || "src";
             const indexExtension = existsSync(join(sourceRoot, ...boundary, "index.ts"))
                 ? ".ts"
                 : ".tsx";
             const expected =
                 shared === from.length
                     ? `./${boundary.at(-1)}/index${indexExtension}`
-                    : `@/${directory}/index${indexExtension}`;
+                    : `@/${boundary.length ? `${directory}/` : ""}index${indexExtension}`;
             if (specifier !== expected) {
                 context.report({ node, messageId: "entry", data: { directory, expected } });
             }
@@ -199,7 +203,7 @@ const typescriptImportExtension = {
     },
     create: (context) => {
         const check = (node, specifier) => {
-            if (typeof specifier !== "string" || !specifier.endsWith(".js")) {
+            if (typeof specifier !== "string") {
                 return;
             }
             if (
@@ -221,10 +225,22 @@ const typescriptImportExtension = {
                 return;
             }
             const extension = target.endsWith(".tsx") ? ".tsx" : ".ts";
+            if (specifier.endsWith(extension)) {
+                return;
+            }
+            const expected =
+                existsSync(unresolved) && statSync(unresolved).isDirectory()
+                    ? `${specifier}/index${extension}`
+                    : specifier.endsWith(".js")
+                      ? `${specifier.slice(0, -3)}${extension}`
+                      : `${specifier}${extension}`;
+            if (specifier === expected) {
+                return;
+            }
             context.report({
                 node,
                 messageId: "extension",
-                data: { expected: `${specifier.slice(0, -3)}${extension}` }
+                data: { expected }
             });
         };
         return {

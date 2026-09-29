@@ -7,6 +7,8 @@ export {
     encodeMeetingState
 } from "./domain/index.ts";
 export { RepositoryError } from "./errors.ts";
+export { emitDiagnostic, observeCommit } from "./diagnostics.ts";
+export type { DiagnosticSink } from "./diagnostics.ts";
 export type { MeetingRepositoryPort } from "./meeting-repository-port.ts";
 export type {
     CommandAuthorization,
@@ -21,5 +23,23 @@ export type {
     SessionOwnership,
     SessionOwnershipInput,
     TransitionResult,
-    WorkerLease
+    WorkerLease,
+    CommittedResult,
+    CreateMeetingResult,
+    MeetingStateCodec,
+    MeetingBootstrap,
+    RepositoryAuthorizationValidator,
+    UpdateBootstrapInput,
+    UpdateCreateResultInput,
+    PrivateMeetingMail,
+    SendPrivateMeetingMailInput,
+    StartPrivateMeetingMailInput,
+    FinishPrivateMeetingMailInput,
+    CancelPrivateMeetingMailInput,
+    ClaimOutboxInput,
+    CompleteOutboxInput,
+    OutboxCompletionResult,
+    RecoverInput,
+    RenewOutboxLeaseInput,
+    OutboxKind
 } from "./types.ts";

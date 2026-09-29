@@ -9,7 +9,7 @@ import type {
     OutboxKind,
     PrivateMeetingMail,
     SessionOwnership
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 import type { JsonValue } from "./canonical-json.ts";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>

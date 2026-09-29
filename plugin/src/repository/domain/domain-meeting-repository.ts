@@ -1,7 +1,7 @@
 import { DomainMeetingRepositoryMail } from "./domain-meeting-repository-mail.ts";
 import type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
 export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,
@@ -14,7 +14,7 @@ import type {
     RecoveryResult,
     RepositoryCommand,
     RenewOutboxLeaseInput
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 import {
     CommittedFactRecordSchema,
     PersistedEventSchema,
@@ -26,7 +26,7 @@ import {
 import { decodeProjection, encodeProjection } from "./projection.ts";
 import { receiptKey, seqKey } from "./keys.ts";
 import { encodeCanonicalJson, type JsonValue } from "./canonical-json.ts";
-import { RepositoryError } from "@/repository/errors.ts";
+import { RepositoryError } from "@/repository/index.ts";
 
 const jsonValue = (value: unknown): JsonValue => {
     if (

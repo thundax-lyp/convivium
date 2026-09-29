@@ -1,4 +1,4 @@
-import { RepositoryError } from "@/repository/errors.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import type {
     MeetingSnapshot,
     PrivateMeetingMail,
@@ -6,7 +6,7 @@ import type {
     SendPrivateMeetingMailInput,
     StartPrivateMeetingMailInput,
     FinishPrivateMeetingMailInput
-} from "@/repository/types.ts";
+} from "@/repository/index.ts";
 
 // Repository owns authorization, receipt replay, version checks and the commit boundary.
 // These checks only inspect the supplied values; they never access storage or mutate state.
