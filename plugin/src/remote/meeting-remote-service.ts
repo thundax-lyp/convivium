@@ -20,30 +20,28 @@ import type {
     RemoteRefreshNotice
 } from "./types.ts";
 
-function invalidRequest(cause: unknown): RemoteError<"convivium/invalid-request"> {
-    return new RemoteError(
+const invalidRequest = (cause: unknown): RemoteError<"convivium/invalid-request"> =>
+    new RemoteError(
         "convivium/invalid-request",
         "Invalid meeting request.",
         { retryable: false },
         { cause }
     );
-}
 
-function internalFailure(cause: unknown): RemoteError<"convivium/internal"> {
-    return new RemoteError(
+const internalFailure = (cause: unknown): RemoteError<"convivium/internal"> =>
+    new RemoteError(
         "convivium/internal",
         "Meeting data is unavailable.",
         { retryable: false },
         { cause }
     );
-}
 
-function mapFailure(signal: AbortSignal, cause: unknown): never {
+const mapFailure = (signal: AbortSignal, cause: unknown): never => {
     if (signal.aborted) {
         throw signal.reason;
     }
     throw internalFailure(cause);
-}
+};
 
 export class ConviviumRemoteService extends TypertRemoteService {
     private readonly lifetime = new AbortController();
@@ -67,7 +65,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
             void request;
             return MeetingListResultSchema.parse(await this.runtime.list(signal));
         } catch (cause) {
-            mapFailure(signal, cause);
+            return mapFailure(signal, cause);
         }
     }
 
@@ -86,7 +84,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
         try {
             return MeetingReadResultSchema.parse(await this.runtime.read(parsed, signal));
         } catch (cause) {
-            mapFailure(signal, cause);
+            return mapFailure(signal, cause);
         }
     }
 
@@ -105,7 +103,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
         try {
             return MeetingCommandResultSchema.parse(await this.runtime.control(parsed, signal));
         } catch (cause) {
-            mapFailure(signal, cause);
+            return mapFailure(signal, cause);
         }
     }
 
