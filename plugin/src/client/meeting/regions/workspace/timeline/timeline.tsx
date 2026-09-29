@@ -22,6 +22,7 @@ import type {
     TimelineObjectRef,
     TimelineZoom
 } from "@/client/meeting/shared/index.ts";
+import styles from "./timeline.module.css";
 
 export type TimelineDirection = "up" | "down" | "left" | "right";
 
@@ -415,20 +416,22 @@ export const TimelineViewport = ({
             <div
                 ref={viewportRef}
                 aria-label={t("panel.timeline.aria.viewport")}
-                style={{ overflowX: "auto", maxWidth: "100%" }}
+                className={styles.viewport}
             >
                 <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: `160px repeat(${nodes.length}, 220px)`,
-                        gridTemplateRows: lanes
-                            .map((lane) =>
-                                collapsed.includes(lane) ? "40px" : "minmax(100px, auto)"
-                            )
-                            .join(" "),
-                        columnGap: gap,
-                        minWidth
-                    }}
+                    className={styles.grid}
+                    style={
+                        {
+                            "--meeting-timeline-columns": `160px repeat(${nodes.length}, 220px)`,
+                            "--meeting-timeline-rows": lanes
+                                .map((lane) =>
+                                    collapsed.includes(lane) ? "40px" : "minmax(100px, auto)"
+                                )
+                                .join(" "),
+                            "--meeting-timeline-gap": `${gap}px`,
+                            "--meeting-timeline-min-width": `${minWidth}px`
+                        } as React.CSSProperties
+                    }
                 >
                     {lanes.map((lane, index) => (
                         <Button
@@ -507,9 +510,9 @@ export const TimelineViewport = ({
                                     .join("; ")}
                                 style={{
                                     gridRow: lanes.indexOf(node.lane) + 1,
-                                    gridColumn: index + 2,
-                                    minWidth: 220
+                                    gridColumn: index + 2
                                 }}
+                                className={styles.node}
                             >
                                 <p>{identity ? `${laneLabel}: ${identity}` : laneLabel}</p>
                                 <p>
