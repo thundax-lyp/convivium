@@ -13,7 +13,6 @@ export type {
     CommittedFactRecord,
     CreateMeetingInput,
     JsonObject,
-    MeetingBootstrap,
     MeetingSnapshot,
     OutboxInput,
     OutboxItem,

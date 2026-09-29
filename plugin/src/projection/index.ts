@@ -1,6 +1,1 @@
-export {
-    projectArchiveView,
-    projectMeetingSummary,
-    projectMeetingView,
-    type MeetingProjectionCaller
-} from "./meeting-view.ts";
+export { projectMeetingSummary, projectMeetingView } from "./meeting-view.ts";

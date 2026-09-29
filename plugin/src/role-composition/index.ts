@@ -1,4 +1,4 @@
-export { abilityNames, contributorRoleDefinitionIds, parseAgentDefinitions } from "./model.ts";
+export { contributorRoleDefinitionIds, parseAgentDefinitions } from "./model.ts";
 export type {
     AgentDefinitionBinding,
     ContributorRoleDefinitionId,

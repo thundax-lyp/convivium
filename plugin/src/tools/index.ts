@@ -1,9 +1,4 @@
-export {
-    registerMeetingTools,
-    type MeetingCommandToolDependencies,
-    type TargetMeetingToolCallerResolver,
-    type TargetMeetingToolReader
-} from "./register-tools.ts";
+export { registerMeetingTools } from "./register-tools.ts";
 export {
     MeetingStartGate,
     registerMeetingStartTool,
