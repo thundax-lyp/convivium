@@ -28,7 +28,8 @@ import { createMeetingIdentityReader, type MeetingIdentityReader } from "./servi
 import { createMeetingArchiveDispatcher } from "./services/index.ts";
 import {
     createEvidenceReviewDispatcher,
-    createReviewDeliveryDispatcher
+    createReviewDeliveryDispatcher,
+    createReviewWorkerPromptResolver
 } from "./services/index.ts";
 import { provisionMeetingIdentity } from "./services/index.ts";
 import type { MeetingIdentityProvisionDependencies } from "./services/index.ts";
@@ -632,6 +633,7 @@ export const activateTargetMeetingApplication = async (
             runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
             reader: MeetingIdentityReader;
             application: MeetingCommandApplication;
+            reviewPrompts: ReturnType<typeof createReviewWorkerPromptResolver>;
         }) => void | Promise<void>;
     }
 ): Promise<() => Promise<void>> => {
@@ -695,6 +697,10 @@ export const activateTargetMeetingApplication = async (
     const identityReader = createMeetingIdentityReader({
         registry,
         catalog
+    });
+    const reviewPrompts = createReviewWorkerPromptResolver({
+        registry,
+        clock: { now: Date.now }
     });
     const { deliveryWorkers, deadlinePollers, ensureDelivery, stopDelivery } =
         createDeliveryManager({
@@ -859,7 +865,12 @@ export const activateTargetMeetingApplication = async (
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     identityReaders.set(ctx, identityReader);
-    await options.onBeforeRecovery?.({ runtime, reader: identityReader, application });
+    await options.onBeforeRecovery?.({
+        runtime,
+        reader: identityReader,
+        application,
+        reviewPrompts
+    });
     await reconcile();
     return async () => {
         for (const worker of deliveryWorkers.values()) {

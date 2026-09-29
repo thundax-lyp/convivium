@@ -97,6 +97,7 @@ describe("target Meeting tool registration", () => {
             },
             application: { execute },
             reviewWorkers: { start: vi.fn() },
+            reviewPrompts: { resolve: vi.fn() },
             reader: { read },
             callers: {
                 resolve: vi.fn(async () => ({
@@ -311,6 +312,7 @@ describe("target Meeting tool registration", () => {
             },
             application: { execute: vi.fn() },
             reviewWorkers: { start: vi.fn() },
+            reviewPrompts: { resolve: vi.fn() },
             reader: { read },
             callers: {
                 resolve: vi.fn(async () => ({

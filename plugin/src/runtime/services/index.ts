@@ -1,7 +1,8 @@
 export { runDueContributionDeadline } from "./contribution-deadline.ts";
 export {
     createEvidenceReviewDispatcher,
-    createReviewDeliveryDispatcher
+    createReviewDeliveryDispatcher,
+    createReviewWorkerPromptResolver
 } from "./evidence-review-dispatch.ts";
 export { createMeetingArchiveDispatcher } from "./meeting-archive.ts";
 export {

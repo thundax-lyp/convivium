@@ -50,11 +50,12 @@ const meetingConsumerPlugin = {
         async function activate(): Promise<void> {
             const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
                 rolePackageRoot: fileURLToPath(new URL("../", import.meta.url)),
-                onBeforeRecovery: ({ runtime, reader, application }) => {
+                onBeforeRecovery: ({ runtime, reader, application, reviewPrompts }) => {
                     registerMeetingTools({
                         registry: ctx.tools,
                         application,
                         reviewWorkers: ctx.subagents,
+                        reviewPrompts,
                         reader,
                         callers: {
                             async resolve(agent, signal) {

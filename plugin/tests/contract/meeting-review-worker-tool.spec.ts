@@ -31,6 +31,7 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
             dispose
         };
     });
+    const resolvePrompt = vi.fn(async () => "trusted immutable version and baseline");
     registerMeetingTools({
         registry: {
             register: (definition) => {
@@ -40,6 +41,7 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
         },
         application: { execute: vi.fn() },
         reviewWorkers: { start },
+        reviewPrompts: { resolve: resolvePrompt },
         reader: { read: vi.fn() },
         callers: {
             resolve: vi.fn(async () => ({
@@ -75,8 +77,7 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
             {
                 input: {
                     meetingId: "meeting-1",
-                    versionId: "version-1",
-                    prompt: "Review this immutable version."
+                    versionId: "version-1"
                 }
             },
             {
@@ -88,6 +89,7 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
     expect(start).toHaveBeenCalledWith(
         "spawn",
         expect.objectContaining({
+            prompt: [{ type: "text", text: "trusted immutable version and baseline" }],
             parent: expect.objectContaining({ id: "reviewer-agent-1" }),
             outputSchema: expect.objectContaining({
                 required: ["versionId", "scope", "dimensions"],
@@ -108,6 +110,9 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
             }),
             toolFilter: { allow: [] }
         })
+    );
+    expect(resolvePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ meetingId: "meeting-1", versionId: "version-1" })
     );
     expect(result).toMatchObject({
         kind: "completed",
@@ -140,8 +145,7 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
                 {
                     input: {
                         meetingId: "meeting-1",
-                        versionId: "version-1",
-                        prompt: "Review this immutable version."
+                        versionId: "version-1"
                     }
                 },
                 {
@@ -151,4 +155,15 @@ it("runs reviewer workers with a machine-enforced schema that permits an empty b
             )
     ).resolves.toEqual({ kind: "failed", code: "REVIEW_WORKER_OUTPUT_INVALID" });
     expect(invalidDispose).toHaveBeenCalledOnce();
+
+    resolvePrompt.mockResolvedValueOnce(undefined);
+    await expect(
+        definitions
+            .find(({ name }) => name === "convivium_run_review_worker")!
+            .execute({ input: { meetingId: "meeting-1", versionId: "version-1" } }, {
+                agent: { id: "reviewer-agent-1" } as Agent,
+                signal: new AbortController().signal
+            } as ToolRunContext)
+    ).resolves.toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
+    expect(start).toHaveBeenCalledTimes(2);
 });
