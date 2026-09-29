@@ -67,7 +67,7 @@ export class MeetingStartGate {
                 });
                 continue;
             }
-            if (goal.startsWith("cancel")) {
+            if (/^cancel(?:\s|$)/.test(goal)) {
                 this.grants.delete(sessionId);
                 this.cancelGrants.delete(sessionId);
                 continue;
