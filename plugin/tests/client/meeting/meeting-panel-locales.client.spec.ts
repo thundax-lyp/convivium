@@ -9,7 +9,7 @@ import type { MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import {
     meetingTranslator,
-    translatedLayout as renderMeetingPanelLayout,
+    translatedLayout,
     translatedPanel,
     withMeetingTranslation
 } from "./meeting-panel-locale-fixtures.ts";
@@ -27,7 +27,7 @@ function inertStream() {
 }
 
 function emptyLayout(locale: "zh" | "en") {
-    return renderMeetingPanelLayout(
+    return translatedLayout(
         {
             meetings: [],
             listLoading: false,
@@ -71,7 +71,7 @@ describe("Meeting panel localized presentation", () => {
 
         const { summary, view } = meetingProjectionFixture();
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -94,7 +94,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByLabelText(`会议 ${summary.meetingId}`)).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -115,7 +115,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByRole("button", { name: "继续会议" })).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -135,7 +135,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByText("正在加载会议。")).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,

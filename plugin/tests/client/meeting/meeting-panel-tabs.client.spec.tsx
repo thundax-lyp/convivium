@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingPanelLayoutProps } from "@/client/meeting/shared/index.ts";
 import type { MeetingMode } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { translatedLayout as renderMeetingPanelLayout } from "./meeting-panel-locale-fixtures.ts";
+import { translatedLayout } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -30,13 +30,13 @@ function propsFixture(): MeetingPanelLayoutProps {
 
 function TabsHarness({ initial }: { initial: MeetingPanelLayoutProps }) {
     const [mode, setMode] = useState<MeetingMode>(initial.activeMode);
-    return renderMeetingPanelLayout({ ...initial, activeMode: mode, setMode }, "en");
+    return translatedLayout({ ...initial, activeMode: mode, setMode }, "en");
 }
 
 describe("Meeting Header and mode tabs", () => {
     it("omits Header, tabs, and content until a Meeting detail is selected", () => {
         const props = { ...propsFixture(), selectedId: undefined, detail: undefined };
-        render(renderMeetingPanelLayout(props, "en"));
+        render(translatedLayout(props, "en"));
 
         expect(screen.queryByTestId("meeting-header")).toBeNull();
         expect(screen.queryByRole("tablist")).toBeNull();
@@ -45,7 +45,7 @@ describe("Meeting Header and mode tabs", () => {
 
     it("renders objective, lifecycle, version, and only allowed controls in the Header", () => {
         const props = propsFixture();
-        render(renderMeetingPanelLayout(props, "en"));
+        render(translatedLayout(props, "en"));
 
         const header = screen.getByTestId("meeting-header");
         expect(header.textContent).toContain(props.detail?.objective.statement);
@@ -58,7 +58,7 @@ describe("Meeting Header and mode tabs", () => {
 
     it("disables every lifecycle control when the Workspace is not writable", () => {
         const props = { ...propsFixture(), detailCached: true };
-        render(renderMeetingPanelLayout(props, "en"));
+        render(translatedLayout(props, "en"));
 
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
         expect(screen.getByRole("button", { name: "Cancel meeting" }).disabled).toBe(true);

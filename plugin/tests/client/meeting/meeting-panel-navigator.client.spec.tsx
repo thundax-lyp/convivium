@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { translatedLayout as renderMeetingPanelLayout } from "./meeting-panel-locale-fixtures.ts";
+import { translatedLayout } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -68,7 +68,7 @@ describe("Meeting navigator", () => {
         );
         const { props } = layoutProps();
 
-        render(renderMeetingPanelLayout(props, "en"));
+        render(translatedLayout(props, "en"));
 
         expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Create meeting" })).toBeNull();
@@ -83,15 +83,45 @@ describe("Meeting navigator", () => {
         );
         const { props } = layoutProps();
 
-        render(renderMeetingPanelLayout(props, "en"));
+        render(translatedLayout(props, "en"));
 
-        expect(screen.getByTestId("meeting-workspace-shell").style.gridTemplateColumns).toBe(
-            "minmax(220px, 280px) minmax(0, 1fr)"
-        );
-        expect(screen.getByTestId("meeting-workspace-shell").style.gap).toBe("16px");
+        expect(
+            screen
+                .getByRole("separator", { name: "Resize meeting navigator" })
+                .getAttribute("aria-valuenow")
+        ).toBe("280");
         expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
         expect(screen.getByTestId("meeting-workspace")).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("resizes the wide navigator by dragging and keyboard without squeezing the workspace", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+        render(translatedLayout(props, "en"));
+        const shell = screen.getByTestId("meeting-workspace-shell");
+        vi.spyOn(shell, "getBoundingClientRect").mockReturnValue({ width: 700 } as DOMRect);
+        fireEvent.resize(window);
+
+        const splitter = screen.getByRole("separator", { name: "Resize meeting navigator" });
+        expect(splitter.getAttribute("aria-valuemax")).toBe("364");
+        fireEvent.pointerDown(splitter, { button: 0, pointerId: 1, clientX: 100 });
+        fireEvent.pointerMove(splitter, { pointerId: 1, clientX: 300 });
+        expect(splitter.getAttribute("aria-valuenow")).toBe("364");
+        fireEvent.pointerUp(splitter, { pointerId: 1 });
+        fireEvent.pointerMove(splitter, { pointerId: 1, clientX: 100 });
+        expect(splitter.getAttribute("aria-valuenow")).toBe("364");
+
+        fireEvent.keyDown(splitter, { key: "Home" });
+        expect(splitter.getAttribute("aria-valuenow")).toBe("220");
+        fireEvent.keyDown(splitter, { key: "ArrowRight" });
+        expect(splitter.getAttribute("aria-valuenow")).toBe("236");
+        fireEvent.keyDown(splitter, { key: "End" });
+        expect(splitter.getAttribute("aria-valuenow")).toBe("364");
     });
 
     it("shows loading before an empty meeting list is confirmed", () => {
@@ -102,7 +132,7 @@ describe("Meeting navigator", () => {
         );
         const { props } = layoutProps();
         const rendered = render(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     ...props,
                     meetings: [],
@@ -118,7 +148,7 @@ describe("Meeting navigator", () => {
         expect(screen.queryByText("No meetings.")).toBeNull();
 
         rendered.rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     ...props,
                     meetings: [],
@@ -140,13 +170,13 @@ describe("Meeting navigator", () => {
             vi.fn(() => media.query)
         );
         const { props, summary } = layoutProps();
-        const rendered = render(renderMeetingPanelLayout(props, "en"));
+        const rendered = render(translatedLayout(props, "en"));
 
+        expect(screen.queryByRole("separator")).toBeNull();
         const opener = screen.getByRole("button", { name: "Open meeting navigator" });
         fireEvent.click(opener);
         const drawer = screen.getByRole("dialog", { name: "Meeting navigator" });
         expect(drawer.getAttribute("aria-modal")).toBe("true");
-        expect(drawer.style.position).toBe("fixed");
         fireEvent.click(screen.getByRole("button", { name: /核对议题 A/ }));
         expect(props.selectMeeting).toHaveBeenCalledWith(summary.meetingId);
         expect(screen.queryByRole("dialog")).toBeNull();
