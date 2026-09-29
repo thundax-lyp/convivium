@@ -2,7 +2,7 @@ import * as React from "react";
 import { createContext, useContext, type ReactNode } from "react";
 import type { MeetingTranslate } from "@/client/meeting/shared/index.ts";
 
-const MeetingTranslationContext = createContext<{ t: MeetingTranslate } | null>(null);
+const MeetingTranslationContext = createContext<MeetingTranslate | null>(null);
 
 export const MeetingTranslationProvider = ({
     t,
@@ -10,16 +10,12 @@ export const MeetingTranslationProvider = ({
 }: {
     t: MeetingTranslate;
     children: ReactNode;
-}) => (
-    <MeetingTranslationContext.Provider value={{ t }}>
-        {children}
-    </MeetingTranslationContext.Provider>
-);
+}) => <MeetingTranslationContext.Provider value={t}>{children}</MeetingTranslationContext.Provider>;
 
 export const useMeetingTranslate = (): MeetingTranslate => {
     const translation = useContext(MeetingTranslationContext);
     if (translation === null) {
         throw new Error("MeetingTranslationProvider is required.");
     }
-    return translation.t;
+    return translation;
 };
