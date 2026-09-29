@@ -1,4 +1,4 @@
-import type { JsonValue } from "./canonical-json.js";
+import type { JsonValue } from "./canonical-json.ts";
 
 export type JsonPath = readonly (string | number)[];
 export type JsonPatchOperation =

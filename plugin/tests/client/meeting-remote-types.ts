@@ -1,12 +1,12 @@
 import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
-import type { MeetingClient } from "@/client/meeting-client.js";
+import type { MeetingClient } from "@/client/meeting-client.ts";
 import type {
     MeetingCommandResult,
     MeetingListResult,
     MeetingReadResult,
     RefreshNotice
-} from "@/protocol/index.js";
-import type { loadRemoteClientModule } from "../fixtures/remote-client.js";
+} from "@/protocol/index.ts";
+import type { loadRemoteClientModule } from "../fixtures/remote-client.ts";
 import type { RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting-workspace-state.js";
-import { findAdjacentTimelineKey } from "@/client/meeting-panel-timeline.js";
-import { MeetingViewSchema } from "@/protocol/meeting-view.js";
+import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting-workspace-state.ts";
+import { findAdjacentTimelineKey } from "@/client/meeting-panel-timeline.tsx";
+import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 import {
     buildTimelineNodes,
     filterTimelineNodes,
     resolveTimelineNodeContent
-} from "@/client/meeting-timeline-projection.js";
-import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.js";
+} from "@/client/meeting-timeline-projection.ts";
+import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 
 describe("Timeline projection", () => {
     it("moves between adjacent visible lanes by time", () => {

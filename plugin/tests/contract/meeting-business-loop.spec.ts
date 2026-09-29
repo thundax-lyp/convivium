@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import {
     MeetingActionSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestSchema
-} from "@/protocol/meeting-command.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
+} from "@/protocol/meeting-command.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
 import {
     MeetingActionSchema as PublicMeetingActionV1Schema,
     MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
     serializeValidatedRequest
-} from "@/protocol/index.js";
+} from "@/protocol/index.ts";
 
 const identity = {
     candidateId: "candidate-1",

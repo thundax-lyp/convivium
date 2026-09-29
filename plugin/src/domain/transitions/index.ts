@@ -1,13 +1,13 @@
-export * from "./result.js";
-export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.js";
+export * from "./result.ts";
+export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.ts";
 export {
     openRound,
     abortRound,
     isRoundClosable,
     roundParticipationDeadline,
     respondRoundParticipation
-} from "./round.js";
-export { raiseHand, disposeHandRaise } from "./hand-raise.js";
+} from "./round.ts";
+export { raiseHand, disposeHandRaise } from "./hand-raise.ts";
 export {
     sendPrivateMail,
     startPrivateMail,
@@ -19,9 +19,9 @@ export {
     type CompletePrivateMailInput,
     type CancelPrivateMailInput,
     type ExpirePrivateMailInput
-} from "./private-mail.js";
-export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.js";
-export { submitEvidence, type EvidenceInput, type SubmitEvidenceInput } from "./format-evidence.js";
+} from "./private-mail.ts";
+export { raiseSupplementHand, disposeSupplementHand } from "./supplement-hand.ts";
+export { submitEvidence, type EvidenceInput, type SubmitEvidenceInput } from "./format-evidence.ts";
 export {
     claimEvidenceReview,
     failEvidenceValidation,
@@ -31,19 +31,19 @@ export {
     type ClaimEvidenceReviewInput,
     type FailEvidenceValidationInput,
     type SubmitEvidenceReviewInput
-} from "./evidence-review.js";
-export { closeContribution } from "./contribution-exit.js";
-export { publishRound } from "./round-publication.js";
-export { createMeeting } from "./meeting-create.js";
-export { endMeeting } from "./meeting-end.js";
-export { startMeetingArchive, completeMeetingArchive } from "./meeting-archive.js";
+} from "./evidence-review.ts";
+export { closeContribution } from "./contribution-exit.ts";
+export { publishRound } from "./round-publication.ts";
+export { createMeeting } from "./meeting-create.ts";
+export { endMeeting } from "./meeting-end.ts";
+export { startMeetingArchive, completeMeetingArchive } from "./meeting-archive.ts";
 export {
     recommendIdentity,
     recordIdentityAdmissionResult,
     type IdentityAdmissionResultContext,
     type IdentityRecommendationDraft,
     type IdentityTransitionResult
-} from "./meeting-identity.js";
+} from "./meeting-identity.ts";
 
 export {
     recordProposalRevision,
@@ -58,7 +58,7 @@ export {
     changeCompletionFact,
     isObjectiveSatisfied,
     recalculateMeetingCompletion
-} from "./outcome.js";
+} from "./outcome.ts";
 export type {
     OutcomeActor,
     RecordProposalRevisionInput,
@@ -70,4 +70,4 @@ export type {
     SubmitCompletionDeclarationInput,
     RecordCompletionFactInput,
     ChangeCompletionFactInput
-} from "./outcome.js";
+} from "./outcome.ts";

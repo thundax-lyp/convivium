@@ -5,9 +5,9 @@ export {
     meetingIdFor,
     decodeMeetingState,
     encodeMeetingState
-} from "./domain/index.js";
-export { RepositoryError } from "./errors.js";
-export type { MeetingRepositoryPort } from "./meeting-repository-port.js";
+} from "./domain/index.ts";
+export { RepositoryError } from "./errors.ts";
+export type { MeetingRepositoryPort } from "./meeting-repository-port.ts";
 export type {
     CommandAuthorization,
     CommittedFactRecord,
@@ -23,4 +23,4 @@ export type {
     SessionOwnershipInput,
     TransitionResult,
     WorkerLease
-} from "./types.js";
+} from "./types.ts";

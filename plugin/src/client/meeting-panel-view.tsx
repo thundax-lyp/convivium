@@ -1,4 +1,4 @@
-import type { ArchiveView, MeetingView } from "@/protocol/index.js";
+import type { ArchiveView, MeetingView } from "@/protocol/index.ts";
 /** The client renders the server-owned projection without deriving domain facts. */
 export type MeetingPanelView = MeetingView;
 

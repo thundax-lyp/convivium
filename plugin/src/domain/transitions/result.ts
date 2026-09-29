@@ -1,4 +1,4 @@
-import type { MeetingState, OpaqueId } from "@/domain/index.js";
+import type { MeetingState, OpaqueId } from "@/domain/index.ts";
 
 export type MeetingDomainErrorCode =
     | "INVALID_ARGUMENT"

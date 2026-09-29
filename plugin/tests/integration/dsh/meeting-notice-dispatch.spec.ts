@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.ts";
 
 it.each(["flush-false", "post-revoke", "after-flush-crash"])(
     "keeps %s retryable using the original delivery id",

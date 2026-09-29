@@ -1,8 +1,8 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { recordCompletionFact, changeCompletionFact } from "@/domain/transitions/outcome.js";
-import { validState, completionReadyState, completionInput } from "./outcome-fixtures.js";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { recordCompletionFact, changeCompletionFact } from "@/domain/transitions/outcome.ts";
+import { validState, completionReadyState, completionInput } from "./outcome-fixtures.ts";
 
 describe("CompletionFact", () => {
     const reviewBreaks = [

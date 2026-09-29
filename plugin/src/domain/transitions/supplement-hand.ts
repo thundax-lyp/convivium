@@ -1,6 +1,6 @@
-import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.js";
-import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
-import { roundReadyNotice } from "./round.js";
+import type { MeetingState, OpaqueId, SupplementHand } from "@/domain/index.ts";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
+import { roundReadyNotice } from "./round.ts";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {

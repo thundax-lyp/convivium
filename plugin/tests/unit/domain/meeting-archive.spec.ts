@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { endMeeting } from "@/domain/transitions/meeting-end.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { endMeeting } from "@/domain/transitions/meeting-end.ts";
 import {
     completeMeetingArchive,
     startMeetingArchive
-} from "@/domain/transitions/meeting-archive.js";
+} from "@/domain/transitions/meeting-archive.ts";
 
 describe("meeting archive", () => {
     it("materializes a value archive and gates archived on ownership closure", () => {

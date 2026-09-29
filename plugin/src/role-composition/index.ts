@@ -1,4 +1,4 @@
-export { abilityNames, contributorRoleDefinitionIds, parseAgentDefinitions } from "./model.js";
+export { abilityNames, contributorRoleDefinitionIds, parseAgentDefinitions } from "./model.ts";
 export type {
     AgentDefinitionBinding,
     ContributorRoleDefinitionId,
@@ -6,17 +6,17 @@ export type {
     MeetingAgentDefinition,
     PreparedDescriptor,
     ResourceBinding
-} from "./model.js";
-export { parseAgentModelOverrides, resolveEffectiveAgentOptions } from "./model-options.js";
-export type { MeetingAgentModelOverrides } from "./model-options.js";
+} from "./model.ts";
+export { parseAgentModelOverrides, resolveEffectiveAgentOptions } from "./model-options.ts";
+export type { MeetingAgentModelOverrides } from "./model-options.ts";
 export {
     matchesPreparedDescriptor,
     preflightMeetingIdentity,
     validateRoleSkills
-} from "./dsh-capabilities.js";
+} from "./dsh-capabilities.ts";
 export {
     definitionHash,
     resolveDynamicMeetingDefinition,
     RoleCompositionError
-} from "./resolve.js";
-export { readRoleResource, resolveResourceBinding } from "./resource-binding.js";
+} from "./resolve.ts";
+export { readRoleResource, resolveResourceBinding } from "./resource-binding.ts";

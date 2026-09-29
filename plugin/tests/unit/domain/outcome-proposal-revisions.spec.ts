@@ -1,12 +1,12 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import {
     recordProposalRevision,
     disposeRisk,
     submitCompletionDeclaration,
     recordCompletionFact
-} from "@/domain/transitions/outcome.js";
-import { validState } from "./outcome-fixtures.js";
+} from "@/domain/transitions/outcome.ts";
+import { validState } from "./outcome-fixtures.ts";
 
 describe("risk disposition gates", () => {
     const riskState = () => {

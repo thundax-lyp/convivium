@@ -3,8 +3,8 @@ import {
     recordPosition,
     recordDecisionCandidate,
     pendingDecisionCandidates
-} from "@/domain/transitions/outcome.js";
-import { validState, expectRejected } from "./outcome-fixtures.js";
+} from "@/domain/transitions/outcome.ts";
+import { validState, expectRejected } from "./outcome-fixtures.ts";
 
 const ready = () => {
     const state = validState();

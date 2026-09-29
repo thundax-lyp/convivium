@@ -1,5 +1,5 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
-import type { MeetingState } from "@/domain/meeting-state.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
+import type { MeetingState } from "@/domain/meeting-state.ts";
 
 export function state(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
     return {

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 import {
     state,
     local,
@@ -11,7 +11,7 @@ import {
     candidateState,
     publishedQuestionState,
     recordIssue
-} from "./meeting-state-transitions-fixtures.js";
+} from "./meeting-state-transitions-fixtures.ts";
 
 it("records a nonblocking follow-up with all typed references", () => {
     const current = publishedQuestionState(false);

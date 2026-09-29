@@ -1,8 +1,8 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { decide, changeDecision } from "@/domain/transitions/outcome.js";
-import { validState, decisionReadyState } from "./outcome-fixtures.js";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { decide, changeDecision } from "@/domain/transitions/outcome.ts";
+import { validState, decisionReadyState } from "./outcome-fixtures.ts";
 
 describe("decision change corrective gates", () => {
     const decidedState = () => {

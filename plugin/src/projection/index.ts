@@ -3,4 +3,4 @@ export {
     projectMeetingSummary,
     projectMeetingView,
     type MeetingProjectionCaller
-} from "./meeting-view.js";
+} from "./meeting-view.ts";

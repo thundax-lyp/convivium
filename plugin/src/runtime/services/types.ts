@@ -1,6 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { OutboxItem } from "@/repository/index.js";
-import type { OutboxWorkerRepository } from "@/runtime/outbox-worker.js";
+import type { OutboxItem } from "@/repository/index.ts";
+import type { OutboxWorkerRepository } from "@/runtime/outbox-worker.ts";
 
 /**
  * The application service owns command ordering. Runtime services own the

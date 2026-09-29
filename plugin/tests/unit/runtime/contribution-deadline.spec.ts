@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { runDueContributionDeadline } from "@/runtime/services/contribution-deadline.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { runDueContributionDeadline } from "@/runtime/services/contribution-deadline.ts";
 
 const deliveredState = () => {
     const state = makeRunningMeetingStateV1();

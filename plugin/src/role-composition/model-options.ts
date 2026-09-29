@@ -1,6 +1,6 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { z } from "zod";
-import type { MeetingAgentDefinition, EffectiveAgentOptions } from "./model.js";
+import type { MeetingAgentDefinition, EffectiveAgentOptions } from "./model.ts";
 
 export type MeetingAgentModelOverrides = Readonly<
     Record<string, Readonly<Pick<AgentOptions, "provider" | "model" | "reasoningEffort">>>

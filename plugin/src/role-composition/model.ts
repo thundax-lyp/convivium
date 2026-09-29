@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
-import { abilityNames } from "@/domain/index.js";
+import { abilityNames } from "@/domain/index.ts";
 
 export { abilityNames };
 

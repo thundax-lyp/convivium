@@ -1,4 +1,4 @@
-import { encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
+import { encodeCanonicalJson, sha256Hex } from "./canonical-json.ts";
 
 const encoder = new TextEncoder();
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MeetingCommand } from "@/protocol/index.js";
-import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
-import { createRemoteGateway } from "../fixtures/remote-gateway.js";
+import type { MeetingCommand } from "@/protocol/index.ts";
+import type { LocalMeetingWebRuntime } from "@/runtime/index.ts";
+import { createRemoteGateway } from "../fixtures/remote-gateway.ts";
 
 function runtimeFixture() {
     const calls = {
@@ -89,8 +89,8 @@ import {
     activateTargetMeetingApplication,
     getLocalMeetingWebRuntime,
     getMeetingCommandApplication
-} from "@/runtime/meeting-lifecycle.js";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+} from "@/runtime/meeting-lifecycle.ts";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
 it("routes all fourteen user controls through the application with a fixed trusted caller", async () => {

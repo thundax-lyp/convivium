@@ -14,7 +14,7 @@ import {
     type MeetingReadResult,
     type ReadMeetingRequest,
     type RefreshNotice
-} from "@/protocol/index.js";
+} from "@/protocol/index.ts";
 
 interface ProtocolError {
     protocolVersion: 1;

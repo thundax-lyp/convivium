@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     renderMeetingPanelLayout,
     type MeetingPanelLayoutProps
-} from "@/client/meeting-panel-layout.js";
-import type { MeetingMode } from "@/client/meeting-workspace-state.js";
-import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
+} from "@/client/meeting-panel-layout.tsx";
+import type { MeetingMode } from "@/client/meeting-workspace-state.ts";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
+import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 

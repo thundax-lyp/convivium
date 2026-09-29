@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UnsupportedMeetingStateFormatError } from "./projection.js";
+import { UnsupportedMeetingStateFormatError } from "./projection.ts";
 import { defineDomain, domainTable, type Domain } from "@deepseek-ai/dsh-storage-domain";
 import {
     CheckpointPageSchema,
@@ -8,7 +8,7 @@ import {
     CatalogMeetingRecordSchema,
     CommitRecordSchema,
     CreationRecordSchema
-} from "./schemas.js";
+} from "./schemas.ts";
 import type {
     CatalogMeetingRecord,
     CheckpointPage,
@@ -16,8 +16,8 @@ import type {
     CheckpointRoot,
     CommitRecord,
     CreationRecord
-} from "./schemas.js";
-import type { CatalogKey, SeqKey } from "./keys.js";
+} from "./schemas.ts";
+import type { CatalogKey, SeqKey } from "./keys.ts";
 
 export const catalogDomainSpec = defineDomain({
     name: "convivium_catalog",

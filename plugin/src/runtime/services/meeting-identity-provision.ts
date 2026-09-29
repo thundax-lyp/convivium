@@ -1,16 +1,16 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
-import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.js";
+import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
 import {
     resolveEffectiveAgentOptions,
     type MeetingAgentModelOverrides
-} from "@/role-composition/index.js";
-import { resolveDynamicMeetingDefinition } from "@/role-composition/index.js";
-import { preflightMeetingIdentity } from "@/role-composition/index.js";
-import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.js";
-import type { SessionOwnership, SessionOwnershipInput } from "@/repository/index.js";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
-import type { IdentityAdmissionResultContext } from "@/domain/index.js";
+} from "@/role-composition/index.ts";
+import { resolveDynamicMeetingDefinition } from "@/role-composition/index.ts";
+import { preflightMeetingIdentity } from "@/role-composition/index.ts";
+import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.ts";
+import type { SessionOwnership, SessionOwnershipInput } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import type { IdentityAdmissionResultContext } from "@/domain/index.ts";
 
 export type IdentityProvisionResult =
     | { kind: "admitted"; result: Extract<IdentityAdmissionResultContext, { kind: "admitted" }> }

@@ -1,4 +1,4 @@
-import type { EpochMs, MeetingState, OpaqueId, CompletionFact } from "@/domain/meeting-state.js";
+import type { EpochMs, MeetingState, OpaqueId, CompletionFact } from "@/domain/meeting-state.ts";
 
 const validId = (x: unknown): x is string => typeof x === "string" && x.trim().length > 0;
 const validArray = (xs: readonly unknown[]) =>

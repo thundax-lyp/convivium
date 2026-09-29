@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
     parseAgentModelOverrides,
     resolveEffectiveAgentOptions
-} from "@/role-composition/model-options.js";
-import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
+} from "@/role-composition/model-options.ts";
+import { roleCompositionDefinitions } from "../../fixtures/role-composition.ts";
 
 describe("meeting role Host model overrides", () => {
     it("accepts omitted and empty maps as immutable maps with no inherited entries", () => {

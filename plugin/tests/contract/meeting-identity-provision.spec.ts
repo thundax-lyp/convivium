@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMeetingIdentityEffectHandler } from "@/runtime/application-service/meeting-identity.js";
-import { provisionMeetingIdentity } from "@/runtime/services/meeting-identity-provision.js";
-import { definitionHash } from "@/role-composition/resolve.js";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { createMeetingIdentityEffectHandler } from "@/runtime/application-service/meeting-identity.ts";
+import { provisionMeetingIdentity } from "@/runtime/services/meeting-identity-provision.ts";
+import { definitionHash } from "@/role-composition/resolve.ts";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";

@@ -1,12 +1,12 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.js";
-import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.js";
-import { MeetingPanelOverview } from "@/client/meeting-panel-overview.js";
-import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
-import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
+import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.ts";
+import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.tsx";
+import { MeetingPanelOverview } from "@/client/meeting-panel-overview.tsx";
+import { ConviviumMeetingPanel } from "@/client/meeting-panel.tsx";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
+import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 

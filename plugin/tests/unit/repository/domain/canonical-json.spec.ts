@@ -3,7 +3,7 @@ import {
     decodeCanonicalJson,
     encodeCanonicalJson,
     sha256Hex
-} from "@/repository/domain/canonical-json.js";
+} from "@/repository/domain/canonical-json.ts";
 describe("domain canonical JSON", () => {
     it("sorts keys and produces a deterministic digest", () => {
         const bytes = encodeCanonicalJson({ b: 1, a: { d: true, c: null } });

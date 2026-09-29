@@ -4,16 +4,16 @@ import type AgentPresets from "@deepseek-ai/dsh-agent-presets";
 import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
 import { resolve } from "node:path";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
 import {
     abilityNames,
     type AgentDefinitionBinding,
     type EffectiveAgentOptions,
     type MeetingAgentDefinition,
     type PreparedDescriptor
-} from "./model.js";
-import { definitionHash } from "./resolve.js";
-import { readRoleResource, resolveResourceBinding } from "./resource-binding.js";
+} from "./model.ts";
+import { definitionHash } from "./resolve.ts";
+import { readRoleResource, resolveResourceBinding } from "./resource-binding.ts";
 
 export type PreflightIdentityResult =
     | { kind: "ready"; descriptor: PreparedDescriptor }

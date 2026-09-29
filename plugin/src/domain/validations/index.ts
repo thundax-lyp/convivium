@@ -1,4 +1,4 @@
-export { own, ownUndefined, record, type RecordValue } from "./meeting-state-helpers.js";
-export { validateMeetingStateOutcomes } from "./meeting-state-outcomes.js";
-export { validateMeetingStateReferences } from "./meeting-state-references.js";
-export { parseMeetingStateShape } from "./meeting-state-schema.js";
+export { own, ownUndefined, record, type RecordValue } from "./meeting-state-helpers.ts";
+export { validateMeetingStateOutcomes } from "./meeting-state-outcomes.ts";
+export { validateMeetingStateReferences } from "./meeting-state-references.ts";
+export { parseMeetingStateShape } from "./meeting-state-schema.ts";

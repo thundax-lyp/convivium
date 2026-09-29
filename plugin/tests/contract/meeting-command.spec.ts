@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import type { MeetingState } from "@/domain/index.js";
-import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { meetingIdFor } from "@/repository/domain/keys.js";
-import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
-import { RepositoryError } from "@/repository/errors.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { RepositoryCommand } from "@/repository/types.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
+import type { MeetingState } from "@/domain/index.ts";
+import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { meetingIdFor } from "@/repository/domain/keys.ts";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
+import { RepositoryError } from "@/repository/errors.ts";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.ts";
+import type { RepositoryCommand } from "@/repository/types.ts";
 
 describe("target Meeting command core", () => {
     it("round-trips a complete target state without loss", () => {

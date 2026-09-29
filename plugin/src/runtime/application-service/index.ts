@@ -6,5 +6,5 @@ export {
     type MeetingCommandApplication,
     type CreateMeetingCommand,
     type MeetingCreationCoordinator
-} from "./meeting-command.js";
-export { createMeetingIdentityEffectHandler } from "./meeting-identity.js";
+} from "./meeting-command.ts";
+export { createMeetingIdentityEffectHandler } from "./meeting-identity.ts";

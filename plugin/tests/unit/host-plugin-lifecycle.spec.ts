@@ -4,8 +4,8 @@ import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import Tools from "@deepseek-ai/dsh-tools";
 
-import { apply, inject } from "@/index.js";
-import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
+import { apply, inject } from "@/index.ts";
+import { createFakeDomainFacility } from "../fixtures/domain-storage.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
 const config = {

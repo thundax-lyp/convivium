@@ -9,8 +9,8 @@ import {
     ReadMeetingRequestSchema,
     RefreshNoticeSchema,
     type MeetingCommand
-} from "@/protocol/index.js";
-import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
+} from "@/protocol/index.ts";
+import type { LocalMeetingWebRuntime } from "@/runtime/index.ts";
 import type {
     RemoteMeetingCommand,
     RemoteMeetingCommandResult,
@@ -18,7 +18,7 @@ import type {
     RemoteMeetingReadResult,
     RemoteReadMeetingRequest,
     RemoteRefreshNotice
-} from "./types.js";
+} from "./types.ts";
 
 function invalidRequest(cause: unknown): RemoteError<"convivium/invalid-request"> {
     return new RemoteError(

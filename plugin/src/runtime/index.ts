@@ -4,7 +4,7 @@ import type {
     MeetingListResult,
     MeetingReadResult,
     RefreshNotice
-} from "@/protocol/index.js";
+} from "@/protocol/index.ts";
 
 export interface LocalMeetingWebRuntime {
     list(signal: AbortSignal): Promise<MeetingListResult>;
@@ -18,27 +18,27 @@ export interface LocalMeetingWebRuntime {
     subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNotice>;
 }
 
-export { createMeetingCreationCoordinator } from "./meeting-runtime.js";
+export { createMeetingCreationCoordinator } from "./meeting-runtime.ts";
 export {
     activateTargetMeetingApplication,
     getMeetingCommandApplication,
     getMeetingIdentityReader,
     getLocalMeetingWebRuntime
-} from "./meeting-lifecycle.js";
-export { createOutboxWorker } from "./outbox-worker.js";
-export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
+} from "./meeting-lifecycle.ts";
+export { createOutboxWorker } from "./outbox-worker.ts";
+export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.ts";
 export {
     createMeetingCommandApplication,
     type MeetingCommandApplication
-} from "./application-service/index.js";
-export { createMeetingIdentityEffectHandler } from "./application-service/index.js";
-export { provisionMeetingIdentity } from "./services/index.js";
-export { createMeetingNoticeDispatcher } from "./services/index.js";
-export { createMeetingIdentityReader, type MeetingIdentityReader } from "./services/index.js";
+} from "./application-service/index.ts";
+export { createMeetingIdentityEffectHandler } from "./application-service/index.ts";
+export { provisionMeetingIdentity } from "./services/index.ts";
+export { createMeetingNoticeDispatcher } from "./services/index.ts";
+export { createMeetingIdentityReader, type MeetingIdentityReader } from "./services/index.ts";
 export {
     createEvidenceReviewDispatcher,
     createReviewDeliveryDispatcher
-} from "./services/index.js";
-export { createMeetingArchiveDispatcher } from "./services/index.js";
-export { recoverMeetingCommands } from "./services/index.js";
-export type { MeetingOutboxWakeup } from "./outbox-worker.js";
+} from "./services/index.ts";
+export { createMeetingArchiveDispatcher } from "./services/index.ts";
+export { recoverMeetingCommands } from "./services/index.ts";
+export type { MeetingOutboxWakeup } from "./outbox-worker.ts";

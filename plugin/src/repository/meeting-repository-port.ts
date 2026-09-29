@@ -1,4 +1,4 @@
-import type { PreparedDescriptor } from "@/role-composition/index.js";
+import type { PreparedDescriptor } from "@/role-composition/index.ts";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,
@@ -24,7 +24,7 @@ import type {
     SessionOwnershipInput,
     UpdateBootstrapInput,
     UpdateCreateResultInput
-} from "./types.js";
+} from "./types.ts";
 
 export interface MeetingRepositoryPort<TState = JsonObject> {
     readonly meetingId: string;

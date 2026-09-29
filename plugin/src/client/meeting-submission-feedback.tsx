@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useMeetingSubmission } from "./meeting-client.js";
-import { en, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
+import { useMeetingSubmission } from "./meeting-client.ts";
+import { en, type MeetingLocaleKey, type MeetingTranslate } from "./locales.ts";
 
 const formText = (name: string, t?: MeetingTranslate): string => {
     const key = `form.${name}` as MeetingLocaleKey;

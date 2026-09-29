@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { abilityNames } from "@/domain/index.js";
+import { abilityNames } from "@/domain/index.ts";
 import type {
     CommandAuthorization,
     CreateMeetingResult,
@@ -9,8 +9,8 @@ import type {
     OutboxKind,
     PrivateMeetingMail,
     SessionOwnership
-} from "@/repository/types.js";
-import type { JsonValue } from "./canonical-json.js";
+} from "@/repository/types.ts";
+import type { JsonValue } from "./canonical-json.ts";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([

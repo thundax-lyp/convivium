@@ -1,5 +1,5 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
-import type { MeetingState } from "@/domain/meeting-state.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
+import type { MeetingState } from "@/domain/meeting-state.ts";
 import {
     checkRefs,
     ids,
@@ -9,7 +9,7 @@ import {
     ref,
     type RecordValue,
     indexVersionOwners
-} from "./meeting-state-helpers.js";
+} from "./meeting-state-helpers.ts";
 
 const fail = (path: string) => path;
 

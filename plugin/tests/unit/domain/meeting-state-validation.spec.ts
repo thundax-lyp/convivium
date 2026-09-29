@@ -1,7 +1,7 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
 
 const roundGoal = { question: "q", evidenceGap: "gap", expectedOutput: "output" };
 

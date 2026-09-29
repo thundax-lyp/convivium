@@ -1,5 +1,5 @@
-import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReason } from "@/domain/index.js";
-import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReason } from "@/domain/index.ts";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
 
 export interface EvidenceInput {
     observation: string;

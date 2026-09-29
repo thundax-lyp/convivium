@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,22 +48,68 @@ const noVersionSuffix = {
 };
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "src");
+const testRoot = resolve(dirname(fileURLToPath(import.meta.url)), "tests");
 const sourceParts = (path) => relative(sourceRoot, path).split(sep).filter(Boolean);
 const sourceFile = (path) => {
-    const base = existsSync(path) && statSync(path).isDirectory() ? join(path, "index.js") : path;
+    if (existsSync(path) && statSync(path).isDirectory()) {
+        return ["index.ts", "index.tsx"]
+            .map((name) => join(path, name))
+            .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+    }
     return [".ts", ".tsx"]
-        .map((extension) => base.replace(/\.js$/, extension))
+        .map((extension) => path.replace(/\.js$/, extension))
         .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+};
+const hasDirectoryIndex = (directory) =>
+    existsSync(join(directory, "index.ts")) || existsSync(join(directory, "index.tsx"));
+
+const directoryIndex = {
+    meta: {
+        type: "problem",
+        docs: { description: "Require an index in every source directory" },
+        messages: { missing: "源码目录 {{directory}} 必须提供 index.ts 或 index.tsx。" },
+        schema: []
+    },
+    create: (context) => ({
+        Program: (node) => {
+            const currentDirectory = dirname(context.filename);
+            const report = (directory) =>
+                context.report({
+                    node,
+                    messageId: "missing",
+                    data: { directory: relative(sourceRoot, directory) || "src" }
+                });
+            if (!hasDirectoryIndex(currentDirectory)) {
+                report(currentDirectory);
+            }
+            const rootIndex = join(
+                sourceRoot,
+                existsSync(join(sourceRoot, "index.ts")) ? "index.ts" : "index.tsx"
+            );
+            if (context.filename !== rootIndex) {
+                return;
+            }
+            const pending = [sourceRoot];
+            while (pending.length > 0) {
+                const directory = pending.pop();
+                if (directory !== currentDirectory && !hasDirectoryIndex(directory)) {
+                    report(directory);
+                }
+                for (const entry of readdirSync(directory, { withFileTypes: true })) {
+                    if (entry.isDirectory()) {
+                        pending.push(join(directory, entry.name));
+                    }
+                }
+            }
+        }
+    })
 };
 
 const directoryBoundary = {
     meta: {
         type: "problem",
-        docs: {
-            description: "Require directory entrypoints and imports through the nearest boundary"
-        },
+        docs: { description: "Require imports through the nearest directory boundary" },
         messages: {
-            missingIndex: "源码目录必须提供 index.ts 或 index.tsx。",
             parentRelative: "禁止父级相对导入；跨父目录使用 @/。",
             entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。"
         },
@@ -99,29 +145,80 @@ const directoryBoundary = {
             }
             const boundary = to.slice(0, shared + 1);
             const directory = boundary.join("/");
+            const indexExtension = existsSync(join(sourceRoot, ...boundary, "index.ts"))
+                ? ".ts"
+                : ".tsx";
             const expected =
                 shared === from.length
-                    ? `./${boundary.at(-1)}/index.js`
-                    : `@/${directory}/index.js`;
+                    ? `./${boundary.at(-1)}/index${indexExtension}`
+                    : `@/${directory}/index${indexExtension}`;
             if (specifier !== expected) {
                 context.report({ node, messageId: "entry", data: { directory, expected } });
             }
         };
         return {
-            Program: (node) => {
-                if (
-                    !existsSync(join(importerDir, "index.ts")) &&
-                    !existsSync(join(importerDir, "index.tsx"))
-                ) {
-                    context.report({ node, messageId: "missingIndex" });
-                }
-            },
             ImportDeclaration: (node) => check(node.source, node.source.value),
             ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
             ExportAllDeclaration: (node) => check(node.source, node.source.value),
             ImportExpression: (node) => check(node.source, node.source.value),
             TSImportType: (node) => check(node.source, node.source?.value)
         };
+    }
+};
+
+const typescriptImportExtension = {
+    meta: {
+        type: "problem",
+        docs: { description: "Use TypeScript extensions for local TypeScript imports" },
+        messages: { extension: "TypeScript 源码导入应使用 {{expected}}。" },
+        schema: []
+    },
+    create: (context) => {
+        const check = (node, specifier) => {
+            if (typeof specifier !== "string" || !specifier.endsWith(".js")) {
+                return;
+            }
+            if (
+                !specifier.startsWith("@/") &&
+                !specifier.startsWith("./") &&
+                !specifier.startsWith("../")
+            ) {
+                return;
+            }
+            const unresolved = specifier.startsWith("@/")
+                ? resolve(sourceRoot, specifier.slice(2))
+                : resolve(dirname(context.filename), specifier);
+            const target = sourceFile(unresolved);
+            if (
+                !target ||
+                (!target.startsWith(`${sourceRoot}${sep}`) &&
+                    !target.startsWith(`${testRoot}${sep}`))
+            ) {
+                return;
+            }
+            const extension = target.endsWith(".tsx") ? ".tsx" : ".ts";
+            context.report({
+                node,
+                messageId: "extension",
+                data: { expected: `${specifier.slice(0, -3)}${extension}` }
+            });
+        };
+        return {
+            ImportDeclaration: (node) => check(node.source, node.source.value),
+            ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
+            ExportAllDeclaration: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => check(node.source, node.source.value),
+            TSImportType: (node) => check(node.source, node.source?.value)
+        };
+    }
+};
+
+const conviviumPlugin = {
+    rules: {
+        "no-version-suffix": noVersionSuffix,
+        "directory-index": directoryIndex,
+        "directory-boundary": directoryBoundary,
+        "typescript-import-extension": typescriptImportExtension
     }
 };
 
@@ -221,18 +318,16 @@ export default tseslint.config(
         }
     },
     {
+        files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+        plugins: { convivium: conviviumPlugin },
+        rules: { "convivium/typescript-import-extension": "error" }
+    },
+    {
         files: ["src/**/*.{ts,tsx}"],
-        plugins: {
-            convivium: {
-                rules: {
-                    "no-version-suffix": noVersionSuffix,
-                    "directory-boundary": directoryBoundary
-                }
-            }
-        },
         rules: {
             "no-console": "error",
             "convivium/no-version-suffix": "error",
+            "convivium/directory-index": "error",
             "convivium/directory-boundary": "error"
         }
     },

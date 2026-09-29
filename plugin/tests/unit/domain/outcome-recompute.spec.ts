@@ -1,12 +1,12 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import {
     changeDecision,
     disposeRisk,
     isObjectiveSatisfied,
     recalculateMeetingCompletion
-} from "@/domain/transitions/outcome.js";
-import { completionReadyState, validState } from "./outcome-fixtures.js";
+} from "@/domain/transitions/outcome.ts";
+import { completionReadyState, validState } from "./outcome-fixtures.ts";
 
 describe("Recompute/Convergence", () => {
     const completedFactState = () => {

@@ -1,8 +1,8 @@
 import * as React from "react";
 import type { ReactElement } from "react";
-import type { MeetingView } from "@/protocol/index.js";
-import type { MeetingLocaleKey, MeetingTranslate } from "./locales.js";
-import { mapMeetingPanelView } from "./meeting-panel-view.js";
+import type { MeetingView } from "@/protocol/index.ts";
+import type { MeetingLocaleKey, MeetingTranslate } from "./locales.ts";
+import { mapMeetingPanelView } from "./meeting-panel-view.tsx";
 
 const lifecycleKeys: Record<MeetingView["lifecycle"]["status"], MeetingLocaleKey> = {
     preparing: "enum.lifecycle.preparing",

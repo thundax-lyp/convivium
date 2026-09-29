@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 
 const actions = [
     { kind: "activate_agenda", agendaId: "a", previousDisposition: "completed", reason: "next" },
@@ -232,17 +232,17 @@ describe("Captain trusted user authorization", () => {
     });
 });
 
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
-import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import { peerBindings } from "../fixtures/peer-ownership.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { completionReadyState, completionInput } from "../unit/domain/outcome-fixtures.js";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
+import { peerBindings } from "../fixtures/peer-ownership.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { completionReadyState, completionInput } from "../unit/domain/outcome-fixtures.ts";
 import {
     captainActorIdFor,
     recordCompletionFact,
     endMeeting,
     validateMeetingState
-} from "@/domain/index.js";
+} from "@/domain/index.ts";
 
 const mapBusinessAction = (action) => ({
     ...action,

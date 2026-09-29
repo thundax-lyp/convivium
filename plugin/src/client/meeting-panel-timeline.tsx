@@ -1,21 +1,21 @@
 import * as React from "react";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import type { MeetingView } from "@/protocol/index.js";
+import type { MeetingView } from "@/protocol/index.ts";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import { knownEnum, zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.js";
+import { knownEnum, zh, type MeetingLocaleKey, type MeetingTranslate } from "./locales.ts";
 import {
     buildTimelineNodes,
     filterTimelineNodes,
     resolveTimelineNodeContent,
     type TimelineNode
-} from "./meeting-timeline-projection.js";
+} from "./meeting-timeline-projection.ts";
 import type {
     MeetingFocusTarget,
     TimelineFilterState,
     TimelineLane,
     TimelineObjectRef,
     TimelineZoom
-} from "./meeting-workspace-state.js";
+} from "./meeting-workspace-state.ts";
 
 export type TimelineDirection = "up" | "down" | "left" | "right";
 

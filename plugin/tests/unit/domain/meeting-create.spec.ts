@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeeting } from "@/domain/transitions/meeting-create.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { createMeeting } from "@/domain/transitions/meeting-create.ts";
 
 describe("meeting create", () => {
     it("creates an isolated target aggregate", () => {

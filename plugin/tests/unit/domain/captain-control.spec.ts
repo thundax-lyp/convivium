@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
-import { abortRound } from "@/domain/transitions/round.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
+import { abortRound } from "@/domain/transitions/round.ts";
 import {
     decide,
     changeDecision,
@@ -9,9 +9,9 @@ import {
     recordCompletionFact,
     changeCompletionFact,
     recordPosition
-} from "@/domain/transitions/outcome.js";
-import { decisionReadyState, completionReadyState, completionInput } from "./outcome-fixtures.js";
-import { state } from "./meeting-state-transitions-fixtures.js";
+} from "@/domain/transitions/outcome.ts";
+import { decisionReadyState, completionReadyState, completionInput } from "./outcome-fixtures.ts";
+import { state } from "./meeting-state-transitions-fixtures.ts";
 
 const captain = (id: string) => ({
     kind: "captain_user" as const,

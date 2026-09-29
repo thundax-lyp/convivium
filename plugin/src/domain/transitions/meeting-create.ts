@@ -1,6 +1,6 @@
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import { rejectedTransition, type MeetingTransitionResult } from "./result.ts";
 
 export const createMeeting = (state: MeetingState): MeetingTransitionResult => {
     const validation = validateMeetingState(state);

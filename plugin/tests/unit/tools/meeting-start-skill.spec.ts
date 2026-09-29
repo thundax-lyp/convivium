@@ -6,7 +6,7 @@ import {
     createMeetingStartCommand,
     registerMeetingCancelTool,
     registerMeetingStartTool
-} from "@/tools/meeting-start-skill.js";
+} from "@/tools/meeting-start-skill.ts";
 
 const directMessage = (id: string, text: string) => ({
     id,

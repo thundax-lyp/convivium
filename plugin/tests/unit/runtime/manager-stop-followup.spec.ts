@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { runMeetingActionTransition } from "@/runtime/application-service/meeting-action-transition.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { runMeetingActionTransition } from "@/runtime/application-service/meeting-action-transition.ts";
 
 it("queues one Manager follow-up after committing stop_agenda", () => {
     const state = makeRunningMeetingStateV1();

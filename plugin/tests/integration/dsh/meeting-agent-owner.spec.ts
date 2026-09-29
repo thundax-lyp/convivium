@@ -13,10 +13,10 @@ import AgentPresets from "@deepseek-ai/dsh-agent-presets";
 import Skills from "@deepseek-ai/dsh-skill";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { expect, it } from "vitest";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
-import { definitionHash } from "@/role-composition/resolve.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
-import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.js";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
+import { definitionHash } from "@/role-composition/resolve.ts";
+import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts";
+import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 
 it("isolates seven role scopes through native Presets and unpublished Agent factories", async () => {
     const root = await mkdtemp(join(tmpdir(), "convivium-owner-"));

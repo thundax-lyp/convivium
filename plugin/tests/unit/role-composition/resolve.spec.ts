@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
 import {
     resolveMeetingRoles,
     resolveDynamicMeetingDefinition
-} from "@/role-composition/resolve.js";
+} from "@/role-composition/resolve.ts";
 
 const manager = {
     agentDefinitionId: "manager",

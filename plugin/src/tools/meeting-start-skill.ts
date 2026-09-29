@@ -6,8 +6,8 @@ import {
     MeetingCommandSchema,
     type MeetingCommand,
     type MeetingReadResult
-} from "@/protocol/index.js";
-import type { ContributorRoleDefinitionId } from "@/role-composition/index.js";
+} from "@/protocol/index.ts";
+import type { ContributorRoleDefinitionId } from "@/role-composition/index.ts";
 
 interface StartGrant {
     readonly turn: number;

@@ -1,11 +1,11 @@
-import { peerBindings } from "../fixtures/peer-ownership.js";
+import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { describe, expect, it } from "vitest";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
-import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { MAX_COMMIT_VALUE_BYTES } from "@/repository/domain/projection.js";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { MAX_COMMIT_VALUE_BYTES } from "@/repository/domain/projection.ts";
 
 const authorization = { callerBinding: "runtime", capabilityId: "runtime" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };

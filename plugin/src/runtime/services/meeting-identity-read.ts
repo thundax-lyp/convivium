@@ -2,11 +2,11 @@ import {
     readMeetingRoleCatalog,
     type ResolvedMeetingCaller,
     type RoleCatalogPort
-} from "@/dsh/index.js";
-import { projectMeetingView } from "@/projection/index.js";
-import type { ReadMeetingRequest, MeetingReadResult } from "@/protocol/index.js";
-import type { MeetingState } from "@/domain/index.js";
-import type { MeetingRepositoryPort } from "@/repository/index.js";
+} from "@/dsh/index.ts";
+import { projectMeetingView } from "@/projection/index.ts";
+import type { ReadMeetingRequest, MeetingReadResult } from "@/protocol/index.ts";
+import type { MeetingState } from "@/domain/index.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
 
 export interface MeetingIdentityReaderDependencies {
     readonly registry: {

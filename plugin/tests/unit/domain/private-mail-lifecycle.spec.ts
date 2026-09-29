@@ -1,4 +1,4 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import {
     cancelPrivateMail,
@@ -6,14 +6,14 @@ import {
     expirePrivateMail,
     sendPrivateMail,
     startPrivateMail
-} from "@/domain/transitions/private-mail.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
+} from "@/domain/transitions/private-mail.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
 import {
     expectPrivateMailRejection as rejected,
     privateMailInput as input,
     privateMailState,
     startedPrivateMailState as startedState
-} from "./private-mail-fixtures.js";
+} from "./private-mail-fixtures.ts";
 
 describe("private mail completion and cancellation", () => {
     function startedState() {

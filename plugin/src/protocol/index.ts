@@ -32,7 +32,7 @@ export {
     type ListMeetingsRequest,
     type ReadMeetingRequest,
     type MeetingCommandResult
-} from "./meeting-command.js";
+} from "./meeting-command.ts";
 export {
     MeetingRoleSchema,
     RoleErrorCodeSchema,
@@ -40,7 +40,7 @@ export {
     RecordIdentityAdmissionResultActionSchema,
     type MeetingRole,
     type RoleErrorCode
-} from "./meeting-identity.js";
-export { serializeValidatedRequest } from "./request-idempotency.js";
-export * from "./meeting-view.js";
-export * from "./review-worker.js";
+} from "./meeting-identity.ts";
+export { serializeValidatedRequest } from "./request-idempotency.ts";
+export * from "./meeting-view.ts";
+export * from "./review-worker.ts";

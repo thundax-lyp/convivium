@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveDynamicMeetingDefinition } from "@/role-composition/resolve.js";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { resolveDynamicMeetingDefinition } from "@/role-composition/resolve.ts";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
 
 const definitions = parseAgentDefinitions([
     {

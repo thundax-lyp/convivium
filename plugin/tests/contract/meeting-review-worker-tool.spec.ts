@@ -6,7 +6,7 @@ import {
     validateJsonSchemaValue
 } from "@deepseek-ai/dsh-tools";
 import { expect, it, vi } from "vitest";
-import { registerMeetingTools } from "@/tools/index.js";
+import { registerMeetingTools } from "@/tools/index.ts";
 
 it("runs reviewer workers with a machine-enforced schema that permits an empty baseline", async () => {
     const definitions: ToolDefinition[] = [];

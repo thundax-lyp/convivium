@@ -2,20 +2,20 @@ import { fileURLToPath } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
-import { Config, type Config as ConfigType } from "./config.js";
-import { resolveMeetingCaller } from "./dsh/index.js";
-import { ConviviumRemoteService } from "./remote/index.js";
-import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.js";
+import { Config, type Config as ConfigType } from "./config.ts";
+import { resolveMeetingCaller } from "./dsh/index.ts";
+import { ConviviumRemoteService } from "./remote/index.ts";
+import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.ts";
 import {
     MeetingStartGate,
     registerMeetingStartTool,
     registerMeetingCancelTool,
     registerMeetingTools
-} from "./tools/index.js";
+} from "./tools/index.ts";
 
 export { Config };
 export { ConviviumRemoteService };
-export type { Config as ConfigType } from "./config.js";
+export type { Config as ConfigType } from "./config.ts";
 
 export const name = "convivium";
 

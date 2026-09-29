@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import { projectMeetingView } from "@/projection/meeting-view.js";
-import { endMeeting, startMeetingArchive } from "@/domain/index.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
+import { projectMeetingView } from "@/projection/meeting-view.ts";
+import { endMeeting, startMeetingArchive } from "@/domain/index.ts";
 describe("round participation visibility", () => {
     it("shows every participation choice to the Manager but only the caller's choice to a Contributor", () => {
         const state = makeRunningMeetingStateV1();

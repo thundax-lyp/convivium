@@ -5,12 +5,12 @@ import { SessionId } from "@deepseek-ai/dsh-session";
 import type {} from "@deepseek-ai/dsh-system-prompt";
 import type {} from "@deepseek-ai/dsh-session-persistence";
 import type {} from "@deepseek-ai/dsh-tools";
-import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.js";
-import { definitionHash } from "@/role-composition/index.js";
-import { resolveResourceBinding, readRoleResource } from "@/role-composition/index.js";
-import { validateRoleSkills, matchesPreparedDescriptor } from "@/role-composition/index.js";
+import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
+import { definitionHash } from "@/role-composition/index.ts";
+import { resolveResourceBinding, readRoleResource } from "@/role-composition/index.ts";
+import { validateRoleSkills, matchesPreparedDescriptor } from "@/role-composition/index.ts";
 import { isDeepStrictEqual } from "node:util";
-import type { SessionOwnership } from "@/repository/index.js";
+import type { SessionOwnership } from "@/repository/index.ts";
 
 type Purpose = "provisioning" | "delivery" | "cleanup";
 type ResumeInput = {

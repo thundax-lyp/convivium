@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRound as openRoundTransition } from "@/domain/transitions/round.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { openRound as openRoundTransition } from "@/domain/transitions/round.ts";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
@@ -27,8 +27,8 @@ const openRoundWithPlan = (
         },
         { ...input, planId: "plan-v1" }
     );
-import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
 
 function openState() {
     const state = makeRunningMeetingStateV1();

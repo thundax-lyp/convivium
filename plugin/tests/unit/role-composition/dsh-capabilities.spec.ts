@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
-import { definitionHash } from "@/role-composition/resolve.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
-import { resolveResourceBinding } from "@/role-composition/resource-binding.js";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
+import { definitionHash } from "@/role-composition/resolve.ts";
+import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts";
+import { resolveResourceBinding } from "@/role-composition/resource-binding.ts";
 
 const roots: string[] = [];
 afterEach(async () => {

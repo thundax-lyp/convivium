@@ -1,5 +1,5 @@
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { sendPrivateMail, startPrivateMail } from "@/domain/transitions/private-mail.js";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { sendPrivateMail, startPrivateMail } from "@/domain/transitions/private-mail.ts";
 import { expect } from "vitest";
 
 export const privateMailInput = {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MeetingCommandSchema } from "@/protocol/meeting-command.js";
+import { MeetingCommandSchema } from "@/protocol/meeting-command.ts";
 import {
     IdentityViewSchema,
     IdentityRecommendationViewSchema,
     RecommendIdentityActionSchema,
     RoleErrorCodeSchema
-} from "@/protocol/index.js";
+} from "@/protocol/index.ts";
 
 const action = {
     kind: "recommend_identity" as const,

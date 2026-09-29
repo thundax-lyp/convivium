@@ -3,9 +3,9 @@ import {
     activateTargetMeetingApplication,
     createTargetMeetingEffectDispatcher,
     getLocalMeetingWebRuntime
-} from "@/runtime/meeting-lifecycle.js";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+} from "@/runtime/meeting-lifecycle.ts";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import roleResources from "../../../config/definitions.json" with { type: "json" };
 
 const item = (kind: string) =>

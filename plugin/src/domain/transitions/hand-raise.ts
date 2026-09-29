@@ -1,6 +1,6 @@
-import type { Contribution, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
-import { roundParticipationDeadline } from "./round.js";
+import type { Contribution, MeetingState, OpaqueId } from "@/domain/index.ts";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
+import { roundParticipationDeadline } from "./round.ts";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {

@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
-import { openRound } from "@/domain/transitions/round.js";
-import { runMeetingActionTransition } from "@/runtime/application-service/meeting-action-transition.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
+import { openRound } from "@/domain/transitions/round.ts";
+import { runMeetingActionTransition } from "@/runtime/application-service/meeting-action-transition.ts";
 
 it("reissues an open round invitation after pause interrupts a pending contributor", () => {
     const initial = makeRunningMeetingStateV1();

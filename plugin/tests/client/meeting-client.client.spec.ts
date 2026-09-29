@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
-import { createMeetingClient, ProtocolFailure } from "@/client/meeting-client.js";
+import { createMeetingClient, ProtocolFailure } from "@/client/meeting-client.ts";
 
 describe("MeetingClient target transport", () => {
     it("exposes the four target transport methods", async () => {

@@ -1,5 +1,5 @@
-import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.js";
-import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.js";
+import type { EvidenceOpportunityRequest, MeetingState, OpaqueId } from "@/domain/index.ts";
+import { rejectedTransition as rejected, type MeetingTransitionResult } from "./result.ts";
 
 type RequestInput = {
     requestId: OpaqueId;

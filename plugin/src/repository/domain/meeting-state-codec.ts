@@ -1,4 +1,4 @@
-import { validateMeetingState, type MeetingState } from "@/domain/index.js";
+import { validateMeetingState, type MeetingState } from "@/domain/index.ts";
 
 const fields = [
     "id",

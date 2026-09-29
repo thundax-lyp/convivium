@@ -8,8 +8,8 @@ import {
     projectionDigest,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
-} from "@/repository/domain/projection.js";
-import { CommitRecordSchema } from "@/repository/domain/schemas.js";
+} from "@/repository/domain/projection.ts";
+import { CommitRecordSchema } from "@/repository/domain/schemas.ts";
 describe("domain projection", () => {
     const bootstrap = {
         creator: { kind: "local_user" as const, principalId: "local-controller" as const },

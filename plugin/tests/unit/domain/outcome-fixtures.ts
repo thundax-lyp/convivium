@@ -1,7 +1,7 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { expect } from "vitest";
-import type { MeetingState } from "@/domain/meeting-state.js";
-import { recordPosition } from "@/domain/transitions/outcome.js";
+import type { MeetingState } from "@/domain/meeting-state.ts";
+import { recordPosition } from "@/domain/transitions/outcome.ts";
 
 export function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
     const state = {

@@ -6,18 +6,18 @@ import {
     type MouseEvent as ReactMouseEvent,
     type ReactElement
 } from "react";
-import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.js";
+import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.ts";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { MeetingTranslate } from "./locales.js";
-import { lifecycleLabel } from "./meeting-panel-sections.js";
-import { MeetingPanelOverview } from "./meeting-panel-overview.js";
-import { MeetingPanelTimeline } from "./meeting-panel-timeline.js";
+import type { MeetingTranslate } from "./locales.ts";
+import { lifecycleLabel } from "./meeting-panel-sections.tsx";
+import { MeetingPanelOverview } from "./meeting-panel-overview.tsx";
+import { MeetingPanelTimeline } from "./meeting-panel-timeline.tsx";
 import {
     INITIAL_TIMELINE_FILTERS,
     type MeetingFocusTarget,
     type MeetingMode,
     type TimelineFilterState
-} from "./meeting-workspace-state.js";
+} from "./meeting-workspace-state.ts";
 
 export interface MeetingPanelLayoutProps {
     localFeedback?: React.ReactNode;

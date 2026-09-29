@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { createMeetingNoticeDispatcher } from "@/runtime/services/meeting-notice-dispatch.ts";
 
 const item = (payload: Record<string, unknown>) => ({
     id: "effect-1",

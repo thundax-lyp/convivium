@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import type { EvidenceVersion } from "@/domain/index.js";
-import { createEvidenceReviewDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import type { EvidenceVersion } from "@/domain/index.ts";
+import { createEvidenceReviewDispatcher } from "@/runtime/services/evidence-review-dispatch.ts";
 
 const outboxItem = (payload: Record<string, unknown>) => ({
     id: "effect-review-1",

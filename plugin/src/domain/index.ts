@@ -1,11 +1,11 @@
-export { abilityNames } from "./abilities.js";
-export * from "./errors.js";
-export * from "./meeting-state.js";
-export * from "./transitions/index.js";
+export { abilityNames } from "./abilities.ts";
+export * from "./errors.ts";
+export * from "./meeting-state.ts";
+export * from "./transitions/index.ts";
 export {
     validateMeetingState,
     type MeetingStateValidationResult
-} from "./meeting-state-validation.js";
+} from "./meeting-state-validation.ts";
 export {
     transitionMeetingState,
     type TargetDomainActor,
@@ -14,5 +14,5 @@ export {
     type TargetDomainFactPayload,
     type TargetDomainFact,
     type TargetTransitionResult
-} from "./meeting-state-transitions.js";
-export { captainActorIdFor } from "./control-actor.js";
+} from "./meeting-state-transitions.ts";
+export { captainActorIdFor } from "./control-actor.ts";

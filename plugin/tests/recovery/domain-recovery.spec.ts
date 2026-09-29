@@ -1,16 +1,16 @@
-import { createCommitRecord } from "@/repository/domain/projection.js";
-import { peerBindings } from "../fixtures/peer-ownership.js";
-import { meetingDomainName } from "@/repository/domain/keys.js";
-import type { MeetingDomain } from "@/repository/domain/specs.js";
+import { createCommitRecord } from "@/repository/domain/projection.ts";
+import { peerBindings } from "../fixtures/peer-ownership.ts";
+import { meetingDomainName } from "@/repository/domain/keys.ts";
+import type { MeetingDomain } from "@/repository/domain/specs.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "@/repository/domain/domain-repository-registry.js";
-import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
+} from "@/repository/domain/domain-repository-registry.ts";
+import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
 const codec = { encode: encodeMeetingState, decode: decodeMeetingState };

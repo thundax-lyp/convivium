@@ -1,8 +1,8 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { expect, it } from "vitest";
-import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/transitions/outcome.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import { validState, decisionReadyState } from "./outcome-fixtures.js";
+import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/transitions/outcome.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import { validState, decisionReadyState } from "./outcome-fixtures.ts";
 
 it("decides with captain and local controller while copying candidate fields", () => {
     for (const actor of [

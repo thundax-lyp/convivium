@@ -4,17 +4,17 @@ import type {
     MeetingIdentity,
     MeetingState,
     Publication
-} from "@/domain/index.js";
-import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.js";
-import type { MeetingAgentOwner } from "@/dsh/index.js";
-import type { MeetingAgentDefinition } from "@/role-composition/index.js";
-import type { MeetingRepositoryPort } from "@/repository/index.js";
-import type { OutboxItem, SessionOwnership } from "@/repository/index.js";
-import { ReviewWorkerOutputSchema } from "@/protocol/index.js";
+} from "@/domain/index.ts";
+import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.ts";
+import type { MeetingAgentOwner } from "@/dsh/index.ts";
+import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
+import { ReviewWorkerOutputSchema } from "@/protocol/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
-} from "@/runtime/application-service/index.js";
+} from "@/runtime/application-service/index.ts";
 
 class EvidenceReviewDispatchError extends Error {
     constructor(

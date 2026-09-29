@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
 
 const deployed = JSON.parse(
     readFileSync(new URL("../../config/definitions.json", import.meta.url), "utf8")

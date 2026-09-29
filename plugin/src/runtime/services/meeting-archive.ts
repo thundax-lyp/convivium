@@ -1,14 +1,14 @@
 import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
-import type { MeetingAgentOwner } from "@/dsh/index.js";
-import type { MeetingAgentDefinition } from "@/role-composition/index.js";
-import type { MeetingIdentity, MeetingState } from "@/domain/index.js";
-import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
-import type { MeetingRepositoryPort } from "@/repository/index.js";
-import type { OutboxItem, SessionOwnership } from "@/repository/index.js";
+import type { MeetingAgentOwner } from "@/dsh/index.ts";
+import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
+import type { MeetingIdentity, MeetingState } from "@/domain/index.ts";
+import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
-} from "@/runtime/application-service/index.js";
+} from "@/runtime/application-service/index.ts";
 
 class MeetingArchiveDispatchError extends Error {
     readonly terminalOnAttemptLimit = false;

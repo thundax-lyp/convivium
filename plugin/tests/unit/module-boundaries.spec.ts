@@ -10,8 +10,8 @@ import {
     createReviewDeliveryDispatcher,
     provisionMeetingIdentity,
     recoverMeetingCommands
-} from "@/runtime/index.js";
-import type { MeetingOutboxWakeup } from "@/runtime/index.js";
+} from "@/runtime/index.ts";
+import type { MeetingOutboxWakeup } from "@/runtime/index.ts";
 
 type ModuleName =
     | "protocol"

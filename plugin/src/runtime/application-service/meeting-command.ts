@@ -2,22 +2,22 @@ import {
     runMeetingActionTransition,
     TransitionRejected,
     type CommandTransition
-} from "./meeting-action-transition.js";
+} from "./meeting-action-transition.ts";
 import {
     captainActorIdFor,
     type IdentityAdmissionResultContext,
     type MeetingState
-} from "@/domain/index.js";
+} from "@/domain/index.ts";
 import {
     MeetingCommandSchema,
     type MeetingAction,
     type MeetingCommandResult,
     type MeetingCommand
-} from "@/protocol/index.js";
-import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.js";
-import type { DomainRepositoryRegistry } from "@/repository/index.js";
-import { meetingIdFor } from "@/repository/index.js";
-import { RepositoryError } from "@/repository/index.js";
+} from "@/protocol/index.ts";
+import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.ts";
+import type { DomainRepositoryRegistry } from "@/repository/index.ts";
+import { meetingIdFor } from "@/repository/index.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import type {
     CommandAuthorization,
     CommittedFactRecord,
@@ -26,7 +26,7 @@ import type {
     RepositoryCommand,
     SessionOwnership,
     TransitionResult
-} from "@/repository/index.js";
+} from "@/repository/index.ts";
 
 export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";

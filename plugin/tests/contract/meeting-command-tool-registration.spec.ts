@@ -1,7 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
-import { registerMeetingTools } from "@/tools/index.js";
+import { registerMeetingTools } from "@/tools/index.ts";
 
 const expectSubmitManagerPlanExecution = async (
     definition: ToolDefinition,

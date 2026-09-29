@@ -1,6 +1,6 @@
-import { DomainMeetingRepositoryCore } from "./domain-meeting-repository-core.js";
-import { RepositoryError } from "@/repository/errors.js";
-import { receiptKey } from "./keys.js";
+import { DomainMeetingRepositoryCore } from "./domain-meeting-repository-core.ts";
+import { RepositoryError } from "@/repository/errors.ts";
+import { receiptKey } from "./keys.ts";
 import type {
     CommittedResult,
     PrivateMeetingMail,
@@ -9,12 +9,12 @@ import type {
     FinishPrivateMeetingMailInput,
     CancelPrivateMeetingMailInput,
     JsonObject
-} from "@/repository/types.js";
+} from "@/repository/types.ts";
 import {
     validatePrivateMailSend,
     validatePrivateMailStart,
     validatePrivateMailFinish
-} from "./private-mail-validation.js";
+} from "./private-mail-validation.ts";
 
 export abstract class DomainMeetingRepositoryMail<
     TState = JsonObject

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RoleErrorCodeSchema } from "./meeting-identity.js";
+import { RoleErrorCodeSchema } from "./meeting-identity.ts";
 
 const id = z.string().trim().min(1);
 const text = z.string().trim().min(1);

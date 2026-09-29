@@ -1,20 +1,20 @@
-import type { PreparedDescriptor } from "@/role-composition/index.js";
-import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/types.js";
-import { applyPatch } from "./json-patch.js";
+import type { PreparedDescriptor } from "@/role-composition/index.ts";
+import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/types.ts";
+import { applyPatch } from "./json-patch.ts";
 import {
     decodeCanonicalJson,
     encodeCanonicalJson,
     sha256Hex,
     type JsonValue
-} from "./canonical-json.js";
-import { seqKey, type SeqKey } from "./keys.js";
+} from "./canonical-json.ts";
+import { seqKey, type SeqKey } from "./keys.ts";
 import {
     CommitRecordSchema,
     PersistenceProjectionSchema,
     type CommitRecord,
     type PersistenceProjection
-} from "./schemas.js";
-import type { MeetingDomain } from "./specs.js";
+} from "./schemas.ts";
+import type { MeetingDomain } from "./specs.ts";
 
 export const MAX_COMMIT_VALUE_BYTES = 65_536;
 export const CHECKPOINT_PAGE_RAW_BYTES = 20_000;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
-import { state, captain, terminalState } from "./meeting-state-transitions-fixtures.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
+import { state, captain, terminalState } from "./meeting-state-transitions-fixtures.ts";
 
 describe("dispose_issue completion boundary", () => {
     it.each(["paused", "preparing", "converging", "ending"] as const)("rejects in %s", (status) => {
