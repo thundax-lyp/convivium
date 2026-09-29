@@ -37,4 +37,10 @@ describe("source import rules", () => {
             "convivium/directory-boundary"
         );
     });
+
+    it("checks static template dynamic imports against both entry and extension rules", async () => {
+        const ids = await ruleIds("void import(`@/domain/meeting-state.js`);");
+        expect(ids).toContain("convivium/directory-boundary");
+        expect(ids).toContain("convivium/typescript-import-extension");
+    });
 });

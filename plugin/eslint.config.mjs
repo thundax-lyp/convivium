@@ -66,6 +66,10 @@ const sourceFile = (path) => {
 };
 const hasDirectoryIndex = (directory) =>
     existsSync(join(directory, "index.ts")) || existsSync(join(directory, "index.tsx"));
+const staticSpecifier = (node) =>
+    node.type === "TemplateLiteral" && node.expressions.length === 0
+        ? node.quasis[0].value.cooked
+        : node.value;
 
 const directoryIndex = {
     meta: {
@@ -188,7 +192,7 @@ const directoryBoundary = {
             ImportDeclaration: (node) => check(node.source, node.source.value),
             ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
             ExportAllDeclaration: (node) => check(node.source, node.source.value),
-            ImportExpression: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => check(node.source, staticSpecifier(node.source)),
             TSImportType: (node) => check(node.source, node.source?.value)
         };
     }
@@ -247,7 +251,7 @@ const typescriptImportExtension = {
             ImportDeclaration: (node) => check(node.source, node.source.value),
             ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
             ExportAllDeclaration: (node) => check(node.source, node.source.value),
-            ImportExpression: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => check(node.source, staticSpecifier(node.source)),
             TSImportType: (node) => check(node.source, node.source?.value)
         };
     }
