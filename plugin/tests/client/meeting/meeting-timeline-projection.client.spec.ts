@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
-import { findAdjacentTimelineKey } from "@/client/meeting/regions/workspace/timeline/index.ts";
+import { findAdjacentTimelineKey } from "@/client/meeting/regions/workspace/timeline/timeline.tsx";
 import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 import {
     buildTimelineNodes,
     filterTimelineNodes,
     resolveTimelineNodeContent
-} from "@/client/meeting/regions/workspace/timeline/index.ts";
+} from "@/client/meeting/regions/workspace/timeline/projection.ts";
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 
 describe("Timeline projection", () => {
