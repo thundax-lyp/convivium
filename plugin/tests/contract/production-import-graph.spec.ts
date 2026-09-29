@@ -21,6 +21,7 @@ function staticSpecifiers(file: string): string[] {
             if (
                 clause?.isTypeOnly ||
                 (clause?.namedBindings &&
+                    !clause.name &&
                     ts.isNamedImports(clause.namedBindings) &&
                     clause.namedBindings.elements.every((element) => element.isTypeOnly))
             ) {
