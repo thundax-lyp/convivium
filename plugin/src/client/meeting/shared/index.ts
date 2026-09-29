@@ -7,13 +7,7 @@ export {
     type MeetingTranslate
 } from "./locales.ts";
 export { lifecycleLabel } from "./lifecycle.ts";
-export {
-    INITIAL_TIMELINE_FILTERS,
-    INITIAL_WORKSPACE,
-    INITIAL_FRESHNESS,
-    resetWorkspaceForMeeting,
-    controlsEnabled
-} from "./model.ts";
+export { INITIAL_TIMELINE_FILTERS } from "./model.ts";
 export {
     type MeetingMode,
     type TimelineLane,

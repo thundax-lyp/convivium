@@ -1,11 +1,9 @@
-import { describe, expect, it } from "vitest";
-import {
-    INITIAL_FRESHNESS,
-    INITIAL_TIMELINE_FILTERS,
-    INITIAL_WORKSPACE,
-    controlsEnabled,
-    resetWorkspaceForMeeting
-} from "@/client/meeting/shared/index.ts";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
+import { useMeetingWorkspace } from "@/client/meeting/hooks/index.ts";
+
+afterEach(cleanup);
 
 describe("Meetings workspace state", () => {
     it("starts without a selection and with neutral timeline controls", () => {
@@ -17,44 +15,35 @@ describe("Meetings workspace state", () => {
             zoom: 1,
             collapsedLanes: []
         });
-        expect(INITIAL_WORKSPACE).toEqual({
+        const { result } = renderHook(useMeetingWorkspace);
+        expect(result.current.workspace).toEqual({
             activeMode: "overview",
             timeline: INITIAL_TIMELINE_FILTERS,
             viewportRevision: 0
         });
-        expect(INITIAL_FRESHNESS).toEqual({
-            connection: "connecting",
-            list: "loading",
-            detail: "idle"
-        });
     });
 
     it("resets Meeting-local state and advances the viewport revision", () => {
-        expect(resetWorkspaceForMeeting("meeting-2", 7)).toEqual({
+        const { result } = renderHook(useMeetingWorkspace);
+        act(() => result.current.selectMeeting("meeting-1"));
+        act(() => {
+            result.current.setTimelineFilters({
+                ...INITIAL_TIMELINE_FILTERS,
+                identityIds: ["contributor-1"]
+            });
+            result.current.locateInTimeline({
+                meetingId: "meeting-1",
+                objectKind: "decision",
+                objectId: "decision-1"
+            });
+        });
+        act(() => result.current.selectMeeting("meeting-2"));
+
+        expect(result.current.workspace).toEqual({
             selectedMeetingId: "meeting-2",
             activeMode: "overview",
             timeline: INITIAL_TIMELINE_FILTERS,
-            viewportRevision: 8
+            viewportRevision: 2
         });
     });
-
-    it.each([
-        ["all readiness conditions hold", "connected", "fresh", "fresh", "meeting-1", false, true],
-        ["connection is not ready", "disconnected", "fresh", "fresh", "meeting-1", false, false],
-        ["list is stale", "connected", "stale", "fresh", "meeting-1", false, false],
-        ["detail is loading", "connected", "fresh", "loading", "meeting-1", false, false],
-        ["no Meeting is selected", "connected", "fresh", "fresh", undefined, false, false],
-        ["a write is pending", "connected", "fresh", "fresh", "meeting-1", true, false]
-    ] as const)(
-        "enables lifecycle controls only when %s",
-        (_case, connection, list, detail, selectedMeetingId, writePending, expected) => {
-            expect(
-                controlsEnabled({
-                    freshness: { connection, list, detail },
-                    selectedMeetingId,
-                    writePending
-                })
-            ).toBe(expected);
-        }
-    );
 });

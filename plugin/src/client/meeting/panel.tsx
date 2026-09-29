@@ -5,9 +5,14 @@ import type { MeetingTranslate } from "./shared/index.ts";
 import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./client.ts";
 import { SubmissionFeedback } from "./submission-feedback.tsx";
 import { renderMeetingPanelLayout } from "./layout/index.ts";
-import { INITIAL_FRESHNESS, controlsEnabled } from "./shared/index.ts";
 import type { MeetingsFreshnessState } from "./shared/index.ts";
 import { useMeetingTranslate, useMeetingWorkspace } from "./hooks/index.ts";
+
+const INITIAL_FRESHNESS: MeetingsFreshnessState = {
+    connection: "connecting",
+    list: "loading",
+    detail: "idle"
+};
 
 type MeetingPanelFailure =
     | {
@@ -243,17 +248,15 @@ export const ConviviumMeetingPanel = ({
         window.addEventListener("focus", handleFocus);
         return () => window.removeEventListener("focus", handleFocus);
     }, [refresh]);
-    const localSubmission = useMeetingSubmission(
-        controlClient,
-        !controlsEnabled({
-            freshness,
-            selectedMeetingId: workspace.selectedMeetingId,
-            writePending
-        }),
-        () => {
-            void refreshAll({ recovery: false });
-        }
-    );
+    const controlsReady =
+        freshness.connection === "connected" &&
+        freshness.list === "fresh" &&
+        freshness.detail === "fresh" &&
+        workspace.selectedMeetingId !== undefined &&
+        !writePending;
+    const localSubmission = useMeetingSubmission(controlClient, !controlsReady, () => {
+        void refreshAll({ recovery: false });
+    });
     const selectMeeting = useCallback(
         (meetingId: string) => {
             if (selectedRef.current === meetingId) {
@@ -305,11 +308,7 @@ export const ConviviumMeetingPanel = ({
         detail,
         listLoading: freshness.list === "loading",
         listCached: freshness.list === "stale",
-        detailCached: !controlsEnabled({
-            freshness,
-            selectedMeetingId: workspace.selectedMeetingId,
-            writePending
-        }),
+        detailCached: !controlsReady,
         activeMode: workspace.activeMode,
         setMode: meetingWorkspace.setMode,
         timelineFilters: workspace.timeline,
