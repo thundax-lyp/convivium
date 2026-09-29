@@ -34,20 +34,7 @@ const meetingConsumerPlugin = {
     name: "convivium-meeting-consumer",
     inject: [...meetingServices, "storageDomain"] as const,
     async apply(ctx: Context, config: ConfigType): Promise<void> {
-        if (ctx.subagents.getProvider(config.provider) !== undefined) {
-            await activate();
-            return;
-        }
-        const stopListening = ctx.on("subagent/provider-added", (provider) => {
-            if (provider.name !== config.provider) {
-                return;
-            }
-            stopListening();
-            void activate().catch((error: unknown) => {
-                ctx.logger("convivium:meeting").error("Meeting activation failed %o", error);
-            });
-        });
-        async function activate(): Promise<void> {
+        const activate = async (): Promise<void> => {
             const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
                 rolePackageRoot: fileURLToPath(new URL("../", import.meta.url)),
                 onBeforeRecovery: ({ runtime, reader, application, reviewPrompts }) => {
@@ -118,10 +105,23 @@ const meetingConsumerPlugin = {
                     remoteContext.plugin(ConviviumRemoteService, runtime);
                 }
             });
+        };
+        if (ctx.subagents.getProvider(config.provider) !== undefined) {
+            await activate();
+            return;
         }
+        const stopListening = ctx.on("subagent/provider-added", (provider) => {
+            if (provider.name !== config.provider) {
+                return;
+            }
+            stopListening();
+            void activate().catch((error: unknown) => {
+                ctx.logger("convivium:meeting").error("Meeting activation failed %o", error);
+            });
+        });
     }
 };
 
-export async function apply(ctx: Context, config: ConfigType): Promise<void> {
+export const apply = async (ctx: Context, config: ConfigType): Promise<void> => {
     await ctx.plugin(meetingConsumerPlugin, config);
-}
+};
