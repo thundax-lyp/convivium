@@ -7,16 +7,12 @@ import {
     type ReactElement
 } from "react";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { MeetingPanelLayoutProps, MeetingTranslate } from "@/client/meeting/shared/index.ts";
+import type { MeetingPanelLayoutProps } from "@/client/meeting/shared/index.ts";
 import { MeetingNavigator, MeetingWorkspace } from "@/client/meeting/regions/index.ts";
+import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 
-const MeetingPanelLayout = ({
-    ctx,
-    t
-}: {
-    ctx: MeetingPanelLayoutProps;
-    t: MeetingTranslate;
-}): ReactElement => {
+const MeetingPanelLayout = ({ ctx }: { ctx: MeetingPanelLayoutProps }): ReactElement => {
+    const t = useMeetingTranslate();
     const [narrow, setNarrow] = useState(
         () => window.matchMedia?.("(max-width: 760px)").matches ?? false
     );
@@ -66,7 +62,6 @@ const MeetingPanelLayout = ({
             listLoading={ctx.listLoading}
             listCached={ctx.listCached}
             listError={ctx.listError}
-            t={t}
             selectMeeting={selectMeeting}
         />
     );
@@ -99,7 +94,7 @@ const MeetingPanelLayout = ({
                 }
             >
                 {narrow ? null : <aside>{navigator}</aside>}
-                <MeetingWorkspace ctx={ctx} t={t} />
+                <MeetingWorkspace ctx={ctx} />
             </div>
             {narrow && drawerOpen ? (
                 <div>
@@ -136,9 +131,6 @@ const MeetingPanelLayout = ({
     );
 };
 
-export const renderMeetingPanelLayout = (
-    ctx: MeetingPanelLayoutProps,
-    t: MeetingTranslate
-): ReactElement => {
-    return <MeetingPanelLayout ctx={ctx} t={t} />;
+export const renderMeetingPanelLayout = (ctx: MeetingPanelLayoutProps): ReactElement => {
+    return <MeetingPanelLayout ctx={ctx} />;
 };

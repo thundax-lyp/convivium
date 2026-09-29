@@ -8,6 +8,7 @@ import contribution from "@convivium/dsh-plugin/remote";
 import { en, MEETING_LOCALE_NS, zh } from "./meeting/index.ts";
 import { createMeetingClient } from "./meeting/index.ts";
 import { ConviviumMeetingPanel } from "./meeting/index.ts";
+import { MeetingTranslationProvider } from "./meeting/index.ts";
 
 export const name = "convivium-client";
 
@@ -32,11 +33,9 @@ export const apply = async (ctx: Context): Promise<void> => {
                     locale: MEETING_LOCALE_NS
                 },
                 (props) => (
-                    <ConviviumMeetingPanel
-                        api={api}
-                        t={props.t}
-                        locale={ctx.locale.getLocale().active}
-                    />
+                    <MeetingTranslationProvider t={props.t}>
+                        <ConviviumMeetingPanel api={api} locale={ctx.locale.getLocale().active} />
+                    </MeetingTranslationProvider>
                 )
             )
         );

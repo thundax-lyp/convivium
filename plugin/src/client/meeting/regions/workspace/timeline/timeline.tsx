@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
+import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
     knownEnum,
@@ -36,7 +37,6 @@ export interface TimelineProps {
     filters: TimelineFilterState;
     viewportRevision: number;
     locale?: string;
-    t: MeetingTranslate;
     onFiltersChange(filters: TimelineFilterState): void;
     focusTarget?: MeetingFocusTarget;
     onFocusConsumed?(): void;
@@ -46,7 +46,6 @@ export interface TimelineProps {
 export interface TimelineFiltersProps {
     nodes: readonly TimelineNode[];
     filters: TimelineFilterState;
-    t: MeetingTranslate;
     onChange(filters: TimelineFilterState): void;
 }
 
@@ -192,9 +191,9 @@ const filterGroup = (
 export const TimelineFilters = ({
     nodes,
     filters,
-    t,
     onChange
 }: TimelineFiltersProps): ReactElement => {
+    const t = useMeetingTranslate();
     const identities = [
         ...new Set(nodes.flatMap((node) => (node.identityId ? [node.identityId] : [])))
     ];
@@ -278,7 +277,8 @@ export const TimelineFilters = ({
 };
 
 export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
-    const { detail, filters, t, onFiltersChange } = props;
+    const { detail, filters, onFiltersChange } = props;
+    const t = useMeetingTranslate();
     if (detail.lifecycle.status === "archived" && detail.archive?.status !== "complete") {
         return <p>{t("panel.state.archiveUnavailable")}</p>;
     }
@@ -287,7 +287,7 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     return (
         <section aria-label={t("panel.timeline.title")}>
             <p>{t("panel.timeline.disclaimer")}</p>
-            <TimelineFilters nodes={allNodes} filters={filters} t={t} onChange={onFiltersChange} />
+            <TimelineFilters nodes={allNodes} filters={filters} onChange={onFiltersChange} />
             {nodes.length === 0 ? <p>{t("panel.timeline.empty")}</p> : null}
             <TimelineViewport {...props} nodes={nodes} />
         </section>
@@ -300,12 +300,12 @@ export const TimelineViewport = ({
     filters,
     viewportRevision,
     locale = navigator.language,
-    t,
     onFiltersChange,
     focusTarget,
     onFocusConsumed,
     onLocateInOverview
 }: TimelineViewportProps): ReactElement => {
+    const t = useMeetingTranslate();
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const latestVisibleKey = nodes
         .filter((node) => !filters.collapsedLanes.includes(node.lane))

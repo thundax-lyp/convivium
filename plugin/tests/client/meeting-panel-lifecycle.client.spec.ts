@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting/client.ts";
-import { ConviviumMeetingPanel } from "@/client/meeting/panel.tsx";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import { translatedPanel } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -35,9 +33,7 @@ function clientFixture() {
 describe("Meeting panel lifecycle", () => {
     it("loads the selected projection, accepts refresh notices, and disposes the stream", async () => {
         const { api, summary, releaseNotice, acceptNotice, dispose } = clientFixture();
-        const { unmount } = render(
-            createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") })
-        );
+        const { unmount } = render(translatedPanel({ api }, "en"));
         const item = await screen.findByRole("button", { name: /核对议题 A/ });
         expect(api.read).not.toHaveBeenCalled();
         fireEvent.click(item);
@@ -84,7 +80,7 @@ describe("Meeting panel lifecycle", () => {
             api.read = vi.fn(({ meetingId }) =>
                 meetingId === summary.meetingId ? firstRead : Promise.resolve(secondView)
             ) as never;
-            render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+            render(translatedPanel({ api }, "en"));
 
             fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
             fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
@@ -120,7 +116,7 @@ describe("Meeting panel lifecycle", () => {
             .mockResolvedValueOnce({ meetings: [summary] })
             .mockResolvedValueOnce({ meetings: [] })
             .mockResolvedValueOnce({ meetings: [summary] });
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         expect(await screen.findByRole("region", { name: "Objective" })).toBeTruthy();
 
@@ -140,7 +136,7 @@ describe("Meeting panel lifecycle", () => {
             .fn()
             .mockResolvedValueOnce(view)
             .mockRejectedValueOnce(new Error("detail unavailable"));
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         await waitFor(() =>
             expect(

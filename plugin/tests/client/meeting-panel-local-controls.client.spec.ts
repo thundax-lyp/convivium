@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingClient } from "@/client/meeting/client.ts";
-import { ConviviumMeetingPanel } from "@/client/meeting/panel.tsx";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import { translatedPanel } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 beforeEach(() => vi.stubGlobal("crypto", { randomUUID: () => "request-local" }));
@@ -27,15 +25,13 @@ describe("Meeting panel local controls", () => {
                 dispose: async () => {}
             })
         } as unknown as MeetingClient;
-        const { rerender } = render(
-            createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") })
-        );
+        const { rerender } = render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
         expect((await screen.findByRole("status")).textContent).toBe(
             "Command rejected (PRECONDITION_FAILED)."
         );
-        rerender(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("zh") }));
+        rerender(translatedPanel({ api }, "zh"));
         expect(screen.getByRole("status").textContent).toBe("命令被拒绝（PRECONDITION_FAILED）。");
         expect(screen.queryByText("server-only detail")).toBeNull();
     });
@@ -78,7 +74,7 @@ describe("Meeting panel local controls", () => {
             })),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: scenario.label }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
@@ -113,7 +109,7 @@ describe("Meeting panel local controls", () => {
             })),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
@@ -158,7 +154,7 @@ describe("Meeting panel local controls", () => {
             control: vi.fn(() => controlPending),
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
@@ -191,7 +187,7 @@ it.each([false, true])(
                 dispose: async () => {}
             })
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") }));
+        render(translatedPanel({ api }, "en"));
         fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());

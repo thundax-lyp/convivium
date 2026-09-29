@@ -2,7 +2,8 @@ import * as React from "react";
 import type { ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
-import { lifecycleLabel, type MeetingTranslate } from "@/client/meeting/shared/index.ts";
+import { lifecycleLabel } from "@/client/meeting/shared/index.ts";
+import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 
 export const MeetingNavigator = ({
     meetings,
@@ -10,7 +11,6 @@ export const MeetingNavigator = ({
     listLoading,
     listCached,
     listError,
-    t,
     selectMeeting
 }: {
     meetings: readonly MeetingSummary[];
@@ -18,9 +18,9 @@ export const MeetingNavigator = ({
     listLoading: boolean;
     listCached: boolean;
     listError?: string;
-    t: MeetingTranslate;
     selectMeeting(meetingId: string): void;
 }): ReactElement => {
+    const t = useMeetingTranslate();
     return (
         <nav data-testid="meeting-navigator" aria-label={t("panel.navigator.title")}>
             <h3>{t("panel.navigator.title")}</h3>

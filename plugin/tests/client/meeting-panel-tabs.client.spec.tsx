@@ -1,13 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-    renderMeetingPanelLayout,
-    type MeetingPanelLayoutProps
-} from "@/client/meeting/layout/index.ts";
+import type { MeetingPanelLayoutProps } from "@/client/meeting/shared/index.ts";
 import type { MeetingMode } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import { translatedLayout as renderMeetingPanelLayout } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -33,16 +30,13 @@ function propsFixture(): MeetingPanelLayoutProps {
 
 function TabsHarness({ initial }: { initial: MeetingPanelLayoutProps }) {
     const [mode, setMode] = useState<MeetingMode>(initial.activeMode);
-    return renderMeetingPanelLayout(
-        { ...initial, activeMode: mode, setMode },
-        meetingTranslator("en")
-    );
+    return renderMeetingPanelLayout({ ...initial, activeMode: mode, setMode }, "en");
 }
 
 describe("Meeting Header and mode tabs", () => {
     it("omits Header, tabs, and content until a Meeting detail is selected", () => {
         const props = { ...propsFixture(), selectedId: undefined, detail: undefined };
-        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        render(renderMeetingPanelLayout(props, "en"));
 
         expect(screen.queryByTestId("meeting-header")).toBeNull();
         expect(screen.queryByRole("tablist")).toBeNull();
@@ -51,7 +45,7 @@ describe("Meeting Header and mode tabs", () => {
 
     it("renders objective, lifecycle, version, and only allowed controls in the Header", () => {
         const props = propsFixture();
-        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        render(renderMeetingPanelLayout(props, "en"));
 
         const header = screen.getByTestId("meeting-header");
         expect(header.textContent).toContain(props.detail?.objective.statement);
@@ -64,7 +58,7 @@ describe("Meeting Header and mode tabs", () => {
 
     it("disables every lifecycle control when the Workspace is not writable", () => {
         const props = { ...propsFixture(), detailCached: true };
-        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        render(renderMeetingPanelLayout(props, "en"));
 
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
         expect(screen.getByRole("button", { name: "Cancel meeting" }).disabled).toBe(true);

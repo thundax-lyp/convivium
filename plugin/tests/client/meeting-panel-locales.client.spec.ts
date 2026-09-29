@@ -2,11 +2,17 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting/client.ts";
-import { renderMeetingPanelLayout } from "@/client/meeting/layout/index.ts";
-import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
+import { MeetingTranslationProvider } from "@/client/meeting/hooks/index.ts";
 import { ConviviumMeetingPanel } from "@/client/meeting/panel.tsx";
+import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
+import type { MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import {
+    meetingTranslator,
+    translatedLayout as renderMeetingPanelLayout,
+    translatedPanel,
+    withMeetingTranslation
+} from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -34,7 +40,7 @@ function emptyLayout(locale: "zh" | "en") {
             resumeMeeting: vi.fn(async () => {}),
             endMeeting: vi.fn(async () => {})
         },
-        meetingTranslator(locale)
+        locale
     );
 }
 
@@ -42,12 +48,14 @@ describe("Meeting panel localized presentation", () => {
     it("localizes known objective statuses and risk levels while preserving authored text", () => {
         const { view } = meetingProjectionFixture();
         const { rerender } = render(
-            createElement(MeetingPanelOverview, { detail: view, t: meetingTranslator("zh") })
+            withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
         expect(screen.getByText("形成公开证据: 待处理")).toBeTruthy();
         expect(screen.getByText("低")).toBeTruthy();
 
-        rerender(createElement(MeetingPanelOverview, { detail: view, t: meetingTranslator("en") }));
+        rerender(
+            withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
+        );
         expect(screen.getByText("形成公开证据: Pending")).toBeTruthy();
         expect(screen.getByText("Low")).toBeTruthy();
     });
@@ -78,7 +86,7 @@ describe("Meeting panel localized presentation", () => {
                     resumeMeeting: vi.fn(async () => {}),
                     endMeeting: vi.fn(async () => {})
                 },
-                meetingTranslator("zh")
+                "zh"
             )
         );
         expect(screen.getByRole("button", { name: "暂停会议" })).toBeTruthy();
@@ -101,7 +109,7 @@ describe("Meeting panel localized presentation", () => {
                     resumeMeeting: vi.fn(async () => {}),
                     endMeeting: vi.fn(async () => {})
                 },
-                meetingTranslator("zh")
+                "zh"
             )
         );
         expect(screen.getByRole("button", { name: "继续会议" })).toBeTruthy();
@@ -121,7 +129,7 @@ describe("Meeting panel localized presentation", () => {
                     resumeMeeting: vi.fn(async () => {}),
                     endMeeting: vi.fn(async () => {})
                 },
-                meetingTranslator("zh")
+                "zh"
             )
         );
         expect(screen.getByText("正在加载会议。")).toBeTruthy();
@@ -141,7 +149,7 @@ describe("Meeting panel localized presentation", () => {
                     resumeMeeting: vi.fn(async () => {}),
                     endMeeting: vi.fn(async () => {})
                 },
-                meetingTranslator("zh")
+                "zh"
             )
         );
         expect(screen.getByText("无会议详情。")).toBeTruthy();
@@ -168,20 +176,20 @@ describe("Meeting panel localized presentation", () => {
             }),
             subscribeRefresh: vi.fn(inertStream)
         } as unknown as MeetingClient;
-        const { rerender, unmount } = render(
-            createElement(ConviviumMeetingPanel, {
-                api: protocolApi,
-                t: meetingTranslator("zh")
-            })
-        );
+        let activeLocale: "zh" | "en" = "zh";
+        const seat = ((key: never, params: never) =>
+            meetingTranslator(activeLocale)(key, params)) as MeetingTranslate;
+        const panel = () =>
+            createElement(
+                MeetingTranslationProvider,
+                { t: seat },
+                createElement(ConviviumMeetingPanel, { api: protocolApi })
+            );
+        const { rerender, unmount } = render(panel());
         expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
         expect(screen.queryByText("stale server detail")).toBeNull();
-        rerender(
-            createElement(ConviviumMeetingPanel, {
-                api: protocolApi,
-                t: meetingTranslator("en")
-            })
-        );
+        activeLocale = "en";
+        rerender(panel());
         expect(screen.getByRole("alert").textContent).toBe("Meeting request failed (CONFLICT).");
         expect(protocolApi.list).toHaveBeenCalledOnce();
         unmount();
@@ -192,19 +200,9 @@ describe("Meeting panel localized presentation", () => {
             }),
             subscribeRefresh: vi.fn(inertStream)
         } as unknown as MeetingClient;
-        const unavailable = render(
-            createElement(ConviviumMeetingPanel, {
-                api: unavailableApi,
-                t: meetingTranslator("zh")
-            })
-        );
+        const unavailable = render(translatedPanel({ api: unavailableApi }, "zh"));
         expect((await screen.findByRole("alert")).textContent).toBe("会议数据不可用。");
-        unavailable.rerender(
-            createElement(ConviviumMeetingPanel, {
-                api: unavailableApi,
-                t: meetingTranslator("en")
-            })
-        );
+        unavailable.rerender(translatedPanel({ api: unavailableApi }, "en"));
         expect(screen.getByRole("alert").textContent).toBe("Meeting data is unavailable.");
         expect(unavailableApi.list).toHaveBeenCalledOnce();
     });
@@ -224,7 +222,7 @@ describe("Meeting panel localized presentation", () => {
             }),
             subscribeRefresh: vi.fn(inertStream)
         } as unknown as MeetingClient;
-        render(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("zh") }));
+        render(translatedPanel({ api }, "zh"));
 
         fireEvent.click(
             await screen.findByRole("button", { name: `${summary.objective} (进行中)` })

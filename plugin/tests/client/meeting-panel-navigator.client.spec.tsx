@@ -1,8 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderMeetingPanelLayout } from "@/client/meeting/layout/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import { translatedLayout as renderMeetingPanelLayout } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 
@@ -69,7 +68,7 @@ describe("Meeting navigator", () => {
         );
         const { props } = layoutProps();
 
-        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        render(renderMeetingPanelLayout(props, "en"));
 
         expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Create meeting" })).toBeNull();
@@ -84,7 +83,7 @@ describe("Meeting navigator", () => {
         );
         const { props } = layoutProps();
 
-        render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        render(renderMeetingPanelLayout(props, "en"));
 
         expect(screen.getByTestId("meeting-workspace-shell").style.gridTemplateColumns).toBe(
             "minmax(220px, 280px) minmax(0, 1fr)"
@@ -111,7 +110,7 @@ describe("Meeting navigator", () => {
                     detail: undefined,
                     listLoading: true
                 },
-                meetingTranslator("en")
+                "en"
             )
         );
 
@@ -127,7 +126,7 @@ describe("Meeting navigator", () => {
                     detail: undefined,
                     listLoading: false
                 },
-                meetingTranslator("en")
+                "en"
             )
         );
         expect(screen.getByText("No meetings.")).toBeTruthy();
@@ -141,7 +140,7 @@ describe("Meeting navigator", () => {
             vi.fn(() => media.query)
         );
         const { props, summary } = layoutProps();
-        const rendered = render(renderMeetingPanelLayout(props, meetingTranslator("en")));
+        const rendered = render(renderMeetingPanelLayout(props, "en"));
 
         const opener = screen.getByRole("button", { name: "Open meeting navigator" });
         fireEvent.click(opener);

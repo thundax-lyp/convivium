@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MeetingPanelTimeline } from "@/client/meeting/regions/workspace/timeline/index.ts";
 import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
+import { withMeetingTranslation } from "./meeting-panel-locale-fixtures.ts";
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 
 afterEach(cleanup);
@@ -12,14 +12,16 @@ afterEach(cleanup);
 describe("Meeting timeline presentation", () => {
     it("shows timeline controls and visible node information", () => {
         render(
-            <MeetingPanelTimeline
-                detail={activeTimelineFixture()}
-                filters={INITIAL_TIMELINE_FILTERS}
-                viewportRevision={0}
-                locale="zh"
-                t={meetingTranslator("zh")}
-                onFiltersChange={() => undefined}
-            />
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={activeTimelineFixture()}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    locale="zh"
+                    onFiltersChange={() => undefined}
+                />,
+                "zh"
+            )
         );
 
         expect(screen.getByRole("button", { name: "回到最新" })).toBeTruthy();
@@ -38,32 +40,37 @@ describe("Meeting overview location", () => {
         const onFocusConsumed = vi.fn();
         const props = {
             detail,
-            t: meetingTranslator("en"),
             onFocusConsumed,
             onLocateInTimeline: vi.fn()
         };
         const { rerender } = render(
-            <MeetingPanelOverview
-                {...props}
-                focusTarget={{
-                    meetingId: detail.meetingId,
-                    objectKind: "decision",
-                    objectId: "decision-1"
-                }}
-            />
+            withMeetingTranslation(
+                <MeetingPanelOverview
+                    {...props}
+                    focusTarget={{
+                        meetingId: detail.meetingId,
+                        objectKind: "decision",
+                        objectId: "decision-1"
+                    }}
+                />,
+                "en"
+            )
         );
         expect(document.activeElement?.tagName).toBe("LI");
         expect(document.activeElement?.textContent).toContain("decision-1");
 
         rerender(
-            <MeetingPanelOverview
-                {...props}
-                focusTarget={{
-                    meetingId: detail.meetingId,
-                    objectKind: "position",
-                    objectId: "position-1"
-                }}
-            />
+            withMeetingTranslation(
+                <MeetingPanelOverview
+                    {...props}
+                    focusTarget={{
+                        meetingId: detail.meetingId,
+                        objectKind: "position",
+                        objectId: "position-1"
+                    }}
+                />,
+                "en"
+            )
         );
         expect(screen.getByRole("status").textContent).toBe("The target is currently unavailable.");
         expect(screen.queryByRole("button", { name: /position-1/ })).toBeNull();

@@ -56,7 +56,7 @@ Host 冷启动时，先完成 Meeting Runtime 的受控读写入口和全部会�
 
 面板只提供 MO-FR-11 的暂停/恢复/异常取消，会议创建与指定会议取消可通过 MO-FR-18 的显式 `/convivium` Skill 执行；完整结构化 Captain 命令仍保留在可信本地 Remote 契约中。字段与失败行为遵循 Meeting Interface，来源接线见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#captain-caller-and-audit)。面板取完整读取的 snapshot 作为命令版本，在一次提交时分配 requestId 并于网络结果不确定的重试中复用；VERSION_CONFLICT 时补读并提示重试，不自动覆写。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
 
-Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale，Panel body 通过 slot locale seat 取得 typed translator，使已挂载页面随 locale revision 更新而不重新注册 slot。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
+Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale；Panel 顶层接收 slot locale seat 注入的 typed translator，经 `MeetingTranslationProvider` 提供给组件树，由组件调用 `useMeetingTranslate` 消费。slot locale revision 触发顶层重新渲染时，已挂载页面更新文案而不重新注册 slot；纯格式化函数仍显式接收 translator。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
 
 ### Meetings View 组成
 

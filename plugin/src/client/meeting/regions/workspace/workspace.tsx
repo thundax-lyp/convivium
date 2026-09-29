@@ -5,19 +5,14 @@ import {
     INITIAL_TIMELINE_FILTERS,
     lifecycleLabel,
     type MeetingMode,
-    type MeetingPanelLayoutProps,
-    type MeetingTranslate
+    type MeetingPanelLayoutProps
 } from "@/client/meeting/shared/index.ts";
+import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
 
-export const MeetingWorkspace = ({
-    ctx,
-    t
-}: {
-    ctx: MeetingPanelLayoutProps;
-    t: MeetingTranslate;
-}): ReactElement => {
+export const MeetingWorkspace = ({ ctx }: { ctx: MeetingPanelLayoutProps }): ReactElement => {
+    const t = useMeetingTranslate();
     const selected = ctx.meetings.find((item) => item.meetingId === ctx.selectedId);
     const mode = ctx.activeMode ?? "overview";
     const selectMode = (next: MeetingMode) => ctx.setMode?.(next);
@@ -131,7 +126,6 @@ export const MeetingWorkspace = ({
                         {mode === "overview" ? (
                             <MeetingPanelOverview
                                 detail={ctx.detail}
-                                t={t}
                                 focusTarget={ctx.focusTarget}
                                 onFocusConsumed={ctx.onFocusConsumed}
                                 onLocateInTimeline={ctx.onLocateInTimeline}
@@ -142,7 +136,6 @@ export const MeetingWorkspace = ({
                                 filters={ctx.timelineFilters ?? INITIAL_TIMELINE_FILTERS}
                                 viewportRevision={ctx.viewportRevision ?? 0}
                                 locale={ctx.locale}
-                                t={t}
                                 onFiltersChange={ctx.onTimelineFiltersChange ?? (() => undefined)}
                                 focusTarget={ctx.focusTarget}
                                 onFocusConsumed={ctx.onFocusConsumed}

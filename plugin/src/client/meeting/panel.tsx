@@ -7,7 +7,7 @@ import { SubmissionFeedback } from "./submission-feedback.tsx";
 import { renderMeetingPanelLayout } from "./layout/index.ts";
 import { INITIAL_FRESHNESS, controlsEnabled } from "./shared/index.ts";
 import type { MeetingsFreshnessState } from "./shared/index.ts";
-import { useMeetingWorkspace } from "./hooks/index.ts";
+import { useMeetingTranslate, useMeetingWorkspace } from "./hooks/index.ts";
 
 type MeetingPanelFailure =
     | {
@@ -50,13 +50,12 @@ const endMeetingAction = (detail: MeetingView) => ({
 
 export const ConviviumMeetingPanel = ({
     api,
-    t,
     locale
 }: {
     api: MeetingClient;
-    t: MeetingTranslate;
     locale?: string;
 }): ReactElement => {
+    const t = useMeetingTranslate();
     const [meetings, setMeetings] = useState<readonly MeetingSummary[]>([]);
     const meetingWorkspace = useMeetingWorkspace();
     const { workspace } = meetingWorkspace;
@@ -293,44 +292,40 @@ export const ConviviumMeetingPanel = ({
                     : "Resumed from Meeting panel."
         });
     };
-    return renderMeetingPanelLayout(
-        {
-            localFeedback: (
-                <SubmissionFeedback
-                    submission={localSubmission}
-                    disabled={freshness.connection !== "connected" || writePending}
-                    t={t}
-                />
-            ),
-            locale,
-            meetings,
-            selectedId: workspace.selectedMeetingId,
-            detail,
-            listLoading: freshness.list === "loading",
-            listCached: freshness.list === "stale",
-            detailCached: !controlsEnabled({
-                freshness,
-                selectedMeetingId: workspace.selectedMeetingId,
-                writePending
-            }),
-            activeMode: workspace.activeMode,
-            setMode: meetingWorkspace.setMode,
-            timelineFilters: workspace.timeline,
-            viewportRevision: workspace.viewportRevision,
-            onTimelineFiltersChange: meetingWorkspace.setTimelineFilters,
-            focusTarget: workspace.focusTarget,
-            onFocusConsumed: meetingWorkspace.consumeFocus,
-            onLocateInTimeline: meetingWorkspace.locateInTimeline,
-            onLocateInOverview: meetingWorkspace.locateInOverview,
-            listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
-            detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
-            writePending,
-            requestRefresh: refresh,
-            selectMeeting,
-            pauseMeeting: () => changePause("pause_meeting"),
-            resumeMeeting: () => changePause("resume_meeting"),
-            endMeeting
-        },
-        t
-    );
+    return renderMeetingPanelLayout({
+        localFeedback: (
+            <SubmissionFeedback
+                submission={localSubmission}
+                disabled={freshness.connection !== "connected" || writePending}
+            />
+        ),
+        locale,
+        meetings,
+        selectedId: workspace.selectedMeetingId,
+        detail,
+        listLoading: freshness.list === "loading",
+        listCached: freshness.list === "stale",
+        detailCached: !controlsEnabled({
+            freshness,
+            selectedMeetingId: workspace.selectedMeetingId,
+            writePending
+        }),
+        activeMode: workspace.activeMode,
+        setMode: meetingWorkspace.setMode,
+        timelineFilters: workspace.timeline,
+        viewportRevision: workspace.viewportRevision,
+        onTimelineFiltersChange: meetingWorkspace.setTimelineFilters,
+        focusTarget: workspace.focusTarget,
+        onFocusConsumed: meetingWorkspace.consumeFocus,
+        onLocateInTimeline: meetingWorkspace.locateInTimeline,
+        onLocateInOverview: meetingWorkspace.locateInOverview,
+        listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
+        detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
+        writePending,
+        requestRefresh: refresh,
+        selectMeeting,
+        pauseMeeting: () => changePause("pause_meeting"),
+        resumeMeeting: () => changePause("resume_meeting"),
+        endMeeting
+    });
 };

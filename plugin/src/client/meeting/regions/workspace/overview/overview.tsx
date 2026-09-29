@@ -4,12 +4,12 @@ import type { MeetingView } from "@/protocol/index.ts";
 import { Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { knownEnum as known, type MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { lifecycleLabel } from "@/client/meeting/shared/index.ts";
+import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { buildTimelineNodes } from "@/client/meeting/regions/workspace/timeline/index.ts";
 import type { MeetingFocusTarget } from "@/client/meeting/shared/index.ts";
 
 export interface SectionProps {
     detail: MeetingView;
-    t: MeetingTranslate;
 }
 
 export interface OverviewProps extends SectionProps {
@@ -39,7 +39,8 @@ const overviewItem = (kind: string, id: string, content: string): ReactElement =
     </li>
 );
 
-export const OverviewObjective = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const objective =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive.objective
@@ -83,7 +84,8 @@ export const OverviewObjective = ({ detail, t }: SectionProps): ReactElement => 
     );
 };
 
-export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const items: ReactElement[] = [];
     for (const round of detail.rounds) {
         items.push(
@@ -144,7 +146,8 @@ export const OverviewProgress = ({ detail, t }: SectionProps): ReactElement => {
     return section(t("panel.overview.progress"), values(items, t));
 };
 
-export const OverviewOutcomes = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
@@ -184,7 +187,8 @@ export const OverviewOutcomes = ({ detail, t }: SectionProps): ReactElement => {
     );
 };
 
-export const OverviewOpenItems = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewOpenItems = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
@@ -219,7 +223,8 @@ export const OverviewOpenItems = ({ detail, t }: SectionProps): ReactElement => 
     );
 };
 
-export const OverviewTranscript = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewTranscript = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
@@ -244,7 +249,8 @@ export const OverviewTranscript = ({ detail, t }: SectionProps): ReactElement =>
     );
 };
 
-export const OverviewEvidence = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewEvidence = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
@@ -284,7 +290,8 @@ export const OverviewEvidence = ({ detail, t }: SectionProps): ReactElement => {
     );
 };
 
-export const OverviewTechnical = ({ detail, t }: SectionProps): ReactElement => {
+export const OverviewTechnical = ({ detail }: SectionProps): ReactElement => {
+    const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
@@ -312,7 +319,8 @@ export const OverviewTechnical = ({ detail, t }: SectionProps): ReactElement => 
 };
 
 export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
-    const { detail, t, focusTarget, onFocusConsumed, onLocateInTimeline } = props;
+    const { detail, focusTarget, onFocusConsumed, onLocateInTimeline } = props;
+    const t = useMeetingTranslate();
     const overview = useRef<HTMLDivElement>(null);
     const [focusMissing, setFocusMissing] = useState(false);
     const archive =
