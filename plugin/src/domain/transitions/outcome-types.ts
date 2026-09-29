@@ -1,4 +1,4 @@
-import type { EpochMs, OpaqueId, Position, DecisionCandidate } from "@/domain/meeting-state.js";
+import type { EpochMs, OpaqueId, Position, DecisionCandidate } from "@/domain/index.ts";
 
 export type OutcomeActor =
     { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };

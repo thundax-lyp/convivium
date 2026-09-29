@@ -1,17 +1,17 @@
-import { peerBindings } from "../fixtures/peer-ownership.js";
+import { peerBindings } from "../fixtures/peer-ownership.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "@/repository/domain/domain-repository-registry.js";
-import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/domain/keys.js";
-import { RepositoryError } from "@/repository/errors.js";
+} from "@/repository/domain/domain-repository-registry.ts";
+import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/domain/keys.ts";
+import { RepositoryError } from "@/repository/errors.ts";
 import {
     createFakeCatalogDomain,
     createFakeMeetingDomain,
     type FakeCatalogDomain
-} from "../fixtures/domain-storage.js";
+} from "../fixtures/domain-storage.ts";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
 

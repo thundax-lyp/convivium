@@ -1,9 +1,9 @@
 import { vi } from "vitest";
-import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.js";
+import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.ts";
 import { describe, expect, it } from "vitest";
-import { endMeeting } from "@/domain/transitions/meeting-end.js";
-import { recoverMeetingCommands } from "@/runtime/services/meeting-command-recovery.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
+import { endMeeting } from "@/domain/transitions/meeting-end.ts";
+import { recoverMeetingCommands } from "@/runtime/services/meeting-command-recovery.ts";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 describe("identity admission recovery", () => {
     it("wakes the existing outbox worker after recovery finds pending effects", async () => {
         let woken = 0;

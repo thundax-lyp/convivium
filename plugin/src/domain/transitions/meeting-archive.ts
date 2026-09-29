@@ -1,12 +1,12 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/index.ts";
 import type {
     ArchivePackage,
     ArchiveQuestionIssueDispositionFact,
     MeetingState,
     OpaqueId
-} from "@/domain/meeting-state.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import { rejectedTransition, type MeetingTransitionResult } from "./result.js";
+} from "@/domain/index.ts";
+import { validateMeetingState } from "@/domain/index.ts";
+import { rejectedTransition, type MeetingTransitionResult } from "./result.ts";
 
 export interface StartMeetingArchiveInput {
     archiveId: OpaqueId;

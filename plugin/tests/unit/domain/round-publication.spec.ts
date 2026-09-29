@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRound as openRoundTransition } from "@/domain/transitions/round.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { openRound as openRoundTransition } from "@/domain/transitions/round.ts";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
@@ -45,7 +45,7 @@ const openRoundWithPlan: typeof rawOpenRoundWithPlan = (state, input) => {
           }
         : result;
 };
-import { publishRound } from "@/domain/transitions/round-publication.js";
+import { publishRound } from "@/domain/transitions/round-publication.ts";
 
 describe("round publication", () => {
     it("publishes an empty closable round once", () => {

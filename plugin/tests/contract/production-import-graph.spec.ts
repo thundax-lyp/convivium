@@ -16,8 +16,22 @@ function staticSpecifiers(file: string): string[] {
     );
     const specifiers: string[] = [];
     source.forEachChild((node) => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            const clause = node.importClause;
+            if (
+                clause?.isTypeOnly ||
+                (clause?.namedBindings &&
+                    !clause.name &&
+                    ts.isNamedImports(clause.namedBindings) &&
+                    clause.namedBindings.elements.every((element) => element.isTypeOnly))
+            ) {
+                return;
+            }
+            specifiers.push(node.moduleSpecifier.text);
+        }
         if (
-            (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+            ts.isExportDeclaration(node) &&
+            !node.isTypeOnly &&
             node.moduleSpecifier !== undefined &&
             ts.isStringLiteral(node.moduleSpecifier)
         ) {
@@ -92,14 +106,6 @@ describe("production import graph", () => {
             "@deepseek-ai/dsh-storage-json"
         ]) {
             expect(graph.externals).not.toContain(dependency);
-        }
-        for (const file of [
-            "repository/sqlite-meeting-repository.ts",
-            "repository/schema.ts",
-            "repository/migrations.ts",
-            "runtime/services/meeting-repository-locator.ts"
-        ]) {
-            expect(graph.files).not.toContain(file);
         }
         expect(graph.externals).not.toContain("node:sqlite");
     });

@@ -4,17 +4,18 @@ import type {
     MeetingIdentity,
     MeetingState,
     Publication
-} from "@/domain/index.js";
-import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.js";
-import type { MeetingAgentOwner } from "@/dsh/index.js";
-import type { MeetingAgentDefinition } from "@/role-composition/model.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
-import { ReviewWorkerOutputSchema } from "@/protocol/index.js";
+} from "@/domain/index.ts";
+import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.ts";
+import type { MeetingAgentOwner } from "@/dsh/index.ts";
+import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
+import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
+import { ReviewWorkerOutputSchema } from "@/protocol/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
-} from "@/runtime/application-service/meeting-command.js";
+} from "@/runtime/application-service/index.ts";
 
 class EvidenceReviewDispatchError extends Error {
     constructor(
@@ -239,6 +240,102 @@ const reviewItemRules = {
         )
     }
 };
+
+export const createReviewWorkerPromptResolver = (dependencies: {
+    readonly registry: {
+        openMeeting(input: {
+            readonly meetingId: string;
+        }): Promise<Pick<MeetingRepositoryPort<MeetingState>, "recover">>;
+    };
+    readonly clock: { now(): number };
+}): {
+    resolve(input: {
+        meetingId: string;
+        versionId: string;
+        caller: ResolvedMeetingCaller;
+        signal: AbortSignal;
+    }): Promise<string | undefined>;
+} => ({
+    async resolve({ meetingId, versionId, caller, signal }) {
+        signal.throwIfAborted();
+        if (caller.meetingId !== meetingId || caller.role !== "evidence_reviewer") {
+            return undefined;
+        }
+        const repository = await dependencies.registry.openMeeting({ meetingId });
+        const recovered = await repository.recover();
+        const state = recovered.snapshot?.state;
+        if (
+            recovered.snapshot?.meetingId !== meetingId ||
+            state?.lifecycle.status !== "running" ||
+            state.evidenceReviewerId !== caller.identityId
+        ) {
+            return undefined;
+        }
+        const identity = state.identities.find((candidate) => candidate.id === caller.identityId);
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) => candidate.id === caller.ownership.id
+        );
+        if (
+            identity?.sessionOwnershipId !== caller.ownership.id ||
+            identity.roles.length !== 1 ||
+            identity.roles[0] !== "evidence_reviewer" ||
+            ownership?.id !== caller.caller.sessionBindingId ||
+            ownership.meetingId !== meetingId ||
+            ownership.identityId !== caller.identityId ||
+            ownership.sessionId !== caller.ownership.sessionId ||
+            ownership.role !== "evidence_reviewer" ||
+            ownership.lifecycleStatus !== "active" ||
+            ownership.capabilityStatus !== "active"
+        ) {
+            return undefined;
+        }
+        const claim = state.reviewClaims.find((candidate) => candidate.versionId === versionId);
+        const evidencePackage = state.evidencePackages.find(
+            (candidate) => candidate.currentVersionId === versionId
+        );
+        const version = evidencePackage?.versions.find((candidate) => candidate.id === versionId);
+        const round = state.rounds.find((candidate) => candidate.id === claim?.roundId);
+        if (
+            !claim ||
+            claim.reviewerId !== caller.identityId ||
+            claim.expiresAt <= dependencies.clock.now() ||
+            !evidencePackage ||
+            version?.status !== "validating" ||
+            round?.status !== "open" ||
+            round.agendaId !== evidencePackage.agendaId ||
+            evidencePackage.roundId !== round.id ||
+            !state.registrations.some(
+                (registration) =>
+                    registration.versionId === versionId && registration.status === "complete"
+            )
+        ) {
+            return undefined;
+        }
+        const baseline = round.publicBaselinePublicationIds.map((publicationId) => {
+            const publication = state.publications.find(
+                (candidate) => candidate.id === publicationId
+            );
+            if (!publication) {
+                fail("REVIEW_BASELINE_INVALID");
+            }
+            return { publicationId, evidence: publicationEvidence(state, publication) };
+        });
+        const allowedBaselineEvidenceIds = [
+            ...new Set(
+                baseline.flatMap((publication) =>
+                    publication.evidence.map(({ version }) => version.id)
+                )
+            )
+        ];
+        return JSON.stringify({
+            pending: { version, baseline, roundId: round.id },
+            reviewConstraint: { versionId, allowedBaselineEvidenceIds },
+            reviewItemRules,
+            instructions:
+                "只审核 pending.version 与所列固定 baseline。返回符合 workerOutputSchema 的 object；versionId 必须等于 reviewConstraint.versionId；各维 baselineEvidenceIds 只能取 allowedBaselineEvidenceIds，首轮无 baseline 时使用 []。"
+        });
+    }
+});
 
 export const createEvidenceReviewDispatcher = (
     dependencies: EvidenceReviewDispatcherDependencies
@@ -491,7 +588,7 @@ export const createEvidenceReviewDispatcher = (
                                     }
                                 },
                                 instructions:
-                                    "按顺序执行，不要解释。第一步：只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 仍只有顶层 input，input 内的 meetingId 和 versionId 必须来自当前 request，prompt 必须包含 pending、允许使用的 baseline、reviewItemRules.itemTemplate、scoringRubric、dimensionCriteria 和 workerOutputSchema；worker 返回机器校验的 workerOutputSchema。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键；baselineEvidenceIds 与 reviewConstraint 取交集，首轮没有 baseline 时必须保留 []。未得到 completed 结果时直接结束，不调用提交工具。第三步：得到结果时复制 submit.toolArguments，把 worker 结果的 dimensions 和 scope 写入 action，然后调用 convivium_submit_evidence_review。工具参数直接使用结构化 object，不要生成 JSON 文本；工具 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。worker 工具和提交工具都只允许调用一次。"
+                                    "按顺序执行，不要解释。第一步：只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 只有顶层 input，input 只含当前 request 的 meetingId 和 versionId，不传 prompt；工具从当前 claim、immutable version 和固定 baseline 构造 worker 输入，并返回机器校验的 workerOutputSchema。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键；baselineEvidenceIds 与 reviewConstraint 取交集，首轮没有 baseline 时必须保留 []。未得到 completed 结果时直接结束，不调用提交工具。第三步：得到结果时复制 submit.toolArguments，把 worker 结果的 dimensions 和 scope 写入 action，然后调用 convivium_submit_evidence_review。工具参数直接使用结构化 object，不要生成 JSON 文本；工具 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。worker 工具和提交工具都只允许调用一次。"
                             })
                         }
                     ],

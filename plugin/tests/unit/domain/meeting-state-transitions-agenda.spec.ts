@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 import {
     state,
     local,
@@ -8,7 +8,7 @@ import {
     manager,
     candidateState,
     publishedQuestionState
-} from "./meeting-state-transitions-fixtures.js";
+} from "./meeting-state-transitions-fixtures.ts";
 
 it("raises a candidate for an existing identity", () => {
     const current = state();

@@ -1,15 +1,45 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MeetingClient } from "@/client/meeting-client.js";
-import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
-import { meetingProjectionFixture } from "./meeting-panel-fixtures.js";
-import { meetingTranslator } from "./meeting-panel-locale-fixtures.js";
+import type { MeetingClient } from "@/client/meeting-client.ts";
+import { ConviviumMeetingPanel } from "@/client/meeting-panel.tsx";
+import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
+import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 
 afterEach(cleanup);
 beforeEach(() => vi.stubGlobal("crypto", { randomUUID: () => "request-local" }));
 
 describe("Meeting panel local controls", () => {
+    it("localizes command rejection while retaining its stable code across locale changes", async () => {
+        const { summary, view } = meetingProjectionFixture();
+        const api = {
+            list: vi.fn(async () => ({ meetings: [summary] })),
+            read: vi.fn(async () => view),
+            control: vi.fn(async () => ({
+                kind: "rejected" as const,
+                error: { code: "PRECONDITION_FAILED", message: "server-only detail" }
+            })),
+            subscribeRefresh: () => ({
+                async *[Symbol.asyncIterator]() {
+                    await new Promise<void>(() => {});
+                    yield undefined as never;
+                },
+                dispose: async () => {}
+            })
+        } as unknown as MeetingClient;
+        const { rerender } = render(
+            createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("en") })
+        );
+        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
+        expect((await screen.findByRole("status")).textContent).toBe(
+            "Command rejected (PRECONDITION_FAILED)."
+        );
+        rerender(createElement(ConviviumMeetingPanel, { api, t: meetingTranslator("zh") }));
+        expect(screen.getByRole("status").textContent).toBe("命令被拒绝（PRECONDITION_FAILED）。");
+        expect(screen.queryByText("server-only detail")).toBeNull();
+    });
+
     it.each([
         {
             label: "Pause meeting",

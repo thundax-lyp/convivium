@@ -5,7 +5,7 @@ import {
     INITIAL_WORKSPACE,
     controlsEnabled,
     resetWorkspaceForMeeting
-} from "@/client/meeting-workspace-state.js";
+} from "@/client/meeting-workspace-state.ts";
 
 describe("Meetings workspace state", () => {
     it("starts without a selection and with neutral timeline controls", () => {

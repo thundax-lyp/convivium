@@ -1,6 +1,6 @@
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
-import type { PreparedDescriptor } from "@/role-composition/model.js";
-import type { SessionOwnershipInput } from "@/repository/types.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.ts";
+import type { PreparedDescriptor } from "@/role-composition/model.ts";
+import type { SessionOwnershipInput } from "@/repository/types.ts";
 
 export const peerBindings = (
     meetingId: string,

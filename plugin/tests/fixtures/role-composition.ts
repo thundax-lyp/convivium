@@ -1,4 +1,4 @@
-import type { MeetingAgentDefinition } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/model.ts";
 
 export const roleCompositionDefinitions: readonly MeetingAgentDefinition[] = [
     {

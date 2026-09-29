@@ -2,12 +2,12 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
-import { createMeetingCreationCoordinator } from "@/runtime/meeting-runtime.js";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
-import { RepositoryError } from "@/repository/errors.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
-import { createFakeCatalogDomain, createFakeMeetingDomain } from "../../fixtures/domain-storage.js";
+import { createMeetingCreationCoordinator } from "@/runtime/meeting-runtime.ts";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { RepositoryError } from "@/repository/errors.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
+import { createFakeCatalogDomain, createFakeMeetingDomain } from "../../fixtures/domain-storage.ts";
 
 const fixture = async (
     failAt = -1,

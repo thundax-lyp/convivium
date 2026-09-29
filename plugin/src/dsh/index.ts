@@ -2,12 +2,15 @@ export {
     decodeMeetingIdentitySessionLabel,
     encodeMeetingIdentitySessionLabel,
     type MeetingIdentitySessionLabel
-} from "./labels.js";
+} from "./labels.ts";
 export {
     resolveMeetingCaller,
     type MeetingOwnershipLookup,
-    type MeetingOwnershipRecord,
     type ResolvedMeetingCaller
-} from "./caller-resolver.js";
-export * from "./meeting-role-catalog.js";
-export { createMeetingAgentOwner, type MeetingAgentOwner } from "./meeting-agent-owner.js";
+} from "./caller-resolver.ts";
+export {
+    readMeetingRoleCatalog,
+    type MeetingAgentCatalog,
+    type RoleCatalogPort
+} from "./meeting-role-catalog.ts";
+export { createMeetingAgentOwner, type MeetingAgentOwner } from "./meeting-agent-owner.ts";

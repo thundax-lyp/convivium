@@ -1,7 +1,7 @@
-import type { PreparedDescriptor } from "@/role-composition/model.js";
-import type { JsonObject, SessionOwnership, SessionOwnershipInput } from "@/repository/types.js";
-import { PreparedDescriptorSchema } from "./schemas.js";
-import { encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
+import type { PreparedDescriptor } from "@/role-composition/index.ts";
+import type { JsonObject, SessionOwnership, SessionOwnershipInput } from "@/repository/index.ts";
+import { PreparedDescriptorSchema } from "./schemas.ts";
+import { encodeCanonicalJson, sha256Hex } from "./canonical-json.ts";
 
 export const same = (a: unknown, b: unknown): boolean =>
     Buffer.from(encodeCanonicalJson(a)).equals(Buffer.from(encodeCanonicalJson(b)));

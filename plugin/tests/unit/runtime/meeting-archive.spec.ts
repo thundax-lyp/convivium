@@ -4,10 +4,10 @@ import {
     endMeeting,
     startMeetingArchive,
     type MeetingState
-} from "@/domain/index.js";
-import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.js";
-import { createMeetingArchiveDispatcher } from "@/runtime/services/meeting-archive.js";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+} from "@/domain/index.ts";
+import { encodeMeetingIdentitySessionLabel } from "@/dsh/index.ts";
+import { createMeetingArchiveDispatcher } from "@/runtime/services/meeting-archive.ts";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 
 const terminalState = (): MeetingState => {
     const running = makeRunningMeetingStateV1();

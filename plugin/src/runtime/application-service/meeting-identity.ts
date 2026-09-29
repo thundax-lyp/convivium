@@ -1,9 +1,9 @@
-import type { IdentityAdmissionResultContext, MeetingState } from "@/domain/index.js";
-import type { MeetingAgentDefinition } from "@/role-composition/model.js";
-import type { MeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { OutboxItem } from "@/repository/types.js";
-import type { IdentityProvisionResult } from "@/runtime/services/meeting-identity-provision.js";
+import type { IdentityAdmissionResultContext, MeetingState } from "@/domain/index.ts";
+import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
+import type { MeetingCommandApplication } from "./meeting-command.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { OutboxItem } from "@/repository/index.ts";
+import type { IdentityProvisionResult } from "@/runtime/services/index.ts";
 
 export interface MeetingIdentityEffectHandlerDependencies {
     readonly application: MeetingCommandApplication;

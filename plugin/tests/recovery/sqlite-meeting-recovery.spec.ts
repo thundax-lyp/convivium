@@ -1,7 +1,7 @@
-import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.js";
+import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.ts";
 import { DatabaseSync } from "node:sqlite";
-import { meetingDomainName } from "@/repository/domain/keys.js";
-import { peerBindings } from "../fixtures/peer-ownership.js";
+import { meetingDomainName } from "@/repository/domain/keys.ts";
+import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
@@ -10,9 +10,9 @@ import * as storageSqlite from "@deepseek-ai/dsh-storage-sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };

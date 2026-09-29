@@ -21,7 +21,7 @@ export async function generateTypert(pluginRoot) {
         await cp(join(root, "tsconfig.json"), join(stagePlugin, "tsconfig.json"));
         await writeFile(
             join(stagePlugin, "src/index.ts"),
-            'export { ConviviumRemoteService } from "./remote/index.js";\n'
+            'export { Config } from "./config.ts";\nexport { ConviviumRemoteService } from "./remote/index.js";\n'
         );
         await symlink(join(root, "node_modules"), join(stage, "node_modules"));
 

@@ -4,8 +4,8 @@ import {
     type MeetingRole,
     type MeetingState,
     type OpaqueId
-} from "@/domain/index.js";
-import type { MeetingAgentCatalog } from "@/dsh/index.js";
+} from "@/domain/index.ts";
+import type { MeetingAgentCatalog } from "@/dsh/index.ts";
 import {
     ArchiveViewSchema,
     MeetingSummarySchema,
@@ -14,8 +14,8 @@ import {
     type ArchiveView,
     type MeetingSummary,
     type MeetingView
-} from "@/protocol/index.js";
-import type { MeetingSnapshot } from "@/repository/types.js";
+} from "@/protocol/index.ts";
+import type { MeetingSnapshot } from "@/repository/index.ts";
 
 export type MeetingProjectionCaller =
     | { readonly kind: "captain" }

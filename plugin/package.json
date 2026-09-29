@@ -67,7 +67,7 @@
         "format:check": "prettier . --check",
         "lint": "eslint . && node scripts/verify-agent-definition-samples.mjs",
         "lint:fix": "eslint . --fix",
-        "build": "rm -rf lib && pnpm generate:typert && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsc-alias -p tsconfig.json && tsdown --config tsdown.config.ts",
+        "build": "rm -rf lib && pnpm generate:typert && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsc-alias -p tsconfig.json && node scripts/rewrite-declaration-imports.mjs && tsdown --config tsdown.config.ts",
         "typecheck:host": "tsc -p tsconfig.json --noEmit",
         "typecheck:client": "pnpm generate:typert && tsc -p tsconfig.client.json --noEmit",
         "typecheck:remote-test": "pnpm generate:typert && tsc -p tsconfig.remote-test.json --noEmit",

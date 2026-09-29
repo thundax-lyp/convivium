@@ -1,6 +1,6 @@
-import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
-import { createFakeCatalogDomain, createFakeMeetingDomain } from "./domain-storage.js";
+import type { RepositoryAuthorizationValidator } from "@/repository/types.ts";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { createFakeCatalogDomain, createFakeMeetingDomain } from "./domain-storage.ts";
 
 export const allow: RepositoryAuthorizationValidator = {
     validateCreate: () => undefined,

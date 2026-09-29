@@ -1,10 +1,10 @@
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import type { MeetingSummary, MeetingView } from "@/protocol/index.js";
-import type { MeetingTranslate } from "./locales.js";
-import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.js";
-import { SubmissionFeedback } from "./meeting-submission-feedback.js";
-import { renderMeetingPanelLayout } from "./meeting-panel-layout.js";
+import type { MeetingSummary, MeetingView } from "@/protocol/index.ts";
+import type { MeetingTranslate } from "./locales.ts";
+import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.ts";
+import { SubmissionFeedback } from "./meeting-submission-feedback.tsx";
+import { renderMeetingPanelLayout } from "./meeting-panel-layout.tsx";
 import {
     INITIAL_FRESHNESS,
     INITIAL_WORKSPACE,
@@ -12,7 +12,7 @@ import {
     resetWorkspaceForMeeting,
     type MeetingsFreshnessState,
     type MeetingsWorkspaceState
-} from "./meeting-workspace-state.js";
+} from "./meeting-workspace-state.ts";
 
 type MeetingPanelFailure =
     | {

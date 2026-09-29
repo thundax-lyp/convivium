@@ -6,8 +6,8 @@ import {
     MeetingCommandSchema,
     type MeetingCommand,
     type MeetingReadResult
-} from "@/protocol/index.js";
-import type { ContributorRoleDefinitionId } from "@/role-composition/model.js";
+} from "@/protocol/index.ts";
+import type { ContributorRoleDefinitionId } from "@/role-composition/index.ts";
 
 interface StartGrant {
     readonly turn: number;
@@ -67,7 +67,7 @@ export class MeetingStartGate {
                 });
                 continue;
             }
-            if (goal.startsWith("cancel")) {
+            if (/^cancel(?:\s|$)/.test(goal)) {
                 this.grants.delete(sessionId);
                 this.cancelGrants.delete(sessionId);
                 continue;

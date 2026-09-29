@@ -1,9 +1,9 @@
-import { peerBindings } from "../../fixtures/peer-ownership.js";
+import { peerBindings } from "../../fixtures/peer-ownership.ts";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { describe, expect, it } from "vitest";
 
-import { resolveMeetingCaller, type MeetingOwnershipLookup } from "@/dsh/caller-resolver.js";
+import { resolveMeetingCaller, type MeetingOwnershipLookup } from "@/dsh/caller-resolver.ts";
 
 function agent(id: string): Agent {
     return { id: SessionId(id) } as Agent;

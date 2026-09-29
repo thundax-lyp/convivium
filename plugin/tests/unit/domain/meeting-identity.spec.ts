@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { recommendIdentity, recordIdentityAdmissionResult } from "@/domain/index.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { recommendIdentity, recordIdentityAdmissionResult } from "@/domain/index.ts";
 
 const secondAgendaState = () => {
     const state = makeRunningMeetingStateV1();

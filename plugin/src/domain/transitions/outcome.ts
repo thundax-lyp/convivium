@@ -7,7 +7,7 @@ import type {
     Issue,
     CompletionDeclaration,
     CompletionFact
-} from "@/domain/meeting-state.js";
+} from "@/domain/index.ts";
 import type {
     OutcomeActor,
     RecordProposalRevisionInput,
@@ -19,13 +19,13 @@ import type {
     SubmitCompletionDeclarationInput,
     RecordCompletionFactInput,
     ChangeCompletionFactInput
-} from "./outcome-types.js";
+} from "./outcome-types.ts";
 import {
     evidenceOk,
     requiredReviewOk,
     currentRevision,
     recalculateMeetingCompletion
-} from "./outcome-completion.js";
+} from "./outcome-completion.ts";
 export type {
     OutcomeActor,
     RecordProposalRevisionInput,
@@ -37,11 +37,11 @@ export type {
     SubmitCompletionDeclarationInput,
     RecordCompletionFactInput,
     ChangeCompletionFactInput
-} from "./outcome-types.js";
-export { recalculateMeetingCompletion, isObjectiveSatisfied } from "./outcome-completion.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import type { MeetingTransitionResult } from "./result.js";
-import { rejectedTransition } from "./result.js";
+} from "./outcome-types.ts";
+export { recalculateMeetingCompletion, isObjectiveSatisfied } from "./outcome-completion.ts";
+import { validateMeetingState } from "@/domain/index.ts";
+import type { MeetingTransitionResult } from "./result.ts";
+import { rejectedTransition } from "./result.ts";
 
 const bad = (
     s: MeetingState,

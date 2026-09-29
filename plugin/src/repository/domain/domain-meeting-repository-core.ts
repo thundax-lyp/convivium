@@ -5,11 +5,11 @@ import {
     matchesPendingAdmission,
     validateDescriptor,
     isOwnershipUpdateAllowed
-} from "./session-ownership-validation.js";
-import type { PreparedDescriptor } from "@/role-composition/model.js";
-import { DomainError } from "@/domain/index.js";
-import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.js";
-import type { CatalogDomain, MeetingDomain } from "./specs.js";
+} from "./session-ownership-validation.ts";
+import type { PreparedDescriptor } from "@/role-composition/index.ts";
+import { DomainError } from "@/domain/index.ts";
+import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/index.ts";
+import type { CatalogDomain, MeetingDomain } from "./specs.ts";
 import {
     SessionOwnershipSchema,
     PreparedDescriptorSchema,
@@ -21,7 +21,7 @@ import {
     PersistedOutboxSchema,
     PersistedReceiptSchema,
     PersistenceProjectionSchema
-} from "./schemas.js";
+} from "./schemas.ts";
 import type {
     CommittedResult,
     CreateMeetingInput,
@@ -35,7 +35,7 @@ import type {
     SessionOwnershipInput,
     UpdateBootstrapInput,
     UpdateCreateResultInput
-} from "@/repository/types.js";
+} from "@/repository/index.ts";
 import {
     createProjection,
     createCommitRecord,
@@ -43,19 +43,19 @@ import {
     encodeProjection,
     projectionDigest,
     UnsupportedMeetingStateFormatError
-} from "./projection.js";
-import { diff } from "./json-patch.js";
-import { catalogKey, receiptKey, seqKey } from "./keys.js";
-import { loadProjection } from "./projection.js";
-import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.js";
-import { RepositoryError } from "@/repository/errors.js";
+} from "./projection.ts";
+import { diff } from "./json-patch.ts";
+import { catalogKey, receiptKey, seqKey } from "./keys.ts";
+import { loadProjection } from "./projection.ts";
+import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.ts";
+import { RepositoryError } from "@/repository/index.ts";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
     APPLICATION_CHECKPOINT_TRIGGER_COMMITS,
     APPLICATION_TAIL_HARD_BYTES,
     APPLICATION_TAIL_HARD_COMMITS
-} from "./projection.js";
-import { writeCheckpoint } from "./checkpoint.js";
+} from "./projection.ts";
+import { writeCheckpoint } from "./checkpoint.ts";
 
 const canonicalStateObject = (value: unknown): JsonObject => {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import {
     disposeEvidenceOpportunity,
     requestEvidenceOpportunity
-} from "@/domain/transitions/opportunity.js";
+} from "@/domain/transitions/opportunity.ts";
 
 describe("evidence opportunity transitions", () => {
     it("queues one opportunity and emits a manager notice", () => {

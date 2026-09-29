@@ -1,30 +1,30 @@
-import { captainActorIdFor } from "@/domain/index.js";
+import { captainActorIdFor } from "@/domain/index.ts";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
 import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
 import {
     resolveEffectiveAgentOptions,
     type MeetingAgentModelOverrides
-} from "@/role-composition/model-options.js";
+} from "@/role-composition/index.ts";
 import type {
     ContributorRoleDefinitionId,
     MeetingAgentDefinition,
     PreparedDescriptor
-} from "@/role-composition/model.js";
-import { definitionHash, RoleCompositionError } from "@/role-composition/resolve.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
-import { createMeeting, type MeetingState } from "@/domain/index.js";
-import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.js";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { RepositoryError } from "@/repository/errors.js";
-import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/types.js";
-import { MeetingCommandResultSchema } from "@/protocol/index.js";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+} from "@/role-composition/index.ts";
+import { definitionHash, RoleCompositionError } from "@/role-composition/index.ts";
+import { preflightMeetingIdentity } from "@/role-composition/index.ts";
+import { createMeeting, type MeetingState } from "@/domain/index.ts";
+import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.ts";
+import type { DomainRepositoryRegistry } from "@/repository/index.ts";
+import { RepositoryError } from "@/repository/index.ts";
+import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/index.ts";
+import { MeetingCommandResultSchema } from "@/protocol/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
 import {
     LOCAL_CONTROLLER_PRINCIPAL_ID,
     type CreateMeetingCommand,
     type MeetingCreationCoordinator
-} from "@/runtime/application-service/meeting-command.js";
+} from "./application-service/index.ts";
 
 export interface TargetMeetingCreationDependencies {
     readonly registry: DomainRepositoryRegistry<MeetingState>;

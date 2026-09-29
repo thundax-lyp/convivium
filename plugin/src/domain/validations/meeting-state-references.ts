@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/meeting-state.js";
+import type { MeetingState } from "@/domain/index.ts";
 import {
     checkRefs,
     ids,
@@ -7,7 +7,7 @@ import {
     ref,
     type RecordValue,
     indexVersionOwners
-} from "./meeting-state-helpers.js";
+} from "./meeting-state-helpers.ts";
 
 const fail = (path: string) => path;
 

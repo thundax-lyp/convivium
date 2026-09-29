@@ -4,8 +4,8 @@ import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import Tools from "@deepseek-ai/dsh-tools";
 
-import { apply, inject } from "@/index.js";
-import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
+import { apply, inject } from "@/index.ts";
+import { createFakeDomainFacility } from "../fixtures/domain-storage.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
 const config = {
@@ -32,24 +32,17 @@ describe("Convivium host inject", () => {
 });
 
 describe("Convivium local Meeting route lifecycle", () => {
-    async function host(
+    const host = async (
         host: "127.0.0.1" | "localhost" | "0.0.0.0" | undefined,
-        runtimeConfig = config,
-        workspace: { path: string } | undefined = undefined,
-        includeWorkspaceRegistry = false
-    ) {
+        runtimeConfig = config
+    ) => {
         const routeDispose = vi.fn();
         const register = vi.fn(() => routeDispose);
         const effects: Array<() => void | Promise<void>> = [];
         const toolDisposers: Array<ReturnType<typeof vi.fn>> = [];
         const childOrder: string[] = [];
-        const workspaceRegistry = includeWorkspaceRegistry
-            ? { get: vi.fn(() => workspace) }
-            : undefined;
         const ctx = {
-            get: vi.fn((key: string) =>
-                key === "workspaceRegistry" ? workspaceRegistry : undefined
-            ),
+            get: vi.fn(() => undefined),
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
             },
@@ -136,7 +129,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                 }
             }
         };
-    }
+    };
 
     it("registers exactly one Remote Service on loopback", async () => {
         const fixture = await host("127.0.0.1");
@@ -196,21 +189,6 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         await fixture.dispose();
         expect(fixture.toolDisposers).toHaveLength(14);
-    });
-
-    it("does not activate legacy workspace projection", async () => {
-        const fixture = await host(
-            "0.0.0.0",
-            { ...config, developerMarkdownWorkspaceId: "workspace-1" },
-            { path: "/tmp/convivium-workspace" },
-            true
-        );
-        await fixture.dispose();
-        const withoutWorkspace = await host("0.0.0.0", {
-            ...config,
-            developerMarkdownWorkspaceId: "missing"
-        });
-        await withoutWorkspace.dispose();
     });
 });
 

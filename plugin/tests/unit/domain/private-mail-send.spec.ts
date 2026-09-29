@@ -5,14 +5,14 @@ import {
     expirePrivateMail,
     sendPrivateMail,
     startPrivateMail
-} from "@/domain/transitions/private-mail.js";
-import type { MeetingState } from "@/domain/meeting-state.js";
+} from "@/domain/transitions/private-mail.ts";
+import type { MeetingState } from "@/domain/meeting-state.ts";
 import {
     expectPrivateMailRejection as rejected,
     privateMailInput as input,
     privateMailState,
     privateMailStateWithContribution as withContribution
-} from "./private-mail-fixtures.js";
+} from "./private-mail-fixtures.ts";
 
 describe("private mail send and start", () => {
     it("sends queued mail with fixed context, deadline, and session effect", () => {

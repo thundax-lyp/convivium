@@ -1,4 +1,4 @@
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
 import {
     captainActorIdFor,
     abortRound,
@@ -28,14 +28,14 @@ import {
     type MeetingDomainEffectRequest,
     type MeetingState,
     type MeetingTransitionResult
-} from "@/domain/index.js";
-import type { MeetingCommand } from "@/protocol/index.js";
-import type { CommittedFactRecord } from "@/repository/types.js";
+} from "@/domain/index.ts";
+import type { MeetingCommand } from "@/protocol/index.ts";
+import type { CommittedFactRecord } from "@/repository/index.ts";
 import type {
     MeetingCommandApplicationDependencies,
     MeetingCommandExecutionContext,
     ResolvedCallerScope
-} from "./meeting-command.js";
+} from "./meeting-command.ts";
 
 export class TransitionRejected extends Error {
     constructor(

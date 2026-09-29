@@ -1,4 +1,4 @@
-import { en, zh, type MeetingLocaleKey, type MeetingTranslate } from "@/client/locales.js";
+import { en, zh, type MeetingLocaleKey, type MeetingTranslate } from "@/client/locales.ts";
 
 export function meetingTranslator(locale: "zh" | "en"): MeetingTranslate {
     const dictionary = locale === "zh" ? zh : en;

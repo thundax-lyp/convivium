@@ -1,4 +1,4 @@
-import type { PersistenceProjection } from "./domain/schemas.js";
+import type { PersistenceProjection } from "./domain/index.ts";
 
 export interface MeetingDiagnostic {
     meetingId: string;

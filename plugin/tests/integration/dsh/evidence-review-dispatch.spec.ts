@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createReviewDeliveryDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { createReviewDeliveryDispatcher } from "@/runtime/services/evidence-review-dispatch.ts";
 
 const item = {
     id: "effect-delivery-1",

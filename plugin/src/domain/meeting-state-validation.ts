@@ -1,13 +1,8 @@
-import type { MeetingState } from "./meeting-state.js";
-import {
-    own,
-    ownUndefined,
-    record,
-    type RecordValue
-} from "./validations/meeting-state-helpers.js";
-import { validateMeetingStateOutcomes } from "./validations/meeting-state-outcomes.js";
-import { validateMeetingStateReferences } from "./validations/meeting-state-references.js";
-import { parseMeetingStateShape } from "./validations/meeting-state-schema.js";
+import type { MeetingState } from "./meeting-state.ts";
+import { own, ownUndefined, record, type RecordValue } from "./validations/index.ts";
+import { validateMeetingStateOutcomes } from "./validations/index.ts";
+import { validateMeetingStateReferences } from "./validations/index.ts";
+import { parseMeetingStateShape } from "./validations/index.ts";
 
 export type MeetingStateValidationResult =
     | { kind: "valid"; state: MeetingState }

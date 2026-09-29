@@ -7,7 +7,7 @@ import {
     type ValueSchemaSpec
 } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
-import type { ResolvedMeetingCaller } from "@/dsh/index.js";
+import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
 import {
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
@@ -26,8 +26,8 @@ import {
     type MeetingReadResult,
     type ReadMeetingRequest,
     ReviewWorkerOutputSchema
-} from "@/protocol/index.js";
-import type { MeetingCommandApplication } from "@/runtime/index.js";
+} from "@/protocol/index.ts";
+import type { MeetingCommandApplication } from "@/runtime/index.ts";
 
 export interface TargetMeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCaller | undefined>;
@@ -45,6 +45,14 @@ export interface MeetingCommandToolDependencies {
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
     readonly reviewWorkers: Pick<SubagentRuntime, "start">;
+    readonly reviewPrompts: {
+        resolve(input: {
+            meetingId: string;
+            versionId: string;
+            caller: ResolvedMeetingCaller;
+            signal: AbortSignal;
+        }): Promise<string | undefined>;
+    };
     readonly callers: TargetMeetingToolCallerResolver;
     readonly reader: TargetMeetingToolReader;
 }
@@ -255,8 +263,7 @@ const reviewWorkerParameters = {
     input: {
         ...exactObject({
             meetingId: requiredString("Meeting identifier supplied by the review request."),
-            versionId: requiredString("Immutable evidence version assigned to this worker."),
-            prompt: requiredString("Complete review instructions and immutable evidence input.")
+            versionId: requiredString("Immutable evidence version assigned to this worker.")
         }),
         required: true,
         description: "One machine-validated review-worker request."
@@ -294,7 +301,7 @@ const commandToolParameters = (kind: keyof typeof actionSchemas): ParameterSchem
 });
 
 function rejected(
-    code: "INVALID_ARGUMENT" | "UNAUTHORIZED",
+    code: "INVALID_ARGUMENT" | "UNAUTHORIZED" | "REVIEWER_CONFLICT",
     message: string
 ): MeetingCommandResult {
     return { kind: "rejected", error: { code, message } };
@@ -440,15 +447,10 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                 const input = args.input as Record<string, unknown>;
                 const meetingId = input.meetingId;
                 const versionId = input.versionId;
-                const prompt = input.prompt;
-                if (
-                    typeof meetingId !== "string" ||
-                    typeof versionId !== "string" ||
-                    typeof prompt !== "string"
-                ) {
+                if (typeof meetingId !== "string" || typeof versionId !== "string") {
                     return rejected(
                         "INVALID_ARGUMENT",
-                        "Expected meetingId, versionId and prompt strings."
+                        "Expected meetingId and versionId strings."
                     ) as unknown as JsonValue;
                 }
                 if (exec.agent === undefined) {
@@ -466,6 +468,18 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                     return rejected(
                         "UNAUTHORIZED",
                         "Only the active Evidence Reviewer may run a review worker."
+                    ) as unknown as JsonValue;
+                }
+                const prompt = await dependencies.reviewPrompts.resolve({
+                    meetingId,
+                    versionId,
+                    caller,
+                    signal: exec.signal
+                });
+                if (prompt === undefined) {
+                    return rejected(
+                        "REVIEWER_CONFLICT",
+                        "The active claim and immutable review input are unavailable."
                     ) as unknown as JsonValue;
                 }
                 const run = await dependencies.reviewWorkers.start("spawn", {

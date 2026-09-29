@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import type { EvidenceVersion } from "@/domain/index.js";
-import { createEvidenceReviewDispatcher } from "@/runtime/services/evidence-review-dispatch.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import type { EvidenceVersion } from "@/domain/index.ts";
+import {
+    createEvidenceReviewDispatcher,
+    createReviewWorkerPromptResolver
+} from "@/runtime/services/evidence-review-dispatch.ts";
 
 const outboxItem = (payload: Record<string, unknown>) => ({
     id: "effect-review-1",
@@ -13,6 +16,85 @@ const outboxItem = (payload: Record<string, unknown>) => ({
     leaseOwner: "worker",
     leaseToken: "token",
     leaseDeadline: 2
+});
+
+it("builds worker input from the active claim, immutable version, and fixed baseline", async () => {
+    const { state, ownership } = stateWithPendingReview();
+    let currentOwnership = ownership;
+    let now = 7;
+    state.evidencePackages[1]!.versions[0]!.status = "validating";
+    state.reviewClaims = [
+        {
+            id: "review-claim-v1",
+            sourceEffectId: "effect-review-1",
+            roundId: "round-current",
+            reviewerId: "reviewer-v1",
+            versionId: "version-pending",
+            claimedAt: 6,
+            expiresAt: 100
+        }
+    ];
+    const resolve = createReviewWorkerPromptResolver({
+        registry: {
+            openMeeting: async () => ({
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 7,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 6
+                    },
+                    sessionOwnership: currentOwnership
+                })
+            })
+        } as never,
+        clock: { now: () => now }
+    }).resolve;
+    const caller = {
+        caller: {
+            channel: "dsh_tool",
+            principalId: "reviewer-v1",
+            sessionBindingId: ownership[0]!.id
+        },
+        meetingId: state.id,
+        identityId: "reviewer-v1",
+        role: "evidence_reviewer",
+        ownership: ownership[0]
+    } as never;
+    const request = {
+        meetingId: state.id,
+        versionId: "version-pending",
+        caller,
+        signal: new AbortController().signal
+    };
+
+    const prompt = await resolve(request);
+    expect(prompt).toBeDefined();
+    expect(JSON.parse(prompt!)).toMatchObject({
+        pending: {
+            version: { id: "version-pending", observation: "observation:version-pending" },
+            baseline: [
+                {
+                    publicationId: "publication-baseline",
+                    evidence: [{ version: { id: "version-baseline" } }]
+                }
+            ]
+        },
+        reviewConstraint: {
+            versionId: "version-pending",
+            allowedBaselineEvidenceIds: ["version-baseline"]
+        }
+    });
+    expect(await resolve({ ...request, versionId: "version-baseline" })).toBeUndefined();
+    now = 100;
+    expect(await resolve(request)).toBeUndefined();
+    now = 7;
+    currentOwnership = [{ ...ownership[0]!, capabilityStatus: "revoked" }] as never;
+    expect(await resolve(request)).toBeUndefined();
+    currentOwnership = ownership;
+    state.reviewClaims = [];
+    expect(await resolve(request)).toBeUndefined();
 });
 
 function stateWithPendingReview() {
@@ -340,8 +422,9 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope.instructions).toContain("未得到 completed 结果时直接结束");
         expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
         expect(envelope.instructions).toContain(
-            "convivium_run_review_worker 的 arguments 仍只有顶层 input"
+            "convivium_run_review_worker 的 arguments 只有顶层 input"
         );
+        expect(envelope.instructions).toContain("不传 prompt");
         expect(envelope.instructions).toContain(
             "工具 arguments 根对象直接使用 MeetingCommand 字段"
         );
@@ -409,7 +492,6 @@ describe("evidence review request dispatcher v1", () => {
             "dimensions 只能是 source、credibility、completeness、support 四个键"
         );
         expect(envelope.instructions).toContain("workerOutputSchema");
-        expect(envelope.instructions).toContain("reviewItemRules.itemTemplate");
         expect(envelope.instructions).toContain("机器校验的 workerOutputSchema");
         expect(envelope.instructions).toContain("工具参数直接使用结构化 object");
         expect(envelope.instructions).not.toContain("replacement one-shot worker");

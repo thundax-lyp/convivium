@@ -4,7 +4,7 @@ import type {
     MeetingListResult,
     MeetingReadResult,
     RefreshNotice
-} from "@/protocol/index.js";
+} from "@/protocol/index.ts";
 
 export type RemoteJsonValue =
     | null

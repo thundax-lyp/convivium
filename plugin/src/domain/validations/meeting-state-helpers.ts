@@ -37,7 +37,7 @@ export const ids = (targets: readonly { id: string }[]): Set<string> => {
     return new Set(targets.map(({ id }) => id));
 };
 
-export const indexVersionOwners = (state: import("@/domain/meeting-state.js").MeetingState) => {
+export const indexVersionOwners = (state: import("@/domain/index.ts").MeetingState) => {
     return new Map(
         state.evidencePackages.flatMap((pack) =>
             pack.versions.map((version) => [version.id, pack] as const)

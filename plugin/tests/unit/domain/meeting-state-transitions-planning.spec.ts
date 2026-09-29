@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 import {
     state,
     local,
@@ -8,7 +8,7 @@ import {
     terminalState,
     publishedQuestionState,
     planNextStep
-} from "./meeting-state-transitions-fixtures.js";
+} from "./meeting-state-transitions-fixtures.ts";
 
 it("records a manager plan and supersedes the prior active plan atomically", () => {
     const current = publishedQuestionState(false);

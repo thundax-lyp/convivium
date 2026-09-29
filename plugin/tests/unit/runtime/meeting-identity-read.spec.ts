@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { createMeetingIdentityReader } from "@/runtime/services/meeting-identity-read.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { createMeetingIdentityReader } from "@/runtime/services/meeting-identity-read.ts";
 
 const caller = (role: "manager" | "evidence_reviewer" | "participant", identityId: string) => ({
     caller: {

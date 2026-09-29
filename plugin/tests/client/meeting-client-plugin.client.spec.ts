@@ -1,7 +1,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { apply, inject } from "@/client/index.js";
+import { apply, inject } from "@/client/index.tsx";
 
 const NS = "convivium.meeting";
 

@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
-import { definitionHash } from "@/role-composition/resolve.js";
-import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.js";
+import { parseAgentDefinitions } from "@/role-composition/model.ts";
+import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts";
+import { definitionHash } from "@/role-composition/resolve.ts";
+import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 
 const fixture = async () => {
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));

@@ -4,7 +4,7 @@ import type {
     MeetingState,
     OpaqueId,
     ReviewDimension
-} from "@/domain/index.js";
+} from "@/domain/index.ts";
 
 export const MAX_EVIDENCE_VALIDATION_FAILURES = 5;
 
@@ -47,8 +47,8 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
-import { roundReadyNotice } from "./round.js";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
+import { roundReadyNotice } from "./round.ts";
 const valid = (now: number) => {
     return Number.isSafeInteger(now) && now >= 0;
 };

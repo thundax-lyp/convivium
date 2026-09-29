@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 import {
     local,
     captain,
@@ -12,7 +12,7 @@ import {
     recordIssue,
     disposeIssue,
     issueState
-} from "./meeting-state-transitions-fixtures.js";
+} from "./meeting-state-transitions-fixtures.ts";
 
 it.each([
     ["local record", local, recordQuestion(), "UNAUTHORIZED"],

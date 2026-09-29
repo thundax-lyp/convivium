@@ -1,8 +1,8 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
-import type { EffectiveAgentOptions, MeetingAgentDefinition, ResourceBinding } from "./model.js";
-import { definitionHash } from "./resolve.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import type { EffectiveAgentOptions, MeetingAgentDefinition, ResourceBinding } from "./model.ts";
+import { definitionHash } from "./resolve.ts";
 
 export const readRoleResource = async (packageRoot: string, resource: string): Promise<Buffer> => {
     const root = resolve(packageRoot, "config");

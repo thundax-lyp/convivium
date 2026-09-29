@@ -1,9 +1,9 @@
-import type { MeetingView } from "@/protocol/index.js";
+import type { MeetingView } from "@/protocol/index.ts";
 import type {
     TimelineFilterState,
     TimelineLane,
     TimelineObjectRef
-} from "./meeting-workspace-state.js";
+} from "./meeting-workspace-state.ts";
 
 export type TimelineObjectKind =
     | "lifecycle"

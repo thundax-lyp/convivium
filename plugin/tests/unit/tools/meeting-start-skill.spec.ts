@@ -6,7 +6,7 @@ import {
     createMeetingStartCommand,
     registerMeetingCancelTool,
     registerMeetingStartTool
-} from "@/tools/meeting-start-skill.js";
+} from "@/tools/meeting-start-skill.ts";
 
 const directMessage = (id: string, text: string) => ({
     id,
@@ -99,6 +99,23 @@ describe("chat Meeting start", () => {
         const gate = new MeetingStartGate();
         gate.observe("session-1", 3, [directMessage("input-1", "/convivium")]);
         expect(gate.take("session-1")).toBeUndefined();
+    });
+
+    it("accepts a cancel-prefixed objective without granting an incomplete cancel command", () => {
+        const gate = new MeetingStartGate();
+        gate.observe("session-1", 3, [
+            directMessage("input-1", "/convivium cancellation strategies")
+        ]);
+        expect(gate.take("session-1")).toEqual({
+            turn: 3,
+            goal: "cancellation strategies",
+            requestId: "skill:input-1"
+        });
+        expect(gate.takeCancel("session-1")).toBeUndefined();
+
+        gate.observe("session-1", 4, [directMessage("input-2", "/convivium cancel meeting-1")]);
+        expect(gate.take("session-1")).toBeUndefined();
+        expect(gate.takeCancel("session-1")).toBeUndefined();
     });
 
     it("submits one authorized create and denies unbound tool calls", async () => {

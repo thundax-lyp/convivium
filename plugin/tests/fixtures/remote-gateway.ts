@@ -2,8 +2,8 @@ import { Context } from "@deepseek-ai/cordis";
 import TypertGatewayService from "@deepseek-ai/dsh-api-gateway";
 import TypertRegistry from "@deepseek-ai/dsh-typert-registry";
 import type { InvokeRemoteRequest } from "@deepseek-ai/dsh-api-gateway";
-import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
-import { ConviviumRemoteService } from "@/remote/index.js";
+import type { LocalMeetingWebRuntime } from "@/runtime/index.ts";
+import { ConviviumRemoteService } from "@/remote/index.ts";
 import { TYPERT } from "@convivium/dsh-plugin/typert";
 
 export async function createRemoteGateway(runtime: LocalMeetingWebRuntime) {

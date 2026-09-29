@@ -1,25 +1,25 @@
 import { DomainError as StorageDomainError } from "@deepseek-ai/dsh-storage-domain";
-import type { DiagnosticSink } from "@/repository/diagnostics.js";
+import type { DiagnosticSink } from "@/repository/index.ts";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import { RepositoryError } from "@/repository/errors.js";
-import { UnsupportedMeetingStateFormatError } from "./projection.js";
+import { RepositoryError } from "@/repository/index.ts";
+import { UnsupportedMeetingStateFormatError } from "./projection.ts";
 import type {
     CreateMeetingInput,
     JsonObject,
     MeetingStateCodec,
     MeetingSnapshot,
     RepositoryAuthorizationValidator
-} from "@/repository/types.js";
-import { DomainMeetingRepository } from "./domain-meeting-repository.js";
-import { catalogKey, meetingDomainName } from "./keys.js";
-import { loadProjection } from "./projection.js";
+} from "@/repository/index.ts";
+import { DomainMeetingRepository } from "./domain-meeting-repository.ts";
+import { catalogKey, meetingDomainName } from "./keys.ts";
+import { loadProjection } from "./projection.ts";
 import {
     catalogDomainSpec,
     createMeetingDomainSpec,
     type CatalogDomain,
     type MeetingDomain
-} from "./specs.js";
-import type { CatalogMeetingRecord, CreationRecord } from "./schemas.js";
+} from "./specs.ts";
+import type { CatalogMeetingRecord, CreationRecord } from "./schemas.ts";
 
 export interface DomainFacilityPort {
     open<S extends DomainSpec>(spec: S): Promise<Domain<S>>;

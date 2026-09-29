@@ -1,14 +1,14 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.ts";
 import {
     abortRound,
     isRoundClosable,
     openRound as openRoundTransition,
     respondRoundParticipation
-} from "@/domain/transitions/round.js";
-import { raiseHand } from "@/domain/transitions/hand-raise.js";
+} from "@/domain/transitions/round.ts";
+import { raiseHand } from "@/domain/transitions/hand-raise.ts";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 

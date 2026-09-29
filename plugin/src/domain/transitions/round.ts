@@ -1,9 +1,9 @@
-import type { MeetingState, OpaqueId, Round } from "@/domain/index.js";
+import type { MeetingState, OpaqueId, Round } from "@/domain/index.ts";
 import {
     rejectedTransition as rejected,
     type AgentNoticeEffectRequest,
     type MeetingTransitionResult
-} from "./result.js";
+} from "./result.ts";
 
 type OpenRoundInput = {
     roundId: OpaqueId;

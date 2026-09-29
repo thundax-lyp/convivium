@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { recordProposalRevision } from "@/domain/transitions/outcome.js";
-import { validState, proposalState } from "./outcome-fixtures.js";
+import { recordProposalRevision } from "@/domain/transitions/outcome.ts";
+import { validState, proposalState } from "./outcome-fixtures.ts";
 
 describe("proposal revision gates", () => {
     const input = (overrides: Record<string, unknown> = {}) => ({

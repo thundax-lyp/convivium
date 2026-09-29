@@ -2,6 +2,9 @@ import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const versionSuffix = /(?:^|[_a-zA-Z])(?:V|v)[1-9][0-9]*$/;
 const versionedPathSegment = /(?:^|[._-])v[1-9][0-9]*(?:[._-]|$)/i;
@@ -44,38 +47,233 @@ const noVersionSuffix = {
     })
 };
 
-// These top-level modules expose index.ts (or index.tsx) as their public entry.
-const publicModules = [
-    "client",
-    "domain",
-    "dsh",
-    "projection",
-    "protocol",
-    "remote",
-    "runtime",
-    "tools"
-];
-
-function sourceImportRules(owner, root = false) {
-    const externalModules = publicModules.filter((name) => name !== owner).join("|");
-    const patterns = [
-        {
-            regex: "(?:^|/)\\.\\.(?:/|$)",
-            message: "禁止父级相对导入。请使用 @/，跨模块通过公开 index.js，并保留 .js 扩展名。"
-        },
-        {
-            regex: `^@/(?:${externalModules})(?:/(?!index\\.js$)|$)`,
-            message: "禁止跨模块引用内部文件；请从 @/<module>/index.js 导入已有公开符号。"
-        }
-    ];
-    if (root) {
-        patterns.push({
-            regex: `^(?:\\./)+(?:${externalModules})(?:/(?!index\\.js$)|$)`,
-            message: "插件装配必须通过 ./<module>/index.js 使用模块公开入口。"
-        });
+const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "src");
+const testRoot = resolve(dirname(fileURLToPath(import.meta.url)), "tests");
+const sourceParts = (path) => relative(sourceRoot, path).split(sep).filter(Boolean);
+const sourceFile = (path) => {
+    if (existsSync(path) && statSync(path).isDirectory()) {
+        return ["index.ts", "index.tsx"]
+            .map((name) => join(path, name))
+            .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
     }
-    return importRules(patterns);
-}
+    if (path.endsWith(".ts") || path.endsWith(".tsx")) {
+        return existsSync(path) && statSync(path).isFile() ? path : undefined;
+    }
+    const stem = path.endsWith(".js") ? path.slice(0, -3) : path;
+    return [".ts", ".tsx"]
+        .map((extension) => `${stem}${extension}`)
+        .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+};
+const hasDirectoryIndex = (directory) =>
+    existsSync(join(directory, "index.ts")) || existsSync(join(directory, "index.tsx"));
+const staticSpecifier = (node) =>
+    node.type === "TemplateLiteral" && node.expressions.length === 0
+        ? node.quasis[0].value.cooked
+        : node.value;
+
+const directoryIndex = {
+    meta: {
+        type: "problem",
+        docs: { description: "Require an index in every source directory" },
+        messages: { missing: "源码目录 {{directory}} 必须提供 index.ts 或 index.tsx。" },
+        schema: []
+    },
+    create: (context) => ({
+        Program: (node) => {
+            const currentDirectory = dirname(context.filename);
+            const report = (directory) =>
+                context.report({
+                    node,
+                    messageId: "missing",
+                    data: { directory: relative(sourceRoot, directory) || "src" }
+                });
+            if (!hasDirectoryIndex(currentDirectory)) {
+                report(currentDirectory);
+            }
+            const rootIndex = join(
+                sourceRoot,
+                existsSync(join(sourceRoot, "index.ts")) ? "index.ts" : "index.tsx"
+            );
+            if (context.filename !== rootIndex) {
+                return;
+            }
+            const pending = [sourceRoot];
+            while (pending.length > 0) {
+                const directory = pending.pop();
+                if (directory !== currentDirectory && !hasDirectoryIndex(directory)) {
+                    report(directory);
+                }
+                for (const entry of readdirSync(directory, { withFileTypes: true })) {
+                    if (entry.isDirectory()) {
+                        pending.push(join(directory, entry.name));
+                    }
+                }
+            }
+        }
+    })
+};
+
+const indexReexportsOnly = {
+    meta: {
+        type: "problem",
+        docs: { description: "Keep source index files as re-export lists" },
+        messages: {
+            reexport: '入口 {{path}} 只能包含具名再导出声明：export { ... } from "..."。'
+        },
+        schema: []
+    },
+    create: (context) => ({
+        Program: (node) => {
+            for (const statement of node.body) {
+                if (statement.type !== "ExportNamedDeclaration" || !statement.source) {
+                    context.report({
+                        node: statement,
+                        messageId: "reexport",
+                        data: { path: relative(sourceRoot, context.filename) }
+                    });
+                }
+            }
+        }
+    })
+};
+
+const directoryBoundary = {
+    meta: {
+        type: "problem",
+        docs: { description: "Require imports through the nearest directory boundary" },
+        messages: {
+            parentRelative: "禁止父级相对导入 {{specifier}}；跨父目录使用 @/。",
+            entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。",
+            dynamic: "源码动态导入必须使用可静态确定的字符串路径。"
+        },
+        schema: []
+    },
+    create: (context) => {
+        const importer = context.filename;
+        const importerDir = dirname(importer);
+        const check = (node, specifier) => {
+            if (typeof specifier !== "string") {
+                return;
+            }
+            if (specifier.split("/").includes("..")) {
+                context.report({ node, messageId: "parentRelative", data: { specifier } });
+                return;
+            }
+            if (!specifier.startsWith("@/") && !specifier.startsWith("./")) {
+                return;
+            }
+            const unresolved = specifier.startsWith("@/")
+                ? resolve(sourceRoot, specifier.slice(2))
+                : resolve(importerDir, specifier);
+            const target = sourceFile(unresolved);
+            if (!target || !target.startsWith(`${sourceRoot}${sep}`)) {
+                return;
+            }
+            const from = sourceParts(importerDir);
+            const to = sourceParts(dirname(target));
+            const common = from.findIndex((part, index) => part !== to[index]);
+            const shared = common === -1 ? Math.min(from.length, to.length) : common;
+            if (from.length === to.length && shared === to.length) {
+                return;
+            }
+            const boundary = to.slice(0, shared + 1);
+            const directory = boundary.join("/") || "src";
+            const indexExtension = existsSync(join(sourceRoot, ...boundary, "index.ts"))
+                ? ".ts"
+                : ".tsx";
+            const expected =
+                shared === from.length
+                    ? `./${boundary.at(-1)}/index${indexExtension}`
+                    : `@/${boundary.length ? `${directory}/` : ""}index${indexExtension}`;
+            if (specifier !== expected) {
+                context.report({ node, messageId: "entry", data: { directory, expected } });
+            }
+        };
+        return {
+            ImportDeclaration: (node) => check(node.source, node.source.value),
+            ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
+            ExportAllDeclaration: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => {
+                const specifier = staticSpecifier(node.source);
+                if (typeof specifier !== "string") {
+                    context.report({ node: node.source, messageId: "dynamic" });
+                    return;
+                }
+                check(node.source, specifier);
+            },
+            TSImportType: (node) => check(node.source, node.source?.value)
+        };
+    }
+};
+
+const typescriptImportExtension = {
+    meta: {
+        type: "problem",
+        docs: { description: "Use TypeScript extensions for local TypeScript imports" },
+        messages: { extension: "TypeScript 源码导入应使用 {{expected}}。" },
+        schema: []
+    },
+    create: (context) => {
+        const check = (node, specifier) => {
+            if (typeof specifier !== "string") {
+                return;
+            }
+            if (
+                !specifier.startsWith("@/") &&
+                !specifier.startsWith("./") &&
+                !specifier.startsWith("../")
+            ) {
+                return;
+            }
+            const unresolved = specifier.startsWith("@/")
+                ? resolve(sourceRoot, specifier.slice(2))
+                : resolve(dirname(context.filename), specifier);
+            const target = sourceFile(unresolved);
+            if (
+                !target ||
+                (!target.startsWith(`${sourceRoot}${sep}`) &&
+                    !target.startsWith(`${testRoot}${sep}`))
+            ) {
+                return;
+            }
+            const extension = target.endsWith(".tsx") ? ".tsx" : ".ts";
+            if (specifier.endsWith(extension)) {
+                return;
+            }
+            const expected =
+                existsSync(unresolved) && statSync(unresolved).isDirectory()
+                    ? `${specifier}/index${extension}`
+                    : specifier.endsWith(".js")
+                      ? `${specifier.slice(0, -3)}${extension}`
+                      : `${specifier}${extension}`;
+            if (specifier === expected) {
+                return;
+            }
+            context.report({
+                node,
+                messageId: "extension",
+                data: { expected }
+            });
+        };
+        return {
+            ImportDeclaration: (node) => check(node.source, node.source.value),
+            ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
+            ExportAllDeclaration: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => check(node.source, staticSpecifier(node.source)),
+            TSImportType: (node) => check(node.source, node.source?.value)
+        };
+    }
+};
+
+const conviviumPlugin = {
+    rules: {
+        "no-version-suffix": noVersionSuffix,
+        "directory-index": directoryIndex,
+        "index-reexports-only": indexReexportsOnly,
+        "directory-boundary": directoryBoundary,
+        "typescript-import-extension": typescriptImportExtension
+    }
+};
 
 function importRules(patterns) {
     return {
@@ -129,6 +327,10 @@ export default tseslint.config(
         }
     },
     {
+        files: ["src/**/index.{ts,tsx}"],
+        rules: { "convivium/index-reexports-only": "error" }
+    },
+    {
         files: ["src/**/*.{ts,tsx}"],
         rules: {
             "max-lines": [
@@ -173,21 +375,18 @@ export default tseslint.config(
         }
     },
     {
+        files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+        plugins: { convivium: conviviumPlugin },
+        rules: { "convivium/typescript-import-extension": "error" }
+    },
+    {
         files: ["src/**/*.{ts,tsx}"],
-        plugins: { convivium: { rules: { "no-version-suffix": noVersionSuffix } } },
         rules: {
             "no-console": "error",
             "convivium/no-version-suffix": "error",
-            ...sourceImportRules()
+            "convivium/directory-index": "error",
+            "convivium/directory-boundary": "error"
         }
-    },
-    ...publicModules.map((name) => ({
-        files: [`src/${name}/**/*.{ts,tsx}`],
-        rules: sourceImportRules(name)
-    })),
-    {
-        files: ["src/*.{ts,tsx}"],
-        rules: sourceImportRules(undefined, true)
     },
     {
         files: ["tests/**/*.{ts,tsx}"],

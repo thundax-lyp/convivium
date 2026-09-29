@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     decodeMeetingIdentitySessionLabel,
     encodeMeetingIdentitySessionLabel
-} from "@/dsh/labels.js";
+} from "@/dsh/labels.ts";
 
 describe("target meeting identity session labels", () => {
     it.each(["manager", "evidence_reviewer", "participant"] as const)(

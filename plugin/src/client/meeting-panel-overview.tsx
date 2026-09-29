@@ -1,11 +1,11 @@
 import * as React from "react";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import type { MeetingView } from "@/protocol/index.js";
+import type { MeetingView } from "@/protocol/index.ts";
 import { Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import { knownEnum as known, type MeetingTranslate } from "./locales.js";
-import { lifecycleLabel } from "./meeting-panel-sections.js";
-import { buildTimelineNodes } from "./meeting-timeline-projection.js";
-import type { MeetingFocusTarget } from "./meeting-workspace-state.js";
+import { knownEnum as known, type MeetingTranslate } from "./locales.ts";
+import { lifecycleLabel } from "./meeting-panel-sections.tsx";
+import { buildTimelineNodes } from "./meeting-timeline-projection.ts";
+import type { MeetingFocusTarget } from "./meeting-workspace-state.ts";
 
 export interface SectionProps {
     detail: MeetingView;

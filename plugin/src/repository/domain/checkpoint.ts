@@ -1,4 +1,4 @@
-import { type MeetingDomain } from "./specs.js";
+import { type MeetingDomain } from "./specs.ts";
 import {
     type CheckpointPage,
     type CheckpointPointer,
@@ -6,15 +6,15 @@ import {
     CheckpointPageSchema,
     CheckpointPointerSchema,
     CheckpointRootSchema
-} from "./schemas.js";
+} from "./schemas.ts";
 import {
     CHECKPOINT_PAGE_RAW_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES,
     encodeProjection,
     projectionDigest
-} from "./projection.js";
-import { generation } from "./keys.js";
-import { encodeCanonicalJson, sha256Hex } from "./canonical-json.js";
+} from "./projection.ts";
+import { generation } from "./keys.ts";
+import { encodeCanonicalJson, sha256Hex } from "./canonical-json.ts";
 
 const pageKey = (gen: string, index: number): string =>
     `${gen}_${index.toString().padStart(10, "0")}`;

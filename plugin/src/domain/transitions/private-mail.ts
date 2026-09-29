@@ -4,8 +4,8 @@ import {
     type MeetingState,
     type OpaqueId,
     type PrivateMail
-} from "@/domain/index.js";
-import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.js";
+} from "@/domain/index.ts";
+import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
 
 export interface SendPrivateMailInput {
     mailId: OpaqueId;

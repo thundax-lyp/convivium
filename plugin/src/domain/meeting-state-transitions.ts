@@ -7,11 +7,11 @@ import type {
     RiskLevel,
     RoundGoal,
     TargetDomainFactPayload
-} from "./meeting-state.js";
-export type { TargetDomainFactPayload } from "./meeting-state.js";
-import { validateMeetingState } from "./meeting-state-validation.js";
+} from "./meeting-state.ts";
+export type { TargetDomainFactPayload } from "./meeting-state.ts";
+import { validateMeetingState } from "./meeting-state-validation.ts";
 import { z } from "zod";
-import { recalculateMeetingCompletion } from "@/domain/transitions/outcome.js";
+import { recalculateMeetingCompletion } from "./transitions/index.ts";
 
 export type TargetDomainActor =
     { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };

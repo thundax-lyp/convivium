@@ -1,12 +1,12 @@
-import { parseAgentModelOverrides } from "./role-composition/model-options.js";
-import type { MeetingAgentModelOverrides } from "./role-composition/model-options.js";
+import { parseAgentModelOverrides } from "./role-composition/index.ts";
+import type { MeetingAgentModelOverrides } from "./role-composition/index.ts";
 import Schema from "@deepseek-ai/schemastery";
 
-import { contributorRoleDefinitionIds, parseAgentDefinitions } from "./role-composition/model.js";
+import { contributorRoleDefinitionIds, parseAgentDefinitions } from "./role-composition/index.ts";
 import type {
     ContributorRoleDefinitionId,
     MeetingAgentDefinition
-} from "./role-composition/model.js";
+} from "./role-composition/index.ts";
 
 export interface Config {
     provider: string;

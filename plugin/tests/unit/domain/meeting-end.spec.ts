@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { endMeeting } from "@/domain/transitions/meeting-end.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { endMeeting } from "@/domain/transitions/meeting-end.ts";
 
 describe("meeting end", () => {
     it("ends a running meeting with a partial termination and archive effect", () => {

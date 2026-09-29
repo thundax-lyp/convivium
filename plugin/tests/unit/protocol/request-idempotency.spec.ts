@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serializeValidatedRequest } from "@/protocol/request-idempotency.js";
+import { serializeValidatedRequest } from "@/protocol/request-idempotency.ts";
 
 describe("request identity canonical serialization", () => {
     it("sorts object keys while preserving array order and omitting undefined properties", () => {

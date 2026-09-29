@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.js";
-import type { MeetingState } from "@/domain/index.js";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { RepositoryCommand } from "@/repository/types.js";
-import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.js";
-import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity.js";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
+import type { MeetingState } from "@/domain/index.ts";
+import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.ts";
+import type { RepositoryCommand } from "@/repository/types.ts";
+import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
+import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity.ts";
 
 const managerCaller = {
     channel: "dsh_tool" as const,

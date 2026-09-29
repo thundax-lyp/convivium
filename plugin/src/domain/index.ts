@@ -1,25 +1,69 @@
-export * from "./errors.js";
-export * from "./meeting-state.js";
-export * from "./transitions/index.js";
+export { abilityNames } from "./abilities.ts";
+export { DomainError } from "./errors.ts";
 export {
-    validateMeetingState,
-    type MeetingStateValidationResult
-} from "./meeting-state-validation.js";
+    type EpochMs,
+    type OpaqueId,
+    type MeetingRole,
+    type MeetingIdentity,
+    type Round,
+    type SupplementHand,
+    type EvidenceOpportunityRequest,
+    type Contribution,
+    type TextWithReason,
+    type EvidenceVersion,
+    type EvidenceValidationFailureReason,
+    type ReviewDimension,
+    type EvidenceReview,
+    type Publication,
+    type FormalMessage,
+    type PrivateMail,
+    type ArchivePackage,
+    type MeetingState,
+    type ArchiveQuestionIssueDispositionFact,
+    type IdentityRecommendation,
+    type CompletionFact,
+    type Position,
+    type DecisionCandidate,
+    type ProposalRevision,
+    type Decision,
+    type Issue,
+    type CompletionDeclaration
+} from "./meeting-state.ts";
 export {
-    transitionMeetingState,
-    type TargetDomainActor,
-    type TargetAgendaInput,
-    type TargetMeetingAction,
-    type TargetDomainFactPayload,
-    type TargetDomainFact,
-    type TargetTransitionResult
-} from "./meeting-state-transitions.js";
-export {
+    openRound,
+    abortRound,
+    isRoundClosable,
+    roundParticipationDeadline,
+    respondRoundParticipation,
+    raiseHand,
+    disposeHandRaise,
+    submitEvidence,
+    claimEvidenceReview,
+    failEvidenceValidation,
+    submitEvidenceReview,
+    recordReviewDelivery,
+    MAX_EVIDENCE_VALIDATION_FAILURES,
+    closeContribution,
+    publishRound,
+    createMeeting,
+    endMeeting,
+    startMeetingArchive,
+    completeMeetingArchive,
     recommendIdentity,
     recordIdentityAdmissionResult,
     type IdentityAdmissionResultContext,
-    type IdentityRecommendationDraft,
-    type IdentityTransitionResult
-} from "./transitions/meeting-identity.js";
-
-export { captainActorIdFor } from "./control-actor.js";
+    pendingDecisionCandidates,
+    decide,
+    changeDecision,
+    disposeRisk,
+    recordCompletionFact,
+    changeCompletionFact,
+    type MeetingDomainEffectRequest,
+    type MeetingTransitionResult
+} from "./transitions/index.ts";
+export { validateMeetingState } from "./meeting-state-validation.ts";
+export {
+    transitionMeetingState,
+    type TargetDomainFactPayload
+} from "./meeting-state-transitions.ts";
+export { captainActorIdFor } from "./control-actor.ts";

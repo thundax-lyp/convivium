@@ -1,22 +1,22 @@
-import { captainActorIdFor } from "@/domain/control-actor.js";
+import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { abortRound, openRound } from "@/domain/transitions/round.js";
-import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { submitEvidence } from "@/domain/transitions/format-evidence.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { abortRound, openRound } from "@/domain/transitions/round.ts";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.ts";
+import { submitEvidence } from "@/domain/transitions/format-evidence.ts";
 import {
     claimEvidenceReview,
     failEvidenceValidation,
     MAX_EVIDENCE_VALIDATION_FAILURES,
     recordReviewDelivery,
     submitEvidenceReview
-} from "@/domain/transitions/evidence-review.js";
-import { isRoundClosable } from "@/domain/transitions/round.js";
-import { publishRound } from "@/domain/transitions/round-publication.js";
-import { closeContribution } from "@/domain/transitions/contribution-exit.js";
-import { validateMeetingState } from "@/domain/meeting-state-validation.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { transitionMeetingState } from "@/domain/meeting-state-transitions.js";
+} from "@/domain/transitions/evidence-review.ts";
+import { isRoundClosable } from "@/domain/transitions/round.ts";
+import { publishRound } from "@/domain/transitions/round-publication.ts";
+import { closeContribution } from "@/domain/transitions/contribution-exit.ts";
+import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();

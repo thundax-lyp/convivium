@@ -1,7 +1,7 @@
-import type { MeetingState } from "@/domain/index.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { RecoveryResult } from "@/repository/types.js";
-import type { MeetingOutboxWakeup } from "@/runtime/outbox-worker.js";
+import type { MeetingState } from "@/domain/index.ts";
+import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { RecoveryResult } from "@/repository/index.ts";
+import type { MeetingOutboxWakeup } from "@/runtime/index.ts";
 
 export interface MeetingCommandRecoveryDependencies {
     readonly repository: MeetingRepositoryPort<MeetingState>;

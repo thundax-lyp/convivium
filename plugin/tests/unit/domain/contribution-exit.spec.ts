@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.js";
-import { openRound } from "@/domain/transitions/round.js";
-import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.js";
-import { closeContribution } from "@/domain/transitions/contribution-exit.js";
-import { isRoundClosable } from "@/domain/transitions/round.js";
+import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
+import { openRound } from "@/domain/transitions/round.ts";
+import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.ts";
+import { closeContribution } from "@/domain/transitions/contribution-exit.ts";
+import { isRoundClosable } from "@/domain/transitions/round.ts";
 
 function stateWithContribution() {
     const state = makeRunningMeetingStateV1();
