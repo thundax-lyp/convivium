@@ -18,8 +18,6 @@ export {
     type MeetingMode,
     type TimelineLane,
     type TimelineZoom,
-    type DataFreshness,
-    type ConnectionState,
     type TimelineObjectRef,
     type MeetingFocusTarget,
     type TimelineFilterState,
