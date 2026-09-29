@@ -1,4 +1,11 @@
-export * from "./result.ts";
+export {
+    type MeetingDomainErrorCode,
+    type AgentNoticeEffectBase,
+    type AgentNoticeEffectRequest,
+    type MeetingDomainEffectRequest,
+    type MeetingTransitionResult,
+    rejectedTransition
+} from "./result.ts";
 export { requestEvidenceOpportunity, disposeEvidenceOpportunity } from "./opportunity.ts";
 export {
     openRound,
