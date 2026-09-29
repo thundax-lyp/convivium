@@ -2,6 +2,9 @@ import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import { existsSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const versionSuffix = /(?:^|[_a-zA-Z])(?:V|v)[1-9][0-9]*$/;
 const versionedPathSegment = /(?:^|[._-])v[1-9][0-9]*(?:[._-]|$)/i;
@@ -44,38 +47,83 @@ const noVersionSuffix = {
     })
 };
 
-// These top-level modules expose index.ts (or index.tsx) as their public entry.
-const publicModules = [
-    "client",
-    "domain",
-    "dsh",
-    "projection",
-    "protocol",
-    "remote",
-    "runtime",
-    "tools"
-];
+const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "src");
+const sourceParts = (path) => relative(sourceRoot, path).split(sep).filter(Boolean);
+const sourceFile = (path) => {
+    const base = existsSync(path) && statSync(path).isDirectory() ? join(path, "index.js") : path;
+    return [".ts", ".tsx"]
+        .map((extension) => base.replace(/\.js$/, extension))
+        .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+};
 
-function sourceImportRules(owner, root = false) {
-    const externalModules = publicModules.filter((name) => name !== owner).join("|");
-    const patterns = [
-        {
-            regex: "(?:^|/)\\.\\.(?:/|$)",
-            message: "禁止父级相对导入。请使用 @/，跨模块通过公开 index.js，并保留 .js 扩展名。"
+const directoryBoundary = {
+    meta: {
+        type: "problem",
+        docs: {
+            description: "Require directory entrypoints and imports through the nearest boundary"
         },
-        {
-            regex: `^@/(?:${externalModules})(?:/(?!index\\.js$)|$)`,
-            message: "禁止跨模块引用内部文件；请从 @/<module>/index.js 导入已有公开符号。"
-        }
-    ];
-    if (root) {
-        patterns.push({
-            regex: `^(?:\\./)+(?:${externalModules})(?:/(?!index\\.js$)|$)`,
-            message: "插件装配必须通过 ./<module>/index.js 使用模块公开入口。"
-        });
+        messages: {
+            missingIndex: "源码目录必须提供 index.ts 或 index.tsx。",
+            parentRelative: "禁止父级相对导入；跨父目录使用 @/。",
+            entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。"
+        },
+        schema: []
+    },
+    create: (context) => {
+        const importer = context.filename;
+        const importerDir = dirname(importer);
+        const check = (node, specifier) => {
+            if (typeof specifier !== "string") {
+                return;
+            }
+            if (specifier.split("/").includes("..")) {
+                context.report({ node, messageId: "parentRelative" });
+                return;
+            }
+            if (!specifier.startsWith("@/") && !specifier.startsWith("./")) {
+                return;
+            }
+            const unresolved = specifier.startsWith("@/")
+                ? resolve(sourceRoot, specifier.slice(2))
+                : resolve(importerDir, specifier);
+            const target = sourceFile(unresolved);
+            if (!target || !target.startsWith(`${sourceRoot}${sep}`)) {
+                return;
+            }
+            const from = sourceParts(importerDir);
+            const to = sourceParts(dirname(target));
+            const common = from.findIndex((part, index) => part !== to[index]);
+            const shared = common === -1 ? Math.min(from.length, to.length) : common;
+            if (shared === to.length) {
+                return;
+            }
+            const boundary = to.slice(0, shared + 1);
+            const directory = boundary.join("/");
+            const expected =
+                shared === from.length
+                    ? `./${boundary.at(-1)}/index.js`
+                    : `@/${directory}/index.js`;
+            if (specifier !== expected) {
+                context.report({ node, messageId: "entry", data: { directory, expected } });
+            }
+        };
+        return {
+            Program: (node) => {
+                if (
+                    !existsSync(join(importerDir, "index.ts")) &&
+                    !existsSync(join(importerDir, "index.tsx"))
+                ) {
+                    context.report({ node, messageId: "missingIndex" });
+                }
+            },
+            ImportDeclaration: (node) => check(node.source, node.source.value),
+            ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
+            ExportAllDeclaration: (node) => check(node.source, node.source.value),
+            ImportExpression: (node) => check(node.source, node.source.value),
+            TSImportType: (node) => check(node.source, node.source?.value)
+        };
     }
-    return importRules(patterns);
-}
+};
 
 function importRules(patterns) {
     return {
@@ -174,20 +222,19 @@ export default tseslint.config(
     },
     {
         files: ["src/**/*.{ts,tsx}"],
-        plugins: { convivium: { rules: { "no-version-suffix": noVersionSuffix } } },
+        plugins: {
+            convivium: {
+                rules: {
+                    "no-version-suffix": noVersionSuffix,
+                    "directory-boundary": directoryBoundary
+                }
+            }
+        },
         rules: {
             "no-console": "error",
             "convivium/no-version-suffix": "error",
-            ...sourceImportRules()
+            "convivium/directory-boundary": "error"
         }
-    },
-    ...publicModules.map((name) => ({
-        files: [`src/${name}/**/*.{ts,tsx}`],
-        rules: sourceImportRules(name)
-    })),
-    {
-        files: ["src/*.{ts,tsx}"],
-        rules: sourceImportRules(undefined, true)
     },
     {
         files: ["tests/**/*.{ts,tsx}"],

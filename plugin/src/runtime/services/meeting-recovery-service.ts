@@ -1,6 +1,6 @@
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/meeting-repository-port.js";
-import type { MeetingBootstrap, MeetingSnapshot } from "@/repository/types.js";
+import type { DomainRepositoryRegistry } from "@/repository/index.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/index.js";
+import type { MeetingBootstrap, MeetingSnapshot } from "@/repository/index.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
     readonly name = "LocalMeetingRecoveryUnavailableError";

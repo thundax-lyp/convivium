@@ -1,5 +1,8 @@
 import { z } from "zod";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
+import { abilityNames } from "@/domain/index.js";
+
+export { abilityNames };
 
 const text = z.string().refine((value) => value.trim().length > 0);
 const names = z.array(text).refine((values) => new Set(values).size === values.length);
@@ -23,13 +26,6 @@ export const contributorRoleDefinitionIds = [
     "arxiv_research_analyst"
 ] as const;
 export type ContributorRoleDefinitionId = (typeof contributorRoleDefinitionIds)[number];
-export const abilityNames = [
-    "meeting-facilitation",
-    "repository-analysis",
-    "evidence-review",
-    "github",
-    "arxiv"
-] as const;
 export type AbilityName = (typeof abilityNames)[number];
 const instruction = z.strictObject({
     roleDefinitionId: role,

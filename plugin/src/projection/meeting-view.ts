@@ -15,7 +15,7 @@ import {
     type MeetingSummary,
     type MeetingView
 } from "@/protocol/index.js";
-import type { MeetingSnapshot } from "@/repository/types.js";
+import type { MeetingSnapshot } from "@/repository/index.js";
 
 export type MeetingProjectionCaller =
     | { readonly kind: "captain" }

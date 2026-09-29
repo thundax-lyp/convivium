@@ -5,26 +5,26 @@ import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persis
 import {
     resolveEffectiveAgentOptions,
     type MeetingAgentModelOverrides
-} from "@/role-composition/model-options.js";
+} from "@/role-composition/index.js";
 import type {
     ContributorRoleDefinitionId,
     MeetingAgentDefinition,
     PreparedDescriptor
-} from "@/role-composition/model.js";
-import { definitionHash, RoleCompositionError } from "@/role-composition/resolve.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
+} from "@/role-composition/index.js";
+import { definitionHash, RoleCompositionError } from "@/role-composition/index.js";
+import { preflightMeetingIdentity } from "@/role-composition/index.js";
 import { createMeeting, type MeetingState } from "@/domain/index.js";
 import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.js";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { RepositoryError } from "@/repository/errors.js";
-import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/types.js";
+import type { DomainRepositoryRegistry } from "@/repository/index.js";
+import { RepositoryError } from "@/repository/index.js";
+import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/index.js";
 import { MeetingCommandResultSchema } from "@/protocol/index.js";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
 import {
     LOCAL_CONTROLLER_PRINCIPAL_ID,
     type CreateMeetingCommand,
     type MeetingCreationCoordinator
-} from "@/runtime/application-service/meeting-command.js";
+} from "./application-service/index.js";
 
 export interface TargetMeetingCreationDependencies {
     readonly registry: DomainRepositoryRegistry<MeetingState>;

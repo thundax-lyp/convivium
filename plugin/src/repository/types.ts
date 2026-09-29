@@ -3,7 +3,7 @@ import type {
     ResourceBinding,
     EffectiveAgentOptions,
     PreparedDescriptor
-} from "@/role-composition/model.js";
+} from "@/role-composition/index.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

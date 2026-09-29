@@ -7,36 +7,33 @@ import type { MeetingState } from "@/domain/index.js";
 import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.js";
 import { MeetingCommandResultSchema } from "@/protocol/index.js";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.js";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.js";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { decodeMeetingState, encodeMeetingState } from "@/repository/index.js";
+import { DomainRepositoryRegistry } from "@/repository/index.js";
+import { parseAgentDefinitions } from "@/role-composition/index.js";
 import {
     createMeetingCommandApplication,
     DEADLINE_HANDLER_PRINCIPAL_ID,
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
-} from "./application-service/meeting-command.js";
-import { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
+} from "./application-service/index.js";
+import { createMeetingIdentityEffectHandler } from "./application-service/index.js";
 import { createMeetingCreationCoordinator } from "./meeting-runtime.js";
 import { createMeetingAgentOwner, type RoleCatalogPort } from "@/dsh/index.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
 import { createOutboxWorker } from "./outbox-worker.js";
-import { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
-import { runDueContributionDeadline } from "./services/contribution-deadline.js";
-import {
-    createMeetingIdentityReader,
-    type MeetingIdentityReader
-} from "./services/meeting-identity-read.js";
-import { createMeetingArchiveDispatcher } from "./services/meeting-archive.js";
+import { createMeetingNoticeDispatcher } from "./services/index.js";
+import { runDueContributionDeadline } from "./services/index.js";
+import { createMeetingIdentityReader, type MeetingIdentityReader } from "./services/index.js";
+import { createMeetingArchiveDispatcher } from "./services/index.js";
 import {
     createEvidenceReviewDispatcher,
     createReviewDeliveryDispatcher
-} from "./services/evidence-review-dispatch.js";
-import { provisionMeetingIdentity } from "./services/meeting-identity-provision.js";
-import type { MeetingIdentityProvisionDependencies } from "./services/meeting-identity-provision.js";
-import type { OutboxItem } from "@/repository/types.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+} from "./services/index.js";
+import { provisionMeetingIdentity } from "./services/index.js";
+import type { MeetingIdentityProvisionDependencies } from "./services/index.js";
+import type { OutboxItem } from "@/repository/index.js";
+import type { MeetingRepositoryPort } from "@/repository/index.js";
 
 export const createTargetMeetingEffectDispatcher = (dependencies: {
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
@@ -89,7 +86,7 @@ export const createTargetMeetingEffectDispatcher = (dependencies: {
 export const recoverTargetMeetingDeliveries = async (dependencies: {
     readonly registry: Pick<DomainRepositoryRegistry<MeetingState>, "listMeetings" | "openMeeting">;
     readonly owner: import("@/dsh/index.js").MeetingAgentOwner;
-    readonly definitions: readonly import("@/role-composition/model.js").MeetingAgentDefinition[];
+    readonly definitions: readonly import("@/role-composition/index.js").MeetingAgentDefinition[];
     readonly ensureDelivery: (meetingId: string) => void | Promise<void>;
     readonly stopDelivery: (meetingId: string) => void | Promise<void>;
     readonly meetingId?: string;
@@ -102,8 +99,8 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
         createdAt: _created,
         updatedAt: _updated,
         ...input
-    }: import("@/repository/types.js").SessionOwnership) => input;
-    const definitionFor = (ownership: import("@/repository/types.js").SessionOwnership) => {
+    }: import("@/repository/index.js").SessionOwnership) => input;
+    const definitionFor = (ownership: import("@/repository/index.js").SessionOwnership) => {
         const definition = dependencies.definitions.find(
             (d) => d.agentDefinitionId === ownership.definition.agentDefinitionId
         );
@@ -272,14 +269,14 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
 const createIdentityProvisionOwner = (dependencies: {
     repository: MeetingRepositoryPort<MeetingState>;
     agents: import("@/dsh/index.js").MeetingAgentOwner;
-    definitions: readonly import("@/role-composition/model.js").MeetingAgentDefinition[];
+    definitions: readonly import("@/role-composition/index.js").MeetingAgentDefinition[];
 }): MeetingIdentityProvisionDependencies["owner"] => {
     const { repository, agents, definitions } = dependencies;
     const inputOwnership = ({
         createdAt: _created,
         updatedAt: _updated,
         ...input
-    }: import("@/repository/types.js").SessionOwnership) => input;
+    }: import("@/repository/index.js").SessionOwnership) => input;
     return {
         readOwnership: async (admissionId) =>
             (await repository.recover()).sessionOwnership.find(

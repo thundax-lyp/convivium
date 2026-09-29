@@ -1,3 +1,4 @@
+export { abilityNames } from "./abilities.js";
 export * from "./errors.js";
 export * from "./meeting-state.js";
 export * from "./transitions/index.js";
@@ -14,12 +15,4 @@ export {
     type TargetDomainFact,
     type TargetTransitionResult
 } from "./meeting-state-transitions.js";
-export {
-    recommendIdentity,
-    recordIdentityAdmissionResult,
-    type IdentityAdmissionResultContext,
-    type IdentityRecommendationDraft,
-    type IdentityTransitionResult
-} from "./transitions/meeting-identity.js";
-
 export { captainActorIdFor } from "./control-actor.js";

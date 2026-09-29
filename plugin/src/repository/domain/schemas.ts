@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { abilityNames } from "@/role-composition/model.js";
+import { abilityNames } from "@/domain/index.js";
 import type {
     CommandAuthorization,
     CreateMeetingResult,

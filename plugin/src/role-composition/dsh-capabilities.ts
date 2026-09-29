@@ -4,7 +4,7 @@ import type AgentPresets from "@deepseek-ai/dsh-agent-presets";
 import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
 import { resolve } from "node:path";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
 import {
     abilityNames,
     type AgentDefinitionBinding,

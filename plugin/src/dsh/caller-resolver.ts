@@ -1,5 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SessionOwnership } from "@/repository/types.js";
+import type { SessionOwnership } from "@/repository/index.js";
 import { decodeMeetingIdentitySessionLabel } from "./labels.js";
 export type MeetingOwnershipRecord = SessionOwnership;
 const isActiveMeetingIdentityOwnership = (input: {

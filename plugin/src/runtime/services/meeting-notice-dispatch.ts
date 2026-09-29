@@ -1,8 +1,8 @@
 import { isRoundClosable, type MeetingIdentity, type MeetingState } from "@/domain/index.js";
-import type { MeetingAgentDefinition } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition } from "@/role-composition/index.js";
 import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
-import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
+import type { MeetingRepositoryPort } from "@/repository/index.js";
+import type { OutboxItem, SessionOwnership } from "@/repository/index.js";
 
 const supported = new Set([
     "meeting_started",

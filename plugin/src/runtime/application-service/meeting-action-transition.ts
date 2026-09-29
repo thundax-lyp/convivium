@@ -1,4 +1,4 @@
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
 import {
     captainActorIdFor,
     abortRound,
@@ -30,7 +30,7 @@ import {
     type MeetingTransitionResult
 } from "@/domain/index.js";
 import type { MeetingCommand } from "@/protocol/index.js";
-import type { CommittedFactRecord } from "@/repository/types.js";
+import type { CommittedFactRecord } from "@/repository/index.js";
 import type {
     MeetingCommandApplicationDependencies,
     MeetingCommandExecutionContext,

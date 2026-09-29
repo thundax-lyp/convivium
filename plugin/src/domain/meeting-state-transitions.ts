@@ -11,7 +11,7 @@ import type {
 export type { TargetDomainFactPayload } from "./meeting-state.js";
 import { validateMeetingState } from "./meeting-state-validation.js";
 import { z } from "zod";
-import { recalculateMeetingCompletion } from "@/domain/transitions/outcome.js";
+import { recalculateMeetingCompletion } from "./transitions/index.js";
 
 export type TargetDomainActor =
     { kind: "captain_user"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };

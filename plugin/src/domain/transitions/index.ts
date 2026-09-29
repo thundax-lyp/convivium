@@ -56,7 +56,8 @@ export {
     submitCompletionDeclaration,
     recordCompletionFact,
     changeCompletionFact,
-    isObjectiveSatisfied
+    isObjectiveSatisfied,
+    recalculateMeetingCompletion
 } from "./outcome.js";
 export type {
     OutcomeActor,

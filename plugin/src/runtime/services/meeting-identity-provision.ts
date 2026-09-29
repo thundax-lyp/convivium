@@ -1,15 +1,15 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
-import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/model.js";
+import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.js";
 import {
     resolveEffectiveAgentOptions,
     type MeetingAgentModelOverrides
-} from "@/role-composition/model-options.js";
-import { resolveDynamicMeetingDefinition } from "@/role-composition/resolve.js";
-import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.js";
+} from "@/role-composition/index.js";
+import { resolveDynamicMeetingDefinition } from "@/role-composition/index.js";
+import { preflightMeetingIdentity } from "@/role-composition/index.js";
 import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.js";
-import type { SessionOwnership, SessionOwnershipInput } from "@/repository/types.js";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import type { SessionOwnership, SessionOwnershipInput } from "@/repository/index.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/index.js";
 import type { IdentityAdmissionResultContext } from "@/domain/index.js";
 
 export type IdentityProvisionResult =

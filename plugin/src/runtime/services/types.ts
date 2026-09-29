@@ -1,5 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { OutboxItem } from "@/repository/types.js";
+import type { OutboxItem } from "@/repository/index.js";
 import type { OutboxWorkerRepository } from "@/runtime/outbox-worker.js";
 
 /**

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-本文定义实现和评审中的工程取舍与通用验证要求。测试体系与命名由 [Test Rules](./TEST-RULES.md) 定义；系统组成、所有权、依赖方向和模块导入边界由 [Architecture](./ARCHITECTURE.md) 定义；本文不改变产品需求或接口契约。
+本文定义实现和评审中的工程取舍与通用验证要求。测试体系与命名由 [Test Rules](./TEST-RULES.md) 定义；系统组成、所有权和依赖方向由 [Architecture](./ARCHITECTURE.md) 定义；源码目录和导入规则由 [Architecture Rules](./ARCHITECTURE-RULES.md) 定义；本文不改变产品需求或接口契约。
 
 ## Scope
 
@@ -15,6 +15,10 @@
 - 全工程新增或修改的普通函数与 React 组件使用箭头函数。需要 `function` 自身语义的生成器、依赖动态 `this` 或原型行为的方法，以及外部接口要求的方法声明可以保留相应语法；不得仅为形式统一改变这些语义。
 - 插件工程的控制流语句使用花括号；`plugin/eslint.config.mjs` 以 `curly: ["error", "all"]` 检查。
 - 现有未触及代码不因 JSX 与函数语法规则单独进行全量改写；修改相关代码时遵守以上要求，并保持可观察行为。
+
+## Project Layout
+
+仓库根 `package.json` 只代理 `plugin/package.json` 的开发和验证命令，不承担依赖、构建或交付职责。直接由 Node 执行的 `plugin/scripts/` 不使用 TypeScript 路径别名；文件系统路径不是源码模块导入。源码目录与导入规则见 [Architecture Rules](./ARCHITECTURE-RULES.md)。
 
 ## Implementation Economy
 

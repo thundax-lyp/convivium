@@ -6,7 +6,7 @@ import {
 import { projectMeetingView } from "@/projection/index.js";
 import type { ReadMeetingRequest, MeetingReadResult } from "@/protocol/index.js";
 import type { MeetingState } from "@/domain/index.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+import type { MeetingRepositoryPort } from "@/repository/index.js";
 
 export interface MeetingIdentityReaderDependencies {
     readonly registry: {

@@ -15,9 +15,9 @@ import {
     type MeetingCommand
 } from "@/protocol/index.js";
 import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.js";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { meetingIdFor } from "@/repository/domain/keys.js";
-import { RepositoryError } from "@/repository/errors.js";
+import type { DomainRepositoryRegistry } from "@/repository/index.js";
+import { meetingIdFor } from "@/repository/index.js";
+import { RepositoryError } from "@/repository/index.js";
 import type {
     CommandAuthorization,
     CommittedFactRecord,
@@ -26,7 +26,7 @@ import type {
     RepositoryCommand,
     SessionOwnership,
     TransitionResult
-} from "@/repository/types.js";
+} from "@/repository/index.js";
 
 export const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
 export const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";

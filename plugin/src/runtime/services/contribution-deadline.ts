@@ -1,9 +1,9 @@
 import { roundParticipationDeadline, type MeetingState } from "@/domain/index.js";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+import type { MeetingRepositoryPort } from "@/repository/index.js";
 import {
     DEADLINE_HANDLER_PRINCIPAL_ID,
     type MeetingCommandApplication
-} from "@/runtime/application-service/meeting-command.js";
+} from "@/runtime/application-service/index.js";
 
 const dueExit = (state: MeetingState, now: number) => {
     for (const round of state.rounds) {

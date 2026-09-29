@@ -6,7 +6,7 @@ import {
     validateDescriptor,
     isOwnershipUpdateAllowed
 } from "./session-ownership-validation.js";
-import type { PreparedDescriptor } from "@/role-composition/model.js";
+import type { PreparedDescriptor } from "@/role-composition/index.js";
 import { DomainError } from "@/domain/index.js";
 import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.js";
 import type { CatalogDomain, MeetingDomain } from "./specs.js";

@@ -1,4 +1,4 @@
-import type { PreparedDescriptor } from "@/role-composition/model.js";
+import type { PreparedDescriptor } from "@/role-composition/index.js";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,

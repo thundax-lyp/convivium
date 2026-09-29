@@ -30,18 +30,15 @@ export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export {
     createMeetingCommandApplication,
     type MeetingCommandApplication
-} from "./application-service/meeting-command.js";
-export { createMeetingIdentityEffectHandler } from "./application-service/meeting-identity.js";
-export { provisionMeetingIdentity } from "./services/meeting-identity-provision.js";
-export { createMeetingNoticeDispatcher } from "./services/meeting-notice-dispatch.js";
-export {
-    createMeetingIdentityReader,
-    type MeetingIdentityReader
-} from "./services/meeting-identity-read.js";
+} from "./application-service/index.js";
+export { createMeetingIdentityEffectHandler } from "./application-service/index.js";
+export { provisionMeetingIdentity } from "./services/index.js";
+export { createMeetingNoticeDispatcher } from "./services/index.js";
+export { createMeetingIdentityReader, type MeetingIdentityReader } from "./services/index.js";
 export {
     createEvidenceReviewDispatcher,
     createReviewDeliveryDispatcher
-} from "./services/evidence-review-dispatch.js";
-export { createMeetingArchiveDispatcher } from "./services/meeting-archive.js";
-export { recoverMeetingCommands } from "./services/meeting-command-recovery.js";
+} from "./services/index.js";
+export { createMeetingArchiveDispatcher } from "./services/index.js";
+export { recoverMeetingCommands } from "./services/index.js";
 export type { MeetingOutboxWakeup } from "./outbox-worker.js";

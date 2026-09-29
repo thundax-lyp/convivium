@@ -33,7 +33,7 @@ Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。项目边界以 [
 - 必须遵守 [Engineering Rules 的 Implementation Economy](docs/00-governance/ENGINEERING-RULES.md#implementation-economy)：新增机制必须有当前依据，采用保持必要不变量的最小安全改动，不顺带扩张范围。
 - 全工程代码遵守 [Engineering Rules 的 Code Style](docs/00-governance/ENGINEERING-RULES.md#code-style)：React UI 使用 TSX/JSX，普通函数与组件使用箭头函数；保留必要的语义例外。
 - 未发布阶段禁止给契约、方法、类型、工具名和角色身份资源加版本后缀；详见 [Engineering Rules 的 Code Style](docs/00-governance/ENGINEERING-RULES.md#code-style)，并通过插件 lint 检查。
-- 必须遵守 [Import Paths](docs/00-governance/ARCHITECTURE.md#import-paths) 和 [Public Module Entrypoints](docs/00-governance/ARCHITECTURE.md#public-module-entrypoints)：源码禁止父级相对导入；测试引用源码使用 `@/`；生产代码跨模块只引用登记的公开入口。不得通过禁用 lint、放宽规则或创建转发文件绕过检查。
+- 必须遵守 [Architecture 的 Source Boundaries](docs/00-governance/ARCHITECTURE.md#source-boundaries) 和 [Architecture Rules](docs/00-governance/ARCHITECTURE-RULES.md)：源码路径与目录入口以 Hard Rules 的实际门禁和 Review Rules 的语义审阅分别约束；不得通过禁用 lint、放宽规则或创建无职责的转发文件绕过检查。
 - 实现前明确业务不变量与反例，测试检查可观察行为；具体要求见 [Engineering Checks](docs/00-governance/ENGINEERING-RULES.md#engineering-checks) 和 [Test Rules](docs/00-governance/TEST-RULES.md)。
 
 ## Collaboration

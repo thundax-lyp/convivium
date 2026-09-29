@@ -26,7 +26,7 @@
 - 保存稳定、跨任务适用的工程规则。
 - 不记录一次任务的执行过程、临时方案或完成历史。
 - 规则变化时检查相关 Skill；只有入口约束或读取路由变化时才同步根 `AGENTS.md`。
-- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；工程取舍和通用验证方法由 `ENGINEERING-RULES.md` 定义；测试体系、资产取舍与测试命名由 `TEST-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
+- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；插件源码目录和导入约定由 `ARCHITECTURE-RULES.md` 定义；工程取舍和通用验证方法由 `ENGINEERING-RULES.md` 定义；测试体系、资产取舍与测试命名由 `TEST-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
 - 暂存、提交和历史修改规则统一由 `COMMIT-RULES.md` 定义。
 - 分支、PR、Review、CI 和合并规则统一由 `PR-RULES.md` 定义。
 
@@ -163,7 +163,9 @@ readiness 证据覆盖：
 
 - 产品行为变化：`10-requirements/`。
 - 接口、事件、IPC、配置或数据格式变化：`20-interfaces/`。
-- 进程边界、依赖方向或固定工程做法变化：`00-governance/`。
+- 系统组成、所有权或依赖方向变化：`00-governance/ARCHITECTURE.md`。
+- 固定工程做法变化：对应的 `00-governance/` 规则；文件移动、目录入口和 lint 清单调整本身不触发 Architecture 更新。
+- 插件源码目录或导入规则变化：`ARCHITECTURE-RULES.md`；仅落实既有规则的代码迁移不要求改写规则。
 - 实现结构、状态机或失败处理变化：`30-designs/`。
 - 验证范围、交付状态或已知缺口变化：`40-readiness/`。
 - 启动、恢复、升级或发布方式变化：`50-operations/`。

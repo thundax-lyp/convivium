@@ -16,8 +16,21 @@ function staticSpecifiers(file: string): string[] {
     );
     const specifiers: string[] = [];
     source.forEachChild((node) => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            const clause = node.importClause;
+            if (
+                clause?.isTypeOnly ||
+                (clause?.namedBindings &&
+                    ts.isNamedImports(clause.namedBindings) &&
+                    clause.namedBindings.elements.every((element) => element.isTypeOnly))
+            ) {
+                return;
+            }
+            specifiers.push(node.moduleSpecifier.text);
+        }
         if (
-            (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+            ts.isExportDeclaration(node) &&
+            !node.isTypeOnly &&
             node.moduleSpecifier !== undefined &&
             ts.isStringLiteral(node.moduleSpecifier)
         ) {
