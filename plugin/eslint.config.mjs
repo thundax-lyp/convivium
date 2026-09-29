@@ -143,7 +143,8 @@ const directoryBoundary = {
         docs: { description: "Require imports through the nearest directory boundary" },
         messages: {
             parentRelative: "禁止父级相对导入 {{specifier}}；跨父目录使用 @/。",
-            entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。"
+            entry: "目录 {{directory}} 对外只能通过 {{expected}} 引用。",
+            dynamic: "源码动态导入必须使用可静态确定的字符串路径。"
         },
         schema: []
     },
@@ -192,7 +193,14 @@ const directoryBoundary = {
             ImportDeclaration: (node) => check(node.source, node.source.value),
             ExportNamedDeclaration: (node) => check(node.source, node.source?.value),
             ExportAllDeclaration: (node) => check(node.source, node.source.value),
-            ImportExpression: (node) => check(node.source, staticSpecifier(node.source)),
+            ImportExpression: (node) => {
+                const specifier = staticSpecifier(node.source);
+                if (typeof specifier !== "string") {
+                    context.report({ node: node.source, messageId: "dynamic" });
+                    return;
+                }
+                check(node.source, specifier);
+            },
             TSImportType: (node) => check(node.source, node.source?.value)
         };
     }

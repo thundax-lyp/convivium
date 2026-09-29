@@ -43,4 +43,11 @@ describe("source import rules", () => {
         expect(ids).toContain("convivium/directory-boundary");
         expect(ids).toContain("convivium/typescript-import-extension");
     });
+
+    it.each([
+        'void import("@/domain/" + "meeting-state.js");',
+        'void import(`@/domain/${"meeting-state.js"}`);'
+    ])("rejects a computed dynamic import path: %s", async (source) => {
+        expect(await ruleIds(source)).toContain("convivium/directory-boundary");
+    });
 });
