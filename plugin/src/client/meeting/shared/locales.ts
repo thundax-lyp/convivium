@@ -78,7 +78,6 @@ export const zh = {
 
     "tab.meetings": "会议",
     "common.none": "无",
-    "panel.title": "会议",
     "panel.aria": "Convivium 会议",
     "panel.actions.refresh": "刷新",
     "panel.actions.pause": "暂停会议",
@@ -366,7 +365,6 @@ export const en: Record<MeetingLocaleKey, string> = {
 
     "tab.meetings": "Meetings",
     "common.none": "None",
-    "panel.title": "Meetings",
     "panel.aria": "Convivium meetings",
     "panel.actions.refresh": "Refresh",
     "panel.actions.pause": "Pause meeting",

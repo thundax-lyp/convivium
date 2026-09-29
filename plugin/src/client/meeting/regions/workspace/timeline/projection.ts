@@ -3,7 +3,7 @@ import type {
     TimelineFilterState,
     TimelineLane,
     TimelineObjectRef
-} from "./meeting-workspace-state.ts";
+} from "@/client/meeting/shared/index.ts";
 
 export type TimelineObjectKind =
     | "lifecycle"

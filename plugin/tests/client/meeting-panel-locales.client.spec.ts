@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProtocolFailure, type MeetingClient } from "@/client/meeting-client.ts";
-import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.tsx";
-import { MeetingPanelOverview } from "@/client/meeting-panel-overview.tsx";
-import { ConviviumMeetingPanel } from "@/client/meeting-panel.tsx";
+import { ProtocolFailure, type MeetingClient } from "@/client/meeting/client.ts";
+import { renderMeetingPanelLayout } from "@/client/meeting/layout/index.ts";
+import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
+import { ConviviumMeetingPanel } from "@/client/meeting/panel.tsx";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 
@@ -55,7 +55,8 @@ describe("Meeting panel localized presentation", () => {
     it("renders the panel shell in Chinese and English", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
-        expect(screen.getByRole("heading", { name: "会议" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
+        expect(screen.getByRole("heading", { name: "会议导航" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy();
         expect(screen.getByLabelText("会议列表")).toBeTruthy();
         expect(screen.getByText("请选择一个会议。")).toBeTruthy();
@@ -147,7 +148,8 @@ describe("Meeting panel localized presentation", () => {
 
         rerender(emptyLayout("en"));
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
-        expect(screen.getByRole("heading", { name: "Meetings" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
+        expect(screen.getByRole("heading", { name: "Meeting navigator" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
         expect(screen.getByLabelText("Meeting list")).toBeTruthy();
         expect(screen.getByText("Select a meeting.")).toBeTruthy();

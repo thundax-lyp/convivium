@@ -5,7 +5,7 @@ import {
     INITIAL_WORKSPACE,
     controlsEnabled,
     resetWorkspaceForMeeting
-} from "@/client/meeting-workspace-state.ts";
+} from "@/client/meeting/shared/index.ts";
 
 describe("Meetings workspace state", () => {
     it("starts without a selection and with neutral timeline controls", () => {

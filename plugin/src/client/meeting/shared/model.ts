@@ -1,46 +1,8 @@
-export type MeetingMode = "overview" | "timeline";
-
-export type TimelineLane = "captain" | "manager" | "contributor" | "reviewer" | "system";
-
-export type TimelineZoom = 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
-
-export type DataFreshness = "idle" | "loading" | "fresh" | "stale";
-
-export type ConnectionState = "connecting" | "connected" | "disconnected";
-
-export interface TimelineObjectRef {
-    objectKind: string;
-    objectId: string;
-}
-
-export interface MeetingFocusTarget {
-    meetingId: string;
-    objectKind: string;
-    objectId: string;
-}
-
-export interface TimelineFilterState {
-    identityIds: readonly string[];
-    objectKinds: readonly string[];
-    statuses: readonly string[];
-    relatedObjects: readonly TimelineObjectRef[];
-    zoom: TimelineZoom;
-    collapsedLanes: readonly TimelineLane[];
-}
-
-export interface MeetingsWorkspaceState {
-    selectedMeetingId?: string;
-    activeMode: MeetingMode;
-    focusTarget?: MeetingFocusTarget;
-    timeline: TimelineFilterState;
-    viewportRevision: number;
-}
-
-export interface MeetingsFreshnessState {
-    connection: ConnectionState;
-    list: DataFreshness;
-    detail: DataFreshness;
-}
+import type {
+    MeetingsFreshnessState,
+    MeetingsWorkspaceState,
+    TimelineFilterState
+} from "./types.ts";
 
 export const INITIAL_TIMELINE_FILTERS: TimelineFilterState = {
     identityIds: [],

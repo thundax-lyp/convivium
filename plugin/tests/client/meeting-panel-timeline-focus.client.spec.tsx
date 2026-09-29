@@ -1,9 +1,9 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MeetingPanelTimeline } from "@/client/meeting-panel-timeline.tsx";
-import { MeetingPanelOverview } from "@/client/meeting-panel-overview.tsx";
-import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting-workspace-state.ts";
+import { MeetingPanelTimeline } from "@/client/meeting/regions/workspace/timeline/index.ts";
+import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
+import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 

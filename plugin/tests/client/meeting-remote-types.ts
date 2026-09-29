@@ -1,5 +1,5 @@
 import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
-import type { MeetingClient } from "@/client/meeting-client.ts";
+import type { MeetingClient } from "@/client/meeting/client.ts";
 import type {
     MeetingCommandResult,
     MeetingListResult,

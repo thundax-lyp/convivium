@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderMeetingPanelLayout } from "@/client/meeting-panel-layout.tsx";
+import { renderMeetingPanelLayout } from "@/client/meeting/layout/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 

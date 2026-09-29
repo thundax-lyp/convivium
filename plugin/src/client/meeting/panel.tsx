@@ -1,10 +1,10 @@
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingSummary, MeetingView } from "@/protocol/index.ts";
-import type { MeetingTranslate } from "./locales.ts";
-import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./meeting-client.ts";
-import { SubmissionFeedback } from "./meeting-submission-feedback.tsx";
-import { renderMeetingPanelLayout } from "./meeting-panel-layout.tsx";
+import type { MeetingTranslate } from "./shared/index.ts";
+import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./client.ts";
+import { SubmissionFeedback } from "./submission-feedback.tsx";
+import { renderMeetingPanelLayout } from "./layout/index.ts";
 import {
     INITIAL_FRESHNESS,
     INITIAL_WORKSPACE,
@@ -12,7 +12,7 @@ import {
     resetWorkspaceForMeeting,
     type MeetingsFreshnessState,
     type MeetingsWorkspaceState
-} from "./meeting-workspace-state.ts";
+} from "./shared/index.ts";
 
 type MeetingPanelFailure =
     | {
@@ -333,9 +333,17 @@ export const ConviviumMeetingPanel = ({
             onFocusConsumed: () =>
                 setWorkspace((current) => ({ ...current, focusTarget: undefined })),
             onLocateInTimeline: (focusTarget) =>
-                setWorkspace((current) => ({ ...current, activeMode: "timeline", focusTarget })),
+                setWorkspace((current) => ({
+                    ...current,
+                    activeMode: "timeline",
+                    focusTarget
+                })),
             onLocateInOverview: (focusTarget) =>
-                setWorkspace((current) => ({ ...current, activeMode: "overview", focusTarget })),
+                setWorkspace((current) => ({
+                    ...current,
+                    activeMode: "overview",
+                    focusTarget
+                })),
             listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
             detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),
             writePending,

@@ -5,9 +5,9 @@ import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import type {} from "@deepseek-ai/dsh-client-locale/client";
 import contribution from "@convivium/dsh-plugin/remote";
-import { en, MEETING_LOCALE_NS, zh } from "./locales.ts";
-import { createMeetingClient } from "./meeting-client.ts";
-import { ConviviumMeetingPanel } from "./meeting-panel.tsx";
+import { en, MEETING_LOCALE_NS, zh } from "./meeting/index.ts";
+import { createMeetingClient } from "./meeting/index.ts";
+import { ConviviumMeetingPanel } from "./meeting/index.ts";
 
 export const name = "convivium-client";
 

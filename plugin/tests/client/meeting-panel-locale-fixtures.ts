@@ -1,4 +1,9 @@
-import { en, zh, type MeetingLocaleKey, type MeetingTranslate } from "@/client/locales.ts";
+import {
+    en,
+    zh,
+    type MeetingLocaleKey,
+    type MeetingTranslate
+} from "@/client/meeting/shared/index.ts";
 
 export function meetingTranslator(locale: "zh" | "en"): MeetingTranslate {
     const dictionary = locale === "zh" ? zh : en;

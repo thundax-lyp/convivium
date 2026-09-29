@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     renderMeetingPanelLayout,
     type MeetingPanelLayoutProps
-} from "@/client/meeting-panel-layout.tsx";
-import type { MeetingMode } from "@/client/meeting-workspace-state.ts";
+} from "@/client/meeting/layout/index.ts";
+import type { MeetingMode } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { meetingTranslator } from "./meeting-panel-locale-fixtures.ts";
 
