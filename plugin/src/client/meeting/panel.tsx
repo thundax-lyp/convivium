@@ -4,8 +4,8 @@ import type { MeetingSummary, MeetingView } from "@/protocol/index.ts";
 import type { MeetingTranslate } from "./shared/index.ts";
 import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./client.ts";
 import { SubmissionFeedback } from "./submission-feedback.tsx";
-import { renderMeetingPanelLayout } from "./layout/index.ts";
-import type { MeetingsFreshnessState } from "./shared/index.ts";
+import { MeetingPanelLayout } from "./layout/index.ts";
+import type { MeetingPanelLayoutProps, MeetingsFreshnessState } from "./shared/index.ts";
 import { useMeetingTranslate, useMeetingWorkspace } from "./hooks/index.ts";
 
 const INITIAL_FRESHNESS: MeetingsFreshnessState = {
@@ -295,7 +295,7 @@ export const ConviviumMeetingPanel = ({
                     : "Resumed from Meeting panel."
         });
     };
-    return renderMeetingPanelLayout({
+    const layoutProps: MeetingPanelLayoutProps = {
         localFeedback: (
             <SubmissionFeedback
                 submission={localSubmission}
@@ -326,5 +326,6 @@ export const ConviviumMeetingPanel = ({
         pauseMeeting: () => changePause("pause_meeting"),
         resumeMeeting: () => changePause("resume_meeting"),
         endMeeting
-    });
+    };
+    return <MeetingPanelLayout {...layoutProps} />;
 };

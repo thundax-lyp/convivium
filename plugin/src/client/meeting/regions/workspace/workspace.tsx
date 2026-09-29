@@ -10,12 +10,13 @@ import {
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
+import styles from "./workspace.module.css";
 
-export const MeetingWorkspace = ({ ctx }: { ctx: MeetingPanelLayoutProps }): ReactElement => {
+export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement => {
     const t = useMeetingTranslate();
-    const selected = ctx.meetings.find((item) => item.meetingId === ctx.selectedId);
-    const mode = ctx.activeMode ?? "overview";
-    const selectMode = (next: MeetingMode) => ctx.setMode?.(next);
+    const selected = props.meetings.find((item) => item.meetingId === props.selectedId);
+    const mode = props.activeMode ?? "overview";
+    const selectMode = (next: MeetingMode) => props.setMode?.(next);
     const moveMode = (event: React.KeyboardEvent, next: MeetingMode) => {
         event.preventDefault();
         selectMode(next);
@@ -24,64 +25,66 @@ export const MeetingWorkspace = ({ ctx }: { ctx: MeetingPanelLayoutProps }): Rea
         target?.focus();
     };
     return (
-        <main data-testid="meeting-workspace">
-            <Button type="button" variant="outline" size="sm" onClick={ctx.requestRefresh}>
+        <main data-testid="meeting-workspace" className={styles.main}>
+            <Button type="button" variant="outline" size="sm" onClick={props.requestRefresh}>
                 {t("panel.actions.refresh")}
             </Button>
             {selected === undefined ? (
                 <p>{t("panel.selection.prompt")}</p>
-            ) : ctx.detail === undefined ? (
-                ctx.detailError === undefined ? (
+            ) : props.detail === undefined ? (
+                props.detailError === undefined ? (
                     <p>
-                        {ctx.detailCached
+                        {props.detailCached
                             ? t("panel.detail.loading")
                             : t("panel.detail.unavailable")}
                     </p>
                 ) : (
-                    <p role="alert">{ctx.detailError}</p>
+                    <p role="alert">{props.detailError}</p>
                 )
             ) : (
                 <div>
                     <header data-testid="meeting-header">
-                        <h3>{ctx.detail.objective.statement}</h3>
-                        <Pill>{`${t("panel.header.status")}: ${lifecycleLabel(ctx.detail.lifecycle.status, t)}`}</Pill>
-                        <p>{`${t("panel.header.version")}: ${ctx.detail.version}`}</p>
-                        {ctx.detail.controls.includes("pause_meeting") ? (
+                        <h3>{props.detail.objective.statement}</h3>
+                        <Pill>{`${t("panel.header.status")}: ${lifecycleLabel(props.detail.lifecycle.status, t)}`}</Pill>
+                        <p>{`${t("panel.header.version")}: ${props.detail.version}`}</p>
+                        {props.detail.controls.includes("pause_meeting") ? (
                             <Button
                                 type="button"
                                 variant="primary"
                                 size="sm"
-                                disabled={ctx.writePending || ctx.detailCached}
-                                onClick={() => void ctx.pauseMeeting()}
+                                disabled={props.writePending || props.detailCached}
+                                onClick={() => void props.pauseMeeting()}
                             >
                                 {t("panel.actions.pause")}
                             </Button>
                         ) : null}
-                        {ctx.detail.controls.includes("resume_meeting") ? (
+                        {props.detail.controls.includes("resume_meeting") ? (
                             <Button
                                 type="button"
                                 variant="primary"
                                 size="sm"
-                                disabled={ctx.writePending || ctx.detailCached}
-                                onClick={() => void ctx.resumeMeeting()}
+                                disabled={props.writePending || props.detailCached}
+                                onClick={() => void props.resumeMeeting()}
                             >
                                 {t("panel.actions.resume")}
                             </Button>
                         ) : null}
-                        {ctx.detail.controls.includes("end_meeting") ? (
+                        {props.detail.controls.includes("end_meeting") ? (
                             <Button
                                 type="button"
                                 variant="primary"
                                 size="sm"
-                                disabled={ctx.writePending || ctx.detailCached}
-                                onClick={() => void ctx.endMeeting()}
+                                disabled={props.writePending || props.detailCached}
+                                onClick={() => void props.endMeeting()}
                             >
                                 {t("panel.actions.end")}
                             </Button>
                         ) : null}
-                        {ctx.localFeedback}
+                        {props.localFeedback}
                     </header>
-                    {ctx.detailError === undefined ? null : <p role="alert">{ctx.detailError}</p>}
+                    {props.detailError === undefined ? null : (
+                        <p role="alert">{props.detailError}</p>
+                    )}
                     <div role="tablist">
                         <Button
                             id="meeting-mode-overview"
@@ -125,21 +128,21 @@ export const MeetingWorkspace = ({ ctx }: { ctx: MeetingPanelLayoutProps }): Rea
                     >
                         {mode === "overview" ? (
                             <MeetingPanelOverview
-                                detail={ctx.detail}
-                                focusTarget={ctx.focusTarget}
-                                onFocusConsumed={ctx.onFocusConsumed}
-                                onLocateInTimeline={ctx.onLocateInTimeline}
+                                detail={props.detail}
+                                focusTarget={props.focusTarget}
+                                onFocusConsumed={props.onFocusConsumed}
+                                onLocateInTimeline={props.onLocateInTimeline}
                             />
                         ) : (
                             <MeetingPanelTimeline
-                                detail={ctx.detail}
-                                filters={ctx.timelineFilters ?? INITIAL_TIMELINE_FILTERS}
-                                viewportRevision={ctx.viewportRevision ?? 0}
-                                locale={ctx.locale}
-                                onFiltersChange={ctx.onTimelineFiltersChange ?? (() => undefined)}
-                                focusTarget={ctx.focusTarget}
-                                onFocusConsumed={ctx.onFocusConsumed}
-                                onLocateInOverview={ctx.onLocateInOverview}
+                                detail={props.detail}
+                                filters={props.timelineFilters ?? INITIAL_TIMELINE_FILTERS}
+                                viewportRevision={props.viewportRevision ?? 0}
+                                locale={props.locale}
+                                onFiltersChange={props.onTimelineFiltersChange ?? (() => undefined)}
+                                focusTarget={props.focusTarget}
+                                onFocusConsumed={props.onFocusConsumed}
+                                onLocateInOverview={props.onLocateInOverview}
                             />
                         )}
                     </article>

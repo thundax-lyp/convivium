@@ -9,7 +9,7 @@ import type { MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import {
     meetingTranslator,
-    translatedLayout as renderMeetingPanelLayout,
+    translatedLayout,
     translatedPanel,
     withMeetingTranslation
 } from "./meeting-panel-locale-fixtures.ts";
@@ -27,7 +27,7 @@ function inertStream() {
 }
 
 function emptyLayout(locale: "zh" | "en") {
-    return renderMeetingPanelLayout(
+    return translatedLayout(
         {
             meetings: [],
             listLoading: false,
@@ -64,14 +64,14 @@ describe("Meeting panel localized presentation", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "会议导航" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "讨论区" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy();
-        expect(screen.getByLabelText("会议列表")).toBeTruthy();
+        expect(screen.getByRole("tree", { name: "会话" })).toBeTruthy();
         expect(screen.getByText("请选择一个会议。")).toBeTruthy();
 
         const { summary, view } = meetingProjectionFixture();
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -94,7 +94,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByLabelText(`会议 ${summary.meetingId}`)).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -115,7 +115,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByRole("button", { name: "继续会议" })).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -135,7 +135,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByText("正在加载会议。")).toBeTruthy();
 
         rerender(
-            renderMeetingPanelLayout(
+            translatedLayout(
                 {
                     meetings: [summary],
                     selectedId: summary.meetingId,
@@ -157,9 +157,9 @@ describe("Meeting panel localized presentation", () => {
         rerender(emptyLayout("en"));
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "Meeting navigator" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "Discussions" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
-        expect(screen.getByLabelText("Meeting list")).toBeTruthy();
+        expect(screen.getByRole("tree", { name: "Sessions" })).toBeTruthy();
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
     });
 
@@ -225,7 +225,7 @@ describe("Meeting panel localized presentation", () => {
         render(translatedPanel({ api }, "zh"));
 
         fireEvent.click(
-            await screen.findByRole("button", { name: `${summary.objective} (进行中)` })
+            await screen.findByRole("treeitem", { name: `${summary.objective} (进行中)` })
         );
 
         expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");

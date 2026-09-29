@@ -247,13 +247,13 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 4. objective、Agenda 标题、FormalMessage 正文、identity displayName 及其他用户或 Agent 产生的内容必须保持原文，不得作为 translation key 或被本地化改写。
 5. Domain/Protocol enum 值、错误码、command action、command reason 和其他持久事实必须保持原值；UI 只能把已知 enum 映射为本地化展示 label。
 6. `ProtocolFailure` 的 UI 提示必须使用本地化固定句式并保留稳定 `code`，不得直接展示可能未本地化的 `protocolError.message`；非协议异常显示本地化的会议数据不可用提示。错误对象和 Remote 契约不得因此改变。
-7. 当前 Meeting Panel 不展示日期或时间字段，本项不新增字段或日期格式化行为。Timeline Panel、Meeting Panel 视觉重构、第三种语言和新的数据结构不属于本项范围。
+7. 本项不新增字段或日期格式化行为。Meeting Navigator 的摘要更新时间展示见 MO-FR-17；Timeline Panel、第三种语言和新的数据结构不属于本项范围。
 8. 完成验收必须在隔离的真实 DSH Web profile 中实际执行中文 → English → 中文切换，证明同一已挂载页面即时更新；Browser 自动化可以保持未覆盖，但必须在 readiness 中明确记录。
 
 ### MO-FR-17：Meetings View 概览与时间线
 
 1. Convivium 在 DSH Conversation 中只提供一个 `Meetings` 功能级 View；Meeting Navigator、当前 Meeting 的概览和时间线都位于该 View 内，不提供独立 Timeline View。
-2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
+2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表，按 `updatedAt` 倒序排列。导航区采用 DSH 会话导航的标题、搜索和树列表结构；行首以图标表示生命周期，中间目标单行省略，右侧显示本地化相对更新时间。搜索只筛选当前已加载摘要的目标，空列表和无匹配结果展示空态，不触发详情读取或改变当前选择。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和泳道折叠；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
 5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。

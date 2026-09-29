@@ -1,0 +1,48 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    height: var(--meeting-panel-height, auto);
+    overflow: hidden;
+}
+
+.shell {
+    flex: 1;
+    min-height: 0;
+}
+
+.shellWide {
+    display: grid;
+    grid-template-columns: var(--meeting-navigator-width, 280px) 10px minmax(0, 1fr);
+    gap: 3px;
+}
+
+.shellNarrow {
+    display: flex;
+    flex-direction: column;
+}
+
+.navigator {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.drawerBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--dsw-alias-bg-mask-1);
+}
+
+.drawer {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    width: min(86vw, 320px);
+    overflow-y: auto;
+    background: var(--dsw-alias-bg-layer-2);
+}

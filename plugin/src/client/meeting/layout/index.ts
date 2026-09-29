@@ -1,1 +1,1 @@
-export { renderMeetingPanelLayout } from "./layout.tsx";
+export { MeetingPanelLayout } from "./layout.tsx";

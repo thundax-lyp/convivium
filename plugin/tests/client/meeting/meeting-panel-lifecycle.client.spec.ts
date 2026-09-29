@@ -34,7 +34,7 @@ describe("Meeting panel lifecycle", () => {
     it("loads the selected projection, accepts refresh notices, and disposes the stream", async () => {
         const { api, summary, releaseNotice, acceptNotice, dispose } = clientFixture();
         const { unmount } = render(translatedPanel({ api }, "en"));
-        const item = await screen.findByRole("button", { name: /核对议题 A/ });
+        const item = await screen.findByRole("treeitem", { name: /核对议题 A/ });
         expect(api.read).not.toHaveBeenCalled();
         fireEvent.click(item);
         await waitFor(() =>
@@ -82,8 +82,8 @@ describe("Meeting panel lifecycle", () => {
             ) as never;
             render(translatedPanel({ api }, "en"));
 
-            fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
-            fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
+            fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
+            fireEvent.click(screen.getByRole("treeitem", { name: /Second objective/ }));
             await waitFor(() =>
                 expect(
                     within(screen.getByRole("region", { name: "Objective" })).getByText(
@@ -104,7 +104,11 @@ describe("Meeting panel lifecycle", () => {
                     )
                 ).toBeTruthy()
             );
-            expect(screen.queryByText(view.objective.statement)).toBeNull();
+            expect(
+                within(screen.getByTestId("meeting-workspace")).queryByText(
+                    view.objective.statement
+                )
+            ).toBeNull();
             expect(screen.queryByRole("alert")).toBeNull();
         }
     );
@@ -117,7 +121,7 @@ describe("Meeting panel lifecycle", () => {
             .mockResolvedValueOnce({ meetings: [] })
             .mockResolvedValueOnce({ meetings: [summary] });
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         expect(await screen.findByRole("region", { name: "Objective" })).toBeTruthy();
 
         releaseNotice();
@@ -137,7 +141,7 @@ describe("Meeting panel lifecycle", () => {
             .mockResolvedValueOnce(view)
             .mockRejectedValueOnce(new Error("detail unavailable"));
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         await waitFor(() =>
             expect(
                 within(screen.getByRole("region", { name: "Objective" })).getByText(

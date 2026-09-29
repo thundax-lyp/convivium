@@ -48,6 +48,9 @@ function resolveLocal(importer: string, specifier: string): string | undefined {
     const base = specifier.startsWith("@/")
         ? resolve(sourceRoot, specifier.slice(2).replace(/\.(?:m?js|tsx?)$/, ""))
         : resolve(dirname(importer), specifier.replace(/\.(?:m?js|tsx?)$/, ""));
+    if (specifier.endsWith(".css") && existsSync(base)) {
+        return base;
+    }
     for (const candidate of [
         `${base}.ts`,
         `${base}.tsx`,
@@ -71,6 +74,9 @@ function importGraph(entries: readonly string[]) {
             continue;
         }
         reached.add(file);
+        if (file.endsWith(".css")) {
+            continue;
+        }
         for (const specifier of staticSpecifiers(file)) {
             const local = resolveLocal(file, specifier);
             if (local === undefined) {

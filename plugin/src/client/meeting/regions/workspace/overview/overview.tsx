@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
-import { Pill } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { knownEnum as known, type MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { lifecycleLabel } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
@@ -407,9 +407,11 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
                     {objects.map((node) => {
                         const name = `${t("panel.mode.timeline")}: ${known("timelineKind", node.objectKind, t)} ${node.objectId}`;
                         return (
-                            <button
+                            <Button
                                 key={`${node.objectKind}:${node.objectId}`}
                                 type="button"
+                                variant="outline"
+                                size="sm"
                                 aria-label={name}
                                 onClick={() =>
                                     onLocateInTimeline({
@@ -420,7 +422,7 @@ export const MeetingPanelOverview = (props: OverviewProps): ReactElement => {
                                 }
                             >
                                 {name}
-                            </button>
+                            </Button>
                         );
                     })}
                 </nav>

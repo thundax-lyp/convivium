@@ -1,0 +1,16 @@
+.viewport {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: var(--meeting-timeline-columns);
+    grid-template-rows: var(--meeting-timeline-rows);
+    column-gap: var(--meeting-timeline-gap);
+    min-width: var(--meeting-timeline-min-width);
+}
+
+.node {
+    min-width: 220px;
+}
