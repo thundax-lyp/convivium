@@ -5,6 +5,6 @@
         "rootDir": ".",
         "types": ["node"]
     },
-    "include": ["tests/client/meeting-remote-types.ts"],
+    "include": ["tests/client/meeting/meeting-remote-types.ts"],
     "exclude": []
 }

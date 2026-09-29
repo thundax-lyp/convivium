@@ -6,7 +6,7 @@ import type {
     MeetingReadResult,
     RefreshNotice
 } from "@/protocol/index.ts";
-import type { loadRemoteClientModule } from "../fixtures/remote-client.ts";
+import type { loadRemoteClientModule } from "../../fixtures/remote-client.ts";
 import type { RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 
