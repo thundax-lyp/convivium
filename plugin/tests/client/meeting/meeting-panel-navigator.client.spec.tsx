@@ -124,6 +124,28 @@ describe("Meeting navigator", () => {
         expect(splitter.getAttribute("aria-valuenow")).toBe("364");
     });
 
+    it("restores the intended navigator width after a temporary container shrink", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+        render(translatedLayout(props, "en"));
+        const shell = screen.getByTestId("meeting-workspace-shell");
+        let shellWidth = 500;
+        vi.spyOn(shell, "getBoundingClientRect").mockImplementation(
+            () => ({ width: shellWidth }) as DOMRect
+        );
+        const splitter = screen.getByRole("separator", { name: "Resize meeting navigator" });
+
+        fireEvent.resize(window);
+        expect(splitter.getAttribute("aria-valuenow")).toBe("220");
+        shellWidth = 700;
+        fireEvent.resize(window);
+        expect(splitter.getAttribute("aria-valuenow")).toBe("280");
+    });
+
     it("shows loading before an empty meeting list is confirmed", () => {
         const media = mediaFixture(false);
         vi.stubGlobal(

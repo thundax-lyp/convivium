@@ -76,7 +76,6 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 Math.min(NAVIGATOR_MAX_WIDTH, width - WORKSPACE_MIN_WIDTH - SPLITTER_AND_GAPS_WIDTH)
             );
             setMaxNavigatorWidth(maximum);
-            setNavigatorWidth((current) => Math.min(current, maximum));
         };
         measure();
         const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
@@ -130,6 +129,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
     const resizeNavigator = (width: number) => {
         setNavigatorWidth(Math.min(maxNavigatorWidth, Math.max(NAVIGATOR_MIN_WIDTH, width)));
     };
+    const visibleNavigatorWidth = Math.min(navigatorWidth, maxNavigatorWidth);
     const selectMeeting = (meetingId: string) => {
         props.selectMeeting(meetingId);
         if (narrow) {
@@ -179,7 +179,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 </aside>
                 <Resizer
                     controls="meeting-navigator-pane"
-                    width={navigatorWidth}
+                    width={visibleNavigatorWidth}
                     minWidth={NAVIGATOR_MIN_WIDTH}
                     maxWidth={maxNavigatorWidth}
                     onResize={resizeNavigator}
@@ -219,7 +219,9 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 data-testid="meeting-workspace-shell"
                 className={`${styles.shell} ${narrow ? styles.shellNarrow : styles.shellWide}`}
                 style={
-                    { "--meeting-navigator-width": `${navigatorWidth}px` } as React.CSSProperties
+                    {
+                        "--meeting-navigator-width": `${visibleNavigatorWidth}px`
+                    } as React.CSSProperties
                 }
             >
                 {wideNavigation}
