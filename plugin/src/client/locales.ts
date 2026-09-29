@@ -13,6 +13,7 @@ export const zh = {
     "form.committed": "已提交。",
     "form.refresh_failed": "已收到提交响应，但刷新失败。请刷新后继续。",
     "form.VERSION_CONFLICT": "版本已变化，请检查刷新结果后重新提交。",
+    "form.command_rejected": "命令被拒绝（{code}）。",
     "form.agendaId": "议题",
     "form.candidateId": "候选",
     "form.previousDisposition": "原议题处置",
@@ -300,6 +301,7 @@ export const en: Record<MeetingLocaleKey, string> = {
     "form.refresh_failed":
         "Committed response received; refresh failed. Refresh before continuing.",
     "form.VERSION_CONFLICT": "Version changed. Review refreshed data before submitting again.",
+    "form.command_rejected": "Command rejected ({code}).",
     "form.agendaId": "Agenda",
     "form.candidateId": "Candidate",
     "form.previousDisposition": "Previous agenda disposition",

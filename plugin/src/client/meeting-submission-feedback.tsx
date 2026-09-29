@@ -4,7 +4,12 @@ import { en, type MeetingLocaleKey, type MeetingTranslate } from "./locales.ts";
 
 const formText = (name: string, t?: MeetingTranslate): string => {
     const key = `form.${name}` as MeetingLocaleKey;
-    return Object.hasOwn(en, key) ? (t ? t(key) : en[key]) : name;
+    if (Object.hasOwn(en, key)) {
+        return t ? t(key) : en[key];
+    }
+    return t
+        ? t("form.command_rejected", { code: name })
+        : en["form.command_rejected"].replace("{code}", name);
 };
 export const SubmissionFeedback = ({
     submission,
