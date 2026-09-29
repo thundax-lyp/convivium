@@ -4,13 +4,11 @@ import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
     IconCloseFill14,
-    IconSearchOutline16,
-    relativeTime
+    IconSearchOutline16
 } from "@deepseek-ai/dsh-client-ui-primitives";
-import { lifecycleLabel } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { Empty } from "@/client/meeting/components/index.ts";
-import { MeetingStatusIcon } from "./status-icon.tsx";
+import { MeetingTreeItem } from "./meeting-tree-item.tsx";
 import styles from "./navigator.module.css";
 
 export const MeetingNavigator = ({
@@ -40,7 +38,6 @@ export const MeetingNavigator = ({
             (left, right) =>
                 right.updatedAt - left.updatedAt || left.meetingId.localeCompare(right.meetingId)
         );
-    const now = Date.now();
 
     React.useEffect(() => {
         if (searchOpen) {
@@ -49,6 +46,9 @@ export const MeetingNavigator = ({
     }, [searchOpen]);
 
     const onTreeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if ((event.target as HTMLElement).getAttribute("role") !== "treeitem") {
+            return;
+        }
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
             return;
         }
@@ -157,35 +157,14 @@ export const MeetingNavigator = ({
                     data-slot="sessionTree"
                     onKeyDown={onTreeKeyDown}
                 >
-                    {visibleMeetings.map((meeting) => {
-                        const status = lifecycleLabel(meeting.lifecycle, t);
-                        const time = relativeTime(meeting.updatedAt, now);
-                        return (
-                            <Button
-                                key={meeting.meetingId}
-                                type="button"
-                                role="treeitem"
-                                aria-selected={meeting.meetingId === selectedId}
-                                aria-label={`${meeting.objective} (${status})`}
-                                title={`${meeting.objective} (${status})`}
-                                variant="ghost"
-                                className={styles.row}
-                                data-selected={meeting.meetingId === selectedId}
-                                onClick={() => selectMeeting(meeting.meetingId)}
-                            >
-                                <span className={styles.status} aria-hidden="true">
-                                    <MeetingStatusIcon status={meeting.lifecycle} />
-                                </span>
-                                <span className={styles.title}>{meeting.objective}</span>
-                                <time
-                                    className={styles.time}
-                                    dateTime={new Date(meeting.updatedAt).toISOString()}
-                                >
-                                    {t(`panel.navigator.time.${time.unit}`, { n: time.n })}
-                                </time>
-                            </Button>
-                        );
-                    })}
+                    {visibleMeetings.map((meeting) => (
+                        <MeetingTreeItem
+                            key={meeting.meetingId}
+                            meeting={meeting}
+                            selected={meeting.meetingId === selectedId}
+                            selectMeeting={selectMeeting}
+                        />
+                    ))}
                 </div>
             </div>
         </nav>

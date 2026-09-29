@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { translatedLayout } from "./meeting-panel-locale-fixtures.ts";
@@ -239,6 +239,71 @@ describe("Meeting navigator", () => {
         expect(document.activeElement).toBe(
             screen.getByRole("button", { name: "Search sessions" })
         );
+    });
+
+    it("shows a meeting information tooltip on title hover without selecting", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props, summary } = layoutProps();
+        render(translatedLayout({ ...props, selectedId: undefined, detail: undefined }, "en"));
+
+        const title = screen.getByText(summary.objective);
+        fireEvent.mouseEnter(title);
+        expect(screen.getByRole("tooltip").textContent).toBe(summary.objective);
+        expect(screen.queryByRole("menu")).toBeNull();
+        expect(props.selectMeeting).not.toHaveBeenCalled();
+        fireEvent.mouseLeave(title);
+        expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("opens the row action menu without selecting and reuses the existing navigation action", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props, summary } = layoutProps();
+        render(translatedLayout({ ...props, selectedId: undefined, detail: undefined }, "en"));
+
+        const row = screen.getByRole("treeitem", { name: /核对议题 A/ });
+        fireEvent.click(
+            within(row).getByRole("button", {
+                name: "Actions for meeting 核对议题 A",
+                hidden: true
+            })
+        );
+        expect(props.selectMeeting).not.toHaveBeenCalled();
+        const menu = screen.getByRole("menu");
+        expect(within(menu).getByText("Running")).toBeTruthy();
+        fireEvent.click(within(menu).getByRole("menuitem", { name: "Open meeting" }));
+        expect(props.selectMeeting).toHaveBeenCalledWith(summary.meetingId);
+        expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("keeps tree rows keyboard navigable after adding an action button", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props, summary } = layoutProps();
+        const newer = { ...summary, meetingId: "newer", objective: "Newer topic", updatedAt: 2 };
+        render(
+            translatedLayout(
+                { ...props, meetings: [summary, newer], selectedId: undefined, detail: undefined },
+                "en"
+            )
+        );
+
+        const rows = screen.getAllByRole("treeitem");
+        rows[0]?.focus();
+        fireEvent.keyDown(rows[0]!, { key: "ArrowDown" });
+        expect(document.activeElement).toBe(rows[1]);
+        fireEvent.keyDown(rows[1]!, { key: "Enter" });
+        expect(props.selectMeeting).toHaveBeenCalledWith(summary.meetingId);
     });
 
     it("uses the same Meeting selection in a narrow drawer and restores opener focus", () => {

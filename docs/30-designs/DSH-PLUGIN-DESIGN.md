@@ -84,6 +84,8 @@ DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的
 
 Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；空列表和搜索无匹配使用 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
+会议标题悬停时使用 DSH `Tooltip` 显示完整目标。会议行在悬停或键盘聚焦时以省略号替代尾部时间，点击后使用 DSH `Menu` 显示生命周期和已有的“查看会议”导航动作；信息浮层与操作菜单独立，菜单打开本身不选择会议，也不新增 Meeting command。
+
 宽屏时，Navigator 与 Workspace 之间的分隔条可通过指针拖动或方向键、Home、End 调整 Navigator 宽度；当前实现以 280px 为初始值，在 220–480px 与容器可用宽度内约束，尽量给 Workspace 保留 320px。该宽度只是可丢弃的本地展示状态，不进入 URL 或持久事实。窄屏沿用导航抽屉，不显示分隔条。
 
 Meeting panel 的高度以 Host 可视内容区为界，并给底部固定输入区留出空间；宽屏 Navigator 和 Workspace 分别滚动，窄屏 Workspace 独立滚动，不让长 Meeting 内容撑高整个 Host 页面。

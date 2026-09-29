@@ -100,7 +100,9 @@
 
 .row {
     display: flex;
+    align-items: center;
     justify-content: flex-start;
+    box-sizing: border-box;
     width: 100%;
     min-width: 0;
     height: 32px;
@@ -110,6 +112,11 @@
     font-size: 14px;
     font-weight: 400;
     text-align: start;
+    color: var(--dsw-alias-label-primary);
+    cursor: pointer;
+}
+.row:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .row[data-selected="true"] {
@@ -135,6 +142,30 @@
     color: var(--dsw-alias-label-tertiary);
     font-size: 12px;
     line-height: 20px;
+}
+.rowActions {
+    display: none;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+}
+.row:hover .rowActions,
+.row:focus-within .rowActions,
+.row[data-menu-open="true"] .rowActions {
+    display: flex;
+}
+.row:hover .time,
+.row:focus-within .time,
+.row[data-menu-open="true"] .time {
+    display: none;
+}
+.actionButton {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border-radius: 4px;
+    color: var(--dsw-alias-label-tertiary);
 }
 .notice {
     margin: 6px 8px;
