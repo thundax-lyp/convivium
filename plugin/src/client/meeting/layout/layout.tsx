@@ -4,14 +4,13 @@ import {
     useLayoutEffect,
     useRef,
     useState,
-    type KeyboardEvent as ReactKeyboardEvent,
     type MouseEvent as ReactMouseEvent,
-    type PointerEvent as ReactPointerEvent,
     type ReactElement
 } from "react";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingPanelLayoutProps } from "@/client/meeting/shared/index.ts";
 import { MeetingNavigator, MeetingWorkspace } from "@/client/meeting/regions/index.ts";
+import { Resizer } from "@/client/meeting/components/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import styles from "./layout.module.css";
 
@@ -19,7 +18,6 @@ const NAVIGATOR_MIN_WIDTH = 220;
 const NAVIGATOR_MAX_WIDTH = 480;
 const WORKSPACE_MIN_WIDTH = 320;
 const SPLITTER_AND_GAPS_WIDTH = 16;
-const KEYBOARD_RESIZE_STEP = 16;
 
 export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement => {
     const t = useMeetingTranslate();
@@ -33,7 +31,6 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
     const openerRef = useRef<HTMLButtonElement | null>(null);
     const panelRef = useRef<HTMLElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
-    const dragStartRef = useRef<{ pointerId: number; x: number; width: number } | null>(null);
     useEffect(() => {
         const query = window.matchMedia?.("(max-width: 760px)");
         if (query === undefined) {
@@ -133,48 +130,6 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
     const resizeNavigator = (width: number) => {
         setNavigatorWidth(Math.min(maxNavigatorWidth, Math.max(NAVIGATOR_MIN_WIDTH, width)));
     };
-    const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-        if (event.button !== 0) {
-            return;
-        }
-        dragStartRef.current = {
-            pointerId: event.pointerId,
-            x: event.clientX,
-            width: navigatorWidth
-        };
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        event.preventDefault();
-    };
-    const moveResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-        const start = dragStartRef.current;
-        if (start?.pointerId === event.pointerId) {
-            resizeNavigator(start.width + event.clientX - start.x);
-        }
-    };
-    const stopResize = () => {
-        dragStartRef.current = null;
-    };
-    const resizeWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-        let nextWidth: number;
-        switch (event.key) {
-            case "ArrowLeft":
-                nextWidth = navigatorWidth - KEYBOARD_RESIZE_STEP;
-                break;
-            case "ArrowRight":
-                nextWidth = navigatorWidth + KEYBOARD_RESIZE_STEP;
-                break;
-            case "Home":
-                nextWidth = NAVIGATOR_MIN_WIDTH;
-                break;
-            case "End":
-                nextWidth = maxNavigatorWidth;
-                break;
-            default:
-                return;
-        }
-        event.preventDefault();
-        resizeNavigator(nextWidth);
-    };
     const selectMeeting = (meetingId: string) => {
         props.selectMeeting(meetingId);
         if (narrow) {
@@ -222,22 +177,12 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 <aside id="meeting-navigator-pane" className={styles.navigator}>
                     {navigator}
                 </aside>
-                <div
-                    role="separator"
-                    aria-label={t("panel.navigator.resize")}
-                    aria-orientation="vertical"
-                    aria-controls="meeting-navigator-pane"
-                    aria-valuemin={NAVIGATOR_MIN_WIDTH}
-                    aria-valuemax={maxNavigatorWidth}
-                    aria-valuenow={navigatorWidth}
-                    tabIndex={0}
-                    onPointerDown={startResize}
-                    onPointerMove={moveResize}
-                    onPointerUp={stopResize}
-                    onPointerCancel={stopResize}
-                    onLostPointerCapture={stopResize}
-                    onKeyDown={resizeWithKeyboard}
-                    className={styles.separator}
+                <Resizer
+                    controls="meeting-navigator-pane"
+                    width={navigatorWidth}
+                    minWidth={NAVIGATOR_MIN_WIDTH}
+                    maxWidth={maxNavigatorWidth}
+                    onResize={resizeNavigator}
                 />
             </>
         );

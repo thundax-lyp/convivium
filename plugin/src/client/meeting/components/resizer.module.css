@@ -1,0 +1,17 @@
+.separator {
+    position: relative;
+    cursor: col-resize;
+    touch-action: none;
+    user-select: none;
+    outline-offset: 2px;
+}
+
+.separator::before {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 50%;
+    width: 0.5px;
+    background: var(--dsw-alias-border-l2);
+    content: "";
+    transform: translateX(-50%);
+}
