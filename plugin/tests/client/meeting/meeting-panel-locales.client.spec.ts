@@ -64,9 +64,9 @@ describe("Meeting panel localized presentation", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "会议导航" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "讨论区" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy();
-        expect(screen.getByLabelText("会议列表")).toBeTruthy();
+        expect(screen.getByRole("tree", { name: "会话" })).toBeTruthy();
         expect(screen.getByText("请选择一个会议。")).toBeTruthy();
 
         const { summary, view } = meetingProjectionFixture();
@@ -157,9 +157,9 @@ describe("Meeting panel localized presentation", () => {
         rerender(emptyLayout("en"));
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "Meeting navigator" })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "Discussions" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
-        expect(screen.getByLabelText("Meeting list")).toBeTruthy();
+        expect(screen.getByRole("tree", { name: "Sessions" })).toBeTruthy();
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
     });
 
@@ -225,7 +225,7 @@ describe("Meeting panel localized presentation", () => {
         render(translatedPanel({ api }, "zh"));
 
         fireEvent.click(
-            await screen.findByRole("button", { name: `${summary.objective} (进行中)` })
+            await screen.findByRole("treeitem", { name: `${summary.objective} (进行中)` })
         );
 
         expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");

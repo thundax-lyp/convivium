@@ -26,7 +26,7 @@ describe("Meeting panel local controls", () => {
             })
         } as unknown as MeetingClient;
         const { rerender } = render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
         expect((await screen.findByRole("status")).textContent).toBe(
             "Command rejected (PRECONDITION_FAILED)."
@@ -75,7 +75,7 @@ describe("Meeting panel local controls", () => {
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: scenario.label }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
         expect(api.control).toHaveBeenCalledWith(
@@ -110,7 +110,7 @@ describe("Meeting panel local controls", () => {
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
@@ -155,7 +155,7 @@ describe("Meeting panel local controls", () => {
             subscribeRefresh: vi.fn(() => stream)
         } as unknown as MeetingClient;
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         const end = await screen.findByRole("button", { name: "Cancel meeting" });
         fireEvent.click(end);
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
@@ -188,14 +188,14 @@ it.each([false, true])(
             })
         } as unknown as MeetingClient;
         render(translatedPanel({ api }, "en"));
-        fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         fireEvent.click(await screen.findByRole("button", { name: "Pause meeting" }));
         await waitFor(() => expect(api.control).toHaveBeenCalledOnce());
         if (!late) {
             rejectControl(new Error("connection lost"));
             await screen.findByRole("button", { name: "Retry this submission" });
         }
-        fireEvent.click(screen.getByRole("button", { name: /Second meeting/ }));
+        fireEvent.click(screen.getByRole("treeitem", { name: /Second meeting/ }));
         await waitFor(() =>
             expect(api.read).toHaveBeenCalledWith({
                 protocolVersion: 1,

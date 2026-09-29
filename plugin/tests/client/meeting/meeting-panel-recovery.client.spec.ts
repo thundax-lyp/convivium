@@ -45,7 +45,7 @@ function recoveryFixture(stream?: AsyncIterable<RefreshItem>) {
 
 async function renderSelected(fixture: ReturnType<typeof recoveryFixture>) {
     const rendered = render(translatedPanel({ api: fixture.api }, "en"));
-    fireEvent.click(await screen.findByRole("button", { name: /核对议题 A/ }));
+    fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
     await waitFor(() => expect(fixture.api.read).toHaveBeenCalledOnce());
     await waitFor(() =>
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(false)
@@ -227,7 +227,7 @@ describe("Meeting panel refresh recovery", () => {
 
         notice.resolve();
         await waitFor(() => expect(fixture.api.list).toHaveBeenCalledOnce());
-        fireEvent.click(screen.getByRole("button", { name: /Second objective/ }));
+        fireEvent.click(screen.getByRole("treeitem", { name: /Second objective/ }));
         await waitFor(() =>
             expect(
                 within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")

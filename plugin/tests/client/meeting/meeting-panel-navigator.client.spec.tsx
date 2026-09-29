@@ -160,7 +160,85 @@ describe("Meeting navigator", () => {
             )
         );
         expect(screen.getByText("No meetings.")).toBeTruthy();
+        expect(screen.getByTestId("meeting-navigator-empty")).toBeTruthy();
         expect(screen.queryByText("Loading meetings.")).toBeNull();
+    });
+
+    it("sorts session tree items newest first and filters summaries without changing selection", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props, summary } = layoutProps();
+        const older = { ...summary, meetingId: "older", objective: "Older topic", updatedAt: 1000 };
+        const newer = {
+            ...summary,
+            meetingId: "newer",
+            objective: "Newest topic",
+            updatedAt: 3000
+        };
+        const middle = {
+            ...summary,
+            meetingId: "middle",
+            objective: "Middle topic",
+            updatedAt: 2000
+        };
+        const meetings = [older, newer, middle];
+
+        render(translatedLayout({ ...props, meetings, selectedId: middle.meetingId }, "en"));
+
+        const tree = screen.getByRole("tree", { name: "Sessions" });
+        expect(tree.getAttribute("data-slot")).toBe("sessionTree");
+        expect(
+            screen.getByTestId("meeting-navigator").querySelector('[data-slot="listArea"]')
+        ).toBeTruthy();
+        expect(screen.getAllByRole("treeitem").map((item) => item.textContent)).toEqual([
+            expect.stringContaining("Newest topic"),
+            expect.stringContaining("Middle topic"),
+            expect.stringContaining("Older topic")
+        ]);
+        expect(meetings.map((meeting) => meeting.meetingId)).toEqual(["older", "newer", "middle"]);
+        expect(
+            screen.getByRole("treeitem", { name: /Middle topic/ }).getAttribute("aria-selected")
+        ).toBe("true");
+
+        fireEvent.click(screen.getByRole("button", { name: "Search sessions" }));
+        expect(
+            screen.getByRole("button", { name: "Search sessions" }).getAttribute("aria-expanded")
+        ).toBe("true");
+        expect(document.activeElement).toBe(
+            screen.getByRole("searchbox", { name: "Search sessions" })
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Search sessions" }));
+        expect(screen.getByRole("searchbox", { name: "Search sessions" })).toBeTruthy();
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+            target: { value: "newest" }
+        });
+        expect(screen.getAllByRole("treeitem")).toHaveLength(1);
+        expect(screen.getByRole("treeitem", { name: /Newest topic/ })).toBeTruthy();
+        expect(props.selectMeeting).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("treeitem", { name: /Newest topic/ }));
+        expect(props.selectMeeting).toHaveBeenCalledWith("newer");
+
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+            target: { value: "missing" }
+        });
+        expect(screen.getByTestId("meeting-navigator-empty").textContent).toContain(
+            "No matching sessions."
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+        expect(screen.queryByRole("searchbox", { name: "Search sessions" })).toBeNull();
+        expect(screen.getAllByRole("treeitem")).toHaveLength(3);
+        fireEvent.click(screen.getByRole("button", { name: "Search sessions" }));
+        fireEvent.keyDown(screen.getByRole("searchbox", { name: "Search sessions" }), {
+            key: "Escape"
+        });
+        expect(screen.queryByRole("searchbox", { name: "Search sessions" })).toBeNull();
+        expect(screen.getAllByRole("treeitem")).toHaveLength(3);
+        expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: "Search sessions" })
+        );
     });
 
     it("uses the same Meeting selection in a narrow drawer and restores opener focus", () => {
@@ -177,7 +255,7 @@ describe("Meeting navigator", () => {
         fireEvent.click(opener);
         const drawer = screen.getByRole("dialog", { name: "Meeting navigator" });
         expect(drawer.getAttribute("aria-modal")).toBe("true");
-        fireEvent.click(screen.getByRole("button", { name: /核对议题 A/ }));
+        fireEvent.click(screen.getByRole("treeitem", { name: /核对议题 A/ }));
         expect(props.selectMeeting).toHaveBeenCalledWith(summary.meetingId);
         expect(screen.queryByRole("dialog")).toBeNull();
 
