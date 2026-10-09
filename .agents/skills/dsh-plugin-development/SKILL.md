@@ -78,6 +78,7 @@ Remote 是 Host 与 Client 之间的调用方式，不单独构成用户可见�
 | [贡献右侧栏 Tab](references/client/how-to/how-to-client-sidebar-tab.md#贡献右侧栏-tab) |
 | [在已有页面的 slot 显示插件内容](references/client/how-to/how-to-client-slot-contribution.md#在已有页面的-slot-显示插件内容) |
 | [在 Client 导航和控制子 Agent](references/client/how-to/how-to-client-subagent-navigation.md#client-子-agent-导航与控制) |
+| [查找并复用 Web UI 组件](references/client/how-to/how-to-client-shared-ui.md#为-web-扩展选择现成控件) |
 | [让 Web 扩展遵守主题与多语言样式](references/client/how-to/how-to-client-theme-ui.md#让-web-扩展遵守主题与多语言样式) |
 | [为自己的工具名注册 Tool View](references/client/how-to/how-to-client-tool-view.md#为自己的工具名注册-tool-view) |
 | [向指定 Session 上传浏览器文件](references/client/how-to/how-to-client-upload-file.md#向指定-session-上传浏览器文件) |
@@ -129,16 +130,17 @@ Remote 是 Host 与 Client 之间的调用方式，不单独构成用户可见�
 
 ### Client
 
-- `ActionSpec`、`activeAtToken`、`Button`、`ChatNode`、`ChatNodeDataMap`、`ClientModuleRegistry`、`ClientModuleSystem`、`ClientRemote`、`CommandContribution`、`CommandDecoration`、`CommandUiContract`、`CommandUiRuntime`
-- `CommandUiSpec`、`ComposedProps`、`ConfigForm`、`ConfigForms`、`ConfigFormSnapshot`、`ConversationEventRegistry`、`ConversationNodeDefinition`、`ConversationViewBuilder`、`ConversationViewDefinition`、`createClientModuleSystem`、`createSnapshotStore`、`defineStore`
-- `DocumentContent`、`DocumentLoadMode`、`DocumentPreviewDefinition`、`DocumentPreviewProps`、`FileReferenceCandidate`、`FileReferenceService`、`FileSearchConfig`、`FileUploadProgress`、`FileUploadService`、`formatFileMention`、`ILayout`、`InputTriggerCandidate`
-- `InputTriggerServiceContract`、`InputTriggerSource`、`ISidebarRight`、`isRemoteFailure`、`LayoutController`、`LocaleNamespaceMap`、`LocaleRuntime`、`LocalFileReferenceService`、`Menu`、`MenuSurface`、`PluginConfigViewProps`、`PluginDetailProps`
-- `PluginsSubject`、`PopupSelectSpec`、`PropsRenderFactories`、`PropsRenderSlots`、`PropsRuntime`、`PropsStore`、`RegisterFactory`、`Remote`、`RemoteError`、`RemoteErrorDetailsMap`、`RemoteResult`、`RemoteScope`
-- `ResourceProvider`、`Resources`、`ResourceSnapshot`、`SelectConfirmation`、`SelectOption`、`SelectOptionGroup`、`SessionReferenceMentionCandidate`、`SessionReferenceResolver`、`SettingsSchemaService`、`ShortcutCommand`、`Shortcuts`、`SidebarBrandMarkOwnerProps`
-- `SidebarPanelMetadata`、`SidebarRightTabClaim`、`SidebarRightTabDefinition`、`SidebarRightTabInjected`、`SidebarRightTabParamsMap`、`SidebarRightTabPriority`、`SlotCore`、`SlotEntryDef`、`SlotFactoryMap`、`SlotKind`、`SlotMap`、`SlotRegistry`
-- `SlotScope`、`SubagentAddress`、`SubagentCatalogEntry`、`SubagentCatalogRow`、`SubagentIdentityProjection`、`SubagentInterruptReceipt`、`SubagentListEntry`、`SubagentPromptReceipt`、`SubagentPromptRequest`、`SubagentTimingProjection`、`Tag`、`ThemeDefinition`
-- `ThemeRuntime`、`ThemeSnapshot`、`ThemeTokenOverrides`、`ToolCallOwnerProps`、`ToolCallViewProps`、`typertPlugin`、`TypertPluginOptions`、`TypertRemoteService`、`UiConversation`、`UiSession`、`UiWorkspace`、`UseResource`
-- `Workspace`、`WorkspaceChanges`、`WorkspaceChangesSummary`、`WorkspaceFileDiff`、`WorkspaceFileSearch`、`WorkspaceId`、`WorkspaceRegistry`
+- `ActionSpec`、`activeAtToken`、`Button`、`ChatNode`、`ChatNodeDataMap`、`Checkbox`、`ClientModuleRegistry`、`ClientModuleSystem`、`ClientRemote`、`CommandContribution`、`CommandDecoration`、`CommandUiContract`
+- `CommandUiRuntime`、`CommandUiSpec`、`ComposedProps`、`ConfigForm`、`ConfigForms`、`ConfigFormSnapshot`、`ConversationEventRegistry`、`ConversationNodeDefinition`、`ConversationViewBuilder`、`ConversationViewDefinition`、`createClientModuleSystem`、`createSnapshotStore`
+- `defineStore`、`DocumentContent`、`DocumentLoadMode`、`DocumentPreviewDefinition`、`DocumentPreviewProps`、`FileReferenceCandidate`、`FileReferenceService`、`FileSearchConfig`、`FileUploadProgress`、`FileUploadService`、`formatFileMention`、`ILayout`
+- `Input`、`InputTriggerCandidate`、`InputTriggerServiceContract`、`InputTriggerSource`、`ISidebarRight`、`isRemoteFailure`、`LayoutController`、`LocaleNamespaceMap`、`LocaleRuntime`、`LocalFileReferenceService`、`Menu`、`MenuSurface`
+- `Pill`、`PluginConfigViewProps`、`PluginDetailProps`、`PluginsSubject`、`PopupSelectSpec`、`PropsRenderFactories`、`PropsRenderSlots`、`PropsRuntime`、`PropsStore`、`RegisterFactory`、`Remote`、`RemoteError`
+- `RemoteErrorDetailsMap`、`RemoteResult`、`RemoteScope`、`ResourceProvider`、`Resources`、`ResourceSnapshot`、`SegmentedControl`、`SelectConfirmation`、`SelectOption`、`SelectOptionGroup`、`SessionReferenceMentionCandidate`、`SessionReferenceResolver`
+- `SettingsSchemaService`、`ShortcutCommand`、`Shortcuts`、`SidebarBrandMarkOwnerProps`、`SidebarPanelMetadata`、`SidebarRightTabClaim`、`SidebarRightTabDefinition`、`SidebarRightTabInjected`、`SidebarRightTabParamsMap`、`SidebarRightTabPriority`、`SlotCore`、`SlotEntryDef`
+- `SlotFactoryMap`、`SlotKind`、`SlotMap`、`SlotRegistry`、`SlotScope`、`SubagentAddress`、`SubagentCatalogEntry`、`SubagentCatalogRow`、`SubagentIdentityProjection`、`SubagentInterruptReceipt`、`SubagentListEntry`、`SubagentPromptReceipt`
+- `SubagentPromptRequest`、`SubagentTimingProjection`、`Switch`、`Tag`、`ThemeDefinition`、`ThemeRuntime`、`ThemeSnapshot`、`ThemeTokenOverrides`、`ToolCallOwnerProps`、`ToolCallViewProps`、`Tooltip`、`typertPlugin`
+- `TypertPluginOptions`、`TypertRemoteService`、`UiConversation`、`UiSession`、`UiWorkspace`、`UseResource`、`Workspace`、`WorkspaceChanges`、`WorkspaceChangesSummary`、`WorkspaceFileDiff`、`WorkspaceFileSearch`、`WorkspaceId`
+- `WorkspaceRegistry`
 
 ### Infra
 
@@ -166,6 +168,7 @@ Remote 是 Host 与 Client 之间的调用方式，不单独构成用户可见�
 | `ctx.tools`、`defineTool`、模型工具结果 | [工具契约](references/host/api/api-host-tools.md) |
 | `dsh.client`、Client 模块、bundle | [Client 装载](references/client/api/api-client-modules.md) |
 | slot、Web 页面、渲染 | [Client slot](references/client/api/api-client-slots.md) |
+| Web UI 组件、控件、`primitive`、`List` | [共享控件选型与导出边界](references/client/api/api-client-shared-ui.md) |
 | Remote、Typert、跨侧调用 | [Remote 契约](references/client/api/api-client-remote.md) |
 | Profile、bundle、patch、插件安装 | [Profile 契约](references/infra/api/api-infra-profile-manifest.md) |
 | 配置表单、状态持久化、webhook | [配置](references/infra/api/api-infra-live-config.md)、[存储](references/infra/api/api-infra-storage.md)、[Webhook](references/infra/api/api-infra-webhook.md) |

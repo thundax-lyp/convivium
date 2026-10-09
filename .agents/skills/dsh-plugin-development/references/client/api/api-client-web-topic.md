@@ -18,7 +18,8 @@
 | 发布新的 Host Remote 供 Client 调用 | [Remote 调用面](api-client-remote.md)、[Typert 构建](api-client-typert-build.md) | [发布 Host Remote](../how-to/how-to-client-publish-remote.md) |
 | 将业务事件显示为会话 Node | [Conversation 扩展](api-client-conversation.md) | [注册 Conversation Node](../how-to/how-to-client-conversation-node.md) |
 | 为 Host 配置提供页面 | [ConfigForm 与 Settings UI](api-client-settings.md) | [贡献设置卡片](../how-to/how-to-client-settings-card.md) |
-| 复用控件或提供主题 | [共享控件与主题](api-client-shared-ui.md) | [扩展主题和样式](../how-to/how-to-client-theme-ui.md) |
+| 查找并复用现成控件 | [共享控件与主题](api-client-shared-ui.md) | [选择共享控件](../how-to/how-to-client-shared-ui.md) |
+| 提供主题 | [共享控件与主题](api-client-shared-ui.md) | [扩展主题和样式](../how-to/how-to-client-theme-ui.md) |
 | 为 Web 组件提供实时资源、语言或快捷键 | [Client 共享服务](api-client-services.md) | [资源 Provider](../how-to/how-to-client-resource-provider.md)、[词典与快捷键](../how-to/how-to-client-locale-shortcuts.md) |
 | 向指定 Session 上传浏览器文件 | [Client 共享服务](api-client-services.md) | [上传文件](../how-to/how-to-client-upload-file.md) |
 | 自定义工具结果或输入候选 | [Tool 与输入扩展](api-client-interaction.md) | [Tool View](../how-to/how-to-client-tool-view.md)、[输入候选源](../how-to/how-to-client-input-trigger.md) |
