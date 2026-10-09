@@ -524,7 +524,8 @@ const createDeliveryManager = (input: {
         const notice = createMeetingNoticeDispatcher({
             owner: agentOwner,
             definitions,
-            repository
+            repository,
+            application
         });
         const archive = createMeetingArchiveDispatcher({
             owner: agentOwner,

@@ -65,8 +65,12 @@ describe("round ready notice", () => {
             }
         ];
         const deliver = vi.fn().mockResolvedValue(true);
+        const deliverObserved = vi.fn(async (input) => ({
+            durable: await deliver(input),
+            outcome: "completed" as const
+        }));
         const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver, resume: vi.fn(async () => {}) },
+            owner: { deliver, deliverObserved, resume: vi.fn(async () => {}) },
             definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
@@ -185,8 +189,12 @@ describe("round opened notice", () => {
             }
         ];
         const deliver = vi.fn().mockResolvedValue(true);
+        const deliverObserved = vi.fn(async (input) => ({
+            durable: await deliver(input),
+            outcome: "completed" as const
+        }));
         const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver, resume: vi.fn(async () => {}) },
+            owner: { deliver, deliverObserved, resume: vi.fn(async () => {}) },
             definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
@@ -404,8 +412,12 @@ describe("meeting notice dispatcher v1", () => {
             }
         ];
         const deliver = vi.fn().mockResolvedValue(true);
+        const deliverObserved = vi.fn(async (input) => ({
+            durable: await deliver(input),
+            outcome: "completed" as const
+        }));
         const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver, resume: vi.fn(async () => {}) },
+            owner: { deliver, deliverObserved, resume: vi.fn(async () => {}) },
             definitions: [{ agentDefinitionId: "fixture" }],
             repository: {
                 recover: async () => ({
@@ -456,6 +468,123 @@ describe("meeting notice dispatcher v1", () => {
             });
         }
         expect(deliver).toHaveBeenCalledTimes(4);
+        expect(deliverObserved).toHaveBeenCalledOnce();
+    });
+
+    it("records an accepted Contributor turn failure as a Runtime fact", async () => {
+        const { state, ownership } = fixture();
+        state.rounds = [
+            {
+                id: "round-1",
+                agendaId: "agenda-v1",
+                publicBaselinePublicationIds: [],
+                openedAt: 1,
+                status: "open",
+                contributionIds: ["contribution-1"]
+            }
+        ];
+        state.contributions = [
+            {
+                id: "contribution-1",
+                roundId: "round-1",
+                contributorId: "contributor-v1",
+                handRaise: { raisedAt: 1, purpose: "Contribute" },
+                acceptedAt: 2,
+                status: "preparing",
+                substantiveSupplementCount: 0
+            }
+        ];
+        const execute = vi.fn(async (command) => {
+            state.contributions[0] = {
+                ...state.contributions[0]!,
+                status: "execution_failed",
+                exitReason: command.action.failureSummary,
+                failure: {
+                    sourceEffectId: command.action.sourceEffectId,
+                    stage: command.action.stage,
+                    failureCode: command.action.failureCode,
+                    failureSummary: command.action.failureSummary,
+                    attemptCount: command.action.attemptCount,
+                    retryable: command.action.retryable,
+                    occurredAt: 3
+                }
+            };
+            return { kind: "accepted" };
+        });
+        const deliverObserved = vi.fn().mockResolvedValue({
+            durable: true,
+            outcome: "failed",
+            failureCode: "MALFORMED_RESPONSE",
+            failureSummary: "tool input is invalid JSON"
+        });
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: {
+                deliver: vi.fn(),
+                deliverObserved,
+                resume: vi.fn(async () => {})
+            },
+            definitions: [{ agentDefinitionId: "fixture" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 3,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 3
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never,
+            application: { execute } as never
+        });
+
+        const outboxItem = item({
+            kind: "agent_notice",
+            noticeKind: "hand_disposition",
+            recipientId: "contributor-v1",
+            agendaId: "agenda-v1",
+            requestKind: "initial",
+            roundId: "round-1",
+            contributorId: "contributor-v1",
+            disposition: "accepted",
+            reason: "Proceed",
+            contributionId: "contribution-1"
+        });
+        await dispatcher.dispatch({
+            outboxItem,
+            signal: new AbortController().signal
+        });
+
+        expect(execute).toHaveBeenCalledWith(
+            expect.objectContaining({
+                meetingId: state.id,
+                expectedMeetingVersion: 3,
+                action: {
+                    kind: "record_contribution_failure",
+                    contributionId: "contribution-1",
+                    sourceEffectId: "effect-1",
+                    stage: "contribution_turn",
+                    failureCode: "MALFORMED_RESPONSE",
+                    failureSummary: "tool input is invalid JSON",
+                    attemptCount: 1,
+                    retryable: false
+                }
+            }),
+            expect.objectContaining({
+                caller: {
+                    channel: "runtime_recovery",
+                    principalId: "runtime-recovery"
+                }
+            }),
+            expect.any(AbortSignal)
+        );
+        await dispatcher.dispatch({
+            outboxItem,
+            signal: new AbortController().signal
+        });
+        expect(deliverObserved).toHaveBeenCalledOnce();
+        expect(execute).toHaveBeenCalledOnce();
     });
 
     it.each([

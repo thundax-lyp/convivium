@@ -41,6 +41,18 @@ export interface MeetingAgentOwner {
         authorize: () => Promise<void>;
         signal: AbortSignal;
     }): Promise<boolean>;
+    deliverObserved(input: {
+        ownership: SessionOwnership;
+        deliveryId: string;
+        text: string;
+        authorize: () => Promise<void>;
+        signal: AbortSignal;
+    }): Promise<{
+        durable: boolean;
+        outcome: "completed" | "failed";
+        failureCode?: string;
+        failureSummary?: string;
+    }>;
     suspend(input: { ownership: SessionOwnership; reason: string }): Promise<void>;
     stop(input: {
         ownership: SessionOwnership;
@@ -50,6 +62,85 @@ export interface MeetingAgentOwner {
     }): Promise<void>;
     disposeAll(): Promise<void>;
 }
+
+type DeliveryInput = Parameters<MeetingAgentOwner["deliver"]>[0];
+
+const deliverToHandle = async ({
+    ctx,
+    handle,
+    input,
+    observe
+}: {
+    ctx: Context;
+    handle: AgentHandle;
+    input: DeliveryInput;
+    observe: boolean;
+}): Promise<{
+    durable: boolean;
+    failure?: { code: string; summary: string };
+}> => {
+    let claimedTurn: number | undefined;
+    let failure: { code: string; summary: string } | undefined;
+    const disposeClaim = observe
+        ? ctx.on("agent/inbox/claimed", ({ agent, message, turn }) => {
+              if (agent === handle.agent && message.id === input.deliveryId) {
+                  claimedTurn = turn;
+              }
+          })
+        : undefined;
+    const disposeError = observe
+        ? ctx.on("agent/error", ({ agent, turn, error }) => {
+              if (agent !== handle.agent || turn !== claimedTurn) {
+                  return;
+              }
+              failure = {
+                  code:
+                      error && typeof error === "object" && "code" in error
+                          ? String(error.code)
+                          : "AGENT_TURN_FAILED",
+                  summary: error instanceof Error ? error.message : "Agent turn failed"
+              };
+          })
+        : undefined;
+    try {
+        handle.agent.followup({
+            id: MessageId(input.deliveryId),
+            role: "user",
+            content: [{ type: "text", text: input.text }],
+            source: { kind: "convivium" }
+        });
+        const durable = await ctx.sessions.flush(handle.agent.session);
+        await input.authorize();
+        input.signal.throwIfAborted();
+        if (observe) {
+            await handle.agent.whenIdle();
+            input.signal.throwIfAborted();
+            if (claimedTurn === undefined) {
+                handle.agent.steer({
+                    id: MessageId(`${input.deliveryId}:wake`),
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: "继续处理同一批次中已经排队的会议通知；此消息只用于唤醒，不形成新的会议事实。"
+                        }
+                    ],
+                    source: { kind: "convivium" }
+                });
+                await handle.agent.whenIdle();
+                input.signal.throwIfAborted();
+                if (claimedTurn === undefined) {
+                    throw new Error("DELIVERY_NOT_CLAIMED");
+                }
+            }
+        }
+        return failure === undefined ? { durable } : { durable, failure };
+    } finally {
+        disposeClaim?.();
+        disposeError?.();
+    }
+};
+
 export const createMeetingAgentOwner = ({
     ctx,
     packageRoot
@@ -215,6 +306,22 @@ export const createMeetingAgentOwner = ({
         });
         await remember(ownership, handle, purpose);
     };
+    const deliver = async (input: DeliveryInput, observe: boolean) => {
+        input.signal.throwIfAborted();
+        await input.authorize();
+        const current = entry(input.ownership);
+        if (
+            !current ||
+            current.purpose !== "delivery" ||
+            input.ownership.lifecycleStatus !== "active" ||
+            input.ownership.capabilityStatus !== "active" ||
+            !input.text.trim() ||
+            !input.deliveryId.trim()
+        ) {
+            throw new Error("RECOVERY_UNAVAILABLE: no authorized delivery handle");
+        }
+        return deliverToHandle({ ctx, handle: current.handle, input, observe });
+    };
     return {
         create: (input) =>
             serial(input.ownership.id, async () => {
@@ -253,30 +360,18 @@ export const createMeetingAgentOwner = ({
             }),
         resume: (input) => serial(input.ownership.id, () => resume(input)),
         deliver: (input) =>
+            serial(input.ownership.id, async () => (await deliver(input, false)).durable),
+        deliverObserved: (input) =>
             serial(input.ownership.id, async () => {
-                input.signal.throwIfAborted();
-                await input.authorize();
-                const current = entry(input.ownership);
-                if (
-                    !current ||
-                    current.purpose !== "delivery" ||
-                    input.ownership.lifecycleStatus !== "active" ||
-                    input.ownership.capabilityStatus !== "active" ||
-                    !input.text.trim() ||
-                    !input.deliveryId.trim()
-                ) {
-                    throw new Error("RECOVERY_UNAVAILABLE: no authorized delivery handle");
-                }
-                current.handle.agent.followup({
-                    id: MessageId(input.deliveryId),
-                    role: "user",
-                    content: [{ type: "text", text: input.text }],
-                    source: { kind: "convivium" }
-                });
-                const durable = await ctx.sessions.flush(current.handle.agent.session);
-                await input.authorize();
-                input.signal.throwIfAborted();
-                return durable;
+                const result = await deliver(input, true);
+                return result.failure === undefined
+                    ? { durable: result.durable, outcome: "completed" as const }
+                    : {
+                          durable: result.durable,
+                          outcome: "failed" as const,
+                          failureCode: result.failure.code,
+                          failureSummary: result.failure.summary
+                      };
             }),
         suspend: (input) =>
             serial(input.ownership.id, () => release(input.ownership, input.reason)),

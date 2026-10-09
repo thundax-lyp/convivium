@@ -59,6 +59,9 @@ const claimReleaseReason = (
         error instanceof Error
             ? `${error.name} ${error.message}`.toLowerCase()
             : String(error).toLowerCase();
+    if (detail.includes("review_interrupted")) {
+        return "review_interrupted";
+    }
     return detail.includes("timeout") || detail.includes("timed out") || detail.includes("deadline")
         ? "review_timeout"
         : "dispatch_failed";
@@ -179,6 +182,7 @@ const deliverReviewNotice = async (
         signal: AbortSignal;
         deliveryId: string;
         authorize: () => Promise<void>;
+        observeTurn?: boolean;
     }
 ): Promise<void> => {
     await input.authorize();
@@ -194,16 +198,24 @@ const deliverReviewNotice = async (
         purpose: "delivery",
         signal: input.signal
     });
-    if (
-        !(await dependencies.owner.deliver({
-            ownership: input.ownership,
-            deliveryId: input.deliveryId,
-            text: input.prompt.map((p) => p.text).join("\n"),
-            authorize: input.authorize,
-            signal: input.signal
-        }))
-    ) {
+    const deliveryInput = {
+        ownership: input.ownership,
+        deliveryId: input.deliveryId,
+        text: input.prompt.map((p) => p.text).join("\n"),
+        authorize: input.authorize,
+        signal: input.signal
+    };
+    const delivery = input.observeTurn
+        ? await dependencies.owner.deliverObserved(deliveryInput)
+        : {
+              durable: await dependencies.owner.deliver(deliveryInput),
+              outcome: "completed" as const
+          };
+    if (!delivery.durable) {
         retry("SESSION_FLUSH_FAILED", false);
+    }
+    if (delivery.outcome === "failed") {
+        throw new Error(`review_interrupted: ${delivery.failureCode ?? "AGENT_TURN_FAILED"}`);
     }
 };
 
@@ -512,6 +524,7 @@ export const createEvidenceReviewDispatcher = (
             }
             try {
                 await deliverReviewNotice(dependencies, {
+                    observeTurn: true,
                     deliveryId: outboxItem.deliveryId,
                     ownership,
                     meetingId: recovered.snapshot.meetingId,
