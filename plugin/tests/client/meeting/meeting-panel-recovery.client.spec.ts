@@ -125,7 +125,7 @@ describe("Meeting panel refresh recovery", () => {
         act(() => fixture.callbacks()?.carrierFailed());
         act(() => fixture.callbacks()?.generationReopened());
 
-        expect(await screen.findByText("Select a meeting.")).toBeTruthy();
+        expect(await screen.findByText("No meetings.")).toBeTruthy();
         expect(screen.queryByText("obsolete detail")).toBeNull();
     });
 

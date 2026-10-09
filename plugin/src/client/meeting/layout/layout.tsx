@@ -143,6 +143,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
         }
     };
     const selected = props.meetings.find((meeting) => meeting.meetingId === props.selectedId);
+    const hasUsableMeetings = props.meetings.length > 0;
     const navigator = (
         <MeetingNavigator
             meetings={props.meetings}
@@ -150,13 +151,14 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             listLoading={props.listLoading}
             listCached={props.listCached}
             listError={props.listError}
-            requestRefresh={props.requestRefresh}
             selectMeeting={selectMeeting}
         />
     );
     let wideNavigation: ReactElement | null = null;
     let narrowDrawer: ReactElement | null = null;
-    if (narrow) {
+    if (!hasUsableMeetings) {
+        wideNavigation = navigator;
+    } else if (narrow) {
         if (drawerOpen) {
             narrowDrawer = (
                 <div>
@@ -206,7 +208,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 } as React.CSSProperties
             }
         >
-            {narrow ? (
+            {hasUsableMeetings && narrow ? (
                 <Button
                     type="button"
                     variant="outline"
@@ -223,7 +225,13 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             <div
                 ref={shellRef}
                 data-testid="meeting-workspace-shell"
-                className={`${styles.shell} ${narrow ? styles.shellNarrow : styles.shellWide}`}
+                className={`${styles.shell} ${
+                    hasUsableMeetings
+                        ? narrow
+                            ? styles.shellNarrow
+                            : styles.shellWide
+                        : styles.shellSingle
+                }`}
                 style={
                     {
                         "--meeting-navigator-width": `${visibleNavigatorWidth}px`
@@ -231,7 +239,11 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                 }
             >
                 {wideNavigation}
-                <MeetingWorkspace {...props} />
+                {hasUsableMeetings ? (
+                    <div className={styles.workspaceReveal}>
+                        <MeetingWorkspace {...props} />
+                    </div>
+                ) : null}
             </div>
             {narrowDrawer}
         </section>

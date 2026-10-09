@@ -14,25 +14,14 @@ const INITIAL_FRESHNESS: MeetingsFreshnessState = {
     detail: "idle"
 };
 
-type MeetingPanelFailure =
-    | {
-          readonly kind: "protocol";
-          readonly code: string;
-      }
-    | {
-          readonly kind: "unavailable";
-      };
+type MeetingPanelFailure = { readonly kind: "protocol" } | { readonly kind: "unavailable" };
 
 const classifyFailure = (error: unknown): MeetingPanelFailure => {
-    return error instanceof ProtocolFailure
-        ? { kind: "protocol", code: error.protocolError.code }
-        : { kind: "unavailable" };
+    return error instanceof ProtocolFailure ? { kind: "protocol" } : { kind: "unavailable" };
 };
 
 const failureMessage = (failure: MeetingPanelFailure, t: MeetingTranslate): string => {
-    return failure.kind === "protocol"
-        ? t("panel.error.protocol", { code: failure.code })
-        : t("panel.error.unavailable");
+    return failure.kind === "protocol" ? t("panel.error.protocol") : t("panel.error.unavailable");
 };
 
 const endMeetingAction = (detail: MeetingView) => ({

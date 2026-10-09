@@ -74,6 +74,7 @@ export const ContributionViewSchema = z.object({
         "awaiting_response",
         "withdrawn",
         "submission_missing",
+        "execution_failed",
         "timed_out",
         "supplement_rejected",
         "aborted",
@@ -81,7 +82,18 @@ export const ContributionViewSchema = z.object({
     ]),
     packageId: id.optional(),
     substantiveSupplementCount: z.number().int().nonnegative(),
-    exitReason: text.optional()
+    exitReason: text.optional(),
+    failure: z
+        .object({
+            sourceEffectId: id,
+            stage: text,
+            failureCode: text,
+            failureSummary: text,
+            attemptCount: z.number().int().positive(),
+            retryable: z.boolean(),
+            occurredAt: epoch
+        })
+        .optional()
 });
 export const RoundViewSchema = z.object({
     id,
@@ -115,6 +127,22 @@ export const PublicationViewSchema = z.object({
     finalVersionIds: z.array(id),
     finalReviewIds: z.array(id),
     exitReasons: z.array(text),
+    contributionFailures: z
+        .array(
+            z.object({
+                contributionId: id,
+                failure: z.object({
+                    sourceEffectId: id,
+                    stage: text,
+                    failureCode: text,
+                    failureSummary: text,
+                    attemptCount: z.number().int().positive(),
+                    retryable: z.boolean(),
+                    occurredAt: epoch
+                })
+            })
+        )
+        .optional(),
     publishedAt: epoch
 });
 const textWithReason = z.object({ value: text, reason: text.optional() });

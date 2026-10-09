@@ -31,6 +31,12 @@ const fixture = async () => {
     const restrictions = [];
     const instructions = [];
     const handles = [];
+    const listeners = new Map();
+    const emit = (event, payload) => {
+        for (const listener of listeners.get(event) ?? []) {
+            listener(payload);
+        }
+    };
     const header = { cwd: packageRoot, agentPreset: definition.dshPresetId };
     const skills = {
         snapshot: async () => ({ complete: true, skills: [skill] }),
@@ -49,7 +55,8 @@ const fixture = async () => {
                 session: { id: options.sessionId ?? options.resumeSessionId, header },
                 cancel: vi.fn(),
                 whenIdle: vi.fn(async () => {}),
-                followup: vi.fn()
+                followup: vi.fn(),
+                steer: vi.fn()
             },
             dispose: vi.fn(async () => {})
         };
@@ -64,6 +71,12 @@ const fixture = async () => {
             mount: vi.fn(async () => {})
         },
         skills,
+        on: vi.fn((event, listener) => {
+            const eventListeners = listeners.get(event) ?? new Set();
+            eventListeners.add(listener);
+            listeners.set(event, eventListeners);
+            return () => eventListeners.delete(listener);
+        }),
         agents: { get: vi.fn(() => undefined), create: vi.fn(factory), resume: vi.fn(factory) },
         sessions: { flush: vi.fn(async () => true) }
     };
@@ -115,6 +128,7 @@ const fixture = async () => {
         restrictions,
         instructions,
         handles,
+        emit,
         header,
         owner: createMeetingAgentOwner({ ctx, packageRoot })
     };
@@ -183,6 +197,80 @@ describe("meeting Agent owner", () => {
                 signal: f.signal
             })
         ).rejects.toThrow("revoked");
+        await f.owner.disposeAll();
+    });
+    it("observes the terminal failure of the turn that claimed a delivery", async () => {
+        const f = await fixture();
+        const active = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership: active, purpose: "delivery" });
+        const agent = f.handles[0].agent;
+        agent.followup.mockImplementation((message) => {
+            f.emit("agent/inbox/claimed", { agent, message, turn: 7 });
+            const error = Object.assign(new Error("tool input is invalid JSON"), {
+                code: "MALFORMED_RESPONSE"
+            });
+            f.emit("agent/error", { agent, turn: 7, error });
+        });
+
+        await expect(
+            f.owner.deliverObserved({
+                ownership: active,
+                deliveryId: "effect",
+                text: "Contribute",
+                authorize: async () => {},
+                signal: f.signal
+            })
+        ).resolves.toEqual({
+            durable: true,
+            outcome: "failed",
+            failureCode: "MALFORMED_RESPONSE",
+            failureSummary: "tool input is invalid JSON"
+        });
+        await f.owner.disposeAll();
+    });
+    it("wakes a delivery left queued behind an earlier failed turn", async () => {
+        const f = await fixture();
+        const active = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership: active, purpose: "delivery" });
+        const agent = f.handles[0].agent;
+        let queuedMessage;
+        agent.followup.mockImplementation((message) => {
+            queuedMessage = message;
+        });
+        agent.steer.mockImplementation(() => {
+            f.emit("agent/inbox/claimed", { agent, message: queuedMessage, turn: 8 });
+        });
+
+        await expect(
+            f.owner.deliverObserved({
+                ownership: active,
+                deliveryId: "effect",
+                text: "Contribute",
+                authorize: async () => {},
+                signal: f.signal
+            })
+        ).resolves.toEqual({ durable: true, outcome: "completed" });
+        expect(agent.steer).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "effect:wake", source: { kind: "convivium" } })
+        );
+        expect(agent.whenIdle).toHaveBeenCalledTimes(2);
+        await f.owner.disposeAll();
+    });
+    it("rejects an observed delivery that remains unclaimed after the wake", async () => {
+        const f = await fixture();
+        const active = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership: active, purpose: "delivery" });
+
+        await expect(
+            f.owner.deliverObserved({
+                ownership: active,
+                deliveryId: "effect",
+                text: "Contribute",
+                authorize: async () => {},
+                signal: f.signal
+            })
+        ).rejects.toThrow("DELIVERY_NOT_CLAIMED");
+        expect(f.handles[0].agent.steer).toHaveBeenCalledOnce();
         await f.owner.disposeAll();
     });
     it("refuses unowned live Agents and expired creation without allocation", async () => {

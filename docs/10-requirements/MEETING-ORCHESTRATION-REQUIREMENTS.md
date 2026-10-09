@@ -246,7 +246,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 3. DSH 运行时切换 locale 后，已挂载的 view 标签和 Meeting Panel 必须无需 Host 重启、plugin 重装、slot 重新注册或页面刷新即可更新。
 4. objective、Agenda 标题、FormalMessage 正文、identity displayName 及其他用户或 Agent 产生的内容必须保持原文，不得作为 translation key 或被本地化改写。
 5. Domain/Protocol enum 值、错误码、command action、command reason 和其他持久事实必须保持原值；UI 只能把已知 enum 映射为本地化展示 label。
-6. `ProtocolFailure` 的 UI 提示必须使用本地化固定句式并保留稳定 `code`，不得直接展示可能未本地化的 `protocolError.message`；非协议异常显示本地化的会议数据不可用提示。错误对象和 Remote 契约不得因此改变。
+6. `ProtocolFailure` 的 UI 提示必须只使用本地化自然语言固定句式，不展示诊断 `code` 或可能未本地化的 `protocolError.message`；非协议异常显示本地化的会议数据不可用提示。错误对象、诊断 code 和 Remote 契约不得因此改变。
 7. 本项不新增字段或日期格式化行为。Meeting Navigator 的摘要更新时间展示见 MO-FR-17；Timeline Panel、第三种语言和新的数据结构不属于本项范围。
 8. 完成验收必须在隔离的真实 DSH Web profile 中实际执行中文 → English → 中文切换，证明同一已挂载页面即时更新；Browser 自动化可以保持未覆盖，但必须在 readiness 中明确记录。
 
@@ -268,6 +268,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘可以遍历节点和相邻泳道；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
 15. Meetings View 的新增标签、筛选、空状态、错误、ARIA 文案和已知 enum label 继续遵守 MO-FR-16 的 `zh`、`en` 本地化与原文保持边界；时间使用 DSH/Host 的 locale 与时区格式，不得从格式化结果反推字段。
 16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
+17. 首次列表读取尚未完成、失败或成功返回空列表且没有 last-good 摘要时，Meetings View 只显示占满主区域的 Navigator 页面状态，不显示搜索、Workspace 或分隔条；三种状态分别使用同一个 `Empty` 品牌图形和本地化 loading、error、empty text，不提供手动重试。取得非空完整列表后才显示 Navigator、Workspace 和宽屏分隔条，Workspace 使用尊重 `prefers-reduced-motion` 的轻量入场动画。刷新期间或失败后已有非空 last-good 摘要时继续保留双栏和当前 Workspace，不重新播放入场动画。
 
 ### MO-FR-18：聊天框启动会议
 
@@ -402,7 +403,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 48. 所有用户控制形成同一 Captain 用户 actor 的审计事实，满足各 action 的领域校验；Agent 不因用户入口而扩大权限。风险完成重算进入 converging 后不自动 end/archive。
 49. DSH 选择 `zh` 或 `en` 时，`conversation.view` 标签和全部 Meeting Panel 自有文案使用对应语言；在同一已挂载页面按中文 → English → 中文切换时，无需 Host 重启、plugin 重装、slot 重新注册或页面刷新即可即时更新。
 50. Meeting Panel 本地化不改写 objective、Agenda 标题、FormalMessage 正文、identity displayName 等用户或 Agent 内容，也不改变 command、Protocol、Domain、Storage 或权限语义；已知 enum 只在 UI 映射为本地化展示 label。
-51. 中文界面的 `ProtocolFailure` 提示使用本地化固定句式并保留稳定 error code，不直接显示未本地化的 server message；非协议异常显示本地化的会议数据不可用提示。
+51. 中文界面的 `ProtocolFailure` 提示只显示本地化自然语言，不显示诊断 error code 或未本地化的 server message；英文界面使用对应英文固定句式，非协议异常显示本地化的会议数据不可用提示。
 52. DSH Conversation 只注册一个 Convivium `Meetings` View；进入后先显示完整 Meeting Navigator，未选择 Meeting 时不调用详情读取，也不显示当前 Meeting Header、模式切换器或内容。
 53. 选择 Meeting 后默认显示概览；切换到时间线时继续使用同一个 ID 和同一详情投影。选择另一个 Meeting 后回到概览且旧时间线本地状态被清除；旧 Meeting 的迟到读取结果不能覆盖新选择。详情失败、断线或选中项从新摘要列表消失时分别遵守 MO-FR-17.4，均不自动改选其他 Meeting。
 54. 活动、暂停、终态和归档 Meeting 的共享 Header 只显示各自 `controls` 允许的暂停、继续和异常取消 control；陈旧或提交中状态全部禁写。概览只读展示 Contribution 授权、Decision 和 Risk，时间线不产生任何写操作。
@@ -415,6 +416,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 61. 被选入初始会议的角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 的精确版本与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议；三个暂不参与角色的资源保留在发行包。
 62. 在真实本地 DSH Web Conversation 中输入 `/convivium 调查TypeSafe JEV的最新进展`，不操作 Meetings View 表单即可得到已提交的 `meetingId`，其 objective 保留用户目标，Manager、Reviewer、Host 配置选中的 Contributor 与一个 pending active 议题齐全；当前部署配置下两个研究角色参会、三个工程角色未进入会议，且会议启动后的投递不依赖输入 Session 常驻。
 63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
+64. 首次列表 loading、error 和 empty result 分别只呈现 `Empty` 品牌图形与对应本地化文本，没有搜索、Workspace、分隔条或 retry；非空列表首次可用后 Workspace 轻量入场，reduced-motion 环境无动画。已有非空 last-good 列表的 refresh loading/failure 仍保留 Navigator、Workspace、选择和陈旧标记。
 
 ## Related Documents
 

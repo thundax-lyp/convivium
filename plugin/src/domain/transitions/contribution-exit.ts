@@ -1,12 +1,13 @@
-import type { MeetingState, OpaqueId } from "@/domain/index.ts";
+import type { ContributionFailure, MeetingState, OpaqueId } from "@/domain/index.ts";
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
 import { roundReadyNotice } from "./round.ts";
 type Input = {
     contributionId: OpaqueId;
     actorId: OpaqueId;
-    actorKind: "author" | "deadline_handler";
-    exit: "withdrawn" | "timed_out" | "submission_missing";
+    actorKind: "author" | "deadline_handler" | "runtime";
+    exit: "withdrawn" | "timed_out" | "submission_missing" | "execution_failed";
     reason: string;
+    failure?: ContributionFailure;
     now: number;
 };
 export const closeContribution = (state: MeetingState, input: Input): MeetingTransitionResult => {
@@ -29,11 +30,24 @@ export const closeContribution = (state: MeetingState, input: Input): MeetingTra
         contribution.status === "withdrawn" ||
         contribution.status === "timed_out" ||
         contribution.status === "submission_missing" ||
+        contribution.status === "execution_failed" ||
         contribution.status === "closed"
     ) {
         return reject(state, "INVALID_STATE", "contribution is terminal");
     }
-    if (input.actorKind === "author") {
+    if (input.actorKind === "runtime") {
+        if (
+            input.exit !== "execution_failed" ||
+            input.failure === undefined ||
+            contribution.packageId !== undefined
+        ) {
+            return reject(
+                state,
+                "INVALID_STATE",
+                "runtime failure requires an unsubmitted contribution"
+            );
+        }
+    } else if (input.actorKind === "author") {
         if (input.actorId !== contribution.contributorId || input.exit !== "withdrawn") {
             return reject(state, "UNAUTHORIZED", "author may only withdraw own contribution");
         }
@@ -111,7 +125,8 @@ export const closeContribution = (state: MeetingState, input: Input): MeetingTra
                       return {
                           ...candidateWithoutHand,
                           status: input.exit,
-                          exitReason: input.reason
+                          exitReason: input.reason,
+                          ...(input.failure === undefined ? {} : { failure: input.failure })
                       };
                   })()
                 : candidate

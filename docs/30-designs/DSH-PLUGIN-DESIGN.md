@@ -56,7 +56,7 @@ Host 冷启动时，先完成 Meeting Runtime 的受控读写入口和全部会�
 
 面板只提供 MO-FR-11 的暂停/恢复/异常取消，会议创建与指定会议取消可通过 MO-FR-18 的显式 `/convivium` Skill 执行；完整结构化 Captain 命令仍保留在可信本地 Remote 契约中。字段与失败行为遵循 Meeting Interface，来源接线见 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#captain-caller-and-audit)。面板取完整读取的 snapshot 作为命令版本，在一次提交时分配 requestId 并于网络结果不确定的重试中复用；VERSION_CONFLICT 时补读并提示重试，不自动覆写。Contribution 授权与任务重新分配保持只读。断线、陈旧、提交中和领域不允许的状态禁写；Agent 不能通过用户视图获得权限。
 
-Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale；Panel 顶层接收 slot locale seat 注入的 typed translator，经 `MeetingTranslationProvider` 提供给组件树，由组件调用 `useMeetingTranslate` 消费。slot locale revision 触发顶层重新渲染时，已挂载页面更新文案而不重新注册 slot；纯格式化函数仍显式接收 translator。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label。
+Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依赖 DSH 公开 locale service 一次注册 key 集合平衡的 `zh`、`en` dictionaries，并使用 DSH locale preference 与 English fallback，不建立 Convivium 独立设置或持久状态。`conversation.view` 标签通过 translation thunk 读取当前 locale；Panel 顶层接收 slot locale seat 注入的 typed translator，经 `MeetingTranslationProvider` 提供给组件树，由组件调用 `useMeetingTranslate` 消费。slot locale revision 触发顶层重新渲染时，已挂载页面更新文案而不重新注册 slot；纯格式化函数仍显式接收 translator。翻译只属于 presentation：Meeting projection 中的用户或 Agent 内容、Domain/Protocol enum 值、错误码、command reason、Remote、Storage 和权限语义保持不变；已知 enum 只映射为本地化展示 label，`ProtocolFailure` 在 UI 只映射为本地化自然语言，不展示诊断 code 或 server message。
 
 ### Meetings View 组成
 
@@ -82,15 +82,15 @@ DSH Conversation
 
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 
-未选择 Meeting 时，Workspace 只渲染居中的 `Empty` 品牌图形和本地化选择提示；图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。此时若列表读取失败或缓存陈旧，由 Navigator 的错误提示提供重试入口。
+没有非空 last-good 摘要时，初始 list loading、list failure 和确认的 empty list 都由占满主区域的 Navigator 使用同一个 `Empty` 品牌图形与对应本地化文本呈现，不显示搜索、Workspace、分隔条或手动 retry。取得非空列表后才建立双栏；未选择 Meeting 时，Workspace 渲染居中的 `Empty` 品牌图形和本地化选择提示，图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。
 
 选中 Meeting 后，Content 右上角提供带无障碍名称的圆形刷新图标，用于手动补读列表和已选会议详情。正常状态在 Content 悬停或键盘焦点进入时显示；列表或详情读取失败、缓存陈旧时持续显示；无悬停能力的设备上持续显示。图标不遮挡会议标题。
 
-Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；空列表和搜索无匹配使用 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
+取得非空列表后，Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；搜索无匹配使用搜索图标与 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
 会议标题悬停时使用 DSH `Tooltip` 显示完整目标。会议行在悬停或键盘聚焦时以省略号替代尾部时间，点击后使用 DSH `Menu` 显示生命周期和已有的“查看会议”导航动作；信息浮层与操作菜单独立，菜单打开本身不选择会议，也不新增 Meeting command。
 
-宽屏时，Navigator 与 Workspace 之间的分隔条可通过指针拖动或方向键、Home、End 调整 Navigator 宽度；当前实现以 280px 为初始值，在 220–480px 与容器可用宽度内约束，尽量给 Workspace 保留 320px。该宽度只是可丢弃的本地展示状态，不进入 URL 或持久事实。浏览器进入窄屏断点，或 Host 实际内容列不足以容纳 220px Navigator、320px Workspace 和 16px 分隔区域时，沿用导航抽屉，不显示分隔条；内容列恢复后继续使用先前设定的宽度。
+非空列表首次可用时，Workspace 以 180ms ease-out 的 opacity 与小幅水平位移动画进入；`prefers-reduced-motion: reduce` 时禁用动画。动画依赖 Workspace 从页面级列表状态进入布局时的挂载，不在普通刷新、详情更新或保留 last-good 数据时重新播放。宽屏时，Navigator 与 Workspace 之间的分隔条可通过指针拖动或方向键、Home、End 调整 Navigator 宽度；当前实现以 280px 为初始值，在 220–480px 与容器可用宽度内约束，尽量给 Workspace 保留 320px。该宽度只是可丢弃的本地展示状态，不进入 URL 或持久事实。浏览器进入窄屏断点，或 Host 实际内容列不足以容纳 220px Navigator、320px Workspace 和 16px 分隔区域时，沿用导航抽屉，不显示分隔条；内容列恢复后继续使用先前设定的宽度。
 
 Meeting panel 的高度以 Host 可视内容区为界，并给底部固定输入区留出空间；宽屏 Navigator 和 Workspace 分别滚动，窄屏 Workspace 独立滚动，不让长 Meeting 内容撑高整个 Host 页面。
 
@@ -188,20 +188,21 @@ interface TimelineNode {
 
 概览到时间线的定位设置 `activeMode="timeline"` 和同一 Meeting 的 `focusTarget`；反向定位设置 `activeMode="overview"`。目标挂载后展开、滚动和聚焦，成功或失败均清除一次性 focus。多 phase 对象默认定位时间最晚节点并允许查看其他 phase。目标不存在、被 caller filtering 删除或目标模式不展示时只报告中性失败，不修改筛选、Meeting 或权限。
 
-宽屏 Navigator 是常驻左栏。窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度；这两个呈现共享唯一 `selectedMeetingId`。时间线保持五类泳道并横向滚动，DOM 按时间排序，键盘可以遍历时间节点和相邻泳道；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
+存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线保持五类泳道并横向滚动，DOM 按时间排序，键盘可以遍历时间节点和相邻泳道；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
 
 状态呈现如下：
 
-| 状态                         | Navigator                        | Workspace                        |
-| ---------------------------- | -------------------------------- | -------------------------------- |
-| loading list                 | 摘要骨架                         | 等待选择                         |
-| empty list                   | 中性空状态                       | 不渲染 Header、切换器或内容      |
-| list ready, no selection     | 完整摘要列表                     | 提示选择，不读取详情             |
-| list failure                 | last-good 标为陈旧或错误与 retry | 不使用残缺列表选择 Meeting       |
-| loading detail               | 保留选中项                       | Header/当前模式骨架              |
-| detail failure               | 保留选中项和其他摘要入口         | 当前 ID 错误与 retry，不自动改选 |
-| disconnected/refresh failure | last-good 标为陈旧               | 保留内容、禁写并提供适用 retry   |
-| focus target missing         | 不变                             | 中性定位失败                     |
+| 状态                         | Navigator                          | Workspace                        |
+| ---------------------------- | ---------------------------------- | -------------------------------- |
+| loading list, no last-good   | 品牌 Empty 与 loading text         | 不渲染                           |
+| empty list                   | 品牌 Empty 与 empty text           | 不渲染                           |
+| list ready, no selection     | 完整摘要列表                       | 提示选择，不读取详情             |
+| list failure, no last-good   | 品牌 Empty 与 error text，无 retry | 不渲染                           |
+| list refresh failure         | last-good 标为陈旧并显示错误       | 保留当前 Workspace 并禁写        |
+| loading detail               | 保留选中项                         | Header/当前模式骨架              |
+| detail failure               | 保留选中项和其他摘要入口           | 当前 ID 错误与 retry，不自动改选 |
+| disconnected/refresh failure | last-good 标为陈旧                 | 保留内容、禁写并提供适用 retry   |
+| focus target missing         | 不变                               | 中性定位失败                     |
 
 所有新增标签、筛选、状态、按钮和 ARIA 文案进入 `convivium.meeting` 的 `zh`、`en` 等键词典。用户/Agent 内容保持原文；时间只通过 DSH/Host locale 与时区格式化，不能从显示字符串推导数据。
 

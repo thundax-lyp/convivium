@@ -7,7 +7,7 @@ import {
     IconSearchOutlineMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { Empty } from "@/client/meeting/components/index.ts";
+import { ConviviumMark, Empty } from "@/client/meeting/components/index.ts";
 import { MeetingTreeItem } from "./meeting-tree-item.tsx";
 import styles from "./navigator.module.css";
 
@@ -17,7 +17,6 @@ export const MeetingNavigator = ({
     listLoading,
     listCached,
     listError,
-    requestRefresh,
     selectMeeting
 }: {
     meetings: readonly MeetingSummary[];
@@ -25,7 +24,6 @@ export const MeetingNavigator = ({
     listLoading: boolean;
     listCached: boolean;
     listError?: string;
-    requestRefresh(): void;
     selectMeeting(meetingId: string): void;
 }): ReactElement => {
     const t = useMeetingTranslate();
@@ -80,7 +78,11 @@ export const MeetingNavigator = ({
 
     return (
         <nav aria-label={t("panel.navigator.title")} className={styles.navigator}>
-            <div className={styles.sectionHeader} data-search-open={searchOpen}>
+            <div
+                className={styles.sectionHeader}
+                data-search-open={searchOpen}
+                hidden={meetings.length === 0}
+            >
                 <h3 className={styles.sectionLabel} aria-hidden={searchOpen}>
                     {t("panel.navigator.section")}
                 </h3>
@@ -137,7 +139,7 @@ export const MeetingNavigator = ({
                     ) : null}
                 </div>
             </div>
-            {listCached || listError !== undefined ? (
+            {meetings.length > 0 && (listCached || listError !== undefined) ? (
                 <div className={styles.feedback}>
                     <div className={styles.feedbackText}>
                         {listCached ? (
@@ -149,41 +151,47 @@ export const MeetingNavigator = ({
                             </p>
                         )}
                     </div>
-                    {selectedId === undefined ? (
-                        <Button type="button" variant="ghost" size="sm" onClick={requestRefresh}>
-                            {t("panel.actions.retry")}
-                        </Button>
-                    ) : null}
                 </div>
             ) : null}
-            <div data-slot="listArea" className={styles.listArea}>
+            <div
+                data-slot="listArea"
+                data-page-state={meetings.length === 0}
+                className={styles.listArea}
+            >
                 {meetings.length === 0 && listLoading ? (
-                    <p className={styles.notice}>{t("panel.navigator.loading")}</p>
-                ) : null}
-                {visibleMeetings.length === 0 && !listLoading && listError === undefined ? (
+                    <div role="status" aria-busy="true">
+                        <Empty icon={<ConviviumMark />} message={t("panel.navigator.loading")} />
+                    </div>
+                ) : meetings.length === 0 && listError !== undefined ? (
+                    <div role="alert">
+                        <Empty icon={<ConviviumMark />} message={listError} />
+                    </div>
+                ) : meetings.length === 0 ? (
+                    <Empty icon={<ConviviumMark />} message={t("panel.navigator.empty")} />
+                ) : visibleMeetings.length === 0 ? (
                     <Empty
                         icon={<IconSearchOutlineMedium aria-hidden="true" />}
-                        message={t(
-                            normalizedQuery ? "panel.navigator.noMatches" : "panel.navigator.empty"
-                        )}
+                        message={t("panel.navigator.noMatches")}
                     />
                 ) : null}
-                <div
-                    role="tree"
-                    aria-label={t("panel.list.aria")}
-                    data-slot="sessionTree"
-                    onKeyDown={onTreeKeyDown}
-                >
-                    {visibleMeetings.map((meeting) => (
-                        <MeetingTreeItem
-                            key={meeting.meetingId}
-                            meeting={meeting}
-                            now={now}
-                            selected={meeting.meetingId === selectedId}
-                            selectMeeting={selectMeeting}
-                        />
-                    ))}
-                </div>
+                {meetings.length > 0 ? (
+                    <div
+                        role="tree"
+                        aria-label={t("panel.list.aria")}
+                        data-slot="sessionTree"
+                        onKeyDown={onTreeKeyDown}
+                    >
+                        {visibleMeetings.map((meeting) => (
+                            <MeetingTreeItem
+                                key={meeting.meetingId}
+                                meeting={meeting}
+                                now={now}
+                                selected={meeting.meetingId === selectedId}
+                                selectMeeting={selectMeeting}
+                            />
+                        ))}
+                    </div>
+                ) : null}
             </div>
         </nav>
     );

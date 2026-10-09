@@ -7,6 +7,7 @@ import { ConviviumMeetingPanel } from "@/client/meeting/panel.tsx";
 import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
 import type { MeetingTranslate } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
+import { archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 import {
     meetingTranslator,
     translatedLayout,
@@ -50,24 +51,50 @@ describe("Meeting panel localized presentation", () => {
         const { rerender } = render(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
-        expect(screen.getByText("形成公开证据: 待处理")).toBeTruthy();
+        expect(screen.getByText("👉 议题 A")).toBeTruthy();
+        expect(screen.getByLabelText("议题 A: 进行中")).toBeTruthy();
+        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
+        expect(screen.getByLabelText("形成公开证据: 待处理")).toBeTruthy();
         expect(screen.getByText("低")).toBeTruthy();
 
         rerender(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
         );
-        expect(screen.getByText("形成公开证据: Pending")).toBeTruthy();
+        expect(screen.getByText("👉 议题 A")).toBeTruthy();
+        expect(screen.getByLabelText("议题 A: Active")).toBeTruthy();
+        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
+        expect(screen.getByLabelText("形成公开证据: Pending")).toBeTruthy();
         expect(screen.getByText("Low")).toBeTruthy();
+    });
+
+    it("marks unfinished archived objectives without presenting them as active", () => {
+        const view = archiveTimelineFixture();
+        const { rerender } = render(
+            withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
+        );
+        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
+        expect(screen.getByLabelText("议题 A: 结束时未收口")).toBeTruthy();
+        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
+        expect(screen.getByLabelText("形成公开证据: 结束时未收口")).toBeTruthy();
+
+        rerender(
+            withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
+        );
+        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
+        expect(screen.getByLabelText("议题 A: Unclosed at termination")).toBeTruthy();
+        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
+        expect(screen.getByLabelText("形成公开证据: Unclosed at termination")).toBeTruthy();
     });
 
     it("renders the panel shell in Chinese and English", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "讨论区" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "讨论区" })).toBeNull();
         expect(screen.queryByRole("button", { name: "刷新" })).toBeNull();
-        expect(screen.getByRole("tree", { name: "会话" })).toBeTruthy();
-        expect(screen.getByText("请选择一个会议。")).toBeTruthy();
+        expect(screen.queryByRole("tree", { name: "会话" })).toBeNull();
+        expect(screen.getByText("暂无会议。")).toBeTruthy();
+        expect(screen.queryByRole("main")).toBeNull();
 
         const { summary, view } = meetingProjectionFixture();
         rerender(
@@ -157,10 +184,11 @@ describe("Meeting panel localized presentation", () => {
         rerender(emptyLayout("en"));
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "Discussions" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "Discussions" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
-        expect(screen.getByRole("tree", { name: "Sessions" })).toBeTruthy();
-        expect(screen.getByText("Select a meeting.")).toBeTruthy();
+        expect(screen.queryByRole("tree", { name: "Sessions" })).toBeNull();
+        expect(screen.getByText("No meetings.")).toBeTruthy();
+        expect(screen.queryByRole("main")).toBeNull();
     });
 
     it("retranslates mounted errors without refreshing meeting data", async () => {
@@ -186,11 +214,11 @@ describe("Meeting panel localized presentation", () => {
                 createElement(ConviviumMeetingPanel, { api: protocolApi })
             );
         const { rerender, unmount } = render(panel());
-        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
+        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败。");
         expect(screen.queryByText("stale server detail")).toBeNull();
         activeLocale = "en";
         rerender(panel());
-        expect(screen.getByRole("alert").textContent).toBe("Meeting request failed (CONFLICT).");
+        expect(screen.getByRole("alert").textContent).toBe("Meeting request failed.");
         expect(protocolApi.list).toHaveBeenCalledOnce();
         unmount();
 
@@ -228,7 +256,7 @@ describe("Meeting panel localized presentation", () => {
             await screen.findByRole("treeitem", { name: `${summary.objective} (进行中)` })
         );
 
-        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
+        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败。");
         expect(screen.queryByText("正在加载会议。")).toBeNull();
     });
 });

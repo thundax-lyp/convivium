@@ -78,14 +78,14 @@ describe("Meeting navigator", () => {
         expect(screen.queryByTestId("meeting-user-controls")).toBeNull();
     });
 
-    it("offers retry in the navigator when the list fails before a meeting is selected", () => {
+    it("renders a branded single-pane failure when the first list load fails", () => {
         const media = mediaFixture(false);
         vi.stubGlobal(
             "matchMedia",
             vi.fn(() => media.query)
         );
         const { props } = layoutProps();
-        render(
+        const rendered = render(
             translatedLayout(
                 {
                     ...props,
@@ -100,9 +100,36 @@ describe("Meeting navigator", () => {
         );
 
         expect(screen.getByRole("alert").textContent).toContain("List unavailable");
-        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-        expect(props.requestRefresh).toHaveBeenCalledOnce();
+        expect(rendered.container.querySelector("svg")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+        expect(screen.queryByRole("searchbox")).toBeNull();
+        expect(screen.queryByRole("separator")).toBeNull();
+        expect(screen.queryByRole("main")).toBeNull();
         expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+    });
+
+    it("keeps the workspace and splitter when a cached list refresh fails", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+
+        render(
+            translatedLayout(
+                {
+                    ...props,
+                    listCached: true,
+                    listError: "List unavailable"
+                },
+                "en"
+            )
+        );
+
+        expect(screen.getByRole("alert").textContent).toContain("List unavailable");
+        expect(screen.getByRole("separator", { name: "Resize meeting navigator" })).toBeTruthy();
+        expect(screen.getByRole("main")).toBeTruthy();
     });
 
     it("renders a persistent navigator and workspace grid on wide screens", () => {
@@ -199,6 +226,10 @@ describe("Meeting navigator", () => {
         );
 
         expect(screen.getByText("Loading meetings.")).toBeTruthy();
+        expect(rendered.container.querySelector("svg")).toBeTruthy();
+        expect(screen.queryByRole("searchbox")).toBeNull();
+        expect(screen.queryByRole("separator")).toBeNull();
+        expect(screen.queryByRole("main")).toBeNull();
         expect(screen.queryByText("No meetings.")).toBeNull();
 
         rendered.rerender(
@@ -214,8 +245,16 @@ describe("Meeting navigator", () => {
             )
         );
         expect(screen.getByText("No meetings.")).toBeTruthy();
+        expect(rendered.container.querySelector("svg")).toBeTruthy();
+        expect(screen.queryByRole("searchbox")).toBeNull();
+        expect(screen.queryByRole("separator")).toBeNull();
+        expect(screen.queryByRole("main")).toBeNull();
         expect(screen.queryByText("Loading meetings.")).toBeNull();
     });
+});
+
+describe("Meeting navigator interactions", () => {
+    beforeEach(() => vi.unstubAllGlobals());
 
     it("updates relative meeting time while the list remains open", () => {
         vi.useFakeTimers();

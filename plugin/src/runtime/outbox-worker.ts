@@ -2,6 +2,13 @@ import type { OutboxItem, WorkerLease } from "@/repository/index.ts";
 
 export interface OutboxWorkerRepository {
     claimOutbox(input: WorkerLease & { batchSize: number; now?: number }): Promise<OutboxItem[]>;
+    renewOutboxLease(input: {
+        id: string;
+        leaseOwner: string;
+        leaseToken: string;
+        ttlMs: number;
+        now?: number;
+    }): Promise<number>;
     completeOutbox(input: {
         id: string;
         leaseOwner: string;
@@ -48,15 +55,15 @@ const defaultSleep = (delayMs: number, signal: AbortSignal): Promise<void> =>
             reject(signal.reason ?? new Error("Outbox worker stopped"));
             return;
         }
-        const timer = setTimeout(resolve, delayMs);
-        signal.addEventListener(
-            "abort",
-            () => {
-                clearTimeout(timer);
-                reject(signal.reason ?? new Error("Outbox worker stopped"));
-            },
-            { once: true }
-        );
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal.reason ?? new Error("Outbox worker stopped"));
+        };
+        const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        }, delayMs);
+        signal.addEventListener("abort", onAbort, { once: true });
     });
 
 const errorCode = (error: unknown): string => {
@@ -68,6 +75,8 @@ const errorCode = (error: unknown): string => {
     }
     return "DSH_DISPATCH_FAILED";
 };
+
+const isLeaseLost = (error: unknown): boolean => errorCode(error) === "LEASE_LOST";
 
 const isRetryable = (error: unknown): boolean => {
     return !(
@@ -109,6 +118,50 @@ export const createOutboxWorker = (options: OutboxWorkerOptions) => {
     let wake: (() => void) | undefined;
     let running: Promise<void> | undefined;
 
+    const dispatchWithLeaseRenewal = async (item: OutboxItem): Promise<void> => {
+        const deliveryController = new AbortController();
+        const abortDelivery = () => deliveryController.abort(controller.signal.reason);
+        controller.signal.addEventListener("abort", abortDelivery, { once: true });
+        let renewalError: unknown;
+        const renewUntilFinished = (async () => {
+            try {
+                while (!deliveryController.signal.aborted) {
+                    await defaultSleep(
+                        Math.max(1, Math.floor(options.ttlMs / 2)),
+                        deliveryController.signal
+                    );
+                    if (deliveryController.signal.aborted) {
+                        return;
+                    }
+                    await options.repository.renewOutboxLease({
+                        id: item.id,
+                        leaseOwner: item.leaseOwner,
+                        leaseToken: item.leaseToken,
+                        ttlMs: options.ttlMs,
+                        now: now()
+                    });
+                }
+            } catch (error) {
+                if (!deliveryController.signal.aborted) {
+                    renewalError = error;
+                    deliveryController.abort(error);
+                }
+            }
+        })();
+        try {
+            await options.dispatch(item, deliveryController.signal);
+            if (renewalError !== undefined) {
+                throw renewalError;
+            }
+        } catch (error) {
+            throw renewalError ?? error;
+        } finally {
+            deliveryController.abort(new Error("Outbox delivery finished"));
+            controller.signal.removeEventListener("abort", abortDelivery);
+            await renewUntilFinished;
+        }
+    };
+
     const runOnce = async (at = now()): Promise<OutboxPollResult> => {
         if (controller.signal.aborted) {
             return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
@@ -127,31 +180,47 @@ export const createOutboxWorker = (options: OutboxWorkerOptions) => {
         let retried = 0;
         let failed = 0;
         for (const item of items) {
+            let dispatchError: unknown;
+            let dispatchSucceeded = false;
             try {
                 // deliveryId is supplied by the committed outbox record. The dispatch adapter
                 // must pass it unchanged so a lease retry cannot create another meeting fact.
-                await options.dispatch(item, controller.signal);
-                if (controller.signal.aborted) {
-                    return { claimed: items.length, delivered, retried, failed };
-                }
-                await options.repository.completeOutbox({
-                    id: item.id,
-                    leaseOwner: item.leaseOwner,
-                    leaseToken: item.leaseToken,
-                    completion: { status: "delivered", deliveredAt: now() },
-                    now: now()
-                });
-                delivered += 1;
+                await dispatchWithLeaseRenewal(item);
+                dispatchSucceeded = true;
             } catch (error) {
-                if (controller.signal.aborted) {
-                    return { claimed: items.length, delivered, retried, failed };
+                dispatchError = error;
+            }
+            if (controller.signal.aborted) {
+                return { claimed: items.length, delivered, retried, failed };
+            }
+            if (!dispatchSucceeded && isLeaseLost(dispatchError)) {
+                continue;
+            }
+            if (dispatchSucceeded) {
+                try {
+                    await options.repository.completeOutbox({
+                        id: item.id,
+                        leaseOwner: item.leaseOwner,
+                        leaseToken: item.leaseToken,
+                        completion: { status: "delivered", deliveredAt: now() },
+                        now: now()
+                    });
+                } catch (error) {
+                    if (isLeaseLost(error)) {
+                        continue;
+                    }
+                    throw error;
                 }
-                const code = errorCode(error);
-                const terminal =
-                    !isRetryable(error) ||
-                    (terminatesOnAttemptLimit(error) && item.attempts >= maxAttempts);
-                const completionNow = now();
-                const availableAt = retryAvailableAt(error, completionNow + retryDelayMs);
+                delivered += 1;
+                continue;
+            }
+            const code = errorCode(dispatchError);
+            const terminal =
+                !isRetryable(dispatchError) ||
+                (terminatesOnAttemptLimit(dispatchError) && item.attempts >= maxAttempts);
+            const completionNow = now();
+            const availableAt = retryAvailableAt(dispatchError, completionNow + retryDelayMs);
+            try {
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
@@ -161,12 +230,17 @@ export const createOutboxWorker = (options: OutboxWorkerOptions) => {
                         : { status: "retry", availableAt, errorCode: code },
                     now: completionNow
                 });
-                if (terminal) {
-                    failed += 1;
-                    await options.onTerminalFailure?.(item, code, completionNow);
-                } else {
-                    retried += 1;
+            } catch (error) {
+                if (isLeaseLost(error)) {
+                    continue;
                 }
+                throw error;
+            }
+            if (terminal) {
+                failed += 1;
+                await options.onTerminalFailure?.(item, code, completionNow);
+            } else {
+                retried += 1;
             }
         }
         return { claimed: items.length, delivered, retried, failed };

@@ -514,6 +514,25 @@ export const runMeetingActionTransition = (input: TransitionInput): CommandTrans
                 now
             });
             break;
+        case "record_contribution_failure":
+            transition = closeContribution(snapshot.state, {
+                contributionId: action.contributionId,
+                actorId,
+                actorKind: "runtime",
+                exit: "execution_failed",
+                reason: action.failureSummary,
+                failure: {
+                    sourceEffectId: action.sourceEffectId,
+                    stage: action.stage,
+                    failureCode: action.failureCode,
+                    failureSummary: action.failureSummary,
+                    attemptCount: action.attemptCount,
+                    retryable: action.retryable,
+                    occurredAt: now
+                },
+                now
+            });
+            break;
         case "submit_evidence_review":
             transition = submitEvidenceReview(snapshot.state, {
                 reviewerId: actorId,

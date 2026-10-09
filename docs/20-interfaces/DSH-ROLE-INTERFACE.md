@@ -15,8 +15,13 @@ type DefinitionId = string;
 type CatalogId = string;
 type DescriptorId = string;
 type EpochMs = number;
-interface DefinitionRef { id: string; }
-interface VersionedRef { id: string; version: string; }
+interface DefinitionRef {
+  id: string;
+}
+interface VersionedRef {
+  id: string;
+  version: string;
+}
 type MeetingRole = "manager" | "contributor" | "evidence_reviewer";
 type AgentRoleDefinitionId =
   | "meeting_manager"
@@ -227,6 +232,8 @@ Runtime owner 私有 Map 持有 live handle 与装配 purpose（精确结构见�
 ## Runtime Delivery And Session Stop
 
 Meeting Runtime 的 outbox 在每次投递前重新检查目标 Meeting、identity、active ownership、Session ID、lifecycle 与 notice 可见性；只经 Runtime 获取已持有或恢复的 handle，使用 `handle.agent.followup(UserMessage)`。消息 ID 固定为 effect deliveryId，`source` 为 Convivium plugin，内容仅含当前 caller 可见的会议提示和读取指令。调用后通过 `ctx.sessions.flush(handle.agent.session)` 等待至少一个持久化 listener 成功，再标记 outbox delivered；返回 false、抛错或进程在 delivered commit 前退出时保留 effect 重试。重复通知可能出现，Session inbox 接受不代表业务完成；Meeting command 的 requestId、version、review claim 与 effect ID 仍决定事实幂等。目标未驻留则先按 ownership 恢复；不能恢复时 effect 保持 retryable，Meeting 报 `RECOVERY_UNAVAILABLE`。
+
+对于已接纳 `hand_disposition` 与 `review_request`，dispatcher 不能以 `followup` 接受或 `flush=true` 推定业务 turn 成功；owner 须订阅消息被 claim 的 turn，并等待该 Agent 重新 idle。若 Agent 因此前活动 turn 异常而 idle、当前 deliveryId 仍未被 claim，owner 使用公开 `steer` API 注入一条只用于唤醒且不形成会议事实的 next-step 消息，使已经排队的原通知进入下一 turn；再次 idle 后仍未 claim 则投递失败并保留重试。只有同一 Agent、同一 deliveryId 所在 turn 的 `agent/error` 才形成观察到的失败：Contributor 且尚无登记证据时由 Runtime 记录 `execution_failed` Contribution 事实；Reviewer 则立即以 `review_interrupted` 释放精确 claim，沿 EvidenceVersion 自身失败预算重试。此前正在运行的其它 turn 失败、尚未 claim 当前消息或普通通知失败均不得误记为该项业务失败。
 
 投递的 `UserMessage` 精确为 `{id:deliveryId,role:"user",content:[{type:"text",text}],source:{kind:"plugin",plugin:"convivium"}}`；`deliveryId` 来自已提交 outbox item，`text` 由该 effect 的 caller-visible projection 生成且须非空，不把原始私有 payload 或 Session ID 拼进消息。`followup` 是同步 inbox 接受；随后 `flush` 的 `true` 只证明至少一个持久化 listener 成功，不证明模型 turn 或业务完成。Runtime 必须在 `followup` 前和 `flush` 后重验同一 Meeting/identity/active ownership/sessionId/effect；后验失败不写 delivered。owner 只能投递到由自己创建或恢复、仍在私有 handle map 的目标 Session；不得向任意 `ctx.agents.get` 裸 Agent 投递或调用跨 Agent 直接消息 API。
 

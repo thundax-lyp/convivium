@@ -17,6 +17,11 @@ const outboxItem = (payload: Record<string, unknown>) => ({
     leaseToken: "token",
     leaseDeadline: 2
 });
+const observed = (deliver: (input: never) => Promise<boolean>) =>
+    vi.fn(async (input: never) => ({
+        durable: await deliver(input),
+        outcome: "completed" as const
+    }));
 
 it("builds worker input from the active claim, immutable version, and fixed baseline", async () => {
     const { state, ownership } = stateWithPendingReview();
@@ -350,7 +355,7 @@ describe("evidence review request dispatcher v1", () => {
         });
         const dispatcher = createEvidenceReviewDispatcher({
             definitions: [{ agentDefinitionId: "fixture" }],
-            owner: { resume: vi.fn(async () => {}), deliver },
+            owner: { resume: vi.fn(async () => {}), deliver, deliverObserved: observed(deliver) },
             application: application as never,
             clock: { now: () => 6 },
             repository: {
@@ -523,7 +528,8 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
-                deliver: vi.fn().mockResolvedValue(true)
+                deliver: vi.fn().mockResolvedValue(true),
+                deliverObserved: vi.fn().mockResolvedValue({ durable: true, outcome: "completed" })
             },
             application: application as never,
             clock: { now: () => 6 },
@@ -575,7 +581,8 @@ describe("evidence review request dispatcher claim lifecycle", () => {
             definitions: [{ agentDefinitionId: "fixture" }],
             owner: {
                 resume: vi.fn(async () => {}),
-                deliver: vi.fn().mockRejectedValue(new Error("review turn timed out"))
+                deliver: vi.fn(),
+                deliverObserved: vi.fn().mockRejectedValue(new Error("review turn timed out"))
             },
             application: application as never,
             clock: { now: () => 6 },
@@ -622,6 +629,65 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         });
     });
 
+    it("releases the claim immediately when the reviewer turn fails", async () => {
+        const { state, ownership } = stateWithPendingReview();
+        const application = claimApplication(state);
+        const dispatcher = createEvidenceReviewDispatcher({
+            definitions: [{ agentDefinitionId: "fixture" }],
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: vi.fn(),
+                deliverObserved: vi.fn().mockResolvedValue({
+                    durable: true,
+                    outcome: "failed",
+                    failureCode: "MALFORMED_RESPONSE",
+                    failureSummary: "tool input is invalid JSON"
+                })
+            },
+            application: application as never,
+            clock: { now: () => 6 },
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: state.version,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 5
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: outboxItem({
+                    kind: "agent_notice",
+                    noticeKind: "review_request",
+                    recipientId: "reviewer-v1",
+                    agendaId: "agenda-v1",
+                    versionId: "version-pending"
+                }),
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({
+            code: "REVIEW_VALIDATION_RETRY",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
+        expect(state.reviewClaims).toEqual([]);
+        expect(application.execute.mock.calls[1]?.[0]).toMatchObject({
+            requestId: "review-claim-release:review-claim-v1:review_interrupted",
+            action: {
+                kind: "fail_evidence_validation",
+                roundId: "round-current",
+                claimId: "review-claim-v1",
+                reason: "review_interrupted"
+            }
+        });
+    });
+
     it("allows only one dispatcher instance to wake the reviewer for an active claim", async () => {
         const { state, ownership, pendingVersion } = stateWithPendingReview();
         const application = claimApplication(state);
@@ -656,14 +722,22 @@ describe("evidence review request dispatcher claim lifecycle", () => {
         } as never;
         const first = createEvidenceReviewDispatcher({
             definitions: [{ agentDefinitionId: "fixture" }],
-            owner: { resume: vi.fn(async () => {}), deliver: firstSend },
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: firstSend,
+                deliverObserved: observed(firstSend)
+            },
             application: application as never,
             clock: { now: () => 6 },
             repository
         });
         const second = createEvidenceReviewDispatcher({
             definitions: [{ agentDefinitionId: "fixture" }],
-            owner: { resume: vi.fn(async () => {}), deliver: secondSend },
+            owner: {
+                resume: vi.fn(async () => {}),
+                deliver: secondSend,
+                deliverObserved: observed(secondSend)
+            },
             application: application as never,
             clock: { now: () => 6 },
             repository
@@ -730,7 +804,7 @@ describe("evidence review request dispatcher recovery", () => {
         });
         const dispatcher = createEvidenceReviewDispatcher({
             definitions: [{ agentDefinitionId: "fixture" }],
-            owner: { resume: vi.fn(async () => {}), deliver },
+            owner: { resume: vi.fn(async () => {}), deliver, deliverObserved: observed(deliver) },
             application: application as never,
             clock: { now: () => 6 },
             repository: {

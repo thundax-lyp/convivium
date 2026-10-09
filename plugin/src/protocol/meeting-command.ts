@@ -322,6 +322,16 @@ const actions = [
         exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
         reason: text
     }),
+    z.object({
+        kind: z.literal("record_contribution_failure"),
+        contributionId: id,
+        sourceEffectId: id,
+        stage: text,
+        failureCode: text,
+        failureSummary: text,
+        attemptCount: z.number().int().positive(),
+        retryable: z.boolean()
+    }),
     ClaimEvidenceReviewActionSchema,
     FailEvidenceValidationActionSchema,
     SubmitEvidenceReviewActionSchema,

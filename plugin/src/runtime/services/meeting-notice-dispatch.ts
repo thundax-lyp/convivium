@@ -3,6 +3,10 @@ import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.ts";
 import type { MeetingRepositoryPort } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
+import {
+    RUNTIME_RECOVERY_PRINCIPAL_ID,
+    type MeetingCommandApplication
+} from "@/runtime/application-service/index.ts";
 
 const supported = new Set([
     "meeting_started",
@@ -295,6 +299,7 @@ export interface MeetingNoticeDispatcherDependencies {
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
+    readonly application: MeetingCommandApplication;
 }
 export const createMeetingNoticeDispatcher = (
     dependencies: MeetingNoticeDispatcherDependencies
@@ -342,9 +347,25 @@ export const createMeetingNoticeDispatcher = (
                 noticeKind,
                 agendaId
             );
-            return { ownership, details, meetingId: snapshot.meetingId };
+            const contributionFailureRecorded =
+                noticeKind === "hand_disposition" &&
+                typeof payload.contributionId === "string" &&
+                snapshot.state.contributions.some(
+                    (contribution) =>
+                        contribution.id === payload.contributionId &&
+                        contribution.failure?.sourceEffectId === outboxItem.id
+                );
+            return {
+                ownership,
+                details,
+                meetingId: snapshot.meetingId,
+                contributionFailureRecorded
+            };
         };
         const initial = await resolve();
+        if (initial.contributionFailureRecorded) {
+            return;
+        }
         const definition = dependencies.definitions.find(
             (d) => d.agentDefinitionId === initial.ownership.definition.agentDefinitionId
         );
@@ -367,7 +388,7 @@ export const createMeetingNoticeDispatcher = (
             purpose: "delivery",
             signal
         });
-        const flushed = await dependencies.owner.deliver({
+        const deliveryInput = {
             ownership: initial.ownership,
             deliveryId: outboxItem.deliveryId,
             text: JSON.stringify({
@@ -379,9 +400,53 @@ export const createMeetingNoticeDispatcher = (
             }),
             authorize,
             signal
-        });
-        if (!flushed) {
+        };
+        const observesContribution =
+            noticeKind === "hand_disposition" &&
+            payload.disposition === "accepted" &&
+            typeof payload.contributionId === "string";
+        const delivery = observesContribution
+            ? await dependencies.owner.deliverObserved(deliveryInput)
+            : {
+                  durable: await dependencies.owner.deliver(deliveryInput),
+                  outcome: "completed" as const
+              };
+        if (!delivery.durable) {
             throw new NoticeDispatchError("SESSION_FLUSH_FAILED", true);
+        }
+        if (delivery.outcome === "failed" && typeof payload.contributionId === "string") {
+            const latest = await dependencies.repository.recover();
+            if (!latest.snapshot) {
+                throw new NoticeDispatchError("NOTICE_STATE_UNAVAILABLE", true);
+            }
+            const recorded = await dependencies.application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: latest.snapshot.meetingId,
+                    expectedMeetingVersion: latest.snapshot.version,
+                    requestId: `contribution-failure:${outboxItem.id}`,
+                    action: {
+                        kind: "record_contribution_failure",
+                        contributionId: payload.contributionId,
+                        sourceEffectId: outboxItem.id,
+                        stage: "contribution_turn",
+                        failureCode: delivery.failureCode ?? "AGENT_TURN_FAILED",
+                        failureSummary: delivery.failureSummary ?? "Contributor turn failed",
+                        attemptCount: 1,
+                        retryable: false
+                    }
+                },
+                {
+                    caller: {
+                        channel: "runtime_recovery",
+                        principalId: RUNTIME_RECOVERY_PRINCIPAL_ID
+                    }
+                },
+                signal
+            );
+            if (recorded.kind === "rejected") {
+                throw new NoticeDispatchError(recorded.error.code, true);
+            }
         }
     }
 });

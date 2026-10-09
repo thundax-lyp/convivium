@@ -30,7 +30,7 @@
 
 1. 每轮打开时，负责该 Agenda 的每位贡献者都须在选择期限前明确 `raise_hand` 或 `decline_hand`；选择期限为开轮时刻加 `taskDeadlineMs` 与 Round 自身 deadline 的较早值。期限内沉默由可信 deadline handler 记为 `no_response`，不能伪装为主动拒绝。愿意取证者向 Manager 举手，说明拟推进的当前问题及取证准备。Manager 可以安排其参与，或以“暂缓／拒绝”拒绝其本轮发言；此处“暂缓”不产生等待中的本轮发言资格。
 2. 举手在 Manager 处置前必须可定位和恢复；处置完成后，被拒绝或暂缓者不参与本轮对话，Manager 向本人返回理由，会议不保留该次待处置举手或 Contribution，但其已记录的 `raised` 选择仍可观察；不等待二次举手或回复。命令审计可保留申请与处置事实，但不得把它投影为已接纳参与。Manager 可以依据当前议题安排人选，但不得用该安排预判尚未提交证据的内容真伪。
-3. 获得安排后，贡献者整理一份准备公开的证据包并直接提交给 Meeting Runtime，不把私有草稿交给 Manager。已接纳的举手从接纳时起属于本轮待收口参与，即使尚无证据包；本人未主动选定和提交的私有取证材料不进入会议。若准备任务的适用期限届满或该身份不可用且仍未提交，记录为“未提交退出”及原因，不生成空证据包，不把该身份所需证据判为已满足；其他贡献者可继续工作。
+3. 获得安排后，贡献者整理一份准备公开的证据包并直接提交给 Meeting Runtime，不把私有草稿交给 Manager。已接纳的举手从接纳时起属于本轮待收口参与，即使尚无证据包；本人未主动选定和提交的私有取证材料不进入会议。若准备任务的适用期限届满或该身份不可用且仍未提交，记录为“未提交退出”及原因，不生成空证据包，不把该身份所需证据判为已满足；其他贡献者可继续工作。若 Runtime 已观察到承接该 Contribution 的 Contributor turn 以执行异常终止且尚未登记证据，则记录 `execution_failed` 退出及结构化失败事实；该事实不生成 EvidenceVersion 或 Review，也不需要 Evidence Reviewer 审核。
 4. 会议进入 running 后，没有 open Round 时，合格贡献者仍可就当前 active Agenda 申请取证机会，说明拟处理的问题；申请持久排队，不自动开轮或取得 Contribution。Manager 开轮后再接纳、拒绝或暂缓该举手。已有未结束贡献或任务的身份不能提出新的贡献申请；新 Round 不在原 Contribution 内补证；需要更多证据时由 Manager 规划下一轮。
 
 ### ER-FR-3：每人每轮唯一证据包及格式
@@ -84,7 +84,7 @@
 
 ### ER-FR-7：轮次收口、公开和后续计划
 
-1. 新 Round 正常收口要求每位受邀贡献者有 `raised|declined|no_response` 之一的明确选择事实。`raised` 后 Manager 已处置待处理举手；获接纳者或在提交前明确退出／按期限记录未提交，或其唯一登记版本已有最终 Review 且成功送达作者。`declined` 是作者主动决定，`no_response` 是选择期限到期，二者不能互代。无人获接纳时可收口空轮次，不生成证据或完成事实。历史 Round 依其旧状态收口。
+1. 新 Round 正常收口要求每位受邀贡献者有 `raised|declined|no_response` 之一的明确选择事实。`raised` 后 Manager 已处置待处理举手；获接纳者或在提交前明确退出、由 Runtime 记录 `execution_failed`、按期限记录未提交，或其唯一登记版本已有最终 Review 且成功送达作者。`declined` 是作者主动决定，`no_response` 是选择期限到期，二者不能互代。无人获接纳时可收口空轮次，不生成证据或完成事实；全部已接纳 Contributor 均执行失败时也必须产生 `round_ready`，允许 Manager 发布 finalVersion/finalReview 为空但保留各 Contribution 失败事实的 Publication，再决定重开有界新轮、部分完成或无共识，不能把失败冒充目标完成。历史 Round 依其旧状态收口。
 
 2. 完成审核不要求评分为正，也不要求贡献者同意审核意见；负面评分、无法判断和未解决质疑原样公开。它们可成为 Manager 下一轮继续质疑或补证的议题，不得因轮次推进被宣布为事实已证实。
 3. Manager 在轮次收口后选择继续、停止当前议题或规划下一议题，说明待解决问题和理由；需要正式接纳新议题 candidate 时遵守 Captain 专属处置边界。会议把新的公开内容提供给贡献者，由贡献者自主判断是否举手。召集人接收轮次成果、退出原因和未解决问题，正式成果满足会议目标时可接受成果；即使未满足，Manager 也可在无可执行后续路径时以部分完成或无共识正常结束；Captain 可在异常情况下取消或故障结束，不把结束冒充目标完成。
@@ -97,7 +97,7 @@ Captain 或 loopback 本地召集人可以在轮次无法继续时通过结构�
 
 1. 会议进入 running 后，`meeting_started` 作为公开 Meeting 事件投递给每个具有 active meeting-owned Session 的初始身份，不按 Manager、Contributor 或 Evidence Reviewer 角色筛选。各身份依据自己的职责和 caller-visible 状态自行决定处理或忽略；Manager 据此规划首轮，Contributor 可判断是否申请取证机会，Evidence Reviewer 在没有有效审核请求时无需行动。收到启动事件不授予 Contribution，也不扩大任何命令权限。
 2. 此后每条新正式 Transcript 内容作为公开 Meeting 事件投递给全部具有 active meeting-owned Session 的会议身份，不因角色、Agenda responsibility 或当前任务状态筛除接收者。接收者可以处理或忽略；是否允许读取具体内容、申请机会或提交命令，仍由 caller-filtered projection 与 Runtime 授权确定。私信、举手处置、审核请求、deadline 等具有明确工作归属或非公开内容的通知仍只投递给对应身份，不适用公开广播规则。
-3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识。每个 Meeting identity 必须能通过统一的受控读取入口，以通知中的 `meetingId` 取得自己的 caller-visible Meeting 内容；Manager 至少能读取已提交的 objective、Agenda、当前进度、version 与允许操作，Contributor 和 Evidence Reviewer 读取同一事实源的各自权限投影。通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、Agent 执行完成、举手获接纳和证据提交是不同结果。未证明归属、Session 非 active、capability 已撤销或请求其它 Meeting 时不得读取或投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
+3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识。每个 Meeting identity 必须能通过统一的受控读取入口，以通知中的 `meetingId` 取得自己的 caller-visible Meeting 内容；Manager 至少能读取已提交的 objective、Agenda、当前进度、version 与允许操作，Contributor 和 Evidence Reviewer 读取同一事实源的各自权限投影。通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、消息持久化、Agent turn 执行完成、举手获接纳和证据提交是不同结果。已接纳 Contributor 的工作通知与 Reviewer claim 通知必须观察实际承接该消息的 turn：前者异常且无登记证据时写入 Contribution 失败事实，后者异常时立即以 `review_interrupted` 消费 claim 并进入既有审核重试预算。未证明归属、Session 非 active、capability 已撤销或请求其它 Meeting 时不得读取或投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
 
 ## Business Rules
 

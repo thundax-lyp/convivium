@@ -41,6 +41,26 @@ const Section = ({
 
 const overviewKey = (kind: string, id: string): string => `${kind}:${id}`;
 
+const agendaStatusIcon: Record<MeetingView["agenda"][number]["status"], string> = {
+    pending: "⏳",
+    active: "👉",
+    blocked: "⚠️",
+    completed: "✅",
+    deferred: "⏸️",
+    closed: "⏹️"
+};
+
+const objectiveStatusIcon: Record<
+    | MeetingView["objective"]["requiredOutputs"][number]["status"]
+    | MeetingView["objective"]["hardConstraints"][number]["status"],
+    string
+> = {
+    pending: "⏳",
+    satisfied: "✅",
+    unsatisfied: "❌",
+    violated: "❌"
+};
+
 const overviewItem = (kind: string, id: string, content: string): ReactElement => (
     <ListItem key={overviewKey(kind, id)} data-overview-key={overviewKey(kind, id)} tabIndex={-1}>
         {content}
@@ -49,47 +69,46 @@ const overviewItem = (kind: string, id: string, content: string): ReactElement =
 
 const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
-    const objective =
-        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
-            ? detail.archive.objective
-            : detail.objective;
-    const agenda =
-        detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
-            ? detail.archive.agenda
-            : detail.agenda;
+    const archived =
+        detail.lifecycle.status === "archived" && detail.archive?.status === "complete";
+    const objective = archived ? detail.archive!.objective : detail.objective;
+    const agenda = archived ? detail.archive!.agenda : detail.agenda;
+    const objectiveItem = (
+        item:
+            | MeetingView["objective"]["requiredOutputs"][number]
+            | MeetingView["objective"]["hardConstraints"][number]
+    ): ReactElement => {
+        const unclosed = archived && item.status === "pending";
+        const status = unclosed
+            ? t("panel.overview.unclosedAtTermination")
+            : known("objectiveStatus", item.status, t);
+        return (
+            <ListItem key={item.id} accessibleLabel={`${item.text}: ${status}`}>
+                {`${unclosed ? "⚠️" : objectiveStatusIcon[item.status]} ${item.text}`}
+            </ListItem>
+        );
+    };
     return (
         <Section
             label={t("panel.overview.objective")}
             focusKey={overviewKey("lifecycle", detail.meetingId)}
         >
             <List
-                items={agenda.map((item) => (
-                    <ListItem
-                        key={item.id}
-                    >{`${item.title}: ${known("agenda", item.status, t)}`}</ListItem>
-                ))}
+                items={agenda.map((item) => {
+                    const unclosed = archived && ["active", "pending"].includes(item.status);
+                    const status = unclosed
+                        ? t("panel.overview.unclosedAtTermination")
+                        : known("agenda", item.status, t);
+                    return (
+                        <ListItem key={item.id} accessibleLabel={`${item.title}: ${status}`}>
+                            {`${unclosed ? "⚠️" : agendaStatusIcon[item.status]} ${item.title}`}
+                        </ListItem>
+                    );
+                })}
             />
-            <List
-                items={objective.requiredOutputs.map((item) => (
-                    <ListItem
-                        key={item.id}
-                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
-                ))}
-            />
-            <List
-                items={objective.acceptanceCriteria.map((item) => (
-                    <ListItem
-                        key={item.id}
-                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
-                ))}
-            />
-            <List
-                items={objective.hardConstraints.map((item) => (
-                    <ListItem
-                        key={item.id}
-                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
-                ))}
-            />
+            <List items={objective.requiredOutputs.map(objectiveItem)} />
+            <List items={objective.acceptanceCriteria.map(objectiveItem)} />
+            <List items={objective.hardConstraints.map(objectiveItem)} />
             <p>{known("riskLevel", objective.acceptableRiskLevel, t)}</p>
         </Section>
     );

@@ -205,6 +205,7 @@ export interface Contribution {
         | "awaiting_response"
         | "withdrawn"
         | "submission_missing"
+        | "execution_failed"
         | "timed_out"
         | "supplement_rejected"
         | "closed";
@@ -212,7 +213,18 @@ export interface Contribution {
     substantiveSupplementCount: number;
     supplementHand?: SupplementHand;
     exitReason?: string;
+    failure?: ContributionFailure;
     response?: string;
+}
+
+export interface ContributionFailure {
+    sourceEffectId: OpaqueId;
+    stage: string;
+    failureCode: string;
+    failureSummary: string;
+    attemptCount: number;
+    retryable: boolean;
+    occurredAt: EpochMs;
 }
 
 export interface TextWithReason {
@@ -340,6 +352,10 @@ export interface Publication {
     finalReviewIds: readonly OpaqueId[];
     publishedAt: EpochMs;
     exitReasons: readonly string[];
+    contributionFailures?: readonly Readonly<{
+        contributionId: OpaqueId;
+        failure: ContributionFailure;
+    }>[];
 }
 
 export interface FormalMessage {

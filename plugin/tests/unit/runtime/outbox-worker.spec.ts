@@ -22,6 +22,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item()],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completions.push(input.completion);
                     return { id: input.id, status: input.completion.status };
@@ -52,6 +53,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => ({
                     id: input.id,
                     status: input.completion.status
@@ -88,6 +90,7 @@ describe("outbox worker", () => {
                     worker.stop();
                     return [];
                 },
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => ({
                     id: input.id,
                     status: input.completion.status
@@ -110,6 +113,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item()],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => ({
                     id: input.id,
                     status: input.completion.status
@@ -138,6 +142,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item()],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completed.push(input);
                     return { id: input.id, status: "delivered" as const };
@@ -162,6 +167,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item(1)],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completions.push(input.completion);
                     return { id: input.id, status: input.completion.status };
@@ -190,6 +196,7 @@ describe("outbox worker", () => {
         const exhausted = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item(2)],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completions.push(input.completion);
                     return { id: input.id, status: input.completion.status };
@@ -217,6 +224,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item(5)],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completions.push(input.completion);
                     return { id: input.id, status: input.completion.status };
@@ -254,6 +262,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item()],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     completions.push(input.completion);
                     return { id: input.id, status: input.completion.status };
@@ -276,6 +285,7 @@ describe("outbox worker", () => {
         const worker = createOutboxWorker({
             repository: {
                 claimOutbox: async () => [item(2)],
+                renewOutboxLease: async () => 100,
                 completeOutbox: async (input) => {
                     failures.push({ kind: "completion", completion: input.completion });
                     return { id: input.id, status: input.completion.status };
@@ -311,6 +321,7 @@ it("defers an outbox retry until the error-specified availability time", async (
     const worker = createOutboxWorker({
         repository: {
             claimOutbox: async () => [item()],
+            renewOutboxLease: async () => 100,
             completeOutbox: async (input) => {
                 completions.push(input.completion);
                 return { id: input.id, status: input.completion.status };
@@ -336,4 +347,82 @@ it("defers an outbox retry until the error-specified availability time", async (
     expect(completions).toEqual([
         { status: "retry", availableAt: 1_000, errorCode: "REVIEW_CLAIM_IN_PROGRESS" }
     ]);
+});
+
+it("renews a claimed lease while delivery is still running", async () => {
+    let finishDispatch!: () => void;
+    const dispatchFinished = new Promise<void>((resolve) => {
+        finishDispatch = resolve;
+    });
+    let leaseRenewed!: () => void;
+    const renewed = new Promise<void>((resolve) => {
+        leaseRenewed = resolve;
+    });
+    const worker = createOutboxWorker({
+        repository: {
+            claimOutbox: async () => [item()],
+            renewOutboxLease: async () => {
+                leaseRenewed();
+                return 200;
+            },
+            completeOutbox: async (input) => ({ id: input.id, status: input.completion.status })
+        },
+        owner: "worker-1",
+        ttlMs: 20,
+        batchSize: 1,
+        pollMs: 10,
+        dispatch: async () => dispatchFinished
+    });
+
+    const running = worker.runOnce();
+    await renewed;
+    finishDispatch();
+
+    await expect(running).resolves.toEqual({
+        claimed: 1,
+        delivered: 1,
+        retried: 0,
+        failed: 0
+    });
+});
+
+it("continues with the next delivery after losing a completion lease", async () => {
+    let claims = 0;
+    const dispatched: string[] = [];
+    const worker = createOutboxWorker({
+        repository: {
+            claimOutbox: async () => {
+                claims += 1;
+                if (claims === 1) {
+                    return [item()];
+                }
+                if (claims === 2) {
+                    return [{ ...item(), id: "outbox-2", deliveryId: "delivery-next" }];
+                }
+                worker.stop();
+                return [];
+            },
+            renewOutboxLease: async () => 100,
+            completeOutbox: async (input) => {
+                if (input.id === "outbox-1") {
+                    throw Object.assign(new Error("lease expired"), {
+                        code: "LEASE_LOST",
+                        retryable: false
+                    });
+                }
+                return { id: input.id, status: input.completion.status };
+            }
+        },
+        owner: "worker-1",
+        ttlMs: 100,
+        batchSize: 1,
+        pollMs: 10,
+        dispatch: async (claimed) => {
+            dispatched.push(claimed.deliveryId);
+        },
+        sleep: async () => undefined
+    });
+
+    await expect(worker.start()).resolves.toBeUndefined();
+    expect(dispatched).toEqual(["delivery-stable", "delivery-next"]);
 });

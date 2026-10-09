@@ -17,6 +17,7 @@ type OpenRoundInput = {
 const terminalContributionStatuses = new Set([
     "withdrawn",
     "submission_missing",
+    "execution_failed",
     "timed_out",
     "supplement_rejected",
     "aborted",
