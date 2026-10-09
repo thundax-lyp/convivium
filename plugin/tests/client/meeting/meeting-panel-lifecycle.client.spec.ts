@@ -86,9 +86,10 @@ describe("Meeting panel lifecycle", () => {
             fireEvent.click(screen.getByRole("treeitem", { name: /Second objective/ }));
             await waitFor(() =>
                 expect(
-                    within(screen.getByRole("region", { name: "Objective" })).getByText(
-                        "Second detail"
-                    )
+                    within(screen.getByRole("main")).getByRole("heading", {
+                        level: 3,
+                        name: "Second detail"
+                    })
                 ).toBeTruthy()
             );
 
@@ -99,9 +100,10 @@ describe("Meeting panel lifecycle", () => {
             }
             await waitFor(() =>
                 expect(
-                    within(screen.getByRole("region", { name: "Objective" })).getByText(
-                        "Second detail"
-                    )
+                    within(screen.getByRole("main")).getByRole("heading", {
+                        level: 3,
+                        name: "Second detail"
+                    })
                 ).toBeTruthy()
             );
             expect(
@@ -142,9 +144,10 @@ describe("Meeting panel lifecycle", () => {
         fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
         await waitFor(() =>
             expect(
-                within(screen.getByRole("region", { name: "Objective" })).getByText(
-                    view.objective.statement
-                )
+                within(screen.getByRole("main")).getByRole("heading", {
+                    level: 3,
+                    name: view.objective.statement
+                })
             ).toBeTruthy()
         );
 
@@ -152,9 +155,10 @@ describe("Meeting panel lifecycle", () => {
 
         expect((await screen.findByRole("alert")).textContent).toBe("Meeting data is unavailable.");
         expect(
-            within(screen.getByRole("region", { name: "Objective" })).getByText(
-                view.objective.statement
-            )
+            within(screen.getByRole("main")).getByRole("heading", {
+                level: 3,
+                name: view.objective.statement
+            })
         ).toBeTruthy();
         expect(screen.getByLabelText(`Meeting ${summary.meetingId}`)).toBeTruthy();
     });

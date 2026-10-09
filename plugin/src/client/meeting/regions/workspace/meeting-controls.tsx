@@ -31,7 +31,9 @@ export const MeetingControls = ({
     const canResume = controls.includes("resume_meeting");
     const canEnd = controls.includes("end_meeting");
 
-    if (!canPause && !canResume && !canEnd) return null;
+    if (!canPause && !canResume && !canEnd) {
+        return null;
+    }
 
     return (
         <ButtonGroup role="group" aria-label={t("panel.actions.group")}>

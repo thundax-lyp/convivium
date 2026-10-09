@@ -105,9 +105,10 @@ describe("Meeting panel refresh recovery", () => {
             await waitFor(() => expect(fixture.api.read).toHaveBeenCalledOnce());
             expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(true);
             expect(
-                within(screen.getByRole("region", { name: "Objective" })).getByText(
-                    fixture.view.objective.statement
-                )
+                within(screen.getByRole("main")).getByRole("heading", {
+                    level: 3,
+                    name: fixture.view.objective.statement
+                })
             ).toBeTruthy();
         }
     );
@@ -152,9 +153,10 @@ describe("Meeting panel refresh recovery", () => {
         act(() => fixture.callbacks()?.generationReopened());
         await waitFor(() =>
             expect(
-                within(screen.getByRole("region", { name: "Objective" })).getByText(
-                    "newest generation"
-                )
+                within(screen.getByRole("main")).getByRole("heading", {
+                    level: 3,
+                    name: "newest generation"
+                })
             ).toBeTruthy()
         );
 
@@ -165,7 +167,10 @@ describe("Meeting panel refresh recovery", () => {
         });
         await act(async () => Promise.resolve());
         expect(
-            within(screen.getByRole("region", { name: "Objective" })).getByText("newest generation")
+            within(screen.getByRole("main")).getByRole("heading", {
+                level: 3,
+                name: "newest generation"
+            })
         ).toBeTruthy();
         expect(screen.queryByText("obsolete generation")).toBeNull();
     });
@@ -230,7 +235,10 @@ describe("Meeting panel refresh recovery", () => {
         fireEvent.click(screen.getByRole("treeitem", { name: /Second objective/ }));
         await waitFor(() =>
             expect(
-                within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
+                within(screen.getByRole("main")).getByRole("heading", {
+                    level: 3,
+                    name: "Second detail"
+                })
             ).toBeTruthy()
         );
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(false);
@@ -241,7 +249,10 @@ describe("Meeting panel refresh recovery", () => {
         });
         await act(async () => Promise.resolve());
         expect(
-            within(screen.getByRole("region", { name: "Objective" })).getByText("Second detail")
+            within(screen.getByRole("main")).getByRole("heading", {
+                level: 3,
+                name: "Second detail"
+            })
         ).toBeTruthy();
         expect(screen.queryByText("obsolete refresh")).toBeNull();
     });
