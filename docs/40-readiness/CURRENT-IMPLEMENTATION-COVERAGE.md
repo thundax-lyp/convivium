@@ -76,6 +76,12 @@
 
 ## Executed Validation
 
+### 2026-10-09：DSH `0.2.0-rc.2` 编译与自动化测试
+
+在 `codex/dsh-rc2-upgrade` 工作树、Node `v22.23.2` 与 pnpm `10.7.0` 上，同步本地 `dsh-plugin-development` Skill 至其 `0.2.0-rc.2` 发行目录，更新 `plugin/package.json` 的 DSH 依赖和 lockfile，并适配 Host API、Client 图标及 Preset Registry 装配。`pnpm --dir plugin test` 退出 0：95 files / 825 tests；`pnpm --dir plugin build` 退出 0，覆盖 Typert 生成、Host/Client TypeScript 编译和 bundle 构建；`pnpm --dir plugin lint` 退出 0（0 errors、1 warning）。
+
+本阶段 **Not Covered**：真实 DSH Host 加载、Profile/安装脚本适配、历史 Session 兼容与人工 Web 验收。自动化契约与集成测试通过不代表 `0.2.0-rc.2` 的实际 Profile 已可运行或发布；安装脚本仍包含 `0.1.2-rc.1` 入口。
+
 ### 2026-09-28：固定 Jev 议题的全新人工 Web 冒烟
 
 在 `codex/manager-meeting-closure`、`a7cfff87` 加本次手册修改的工作树上，使用 Node `v22.23.2`、DSH `0.1.2-rc.1`。`pnpm --dir plugin verify` 退出 0：94 个测试文件、824 个测试，格式、lint、类型检查、构建、环境、契约、角色资源与包检查通过。按用户确认的精确路径删除固定人工环境中的 `dsh-home/`、`web-ui/convivium-user/`、`projects/meetings-view/`，从源码以 `--dev-refresh` 重新安装；release artifact SHA-256 为 `b26d589146ab01b1efc83c18adb7147c6a04450a88d299306e5aca6985a92308`。安装根的空 key 占位文件经核对后改为指向仓库根 `dev.env` 的符号链接，未复制或输出 key。
