@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingPanelLayoutProps } from "@/client/meeting/shared/index.ts";
@@ -6,7 +6,10 @@ import type { MeetingMode } from "@/client/meeting/shared/index.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { translatedLayout } from "./meeting-panel-locale-fixtures.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+});
 
 function propsFixture(): MeetingPanelLayoutProps {
     const { summary, view } = meetingProjectionFixture();
@@ -62,7 +65,24 @@ describe("Meeting Header and mode tabs", () => {
         expect(screen.queryByRole("tabpanel")).toBeNull();
     });
 
-    it("renders objective, lifecycle, version, and only allowed controls in the Header", () => {
+    it("renders icon lifecycle controls with hover labels and disables unavailable actions", () => {
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                constructor(private readonly callback: ResizeObserverCallback) {}
+                observe() {
+                    this.callback(
+                        [
+                            {
+                                borderBoxSize: [{ inlineSize: 100, blockSize: 20 }]
+                            } as ResizeObserverEntry
+                        ],
+                        this as unknown as ResizeObserver
+                    );
+                }
+                disconnect() {}
+            }
+        );
         const props = propsFixture();
         render(translatedLayout(props, "en"));
 
@@ -71,9 +91,19 @@ describe("Meeting Header and mode tabs", () => {
             .closest("header");
         expect(header?.textContent).toContain("Running");
         expect(header?.textContent).toContain(`Meeting version: ${props.detail?.version}`);
+        expect(
+            within(screen.getByRole("group", { name: "Meeting controls" })).getAllByRole("button")
+        ).toHaveLength(3);
         expect(screen.getByRole("button", { name: "Pause meeting" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Cancel meeting" })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Resume meeting" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(false);
+        expect(screen.getByRole("button", { name: "Cancel meeting" }).disabled).toBe(false);
+        expect(screen.getByRole("button", { name: "Resume meeting" }).disabled).toBe(true);
+        for (const name of ["Pause meeting", "Resume meeting", "Cancel meeting"]) {
+            expect(screen.getByRole("button", { name }).textContent).toBe("");
+        }
+        fireEvent.mouseEnter(screen.getByRole("button", { name: "Resume meeting" }).parentElement!);
+        expect(screen.getByRole("tooltip").textContent).toBe("Resume meeting");
     });
 
     it("disables every lifecycle control when the Workspace is not writable", () => {

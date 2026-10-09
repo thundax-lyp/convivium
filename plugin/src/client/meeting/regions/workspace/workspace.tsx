@@ -4,8 +4,7 @@ import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
     IconBrowseOutlineMedium,
-    IconRefreshOutlineMedium,
-    Pill
+    IconRefreshOutlineMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
     INITIAL_TIMELINE_FILTERS,
@@ -14,9 +13,10 @@ import {
     type MeetingPanelLayoutProps
 } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { Empty } from "@/client/meeting/components/index.ts";
+import { ButtonGroup, Empty } from "@/client/meeting/components/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
+import { MeetingControls } from "./meeting-controls.tsx";
 import styles from "./workspace.module.css";
 
 const EmptyMeeting = (): ReactElement => {
@@ -76,49 +76,24 @@ const MeetingContent = ({
                 )
             ) : (
                 <div>
-                    <header>
+                    <header className={styles.meetingHeader}>
                         <h3>{props.detail.objective.statement}</h3>
-                        <Pill>{`${t("panel.header.status")}: ${lifecycleLabel(props.detail.lifecycle.status, t)}`}</Pill>
-                        <p>{`${t("panel.header.version")}: ${props.detail.version}`}</p>
-                        {props.detail.controls.includes("pause_meeting") ? (
-                            <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={props.writePending || props.detailCached}
-                                onClick={() => void props.pauseMeeting()}
-                            >
-                                {t("panel.actions.pause")}
-                            </Button>
-                        ) : null}
-                        {props.detail.controls.includes("resume_meeting") ? (
-                            <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={props.writePending || props.detailCached}
-                                onClick={() => void props.resumeMeeting()}
-                            >
-                                {t("panel.actions.resume")}
-                            </Button>
-                        ) : null}
-                        {props.detail.controls.includes("end_meeting") ? (
-                            <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={props.writePending || props.detailCached}
-                                onClick={() => void props.endMeeting()}
-                            >
-                                {t("panel.actions.end")}
-                            </Button>
-                        ) : null}
+                        <div className={styles.statusRow}>
+                            <p className={styles.metadata}>
+                                {t("panel.header.status")}:{" "}
+                                {lifecycleLabel(props.detail.lifecycle.status, t)}
+                            </p>
+                            <MeetingControls {...props} controls={props.detail.controls} />
+                        </div>
+                        <p className={styles.metadata}>
+                            {t("panel.header.version")}: {props.detail.version}
+                        </p>
                         {props.localFeedback}
                     </header>
                     {props.detailError === undefined ? null : (
                         <p role="alert">{props.detailError}</p>
                     )}
-                    <div role="tablist">
+                    <ButtonGroup role="tablist">
                         <Button
                             id="meeting-mode-overview"
                             type="button"
@@ -153,7 +128,7 @@ const MeetingContent = ({
                         >
                             {t("panel.mode.timeline")}
                         </Button>
-                    </div>
+                    </ButtonGroup>
                     <article
                         role="tabpanel"
                         aria-labelledby={`meeting-mode-${mode}`}

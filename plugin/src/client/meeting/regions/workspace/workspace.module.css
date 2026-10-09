@@ -44,8 +44,34 @@
 }
 
 .content > p,
-.content > div > header > h3 {
+.meetingHeader > h3 {
     padding-inline-end: 46px;
+}
+
+.meetingHeader {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding-block-start: 16px;
+    margin-block-end: 16px;
+}
+
+.meetingHeader > h3,
+.metadata {
+    margin: 0;
+}
+
+.statusRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.metadata {
+    color: var(--dsw-alias-label-secondary);
+    font-size: 14px;
+    line-height: 20px;
 }
 
 @media (hover: none) {
