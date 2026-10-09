@@ -21,7 +21,7 @@ export const ListItem = ({
     ...props
 }: Omit<ComponentProps<"li">, "children"> & { children: string }): ReactElement => (
     <li {...props} className={className ? `${styles.item} ${className}` : styles.item}>
-        <Tooltip label={children} side="right" maxWidth={320} portal>
+        <Tooltip label={children} side="top" maxWidth={320} portal>
             <span className={styles.label} tabIndex={0}>
                 {children}
             </span>
