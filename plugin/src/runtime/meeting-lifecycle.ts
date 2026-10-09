@@ -330,8 +330,8 @@ const applications = new WeakMap<object, MeetingCommandApplication>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookup>();
 const identityReaders = new WeakMap<object, MeetingIdentityReader>();
 const assertTargetLifecycle = (config: Config, ctx: Pick<Context, "subagents">): void => {
-    if (dshAgentPackage.version !== "0.1.2-rc.1") {
-        throw new Error("Convivium requires DSH version 0.1.2-rc.1.");
+    if (dshAgentPackage.version !== "0.2.0-rc.2") {
+        throw new Error("Convivium requires DSH version 0.2.0-rc.2.");
     }
     const spawn = ctx.subagents.getProvider("spawn");
     if (!spawn || spawn.name !== "spawn" || spawn.capabilities.outputSchema !== true) {

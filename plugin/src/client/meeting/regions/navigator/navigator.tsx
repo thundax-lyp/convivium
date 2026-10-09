@@ -3,8 +3,8 @@ import type { ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
-    IconCloseFill14,
-    IconSearchOutline16
+    IconCloseFillMedium,
+    IconSearchOutlineMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { Empty } from "@/client/meeting/components/index.ts";
@@ -99,7 +99,7 @@ export const MeetingNavigator = ({
                             inputRef.current?.focus();
                         }}
                     >
-                        <IconSearchOutline16 size={searchOpen ? 11 : 14} />
+                        <IconSearchOutlineMedium size={searchOpen ? 11 : 14} />
                     </Button>
                     {searchOpen ? (
                         <input
@@ -134,7 +134,7 @@ export const MeetingNavigator = ({
                                 searchSlotRef.current?.querySelector("button")?.focus();
                             }}
                         >
-                            <IconCloseFill14 />
+                            <IconCloseFillMedium />
                         </Button>
                     ) : null}
                 </div>

@@ -135,7 +135,9 @@ it("exposes the schema-checked review worker only to the Reviewer", () => {
 
 describe("native deployment patch composition", () => {
     it("preserves packaged definitions and runtime controls with separate profile and asset roots", async () => {
-        const nativeRequire = createRequire(import.meta.resolve("@deepseek-ai/dsh-agent-presets"));
+        const nativeRequire = createRequire(
+            import.meta.resolve("@deepseek-ai/dsh-agent-preset-registry")
+        );
         const { applyEntryPatches, entryListSchema } = await import(
             nativeRequire.resolve("@deepseek-ai/cordis-plugin-include")
         );
@@ -171,7 +173,7 @@ describe("native deployment patch composition", () => {
             const rows = applyEntryPatches(
                 [
                     { id: "storage-domain", config: { backend: "json" } },
-                    { id: "agent-presets", config: { default: "standard" } },
+                    { id: "agent-preset-registry", config: { default: "standard" } },
                     { id: "convivium", config: { provider: "spawn" } }
                 ],
                 [...deployment, ...control],
@@ -185,19 +187,26 @@ describe("native deployment patch composition", () => {
                     env: { CONVIVIUM_MEETING_ROLES_ROOT: assets }
                 }
             };
-            const preset = interpolate(
+            const registry = interpolate(
                 context,
-                rows.find((row) => row.id === "agent-presets").config
+                rows.find((row) => row.id === "agent-preset-registry").config
             );
             const meeting = interpolate(context, rows.find((row) => row.id === "convivium").config);
-            expect(preset.default).toBe("standard");
-            expect(preset.roots).toEqual([{ path: join(assets, "presets"), trust: "system" }]);
-            expect(
-                readFileSync(
-                    join(preset.roots[0].path, "convivium-manager/agent.cordis.yml"),
-                    "utf8"
-                )
-            ).toContain("skill-filesystem");
+            expect(registry.default).toBe("standard");
+            const presets = rows.filter((row) => row.name === "@deepseek-ai/dsh-agent-preset");
+            expect(presets.map((row) => row.config.id).sort()).toEqual(
+                deployed.definitions.map((definition) => definition.dshPresetId).sort()
+            );
+            for (const preset of presets) {
+                const [include] = preset.config.plugins;
+                expect(include.name).toBe("@deepseek-ai/cordis-plugin-include");
+                const path = interpolate(context, include.config).path;
+                expect(path).toBe(
+                    pathToFileURL(join(assets, "presets", preset.config.id, "agent.cordis.yml"))
+                        .href
+                );
+                expect(readFileSync(new URL(path), "utf8")).toContain("skill-filesystem");
+            }
             expect(meeting).toEqual({
                 provider: "spawn",
                 maxParticipants: 8,
@@ -210,9 +219,7 @@ describe("native deployment patch composition", () => {
                 ...context,
                 process: { getBuiltinModule: process.getBuiltinModule, env: {} }
             };
-            expect(() =>
-                interpolate(missing, rows.find((row) => row.id === "agent-presets").config)
-            ).toThrow();
+            expect(() => interpolate(missing, presets[0].config.plugins[0].config)).toThrow();
             expect(() =>
                 interpolate(missing, rows.find((row) => row.id === "convivium").config)
             ).toThrow();

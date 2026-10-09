@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -7,9 +7,9 @@ import { Context } from "@deepseek-ai/cordis";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import AgentLoop from "@deepseek-ai/dsh-agent-loop";
 import { mountAgentLoopTestDependencies } from "@deepseek-ai/dsh-agent-loop-testkit";
-import SessionProjections from "@deepseek-ai/dsh-session-projection";
 import SessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
-import AgentPresets from "@deepseek-ai/dsh-agent-presets";
+import AgentPresetRegistry from "@deepseek-ai/dsh-agent-preset-registry";
+import AgentPreset from "@deepseek-ai/dsh-agent-preset";
 import Skills from "@deepseek-ai/dsh-skill";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { expect, it } from "vitest";
@@ -19,7 +19,7 @@ import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts
 import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 
 it("isolates seven role scopes through native Presets and unpublished Agent factories", async () => {
-    const root = await mkdtemp(join(tmpdir(), "convivium-owner-"));
+    const root = await realpath(await mkdtemp(join(tmpdir(), "convivium-owner-")));
     const ctx = new Context();
     ctx.baseUrl = new URL("../../../", import.meta.url).href;
     const owner = createMeetingAgentOwner({ ctx, packageRoot: root });
@@ -28,6 +28,10 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
         await cp(fileURLToPath(new URL("../../../config", import.meta.url)), join(root, "config"), {
             recursive: true
         });
+        await symlink(
+            fileURLToPath(new URL("../../../node_modules", import.meta.url)),
+            join(root, "node_modules")
+        );
         const definitions = parseAgentDefinitions(
             JSON.parse(await readFile(join(root, "config/definitions.json"), "utf8")).definitions
         );
@@ -78,17 +82,32 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                 })
             );
         }
-        await ctx.plugin(SessionProjections);
         await ctx.plugin(Skills);
         await ctx.plugin(Loader, {
             baseUrl: pathToFileURL(fileURLToPath(new URL("../../../", import.meta.url))).href
         });
-        await ctx.plugin(AgentPresets, {
-            includeShippedRoot: false,
-            includeUserRoot: false,
-            roots: [{ path: join(root, "config/presets"), trust: "system" }],
-            default: "convivium-manager"
-        });
+        await ctx.plugin(AgentPresetRegistry, { default: "convivium-manager" });
+        for (const definition of definitions) {
+            await ctx.plugin(AgentPreset, {
+                id: definition.dshPresetId,
+                plugins: [
+                    {
+                        id: "composition",
+                        name: "@deepseek-ai/cordis-plugin-include",
+                        config: {
+                            path: pathToFileURL(
+                                join(
+                                    root,
+                                    "config/presets",
+                                    definition.dshPresetId,
+                                    "agent.cordis.yml"
+                                )
+                            ).href
+                        }
+                    }
+                ]
+            });
+        }
         await ctx.plugin(SessionPersistence, { root: join(root, "sessions"), compression: "none" });
         await ctx.plugin(AgentLoop, { agents: [] });
         const publications: string[] = [];

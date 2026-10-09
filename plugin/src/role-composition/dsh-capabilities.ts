@@ -1,6 +1,7 @@
 import type LlmRuntime from "@deepseek-ai/dsh-llm";
 import { ReasoningEffortId } from "@deepseek-ai/dsh-llm";
-import type AgentPresets from "@deepseek-ai/dsh-agent-presets";
+import type { Context } from "@deepseek-ai/cordis";
+import type {} from "@deepseek-ai/dsh-agent-preset-registry";
 import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
 import { resolve } from "node:path";
@@ -69,7 +70,7 @@ export const validateRoleSkills = async (input: {
 export const preflightMeetingIdentity = async (input: {
     ctx: {
         llm: Pick<LlmRuntime, "resolveCallConfig">;
-        agentPresets: Pick<AgentPresets, "standingKeyFor">;
+        agentPresets: Pick<Context["agentPresets"], "acquireScope">;
         skills: Pick<Skills, "snapshot" | "get">;
     };
     cwd: string;
@@ -111,13 +112,17 @@ export const preflightMeetingIdentity = async (input: {
             input.signal
         );
         const resources = await resolveResourceBinding(input);
-        const scope = await input.ctx.agentPresets.standingKeyFor(definition.dshPresetId);
-        await validateRoleSkills({
-            skills: input.ctx.skills,
-            definition,
-            packageRoot: input.packageRoot,
-            view: { scope, cwd: input.cwd, signal: input.signal }
-        });
+        const lease = await input.ctx.agentPresets.acquireScope(definition.dshPresetId);
+        try {
+            await validateRoleSkills({
+                skills: input.ctx.skills,
+                definition,
+                packageRoot: input.packageRoot,
+                view: { scope: lease.key, cwd: input.cwd, signal: input.signal }
+            });
+        } finally {
+            await lease[Symbol.asyncDispose]();
+        }
         input.signal.throwIfAborted();
         // Standing mount and reads may yield; refuse files changed during preflight.
         if ((await resolveResourceBinding(input)).compositionHash !== resources.compositionHash) {

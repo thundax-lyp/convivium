@@ -43,7 +43,6 @@ const fixture = async () => {
         skills
     };
     const factory = async (options) => {
-        await options.setup(agentCtx);
         const handle = {
             agent: {
                 id: options.sessionId ?? options.resumeSessionId,
@@ -54,16 +53,19 @@ const fixture = async () => {
             },
             dispose: vi.fn(async () => {})
         };
+        await options.setup(agentCtx, handle.agent);
         handles.push(handle);
         return handle;
     };
     const ctx = {
         llm: { resolveCallConfig: async (config) => config },
-        agentPresets: { standingKeyFor: async () => ({}), mount: vi.fn(async () => {}) },
+        agentPresets: {
+            acquireScope: async () => ({ key: {}, [Symbol.asyncDispose]: async () => {} }),
+            mount: vi.fn(async () => {})
+        },
         skills,
         agents: { get: vi.fn(() => undefined), create: vi.fn(factory), resume: vi.fn(factory) },
-        sessions: { flush: vi.fn(async () => true) },
-        sessionPersistence: { ensureMaterialized: vi.fn(async () => {}) }
+        sessions: { flush: vi.fn(async () => true) }
     };
     const signal = new AbortController().signal;
     const preflight = await preflightMeetingIdentity({

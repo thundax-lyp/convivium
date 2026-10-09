@@ -3,8 +3,8 @@ import { useState, type ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
-    IconBrowseOutline16,
-    IconEllipsisOutline16,
+    IconBrowseOutlineMedium,
+    IconEllipsisOutlineMedium,
     Menu,
     Tooltip,
     relativeTime
@@ -88,7 +88,7 @@ export const MeetingTreeItem = ({
                                 setMenuOpen(true);
                             }}
                         >
-                            <IconEllipsisOutline16 />
+                            <IconEllipsisOutlineMedium />
                         </Button>
                     }
                     items={[
@@ -96,7 +96,7 @@ export const MeetingTreeItem = ({
                         {
                             id: "open",
                             label: t("panel.navigator.openMeeting"),
-                            icon: <IconBrowseOutline16 />
+                            icon: <IconBrowseOutlineMedium />
                         }
                     ]}
                     onSelect={(id) => {

@@ -367,7 +367,12 @@ describe("dynamic peer identity provisioning", () => {
                 currentSelection: vi.fn(() => ({ provider: "fixture", model: "model" }))
             },
             llm: { resolveCallConfig: async (config) => config },
-            agentPresets: { standingKeyFor: vi.fn(async () => ({})) },
+            agentPresets: {
+                acquireScope: vi.fn(async () => ({
+                    key: {},
+                    [Symbol.asyncDispose]: async () => {}
+                }))
+            },
             skills: {
                 snapshot: vi.fn(async () => ({ complete: true, skills: [skill] })),
                 get: async (name) => (name === skill.name ? skill : undefined)
@@ -445,7 +450,7 @@ describe("dynamic peer identity provisioning", () => {
         const f = await fixture();
         f.owner.markActive.mockImplementationOnce(async (o) => o);
         await provisionMeetingIdentity(f.input, f.dependencies);
-        f.ctx.agentPresets.standingKeyFor.mockRejectedValue(new Error("new default unavailable"));
+        f.ctx.agentPresets.acquireScope.mockRejectedValue(new Error("new default unavailable"));
         expect((await provisionMeetingIdentity(f.input, f.dependencies)).kind).toBe("admitted");
         expect(f.agents.resume).toHaveBeenCalledWith(
             expect.objectContaining({

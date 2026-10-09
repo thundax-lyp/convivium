@@ -3,6 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { AgentHandle, AgentSetup } from "@deepseek-ai/dsh-agent";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import type {} from "@deepseek-ai/dsh-system-prompt";
+import type {} from "@deepseek-ai/dsh-agent-preset-registry";
 import type {} from "@deepseek-ai/dsh-session-persistence";
 import type {} from "@deepseek-ai/dsh-tools";
 import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
@@ -11,6 +12,12 @@ import { resolveResourceBinding, readRoleResource } from "@/role-composition/ind
 import { validateRoleSkills, matchesPreparedDescriptor } from "@/role-composition/index.ts";
 import { isDeepStrictEqual } from "node:util";
 import type { SessionOwnership } from "@/repository/index.ts";
+
+declare module "@deepseek-ai/dsh-llm" {
+    interface MessageSourceMap {
+        plugin: { kind: "plugin"; plugin: "convivium" };
+    }
+}
 
 type Purpose = "provisioning" | "delivery" | "cleanup";
 type ResumeInput = {
@@ -125,9 +132,9 @@ export const createMeetingAgentOwner = ({
             purpose: Purpose,
             signal: AbortSignal
         ): AgentSetup =>
-        async (agentCtx) => {
+        async (agentCtx, agent) => {
             signal.throwIfAborted();
-            const header = agentCtx.agent?.session.header;
+            const header = agent.session.header;
             if (
                 !header ||
                 header.agentPreset !== ownership.resources.presetId ||
@@ -148,14 +155,11 @@ export const createMeetingAgentOwner = ({
             if (purpose !== "delivery") {
                 agentCtx.tools.restrict({ allow: [] });
             }
-            if (!agentCtx.agent) {
-                throw new Error("RECOVERY_UNAVAILABLE: missing scoped Agent");
-            }
             await validateRoleSkills({
                 skills: ctx.skills,
                 definition,
                 packageRoot,
-                view: { scope: agentCtx.agent, cwd: agentCtx.agent.session.header.cwd, signal }
+                view: { scope: agent, cwd: agent.session.header.cwd, signal }
             });
             await verifyResources(ownership, definition);
             signal.throwIfAborted();
@@ -238,7 +242,6 @@ export const createMeetingAgentOwner = ({
                     setup: setup(ownership, definition, "provisioning", signal)
                 });
                 try {
-                    await ctx.sessionPersistence.ensureMaterialized(handle.agent.session);
                     if (!(await ctx.sessions.flush(handle.agent.session))) {
                         throw new Error("RECOVERY_UNAVAILABLE: Session was not persisted");
                     }

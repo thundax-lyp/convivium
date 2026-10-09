@@ -292,6 +292,23 @@ describe("Meeting navigator", () => {
     });
 
     it("shows a meeting information tooltip on title hover without selecting", () => {
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                constructor(private readonly callback: ResizeObserverCallback) {}
+                observe() {
+                    this.callback(
+                        [
+                            {
+                                borderBoxSize: [{ inlineSize: 100, blockSize: 20 }]
+                            } as ResizeObserverEntry
+                        ],
+                        this as unknown as ResizeObserver
+                    );
+                }
+                disconnect() {}
+            }
+        );
         const media = mediaFixture(false);
         vi.stubGlobal(
             "matchMedia",

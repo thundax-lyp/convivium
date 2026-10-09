@@ -2,14 +2,14 @@ import * as React from "react";
 import type { ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import {
-    IconArchiveOutline20,
-    IconCheckOutline16,
-    IconClockOutline16,
-    IconGoalOutline16,
-    IconLoadingOutline16,
-    IconPauseOutline16,
-    IconPlayOutline16,
-    IconStopFill16
+    IconArchiveOutlineMedium,
+    IconCheckOutlineMedium,
+    IconClockOutlineMedium,
+    IconGoalOutlineMedium,
+    IconLoadingOutlineMedium,
+    IconPauseOutlineMedium,
+    IconPlayOutlineMedium,
+    IconStopFillMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 
 export const MeetingStatusIcon = ({
@@ -19,20 +19,20 @@ export const MeetingStatusIcon = ({
 }): ReactElement => {
     switch (status) {
         case "preparing":
-            return <IconClockOutline16 />;
+            return <IconClockOutlineMedium />;
         case "running":
-            return <IconPlayOutline16 />;
+            return <IconPlayOutlineMedium />;
         case "paused":
-            return <IconPauseOutline16 />;
+            return <IconPauseOutlineMedium />;
         case "converging":
-            return <IconGoalOutline16 />;
+            return <IconGoalOutlineMedium />;
         case "ending":
-            return <IconStopFill16 />;
+            return <IconStopFillMedium />;
         case "terminal":
-            return <IconCheckOutline16 />;
+            return <IconCheckOutlineMedium />;
         case "archiving":
-            return <IconLoadingOutline16 />;
+            return <IconLoadingOutlineMedium />;
         case "archived":
-            return <IconArchiveOutline20 size={16} />;
+            return <IconArchiveOutlineMedium size={16} />;
     }
 };
