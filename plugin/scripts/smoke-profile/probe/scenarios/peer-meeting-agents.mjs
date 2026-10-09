@@ -156,7 +156,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
     }
     const command = await peerCreateCommand(
         "peer-create",
-        "只读验收：Manager 仅组织一轮 GitHub 与 arXiv 两项来源证据，接受这两位研究员的举手，其他工程角色等待。GitHub 研究员须实际读取 https://github.com/deepseek-ai/deepseek-harness 的固定 tag dsh-v0.1.2-rc.1 源码，核对 package 与 AgentSession 接口；arXiv 研究员须实际读取 https://arxiv.org/abs/1706.03762v7 的摘要/正文并说明读取范围。使用 Host 查询工具，至少保留一个实际内容读取工具结果（不是 echo URL）。分别通过 convivium_submit_evidence 提交含来源、固定版本、实际观察和局限的证据；缺工具或网络如实报告。Reviewer 对两份证据分别运行真实 worker 并提交审核。所有正式交流只经 Meeting Runtime，不做外部写操作。模型发现轮次未开时等待，不提前举手。"
+        "只读验收：Manager 仅组织一轮 GitHub 与 arXiv 两项来源证据，接受这两位研究员的举手，其他工程角色等待。GitHub 研究员须实际读取 https://github.com/deepseek-ai/deepseek-harness 的固定 tag dsh-v0.2.0-rc.2 源码，核对 package 与 AgentSession 接口；arXiv 研究员须实际读取 https://arxiv.org/abs/1706.03762v7 的摘要/正文并说明读取范围。使用 Host 查询工具，至少保留一个实际内容读取工具结果（不是 echo URL）。分别通过 convivium_submit_evidence 提交含来源、固定版本、实际观察和局限的证据；缺工具或网络如实报告。Reviewer 对两份证据分别运行真实 worker 并提交审核。所有正式交流只经 Meeting Runtime，不做外部写操作。模型发现轮次未开时等待，不提前举手。"
     );
     await runtime.inputSession.dispose();
     assert(!ctx.agents.get(runtime.inputSession.agent.id), "input Session still resident");
@@ -204,7 +204,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
                 )?.currentVersion;
             const githubVersion = sourceVersion("github_research_analyst", [
                 "deepseek-harness",
-                "dsh-v0.1.2-rc.1"
+                "dsh-v0.2.0-rc.2"
             ]);
             const arxivVersion = sourceVersion("arxiv_research_analyst", ["1706.03762", "v7"]);
             const review = view.evidenceReviews.find(
@@ -214,7 +214,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
             return githubVersion &&
                 arxivVersion &&
                 review &&
-                sourceRead(github, ["deepseek-harness", "dsh-v0.1.2-rc.1"]) &&
+                sourceRead(github, ["deepseek-harness", "dsh-v0.2.0-rc.2"]) &&
                 sourceRead(arxiv, ["1706.03762"]) &&
                 successfulTools(reviewer).some(
                     (call) =>
@@ -264,7 +264,7 @@ export const runPeerMeetingAgentsScenario = async (runtime) => {
             },
             github: {
                 url: "https://github.com/deepseek-ai/deepseek-harness",
-                ref: "dsh-v0.1.2-rc.1"
+                ref: "dsh-v0.2.0-rc.2"
             },
             arxiv: { url: "https://arxiv.org/abs/1706.03762v7", id: "1706.03762", version: "v7" },
             review: { versionId: research.review.versionId, reviewId: research.review.id },
