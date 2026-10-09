@@ -48,7 +48,9 @@ const fixture = async (role = "domain_architect") => {
     };
     const ctx = {
         llm: { resolveCallConfig: vi.fn(async (config) => config) },
-        agentPresets: { standingKeyFor: vi.fn(async () => scope) },
+        agentPresets: {
+            acquireScope: vi.fn(async () => ({ key: scope, [Symbol.asyncDispose]: async () => {} }))
+        },
         skills
     };
     const input = {
@@ -78,7 +80,7 @@ describe("role resource preflight", () => {
             kind: "rejected",
             error: { code: "CAPABILITY_MISSING" }
         });
-        expect(f.input.ctx.agentPresets.standingKeyFor).not.toHaveBeenCalled();
+        expect(f.input.ctx.agentPresets.acquireScope).not.toHaveBeenCalled();
     });
 
     it("binds the exact role view, immutable resources and expiring descriptor before any Session", async () => {

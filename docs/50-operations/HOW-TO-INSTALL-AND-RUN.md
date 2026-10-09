@@ -7,7 +7,7 @@
 ## Preconditions
 
 - Node.js 满足 `plugin/package.json` 的 engines 要求，pnpm 为 `10.7.0`。
-- DSH、Cordis 和 Host provider 使用项目固定的 `0.1.2-rc.1` / `4.0.2` 组合。
+- DSH、Cordis 和 Host provider 使用项目固定的 `0.2.0-rc.2` / `4.0.4` 组合。
 - 源码命令从仓库根执行；使用 npm 包时，在一个由用户选择的空工作目录执行。
 - 从源码安装时，DSH 启动工作目录是仓库的 `dsh-workspace/`，`DSH_HOME` 固定为 `dsh-workspace/dsh-home/`；`dsh-workspace/convivium-user/` 是持久安装根，保存会议 SQLite 和已解包发布物。通过 npm 安装时，对应目录位于执行安装命令的目录下。人工 Web 调试使用同一 DSH 工作目录和 `DSH_HOME`，安装根另见下述入口；同一时间只运行一个使用该 `DSH_HOME` 的 Host。
 - 人工 Web 调试和验收使用 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收) 的固定安装根，不覆盖本流程的日常持久根。
@@ -42,6 +42,8 @@ npm exec --yes --package @convivium/dsh-plugin@next -- \
 ```
 
 安装入口在 DSH workspace 下创建持久 `dsh-home`，在安装根创建 SQLite patch、release 资源和 `dev.env`，并将实际 release ID 写入 `release`。普通安装遇到同版本 release 或 artifact 已存在时停止，不覆盖；人工 Web 调试的源码刷新入口和保留数据规则见 [DSH Smoke — 人工 Web 调试与验收](./HOW-TO-DSH-SMOKE.md#人工-web-调试与验收)。
+
+插件 tarball 保存在安装根的 `artifacts/`。安装器在专用 Web profile 下建立指向该目录的受管 `convivium-artifacts` 链接，并用相对 `file:` 引用交给 pnpm；开发刷新时以完整 SHA-256 命名 tarball，避免长绝对路径触发 pnpm 的文件索引路径限制。已有同名非受管路径会拒绝安装。
 
 首次新建的专用 `web` profile 使用 `dsh.profile.patchReload: startup`。当前固定的 DSH/Cordis 组合在 `live` 模式下可能因 HMR 接口不匹配而启动失败；`startup` 仍在每次启动时应用全部 patch，但修改 profile、home 或角色 patch 后必须重启 Host。安装器会在新建 profile 尚未完成配置时保留标记，重跑同一安装命令会继续完成 `startup` 设置；原有用户 profile 不由安装器改写。若原有 profile 仍配置 `live` 并出现 `Cordis HMR service` 或 `hmr.registerConfig` 错误，停止启动并先核对该 profile 的 reload 策略，不覆盖或复制其他 profile。
 

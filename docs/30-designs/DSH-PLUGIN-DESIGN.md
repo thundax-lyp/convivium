@@ -34,9 +34,9 @@ DSH 具体 API 收敛在角色预检和 Agent owner；Meeting Domain、Remote DT
 
 ## Responsibilities And Dependencies
 
-DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox、Approval、AgentSession 生命周期和存储 provider。Convivium 拥有 Meeting 事实、角色资源溯源、私有 Session ownership、Captain 创建来源、受控入口与投影。首发只支持 DSH `0.1.2-rc.1`；版本或必需公开服务缺失时加载拒绝，不提供旧 child 降级模式。
+DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox、Approval、AgentSession 生命周期和存储 provider。Convivium 拥有 Meeting 事实、角色资源溯源、私有 Session ownership、Captain 创建来源、受控入口与投影。当前版本门禁只支持 DSH `0.2.0-rc.2`；版本或必需公开服务缺失时加载拒绝，不提供旧 child 降级模式。
 
-专用 Web 安装根在首次创建 DSH `web` profile 时，将 `dsh.profile.patchReload` 从该版本默认的 `live` 固定为 `startup`：当前解析到的 Cordis HMR 不提供 DSH live watcher 调用的 `registerConfig`，而 Meetings View 不依赖运行中修改 patch。所有 bundle、profile、home 和启动 overlay 仍在每次 Host 启动时完整应用；修改 patch 后须重启 Host。安装器不改写已经存在的 profile manifest，也不复制凭据。
+专用 Web 安装根在首次创建 DSH `web` profile 时，将 `dsh.profile.patchReload` 从该版本默认的 `live`（插件安装后该字段也可能缺省）固定为 `startup`：当前解析到的 Cordis HMR 不提供 DSH live watcher 调用的 `registerConfig`，而 Meetings View 不依赖运行中修改 patch。所有 bundle、profile、home 和启动 overlay 仍在每次 Host 启动时完整应用；修改 patch 后须重启 Host。安装器不改写已经存在的 profile manifest，也不复制凭据。
 
 平级会议身份、角色资源、Reviewer worker 与 Captain 来源的精确装配由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#responsibilities-and-dependencies) 维护；插件只在已验证 Host 能力和资源后开放受控入口。
 

@@ -70,7 +70,9 @@ const fixture = async (
             currentSelection: vi.fn(() => ({ provider: "fixture", model: "original" }))
         },
         llm: { resolveCallConfig: async (c) => c },
-        agentPresets: { standingKeyFor: vi.fn(async (id) => id) },
+        agentPresets: {
+            acquireScope: vi.fn(async (id) => ({ key: id, [Symbol.asyncDispose]: async () => {} }))
+        },
         skills: {
             snapshot: async ({ scope }) => ({ complete: true, skills: await skillsFor(scope) }),
             get: async (name, { scope }) => (await skillsFor(scope)).find((s) => s.name === name)
@@ -253,7 +255,7 @@ it("keeps committed ready state when delivery scope restoration fails", async ()
 
 it("does not persist any binding when one role preflight fails", async () => {
     const f = await fixture();
-    f.ctx.agentPresets.standingKeyFor.mockRejectedValueOnce(new Error("missing Preset"));
+    f.ctx.agentPresets.acquireScope.mockRejectedValueOnce(new Error("missing Preset"));
     try {
         expect(await f.run()).toMatchObject({
             kind: "rejected",

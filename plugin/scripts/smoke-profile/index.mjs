@@ -28,7 +28,7 @@ import {
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 export { validateScenarioResult } from "./result.mjs";
 
-const DSH_VERSION = "0.1.2-rc.1";
+const DSH_VERSION = "0.2.0-rc.2";
 const PROFILE = "web";
 const PROVIDER = "spawn";
 const DSH_PACKAGE = `@deepseek-ai/dsh@${DSH_VERSION}`;

@@ -20,7 +20,9 @@ it("binds seven packaged identities to isolated native Presets and capability di
         JSON.parse(await readFile(new URL("definitions.json", root), "utf8")).definitions
     );
     expect(definitions.map((d) => d.roleDefinitionId).sort()).toEqual(Object.keys(expected).sort());
-    const nativeRequire = createRequire(import.meta.resolve("@deepseek-ai/dsh-agent-presets"));
+    const nativeRequire = createRequire(
+        import.meta.resolve("@deepseek-ai/dsh-agent-preset-registry")
+    );
     const { entryListSchema } = await import(
         nativeRequire.resolve("@deepseek-ai/cordis-plugin-include")
     );
@@ -64,5 +66,11 @@ it("binds seven packaged identities to isolated native Presets and capability di
     const patch = load(await readFile(new URL("cordis.patch.yml", root), "utf8"), {
         schema: entryListSchema
     });
-    expect(patch.find((row) => row.id === "agent-presets").config.default).toBe("standard");
+    expect(patch.find((row) => row.id === "agent-preset-registry").config.default).toBe("standard");
+    expect(
+        patch
+            .find((row) => row.insert)
+            .insert.map((row) => row.config.id)
+            .sort()
+    ).toEqual(definitions.map((definition) => definition.dshPresetId).sort());
 });

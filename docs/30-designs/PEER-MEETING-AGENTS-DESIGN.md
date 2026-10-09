@@ -6,7 +6,7 @@
 
 ## Scope And Non-goals
 
-覆盖新会议按 Host 配置选择的初始身份与既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。只支持 DSH `0.1.2-rc.1`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
+覆盖新会议按 Host 配置选择的初始身份与既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
 
 ## Responsibilities And Dependencies
 
@@ -38,9 +38,9 @@ PreparedDescriptor 的 TTL 只限制首次 create/激活；active ownership 的�
 
 ## State And Creation Flow
 
-1. `conviviumMeetings.control` 从 loopback Host 用户边界注入 local-controller；`convivium_start_meeting` 仅消费 `/convivium <目标>` 直接用户输入的一次性创建授权，并注入相同 principal。普通 DSH Agent 创建调用或 payload 伪造来源立即拒绝。为 Meeting ID 与全部配置选中的初始 identity/session/ownership 分配确定性 ID；在第一个 Session 创建前解析全部 Definition、AGENTS、Preset、Skill、Host 模型选择并核对指纹。对每个 Preset 调用 `ctx.agentPresets.standingKeyFor(id)` 后按返回 scope 校验实际 Skill `list/get`，不创建 AgentSession；创建时的 scoped setup 再次校验。
+1. `conviviumMeetings.control` 从 loopback Host 用户边界注入 local-controller；`convivium_start_meeting` 仅消费 `/convivium <目标>` 直接用户输入的一次性创建授权，并注入相同 principal。普通 DSH Agent 创建调用或 payload 伪造来源立即拒绝。为 Meeting ID 与全部配置选中的初始 identity/session/ownership 分配确定性 ID；在第一个 Session 创建前解析全部 Definition、AGENTS、Preset、Skill、Host 模型选择并核对指纹。对每个 Preset 调用 `ctx.agentPresets.acquireScope(id)` 取得 scope lease，按该 scope 校验实际 Skill `snapshot/get` 后释放 lease，不创建 AgentSession；创建时的 scoped setup 再次校验。
 2. Repository 以一个创建入口持久化私有不可变 `creator`、初始领域状态与 `creating` bootstrap；receipt/outbox 仅在 completeCreate 发布。初始身份尚不能执行 Meeting command；每个身份先有 `provisioning` ownership。创建来源不进入 `MeetingState.identities`，也不是 DSH parent。
-3. 对每个身份调用 `MeetingAgentOwner.create`。它传精确 `sessionId`、`agentPreset`、已固化 `agentOptions` 给 `ctx.agents.create`，在 unpublished scoped setup 中 mount Preset、注册角色指令、restrict Tools、核对 Skill `list/get`；返回后再次核对 Session ID/header/资源绑定。Published Agent 在 ownership 激活前不能获得 Meeting authority 或 notice。
+3. 对每个身份调用 `MeetingAgentOwner.create`。它传精确 `sessionId`、`agentPreset`、已固化 `agentOptions` 给 `ctx.agents.create`，在 unpublished scoped setup 中 mount Preset、注册角色指令、restrict Tools、核对 Skill `snapshot/get`；返回后再次核对 Session ID/header/资源绑定。Published Agent 在 ownership 激活前不能获得 Meeting authority 或 notice。
 4. 在 Meeting 仍可创建且 descriptor/ownership 未变时，将该 ownership 原子激活。全部初始 ownership 均 active 后，bootstrap 才从 `creating` 转 `ready` 并允许 outbox 投递。任一步失败，bootstrap 置 `creation_failed`，先 revoke 所有已登记 ownership，再取消、drain 和 dispose 已创建 handle；不能留下可调度半身份或把它们重挂 Captain。
 5. Manager 的 `recommend_identity(admit)` 只提交含稳定 admissionId、identityId、sessionId 和 Definition provenance 的不可调度 intent。dispatcher 以同一 ID 预检、创建独立 Agent/ownership 后，用 `record_identity_admission_result` 原子激活身份和 recommendation；失败提交安全 RoleError。已有 active identity 跨 Agenda 复用既有 ownership，不另建 Session。
 
