@@ -15,7 +15,7 @@ import type { SessionOwnership } from "@/repository/index.ts";
 
 declare module "@deepseek-ai/dsh-llm" {
     interface MessageSourceMap {
-        plugin: { kind: "plugin"; plugin: "convivium" };
+        convivium: { kind: "convivium" };
     }
 }
 
@@ -271,7 +271,7 @@ export const createMeetingAgentOwner = ({
                     id: MessageId(input.deliveryId),
                     role: "user",
                     content: [{ type: "text", text: input.text }],
-                    source: { kind: "plugin", plugin: "convivium" }
+                    source: { kind: "convivium" }
                 });
                 const durable = await ctx.sessions.flush(current.handle.agent.session);
                 await input.authorize();

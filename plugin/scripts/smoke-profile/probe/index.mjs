@@ -142,8 +142,10 @@ async function run(ctx) {
                 sessionId: "convivium-smoke-input",
                 meta: { cwd: process.cwd() }
             });
-            await ctx.sessionPersistence.ensureMaterialized(inputSession.agent.session);
-            await ctx.sessions.flush(inputSession.agent.session);
+            assert(
+                await ctx.sessions.flush(inputSession.agent.session),
+                "input Session persistence unavailable"
+            );
         }
         let userCookie;
         // Each call establishes and closes its own real loopback user connection.

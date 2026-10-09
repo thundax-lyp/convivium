@@ -4,6 +4,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-preset-registry";
 import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
+import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
 import {
@@ -58,9 +59,12 @@ export const validateRoleSkills = async (input: {
             skill.name !== name ||
             !content ||
             skill.content.trim() !== content ||
-            skill.path !== path ||
+            typeof skill.path !== "string" ||
+            (await realpath(skill.path)) !== (await realpath(path)) ||
             skill.resourceBase?.kind !== "directory" ||
-            resolve(skill.resourceBase.path) !== resolve(packageRoot, "config", "skills", name)
+            typeof skill.resourceBase.path !== "string" ||
+            (await realpath(skill.resourceBase.path)) !==
+                (await realpath(resolve(packageRoot, "config", "skills", name)))
         ) {
             throw new Error("Role Skill body or resource origin differs from its binding.");
         }

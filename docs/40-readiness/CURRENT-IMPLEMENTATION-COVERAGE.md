@@ -4,7 +4,7 @@
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
 
-当前实现基线为插件版本 `0.1.0-alpha.1`、`f3df0f9e`（PR #99 合并后的 `main`），以及 `codex/update-readiness` 上已分步提交的 lint 收口与函数语法改动。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。当前仓库没有对应 release tag。状态含义：
+当前 checkout 基线为插件版本 `0.1.0-alpha.1`、DSH `0.2.0-rc.2`；业务修复基线为 `6880f067`，位于 PR #108（2026-10-09 核验时为 OPEN）。PR #106 与 #107 已合并到 `main`。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。当前仓库没有对应 release tag。状态含义：
 
 - `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
@@ -75,6 +75,12 @@
 本次未覆盖：人工 Web/Browser、跨 Host、MeetingTask/session_mail 的完整生产链、任意来源/第三方工具的普遍可用性和长期研究质量。隔离仅承诺模型可见能力，不是静态文件系统保密；旧 v1 明确拒读，无迁移。人工 `dsh-workspace/` 未部署、未启动、未清理。
 
 ## Executed Validation
+
+### 2026-10-09：DSH `0.2.0-rc.2` 会议业务冒烟与固定 Web 读回
+
+在 `codex/dsh-rc2-version-audit` 工作树，`CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` 退出 0（410.6 秒，Restore PASS）。隔离临时 Profile 使用 `spawn` provider 和 Jev 议题的确定性材料，完成目标创建、会议启动、四轮议题、八份 EvidenceVersion 的独立审核、四轮发布、归档及 SQLite 冷启动重开。此次真实运行暴露并修复 rc.2 的 Preset include 路径、Persona 字段、Session flush、消息来源格式及安装路径符号链接校验差异；修复后完整场景通过。修复以四个小步提交交付至 PR #108（业务修复基线 `6880f067`；2026-10-09 核验时为 OPEN）；PR Verify 的 Governance、Plugin Typecheck、Plugin Format、Plugin Lint、Plugin Test、Plugin Build 与 Package Contract 共 7 项检查全部通过。本地 `pnpm --dir plugin test` 通过 95 files / 826 tests，`build`、`lint`（0 errors、1 处既有 warning）、`format:check`、`verify:contract`、`verify:package` 及文档链接检查通过。
+
+固定人工 Web 环境仍使用保留的 `dsh-workspace/` 数据。浏览器读回原 Jev Session 与 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`：会议为已归档、版本 27，证据、Review、Publication、Archive 在界面可见。本次回读时 Host 在 `127.0.0.1:31828` 监听；2026-10-09 再次核对端口仍在监听。**Not Covered**：固定环境运行的是此前安装的构建，尚未部署 PR #108 的修复；这次未在固定环境创建新会议或让真实模型完成新一轮研究。确定性材料不构成 Jev 效果结论，也不证明长期运行或上游 rc.2 依赖元数据已经修复。CI 全绿不等于 PR 已合并。
 
 ### 2026-10-09：固定人工 Web 环境升级到 DSH `0.2.0-rc.2`
 

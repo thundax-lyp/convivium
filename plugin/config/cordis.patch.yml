@@ -10,7 +10,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-arxiv-research-analyst', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-arxiv-research-analyst/agent.cordis.yml
     - id: preset-convivium-domain-architect
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -19,7 +19,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-domain-architect', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-domain-architect/agent.cordis.yml
     - id: preset-convivium-github-research-analyst
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -28,7 +28,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-github-research-analyst', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-github-research-analyst/agent.cordis.yml
     - id: preset-convivium-manager
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -37,7 +37,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-manager', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-manager/agent.cordis.yml
     - id: preset-convivium-protocol-ui-engineer
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -46,7 +46,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-protocol-ui-engineer', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-protocol-ui-engineer/agent.cordis.yml
     - id: preset-convivium-runtime-engineer
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -55,7 +55,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-runtime-engineer', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-runtime-engineer/agent.cordis.yml
     - id: preset-convivium-verification-reviewer
       name: '@deepseek-ai/dsh-agent-preset'
       config:
@@ -64,7 +64,7 @@
           - id: composition
             name: '@deepseek-ai/cordis-plugin-include'
             config:
-              path: !!js "process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets', 'convivium-verification-reviewer', 'agent.cordis.yml')).href"
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-verification-reviewer/agent.cordis.yml
 - id: convivium
   config:
     provider: spawn

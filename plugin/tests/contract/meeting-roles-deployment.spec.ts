@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -151,6 +151,12 @@ describe("native deployment patch composition", () => {
             await cp(fileURLToPath(new URL("../../config", import.meta.url)), assets, {
                 recursive: true
             });
+            const profile = join(root, "profile");
+            await mkdir(join(profile, "node_modules", "@convivium"), { recursive: true });
+            await symlink(
+                join(root, "resources"),
+                join(profile, "node_modules/@convivium/dsh-plugin")
+            );
             const deployment = load(readFileSync(join(assets, "cordis.patch.yml"), "utf8"), {
                 schema: entryListSchema
             });
@@ -181,7 +187,7 @@ describe("native deployment patch composition", () => {
             );
             expect(warnings).not.toHaveBeenCalled();
             const context = {
-                baseUrl: pathToFileURL(join(root, "profile/")).href,
+                baseUrl: pathToFileURL(`${profile}/`).href,
                 process: {
                     getBuiltinModule: process.getBuiltinModule,
                     env: { CONVIVIUM_MEETING_ROLES_ROOT: assets }
@@ -200,12 +206,13 @@ describe("native deployment patch composition", () => {
             for (const preset of presets) {
                 const [include] = preset.config.plugins;
                 expect(include.name).toBe("@deepseek-ai/cordis-plugin-include");
-                const path = interpolate(context, include.config).path;
+                const path = include.config.path;
                 expect(path).toBe(
-                    pathToFileURL(join(assets, "presets", preset.config.id, "agent.cordis.yml"))
-                        .href
+                    `./node_modules/@convivium/dsh-plugin/config/presets/${preset.config.id}/agent.cordis.yml`
                 );
-                expect(readFileSync(new URL(path), "utf8")).toContain("skill-filesystem");
+                expect(readFileSync(new URL(path, context.baseUrl), "utf8")).toContain(
+                    "skill-filesystem"
+                );
             }
             expect(meeting).toEqual({
                 provider: "spawn",
@@ -219,7 +226,6 @@ describe("native deployment patch composition", () => {
                 ...context,
                 process: { getBuiltinModule: process.getBuiltinModule, env: {} }
             };
-            expect(() => interpolate(missing, presets[0].config.plugins[0].config)).toThrow();
             expect(() =>
                 interpolate(missing, rows.find((row) => row.id === "convivium").config)
             ).toThrow();
