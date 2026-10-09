@@ -65,7 +65,7 @@ describe("Meeting Header and mode tabs", () => {
         expect(screen.queryByRole("tabpanel")).toBeNull();
     });
 
-    it("renders icon lifecycle controls with hover labels and disables unavailable actions", () => {
+    it("renders only allowed icon lifecycle controls with hover labels", () => {
         vi.stubGlobal(
             "ResizeObserver",
             class {
@@ -93,17 +93,38 @@ describe("Meeting Header and mode tabs", () => {
         expect(header?.textContent).toContain(`Meeting version: ${props.detail?.version}`);
         expect(
             within(screen.getByRole("group", { name: "Meeting controls" })).getAllByRole("button")
-        ).toHaveLength(3);
+        ).toHaveLength(2);
         expect(screen.getByRole("button", { name: "Pause meeting" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Cancel meeting" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Pause meeting" }).disabled).toBe(false);
         expect(screen.getByRole("button", { name: "Cancel meeting" }).disabled).toBe(false);
-        expect(screen.getByRole("button", { name: "Resume meeting" }).disabled).toBe(true);
-        for (const name of ["Pause meeting", "Resume meeting", "Cancel meeting"]) {
+        expect(screen.queryByRole("button", { name: "Resume meeting" })).toBeNull();
+        for (const name of ["Pause meeting", "Cancel meeting"]) {
             expect(screen.getByRole("button", { name }).textContent).toBe("");
         }
-        fireEvent.mouseEnter(screen.getByRole("button", { name: "Resume meeting" }).parentElement!);
-        expect(screen.getByRole("tooltip").textContent).toBe("Resume meeting");
+        fireEvent.mouseEnter(screen.getByRole("button", { name: "Pause meeting" }).parentElement!);
+        expect(screen.getByRole("tooltip").textContent).toBe("Pause meeting");
+    });
+
+    it("omits the control group when no Meeting action is allowed", () => {
+        const { view } = meetingProjectionFixture();
+        render(translatedLayout({ ...propsFixture(), detail: { ...view, controls: [] } }, "en"));
+
+        expect(screen.queryByRole("group", { name: "Meeting controls" })).toBeNull();
+    });
+
+    it("shows only resume when that is the projected Meeting action", () => {
+        const { view } = meetingProjectionFixture();
+        render(
+            translatedLayout(
+                { ...propsFixture(), detail: { ...view, controls: ["resume_meeting"] } },
+                "en"
+            )
+        );
+
+        const group = screen.getByRole("group", { name: "Meeting controls" });
+        expect(within(group).getAllByRole("button")).toHaveLength(1);
+        expect(within(group).getByRole("button", { name: "Resume meeting" }).disabled).toBe(false);
     });
 
     it("disables every lifecycle control when the Workspace is not writable", () => {

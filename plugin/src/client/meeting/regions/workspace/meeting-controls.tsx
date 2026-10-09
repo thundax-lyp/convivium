@@ -25,59 +25,67 @@ export const MeetingControls = ({
     pauseMeeting,
     resumeMeeting,
     endMeeting
-}: MeetingControlsProps): ReactElement => {
+}: MeetingControlsProps): ReactElement | null => {
     const t = useMeetingTranslate();
+    const canPause = controls.includes("pause_meeting");
+    const canResume = controls.includes("resume_meeting");
+    const canEnd = controls.includes("end_meeting");
+
+    if (!canPause && !canResume && !canEnd) return null;
+
     return (
         <ButtonGroup role="group" aria-label={t("panel.actions.group")}>
-            <Tooltip label={t("panel.actions.pause")} side="top" portal>
-                <span className={styles.slot}>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={styles.button}
-                        aria-label={t("panel.actions.pause")}
-                        disabled={
-                            writePending || detailCached || !controls.includes("pause_meeting")
-                        }
-                        onClick={() => void pauseMeeting()}
-                    >
-                        <IconPauseOutlineMedium size={16} aria-hidden="true" />
-                    </Button>
-                </span>
-            </Tooltip>
-            <Tooltip label={t("panel.actions.resume")} side="top" portal>
-                <span className={styles.slot}>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={styles.button}
-                        aria-label={t("panel.actions.resume")}
-                        disabled={
-                            writePending || detailCached || !controls.includes("resume_meeting")
-                        }
-                        onClick={() => void resumeMeeting()}
-                    >
-                        <IconPlayOutlineMedium size={16} aria-hidden="true" />
-                    </Button>
-                </span>
-            </Tooltip>
-            <Tooltip label={t("panel.actions.end")} side="top" portal>
-                <span className={styles.slot}>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={styles.button}
-                        aria-label={t("panel.actions.end")}
-                        disabled={writePending || detailCached || !controls.includes("end_meeting")}
-                        onClick={() => void endMeeting()}
-                    >
-                        <IconStopFillMedium size={16} aria-hidden="true" />
-                    </Button>
-                </span>
-            </Tooltip>
+            {canPause ? (
+                <Tooltip label={t("panel.actions.pause")} side="top" portal>
+                    <span className={styles.slot}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={styles.button}
+                            aria-label={t("panel.actions.pause")}
+                            disabled={writePending || detailCached}
+                            onClick={() => void pauseMeeting()}
+                        >
+                            <IconPauseOutlineMedium size={16} aria-hidden="true" />
+                        </Button>
+                    </span>
+                </Tooltip>
+            ) : null}
+            {canResume ? (
+                <Tooltip label={t("panel.actions.resume")} side="top" portal>
+                    <span className={styles.slot}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={styles.button}
+                            aria-label={t("panel.actions.resume")}
+                            disabled={writePending || detailCached}
+                            onClick={() => void resumeMeeting()}
+                        >
+                            <IconPlayOutlineMedium size={16} aria-hidden="true" />
+                        </Button>
+                    </span>
+                </Tooltip>
+            ) : null}
+            {canEnd ? (
+                <Tooltip label={t("panel.actions.end")} side="top" portal>
+                    <span className={styles.slot}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={styles.button}
+                            aria-label={t("panel.actions.end")}
+                            disabled={writePending || detailCached}
+                            onClick={() => void endMeeting()}
+                        >
+                            <IconStopFillMedium size={16} aria-hidden="true" />
+                        </Button>
+                    </span>
+                </Tooltip>
+            ) : null}
         </ButtonGroup>
     );
 };
