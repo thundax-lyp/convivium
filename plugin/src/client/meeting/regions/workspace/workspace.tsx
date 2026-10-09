@@ -1,6 +1,12 @@
 import * as React from "react";
 import type { ReactElement } from "react";
-import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
+import type { MeetingSummary } from "@/protocol/index.ts";
+import {
+    Button,
+    IconBrowseOutlineMedium,
+    IconRefreshOutlineMedium,
+    Pill
+} from "@deepseek-ai/dsh-client-ui-primitives";
 import {
     INITIAL_TIMELINE_FILTERS,
     lifecycleLabel,
@@ -8,13 +14,28 @@ import {
     type MeetingPanelLayoutProps
 } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
+import { Empty } from "@/client/meeting/components/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
 import styles from "./workspace.module.css";
 
-export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement => {
+const EmptyMeeting = (): ReactElement => {
     const t = useMeetingTranslate();
-    const selected = props.meetings.find((item) => item.meetingId === props.selectedId);
+    return (
+        <div className={styles.emptyMeeting}>
+            <Empty
+                icon={<IconBrowseOutlineMedium size={32} aria-hidden="true" />}
+                message={t("panel.selection.prompt")}
+            />
+        </div>
+    );
+};
+
+const MeetingContent = ({
+    meeting,
+    ...props
+}: MeetingPanelLayoutProps & { meeting: MeetingSummary }): ReactElement => {
+    const t = useMeetingTranslate();
     const mode = props.activeMode ?? "overview";
     const selectMode = (next: MeetingMode) => props.setMode?.(next);
     const moveMode = (event: React.KeyboardEvent, next: MeetingMode) => {
@@ -25,13 +46,25 @@ export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement =
         target?.focus();
     };
     return (
-        <main data-testid="meeting-workspace" className={styles.main}>
-            <Button type="button" variant="outline" size="sm" onClick={props.requestRefresh}>
-                {t("panel.actions.refresh")}
-            </Button>
-            {selected === undefined ? (
-                <p>{t("panel.selection.prompt")}</p>
-            ) : props.detail === undefined ? (
+        <div
+            data-refresh-visible={
+                props.listCached || props.listError !== undefined || props.detailError !== undefined
+            }
+            className={styles.content}
+        >
+            <div className={styles.refreshSlot}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={styles.refreshButton}
+                    aria-label={t("panel.actions.refresh")}
+                    onClick={props.requestRefresh}
+                >
+                    <IconRefreshOutlineMedium size={16} aria-hidden="true" />
+                </Button>
+            </div>
+            {props.detail === undefined ? (
                 props.detailError === undefined ? (
                     <p>
                         {props.detailCached
@@ -43,7 +76,7 @@ export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement =
                 )
             ) : (
                 <div>
-                    <header data-testid="meeting-header">
+                    <header>
                         <h3>{props.detail.objective.statement}</h3>
                         <Pill>{`${t("panel.header.status")}: ${lifecycleLabel(props.detail.lifecycle.status, t)}`}</Pill>
                         <p>{`${t("panel.header.version")}: ${props.detail.version}`}</p>
@@ -124,7 +157,7 @@ export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement =
                     <article
                         role="tabpanel"
                         aria-labelledby={`meeting-mode-${mode}`}
-                        aria-label={t("panel.detail.aria", { id: selected.meetingId })}
+                        aria-label={t("panel.detail.aria", { id: meeting.meetingId })}
                     >
                         {mode === "overview" ? (
                             <MeetingPanelOverview
@@ -147,6 +180,19 @@ export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement =
                         )}
                     </article>
                 </div>
+            )}
+        </div>
+    );
+};
+
+export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement => {
+    const meeting = props.meetings.find((item) => item.meetingId === props.selectedId);
+    return (
+        <main className={styles.main}>
+            {meeting === undefined ? (
+                <EmptyMeeting />
+            ) : (
+                <MeetingContent {...props} meeting={meeting} />
             )}
         </main>
     );

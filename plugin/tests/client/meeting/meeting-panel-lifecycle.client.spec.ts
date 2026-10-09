@@ -105,9 +105,7 @@ describe("Meeting panel lifecycle", () => {
                 ).toBeTruthy()
             );
             expect(
-                within(screen.getByTestId("meeting-workspace")).queryByText(
-                    view.objective.statement
-                )
+                within(screen.getByRole("main")).queryByText(view.objective.statement)
             ).toBeNull();
             expect(screen.queryByRole("alert")).toBeNull();
         }
@@ -128,7 +126,7 @@ describe("Meeting panel lifecycle", () => {
 
         expect(await screen.findByText("Select a meeting.")).toBeTruthy();
         expect(screen.queryByRole("region", { name: "Objective" })).toBeNull();
-        fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+        fireEvent.focus(window);
         await waitFor(() => expect(api.list).toHaveBeenCalledTimes(3));
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
         expect(screen.queryByRole("region", { name: "Objective" })).toBeNull();

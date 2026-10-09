@@ -34,11 +34,30 @@ function TabsHarness({ initial }: { initial: MeetingPanelLayoutProps }) {
 }
 
 describe("Meeting Header and mode tabs", () => {
+    it("keeps an accessible refresh action available and exposes it on read failure", () => {
+        const props = propsFixture();
+        const { rerender } = render(translatedLayout(props, "en"));
+        const button = screen.getByRole("button", { name: "Refresh" });
+        expect(button.textContent).toBe("");
+        fireEvent.click(button);
+        expect(props.requestRefresh).toHaveBeenCalledOnce();
+
+        rerender(translatedLayout({ ...props, detailError: "Read failed" }, "en"));
+        expect(screen.getByRole("alert").textContent).toContain("Read failed");
+        fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+        expect(props.requestRefresh).toHaveBeenCalledTimes(2);
+    });
+
     it("omits Header, tabs, and content until a Meeting detail is selected", () => {
-        const props = { ...propsFixture(), selectedId: undefined, detail: undefined };
+        const initial = propsFixture();
+        const props = { ...initial, selectedId: undefined, detail: undefined };
         render(translatedLayout(props, "en"));
 
-        expect(screen.queryByTestId("meeting-header")).toBeNull();
+        expect(screen.getByText("Select a meeting.")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+        expect(
+            screen.queryByRole("heading", { name: initial.detail?.objective.statement })
+        ).toBeNull();
         expect(screen.queryByRole("tablist")).toBeNull();
         expect(screen.queryByRole("tabpanel")).toBeNull();
     });
@@ -47,10 +66,11 @@ describe("Meeting Header and mode tabs", () => {
         const props = propsFixture();
         render(translatedLayout(props, "en"));
 
-        const header = screen.getByTestId("meeting-header");
-        expect(header.textContent).toContain(props.detail?.objective.statement);
-        expect(header.textContent).toContain("Running");
-        expect(header.textContent).toContain(`Meeting version: ${props.detail?.version}`);
+        const header = screen
+            .getByRole("heading", { name: props.detail?.objective.statement })
+            .closest("header");
+        expect(header?.textContent).toContain("Running");
+        expect(header?.textContent).toContain(`Meeting version: ${props.detail?.version}`);
         expect(screen.getByRole("button", { name: "Pause meeting" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Cancel meeting" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Resume meeting" })).toBeNull();
