@@ -151,7 +151,7 @@ describe("meeting Agent owner", () => {
             id: "effect",
             role: "user",
             content: [{ type: "text", text: "Read meeting" }],
-            source: { kind: "plugin", plugin: "convivium" }
+            source: { kind: "convivium" }
         });
         await f.owner.disposeAll();
     });
