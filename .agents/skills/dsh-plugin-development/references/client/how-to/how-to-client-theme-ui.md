@@ -6,7 +6,7 @@
 
 ### 实现步骤
 
-1. 先从 `@deepseek-ai/dsh-client-ui-primitives` 选公开控件：按钮用 `Button`，状态短标签用 `Tag`，菜单或自定义 listbox 用 `Menu`/`MenuSurface`。组件通过 props 接收数据和动作；功能包之间不运行时导入对方组件。
+1. 先按[共享控件选型任务](how-to-client-shared-ui.md)从 `@deepseek-ai/dsh-client-ui-primitives` 选择公开控件。组件通过 props 接收数据和动作；功能包之间不运行时导入对方组件。
 2. CSS 放在本包的 CSS Modules，颜色、边框与层级选 `--dsw-*` 语义 alias；不写固定亮色/暗色值。可见文案、可访问名称和提示由类型化 locale 字典提供。构建产物必须包含 CSS，不能只验证 TSX 声明。
 3. 若需注册可选主题，在 Client `apply` 取得 `ctx.theme`，用 `register({ id, colorScheme, tokens })` 并把 disposer 放进 `ctx.effect`。临时品牌覆盖用 `overrideTokens(packageId, { '--dsw-alias-…': { light, dark } })`，同样随 fiber 清理；重复 ID 和缺少两种模式值都应报错。不要擅自调用 `setTheme` 覆盖用户偏好。
 4. 在真实 Web Profile 切换 light、dark、system，验证控件颜色对比、焦点、hover 和弹层；停用插件确认主题或覆盖层撤销。语言切换后确认文案更新而不靠重注册 slot。

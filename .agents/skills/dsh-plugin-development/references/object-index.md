@@ -36,6 +36,7 @@
 | [`Button`](client/api/api-client-shared-ui.md#button) |
 | [`ChatNode`](client/api/api-client-conversation.md#chatnode) |
 | [`ChatNodeDataMap`](client/api/api-client-conversation.md#chatnodedatamap) |
+| [`Checkbox`](client/api/api-client-shared-ui.md#checkbox) |
 | [`ClientModuleRegistry`](client/api/api-client-modules.md#clientmoduleregistry) |
 | [`ClientModuleSystem`](client/api/api-client-modules.md#clientmodulesystem) |
 | [`ClientRemote`](client/api/api-client-remote.md#clientremote) |
@@ -116,6 +117,7 @@
 | [`GoalService`](host/api/api-host-goal.md#goalservice) |
 | [`GoalView`](host/api/api-host-goal.md#goalview) |
 | [`ILayout`](client/api/api-client-sidebar.md#ilayout) |
+| [`Input`](client/api/api-client-shared-ui.md#input) |
 | [`InputTriggerCandidate`](client/api/api-client-interaction.md#inputtriggercandidate) |
 | [`InputTriggerServiceContract`](client/api/api-client-interaction.md#inputtriggerservicecontract) |
 | [`InputTriggerSource`](client/api/api-client-interaction.md#inputtriggersource) |
@@ -152,6 +154,7 @@
 | [`mountSessionMcp`](infra/api/api-infra-provider-browser-use.md#mountsessionmcp) |
 | [`OwnedSessionResource`](infra/api/api-infra-provider-browser-use.md#ownedsessionresource) |
 | [`parseCmdline`](infra/api/api-infra-cmdline.md#parsecmdline) |
+| [`Pill`](client/api/api-client-shared-ui.md#pill) |
 | [`Plugin`](host/api/api-host-cordis.md#plugin) |
 | [`PluginConfigViewProps`](client/api/api-client-settings.md#pluginconfigviewprops) |
 | [`PluginDetailProps`](client/api/api-client-settings.md#plugindetailprops) |
@@ -189,6 +192,7 @@
 | [`Scope`](host/api/api-host-scope.md#scope) |
 | [`ScopedLayers`](host/api/api-host-scope.md#scopedlayers) |
 | [`scopeTarget`](host/api/api-host-scope.md#scopetarget) |
+| [`SegmentedControl`](client/api/api-client-shared-ui.md#segmentedcontrol) |
 | [`SelectConfirmation`](client/api/api-client-commands.md#selectconfirmation) |
 | [`SelectOption`](client/api/api-client-commands.md#selectoption) |
 | [`SelectOptionGroup`](client/api/api-client-commands.md#selectoptiongroup) |
@@ -267,6 +271,7 @@
 | [`SubprocessHandle`](infra/api/api-infra-provider-execution.md#subprocesshandle) |
 | [`SubprocessRuntime`](infra/api/api-infra-provider-execution.md#subprocessruntime) |
 | [`SurfaceFoldResult`](host/api/api-host-session-surface.md#surfacefoldresult) |
+| [`Switch`](client/api/api-client-shared-ui.md#switch) |
 | [`SystemPrompt`](host/api/api-host-prompt-policy.md#systemprompt) |
 | [`Tag`](client/api/api-client-shared-ui.md#tag) |
 | [`TerminalBackend`](infra/api/api-infra-provider-terminal.md#terminalbackend) |
@@ -284,6 +289,7 @@
 | [`ToolGuard`](host/api/api-host-prompt-policy.md#toolguard) |
 | [`ToolRunContext`](host/api/api-host-tools.md#toolruncontext) |
 | [`ToolRuntime`](host/api/api-host-tools.md#toolruntime) |
+| [`Tooltip`](client/api/api-client-shared-ui.md#tooltip) |
 | [`Transcript`](infra/api/api-infra-provider-speech.md#transcript) |
 | [`typertPlugin`](client/api/api-client-typert-build.md#typertplugin) |
 | [`TypertPluginOptions`](client/api/api-client-typert-build.md#typertpluginoptions) |
