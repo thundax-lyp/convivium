@@ -113,7 +113,9 @@ const result = {
                 "@deepseek-ai/dsh-client-ui-conversation"
             ]),
     storageDomainPeerMatchesHost:
-        manifest?.peerDependencies?.["@deepseek-ai/dsh-storage-domain"] === "0.1.2-rc.1",
+        Boolean(manifest?.peerDependencies?.["@deepseek-ai/dsh-storage-domain"]) &&
+        manifest.peerDependencies["@deepseek-ai/dsh-storage-domain"] ===
+            manifest.peerDependencies["@deepseek-ai/dsh-agent"],
     physicalStorageIsHostOwned: [
         "@deepseek-ai/dsh-storage",
         "@deepseek-ai/dsh-storage-sqlite"
