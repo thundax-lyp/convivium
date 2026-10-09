@@ -76,6 +76,14 @@
 
 ## Executed Validation
 
+### 2026-10-10：长 Agent turn 的 outbox lease 续约与丢租约隔离
+
+本次 Convivium 改动不修改 DSH 源代码。outbox worker 在等待 Agent turn 等长投递期间按半个 TTL 周期续约当前 lease；续约或 completion 发生 `LEASE_LOST` 时，不再用旧 token 二次写 retry/failed，也不终止 worker loop，而是继续处理后续持久 effect。回归测试先分别观察到长投递不续租超时、completion 丢租约导致 worker 退出，再在实现后通过。`pnpm --dir plugin verify` 退出 0：96 个测试文件、841 个测试，以及 format、lint、Host/Client/remote-test typecheck、build、环境、契约、七角色 Definition 与 package 检查通过；lint 有 2 个非阻断既有 warning。`node .github/scripts/check-doc-links.mjs` 检查 1124 个本地链接、0 errors。
+
+随后停止占用 `127.0.0.1:31828` 的原 Host，以 `--dev-refresh` 把同一构建安装到固定人工 Web 环境，并复用原 `DSH_HOME`、项目目录和会议 SQLite 启动；没有重建 Meeting 或 Session。保留的 `meeting-d05a0646a5a6a427ce6d4b0282a0ec3d` 从卡住时的版本 7 继续到版本 23：原 pending `hand_disposition` 与后续 GitHub/Reviewer outbox 恢复投递，两位 Contributor 均 closed，2 份 Review 入库，Round 发布 1 份 Publication，Manager 以 `partial` 正常结束，Archive 为 `complete`。Host 继续监听，固定目录与会议数据保留。
+
+**Not Covered**：本次没有通过 Browser 人工点击逐项复核页面，也没有在归档后再次 cold restart；单场保留会议的恢复不证明任意模型、任意时长或所有 outbox effect 的普遍稳定性。
+
 ### 2026-10-09：Contributor 与 Reviewer turn 异常恢复
 
 本次 Convivium 改动不修改 DSH 源代码。Convivium 对已接纳 Contributor 的目标 turn 使用 deliveryId/claimed turn 精确关联；若原通知因此前 turn 异常而留在队列，owner 使用 DSH 公开 `steer` API 唤醒原通知，且不把 wake message 作为会议事实。目标 turn 异常后由 `runtime_recovery` 提交带 sourceEffectId 的 `execution_failed` 事实；同一 effect 崩溃重投不再次唤醒 Agent。全部贡献失败时允许零 Evidence/Review Publication，并保留结构化失败；Reviewer 目标 turn 异常立即以 `review_interrupted` 消费 claim，沿现有版本失败预算重试。`pnpm --dir plugin verify` 退出 0：96 个测试文件、839 个测试，以及 format、lint、Host/Client/remote-test typecheck、build、环境、契约、七角色 Definition 与 package 检查通过；lint 有 2 个非阻断复杂度/函数长度 warning。`node .github/scripts/check-doc-links.mjs` 检查 1124 个本地链接、0 errors。未运行真实模型、固定 Web 或持久 SQLite 冒烟，因此只能声明代码与自动化契约覆盖，不能声明原人工会议故障已实机复验。
