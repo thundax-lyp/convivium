@@ -4,7 +4,7 @@
 
 本文说明七个角色资源的部署和核对。新会议创建一位 Manager、一位专职 Evidence Reviewer 和 Host `initialContributorRoleIds` 选中的 Contributor；当前部署 patch 选 GitHub/arXiv 两位，三个工程角色资源保留；Reviewer 的逐版本 one-shot worker 仍使用 subagent。正式契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，恢复与权限边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md)，实际覆盖见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
-- Node/pnpm 满足 `plugin/package.json`，DSH 固定 `0.1.2-rc.1`。
+- Node/pnpm 满足 `plugin/package.json`，DSH 固定 `0.2.0-rc.2`。
 - 发行包包含 `config/definitions.json`、七份 AGENTS、七个 Preset、五项能力 Skill、一个用户入口 Skill 和部署 patch。
 - Host 提供模型路由、Agent factory、Preset/Skill Loader、Session persistence、SQLite Storage Domain；Reviewer worker 所需的 spawn provider 和来源读取工具由 Host 提供。
 - 凭据按 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 管理，不写入包、patch、终端输出或结果。缺模型、工具、资源或凭据时停止，不能以测试替身声称研究能力可用。

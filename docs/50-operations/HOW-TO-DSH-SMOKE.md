@@ -46,7 +46,7 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
 
 - 从仓库根目录执行命令。
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
-- pnpm 可以取得或已缓存 `@deepseek-ai/dsh@0.1.2-rc.1`。
+- pnpm 可以取得或已缓存 `@deepseek-ai/dsh@0.2.0-rc.2`。
 - 仓库根目录存在不入 Git 的 `dev.env`，其中 `DEEPSEEK_API_KEY` 存在且去除空白后非空。文件可以包含其他本地条目；冒烟脚本只读取该 key。
 - 不使用开发者常用的 DSH profile。脚本为每个场景创建独立临时 `DSH_HOME`、workspace、profile 和端口；默认也创建临时 SQLite，只有下述显式持久存储入口例外。
 

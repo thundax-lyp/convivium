@@ -2,7 +2,7 @@
 
 set -eu
 
-DSH_VERSION="0.1.2-rc.1"
+DSH_VERSION="0.2.0-rc.2"
 PACKAGE_NAME="@convivium/dsh-plugin"
 
 fail() {
@@ -139,7 +139,7 @@ chmod 700 "$install_root"
 artifact_root="$install_root/artifacts"
 release_root="$install_root/releases/$release_id"
 if [ "$dev_refresh" -eq 1 ]; then
-    installed_artifact="$artifact_root/$artifact_digest/$(basename -- "$artifact_path")"
+    installed_artifact="$artifact_root/$artifact_digest.tgz"
 else
     installed_artifact="$artifact_root/$(basename -- "$artifact_path")"
 fi
@@ -206,13 +206,23 @@ if [ ! -e "$profile_manifest" ]; then
 fi
 
 export DSH_HOME="$dsh_home"
-pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add "$installed_artifact"
+profile_artifacts="$dsh_home/profiles/web/convivium-artifacts"
+mkdir -p "$(dirname -- "$profile_artifacts")"
+if [ -L "$profile_artifacts" ]; then
+    [ "$(CDPATH= cd -- "$profile_artifacts" && pwd -P)" = "$(CDPATH= cd -- "$artifact_root" && pwd -P)" ] || fail "profile artifact link differs: $profile_artifacts"
+elif [ -e "$profile_artifacts" ]; then
+    fail "profile artifact path is not managed: $profile_artifacts"
+else
+    ln -s "$artifact_root" "$profile_artifacts"
+fi
+pnpm dlx "@deepseek-ai/dsh@$DSH_VERSION" plugin --profile web add "file:convivium-artifacts/$(basename -- "$installed_artifact")"
 if [ -e "$profile_pending" ]; then
     node - "$profile_manifest" <<'NODE'
 const fs = require("node:fs");
 const path = process.argv[2];
 const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
-if (manifest.name !== "dsh-profile-web" || !["live", "startup"].includes(manifest.dsh?.profile?.patchReload)) {
+const reload = manifest.dsh?.profile?.patchReload;
+if (manifest.name !== "dsh-profile-web" || (reload !== undefined && !["live", "startup"].includes(reload))) {
     throw new Error("incomplete DSH web profile has an unexpected reload setting");
 }
 manifest.dsh.profile.patchReload = "startup";

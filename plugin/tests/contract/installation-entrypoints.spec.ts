@@ -54,7 +54,7 @@ async function fixture() {
 printf '%s\\n' "DSH_HOME=$DSH_HOME ROLES=$CONVIVIUM_MEETING_ROLES_ROOT PWD=$PWD ARGS=$*" >> "$CALLS_FILE"
 mkdir -p "$DSH_HOME/profiles/web"
 if [ ! -f "$DSH_HOME/profiles/web/package.json" ]; then
-    printf '%s\\n' '{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"],"patchReload":"live"}}}' > "$DSH_HOME/profiles/web/package.json"
+    printf '%s\\n' '{"name":"dsh-profile-web","dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"]}}}' > "$DSH_HOME/profiles/web/package.json"
 fi
 if [ -n "$FAIL_FIRST_ADD_FILE" ] && [ ! -f "$FAIL_FIRST_ADD_FILE" ]; then
     : > "$FAIL_FIRST_ADD_FILE"
@@ -91,7 +91,7 @@ describe("user installation entrypoints", () => {
             `${join(await realpath(root), "dsh-workspace")}\n`
         );
         expect(await readFile(calls, "utf8")).toContain(
-            `plugin --profile web add ${join(installRoot, "artifacts", "convivium-dsh-plugin-0.1.0-alpha.1.tgz")}`
+            "plugin --profile web add file:convivium-artifacts/convivium-dsh-plugin-0.1.0-alpha.1.tgz"
         );
     }, 15_000);
 
@@ -136,10 +136,10 @@ describe("user installation entrypoints", () => {
         ).toBe("startup");
         const recordedCalls = await readFile(calls, "utf8");
         expect(recordedCalls).toContain(
-            `plugin --profile web add ${join(installRoot, "artifacts", "convivium-dsh-plugin-1.2.3.tgz")}`
+            "plugin --profile web add file:convivium-artifacts/convivium-dsh-plugin-1.2.3.tgz"
         );
         expect(recordedCalls).toContain(
-            "plugin --profile web add @deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1"
+            "plugin --profile web add @deepseek-ai/dsh-storage-sqlite@0.2.0-rc.2"
         );
     });
 
@@ -297,6 +297,12 @@ describe("user installation entrypoints", () => {
         const secondRelease = (await readFile(join(installRoot, "release"), "utf8")).trim();
 
         expect(firstRelease).not.toBe(secondRelease);
+        expect(
+            await readFile(join(installRoot, "artifacts", `${firstRelease.slice(-64)}.tgz`))
+        ).toBeDefined();
+        expect(
+            await readFile(join(installRoot, "artifacts", `${secondRelease.slice(-64)}.tgz`))
+        ).toBeDefined();
         expect(await readFile(join(installRoot, "convivium-storage.sqlite"), "utf8")).toBe(
             "existing-meeting-data"
         );
