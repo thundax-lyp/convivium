@@ -1,6 +1,4 @@
 interface:
-    display_name: "DSH 应用与插件开发"
-    short_description: "澄清需求与验收，选择 DSH 能力并组合应用，设计和开发 Cordis 插件"
-    default_prompt: "使用 $dsh-plugin-development 澄清项目需求与验收，将需求映射到 DSH 能力，设计应用组合，或按已确认方案开发插件。"
-policy:
-    allow_implicit_invocation: true
+    display_name: "DSH Plugin Development"
+    short_description: "面向 DSH 0.2.0-rc.2 的插件开发任务、公开 API 与验证路径"
+    default_prompt: "使用此 Skill 为 @deepseek-ai/dsh-agent@0.2.0-rc.2 开发插件。先从 SKILL.md 选择插件形态和开发任务，再查阅对应 HOW-TO、API 契约与完整示例；按目标版本验证装载和行为。"
