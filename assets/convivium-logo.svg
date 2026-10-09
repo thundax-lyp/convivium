@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200" role="img" aria-labelledby="title description">
+  <title id="title">Convivium</title>
+  <desc id="description">Six people sit in a circle around a picnic blanket and a shared plate.</desc>
+
+  <style>
+    svg {
+      --logo-field: var(--dsw-alias-bg-layer-2, #f6f7fb);
+      --logo-outline: var(--dsw-alias-border-l2, #dfe3ed);
+      --logo-blanket: #c8d0ef;
+      --logo-grid: #f6f7fc;
+      --logo-edge: #9eaadb;
+      --logo-plate: #ffffff;
+      --logo-plate-ring: #6676c4;
+      --logo-plate-inner: #dfe3ee;
+      --logo-food: #b8a782;
+      --logo-accent: var(--dsw-alias-brand-primary, #6575d5);
+      --logo-leaf: #7581a1;
+      --logo-body-a: #6473aa;
+      --logo-body-b: #7885b5;
+      --logo-body-c: #8d98ba;
+      --logo-head: #b9c2d7;
+      --logo-ink: var(--dsw-alias-label-primary, #252a38);
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --logo-field: var(--dsw-alias-bg-layer-2, #252934);
+        --logo-outline: var(--dsw-alias-border-l2, #434a5b);
+        --logo-blanket: #465486;
+        --logo-grid: #68759d;
+        --logo-edge: #8192d2;
+        --logo-plate: #303648;
+        --logo-plate-ring: #a0aff5;
+        --logo-plate-inner: #59627a;
+        --logo-food: #c4b18d;
+        --logo-accent: var(--dsw-alias-brand-primary, #91a0f6);
+        --logo-leaf: #a0aac5;
+        --logo-body-a: #7e8fd1;
+        --logo-body-b: #909dc9;
+        --logo-body-c: #a0aac8;
+        --logo-head: #b6c0d7;
+        --logo-ink: var(--dsw-alias-label-primary, #eef0f8);
+      }
+    }
+  </style>
+
+  <defs>
+    <clipPath id="blanket">
+      <rect x="456" y="311" width="288" height="288" rx="30" transform="rotate(45 600 455)"/>
+    </clipPath>
+  </defs>
+
+  <!-- The field and wordmark use the same light and dark contrast hierarchy as DSH. -->
+  <circle cx="600" cy="455" r="397" fill="var(--logo-field)"/>
+  <circle cx="600" cy="455" r="378" fill="none" stroke="var(--logo-outline)" stroke-width="3"/>
+
+  <!-- The blanket is a diamond so its four corners remain distinct from the six guests. -->
+  <rect x="456" y="311" width="288" height="288" rx="30" transform="rotate(45 600 455)" fill="var(--logo-blanket)"/>
+  <g clip-path="url(#blanket)" transform="rotate(45 600 455)" opacity=".48" stroke="var(--logo-grid)" stroke-width="25">
+    <path d="M508 290v330M600 290v330M692 290v330M435 363h330M435 455h330M435 547h330"/>
+  </g>
+  <rect x="456" y="311" width="288" height="288" rx="30" transform="rotate(45 600 455)" fill="none" stroke="var(--logo-edge)" stroke-width="5"/>
+
+  <!-- One simple shared meal anchors the picnic without competing with the people. -->
+  <circle cx="600" cy="455" r="95" fill="var(--logo-plate)" stroke="var(--logo-plate-ring)" stroke-width="7"/>
+  <circle cx="600" cy="455" r="72" fill="none" stroke="var(--logo-plate-inner)" stroke-width="4"/>
+  <circle cx="577" cy="464" r="26" fill="var(--logo-food)"/>
+  <circle cx="625" cy="447" r="27" fill="var(--logo-accent)"/>
+  <path d="M605 410c16-12 34-9 42 1-17 10-32 11-42-1Z" fill="var(--logo-leaf)"/>
+  <path d="M609 414c-7 10-10 19-10 28" fill="none" stroke="var(--logo-leaf)" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Six rounded silhouettes make the outer circle. Each pair of arms turns inward. -->
+  <g transform="translate(600 455)">
+    <g>
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-a)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-a)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+    <g transform="rotate(60)">
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-b)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-b)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+    <g transform="rotate(120)">
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-c)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-c)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+    <g transform="rotate(180)">
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-a)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-a)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+    <g transform="rotate(240)">
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-b)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-b)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+    <g transform="rotate(300)">
+      <path d="M-93-227c3-34 34-58 93-58s90 24 93 58l-17 37c-25 17-127 17-152 0Z" fill="var(--logo-body-c)"/>
+      <path d="M-87-221c-27 17-40 39-37 67M87-221c27 17 40 39 37 67" fill="none" stroke="var(--logo-body-c)" stroke-width="25" stroke-linecap="round"/>
+      <circle cy="-328" r="43" fill="var(--logo-head)"/>
+    </g>
+  </g>
+
+  <text x="600" y="1040" text-anchor="middle" font-family="Avenir Next, Trebuchet MS, Arial, sans-serif" font-size="104" font-weight="700" letter-spacing="1" fill="var(--logo-ink)">Convivium</text>
+</svg>

@@ -1,5 +1,7 @@
 # Convivium
 
+<img src="assets/convivium-logo.svg" alt="" width="176" />
+
 A local evidence-gathering runtime for human-directed agent work.
 
 Convivium 是一个 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/DeepSeek-Harness) 插件，用于在本地执行取证任务，并收集、审核和固化 Agent 产生的证据。它不依靠 Agent 相互说服、投票或共识来提高答案正确率；Meeting 只是受人类目标约束的执行与审计容器。
