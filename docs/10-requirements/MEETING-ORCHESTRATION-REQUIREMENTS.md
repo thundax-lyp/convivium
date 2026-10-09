@@ -39,7 +39,7 @@
 
 1. Convivium 必须作为 DSH 插件安装、加载和运行。
 2. 用户不得被要求同时启动一个独立的 Convivium 应用才能使用会议功能。
-3. 首发只支持精确 DSH 版本 `0.1.2-rc.1`；版本不同或缺失必需生命周期能力时插件必须拒绝加载并说明支持版本，不得以降级模式运行会议。更高版本须在独立验证并更新正式兼容口径后才能支持。
+3. 当前只支持精确 DSH 版本 `0.2.0-rc.2`；版本不同或缺失必需生命周期能力时插件必须拒绝加载并说明支持版本，不得以降级模式运行会议。更高版本须在独立验证并更新正式兼容口径后才能支持。
 
 ### MO-FR-2：会议与身份隔离
 
@@ -389,7 +389,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和内容指纹，并明确引用该角色的 AGENTS 身份资源、一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 AGENTS 或 DSH capability 正文，内容指纹绑定身份资源与指纹。
 36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽当前 Agent scope 自己注册的工具，也不是操作系统资源隔离机制；Definition、AGENTS 身份声明、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；自然语言推荐不创建 Session，结构化 `admit` 意图也必须等待独立 Session provisioning 和 durable ownership 成功后才能形成可调度 Participant。
-38. DSH 版本不是精确 `0.1.2-rc.1`，或已选择的 Definition、各角色 Preset、required Skill、Skill 可见集合、必需 lifecycle capability 无法解析和验证时，在第一个会议身份 Session 创建前拒绝；部分 Session 创建失败时撤销其会议权限并清理已创建的会议身份 Session，不发布 ready Meeting。不得将版本或能力缺口降级为 persona-only，也不得使用 Convivium installer workaround。
+38. DSH 版本不是精确 `0.2.0-rc.2`，或已选择的 Definition、各角色 Preset、required Skill、Skill 可见集合、必需 lifecycle capability 无法解析和验证时，在第一个会议身份 Session 创建前拒绝；部分 Session 创建失败时撤销其会议权限并清理已创建的会议身份 Session，不发布 ready Meeting。不得将版本或能力缺口降级为 persona-only，也不得使用 Convivium installer workaround。
 39. 发布包内保留七个角色资源；新会议只为 Manager、Reviewer 和 Host 配置选中的 Contributor 创建平级、独立的 AgentSession，未选中的角色不创建初始 Session、不接收初始通知。当前部署配置选中 GitHub Research Analyst 和 arXiv Research Analyst。已创建的 Agent 各自装载自己的 AGENTS 身份资源并使用选定 Preset；模型上下文不出现其他角色的身份指令，原生 skill 工具只列出并加载该角色分配的 Skills，跨角色未分配 Skill 不可见且不可加载。GitHub/arXiv 两类研究角色的真实搜索与抓取可用，唯一专职 Evidence Reviewer 能取得待审集合并通过 DSH 原生 workers 并发审核。工具限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与身份指令/toolFilter 经 Host 冷重启保持，用户输入 Session 不受影响；目录或样本存在不能替代这些验收。
 40. meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。
