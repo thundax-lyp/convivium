@@ -228,7 +228,7 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
         Object.values(observed.userControl).some((value) => value !== true) ||
         !exact(observed.github, ["url", "ref"]) ||
         observed.github.url !== "https://github.com/deepseek-ai/deepseek-harness" ||
-        observed.github.ref !== "dsh-v0.1.2-rc.1" ||
+        observed.github.ref !== "dsh-v0.2.0-rc.2" ||
         !exact(observed.arxiv, ["url", "id", "version"]) ||
         observed.arxiv.url !== "https://arxiv.org/abs/1706.03762v7" ||
         observed.arxiv.id !== "1706.03762" ||
