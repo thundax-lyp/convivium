@@ -1,0 +1,107 @@
+.mark {
+    width: 112px;
+    height: 112px;
+    flex: none;
+    --logo-field: var(--dsw-alias-bg-layer-2, #f6f7fb);
+    --logo-outline: var(--dsw-alias-border-l2, #dfe3ed);
+    --logo-blanket: #c8d0ef;
+    --logo-grid: #f6f7fc;
+    --logo-edge: #9eaadb;
+    --logo-plate: #fff;
+    --logo-plate-ring: #6676c4;
+    --logo-plate-inner: #dfe3ee;
+    --logo-food: #b8a782;
+    --logo-accent: var(--dsw-alias-brand-primary, #6575d5);
+    --logo-leaf: #7581a1;
+    --logo-body-a: #6473aa;
+    --logo-body-b: #7885b5;
+    --logo-body-c: #8d98ba;
+    --logo-head: #b9c2d7;
+}
+
+:global(body[data-ds-dark-theme]) .mark {
+    --logo-field: var(--dsw-alias-bg-layer-2, #252934);
+    --logo-outline: var(--dsw-alias-border-l2, #434a5b);
+    --logo-blanket: #465486;
+    --logo-grid: #68759d;
+    --logo-edge: #8192d2;
+    --logo-plate: #303648;
+    --logo-plate-ring: #a0aff5;
+    --logo-plate-inner: #59627a;
+    --logo-food: #c4b18d;
+    --logo-accent: var(--dsw-alias-brand-primary, #91a0f6);
+    --logo-leaf: #a0aac5;
+    --logo-body-a: #7e8fd1;
+    --logo-body-b: #909dc9;
+    --logo-body-c: #a0aac8;
+    --logo-head: #b6c0d7;
+}
+
+.field {
+    fill: var(--logo-field);
+}
+.outline {
+    fill: none;
+    stroke: var(--logo-outline);
+    stroke-width: 3;
+}
+.blanket {
+    fill: var(--logo-blanket);
+}
+.grid {
+    fill: none;
+    opacity: 0.48;
+    stroke: var(--logo-grid);
+    stroke-width: 25;
+}
+.blanketEdge {
+    fill: none;
+    stroke: var(--logo-edge);
+    stroke-width: 5;
+}
+.plate {
+    fill: var(--logo-plate);
+    stroke: var(--logo-plate-ring);
+    stroke-width: 7;
+}
+.plateInner {
+    fill: none;
+    stroke: var(--logo-plate-inner);
+    stroke-width: 4;
+}
+.food {
+    fill: var(--logo-food);
+}
+.accent {
+    fill: var(--logo-accent);
+}
+.leaf {
+    fill: var(--logo-leaf);
+}
+.leafStem {
+    fill: none;
+    stroke: var(--logo-leaf);
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+.toneA {
+    --guest-fill: var(--logo-body-a);
+}
+.toneB {
+    --guest-fill: var(--logo-body-b);
+}
+.toneC {
+    --guest-fill: var(--logo-body-c);
+}
+.body {
+    fill: var(--guest-fill);
+}
+.arms {
+    fill: none;
+    stroke: var(--guest-fill);
+    stroke-width: 25;
+    stroke-linecap: round;
+}
+.head {
+    fill: var(--logo-head);
+}

@@ -82,7 +82,7 @@ DSH Conversation
 
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 
-未选择 Meeting 时，Workspace 只渲染居中的 `Empty` 图标和本地化选择提示，不展示刷新按钮、详情 Header 或模式选项卡。此时若列表读取失败或缓存陈旧，由 Navigator 的错误提示提供重试入口。
+未选择 Meeting 时，Workspace 只渲染居中的 `Empty` 品牌图形和本地化选择提示；图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。此时若列表读取失败或缓存陈旧，由 Navigator 的错误提示提供重试入口。
 
 选中 Meeting 后，Content 右上角提供带无障碍名称的圆形刷新图标，用于手动补读列表和已选会议详情。正常状态在 Content 悬停或键盘焦点进入时显示；列表或详情读取失败、缓存陈旧时持续显示；无悬停能力的设备上持续显示。图标不遮挡会议标题。
 

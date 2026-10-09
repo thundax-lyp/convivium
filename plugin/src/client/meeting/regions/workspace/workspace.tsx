@@ -13,19 +13,25 @@ import {
     type MeetingPanelLayoutProps
 } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { ButtonGroup, Empty } from "@/client/meeting/components/index.ts";
+import { ButtonGroup, ConviviumMark, Empty } from "@/client/meeting/components/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
 import { MeetingControls } from "./meeting-controls.tsx";
 import styles from "./workspace.module.css";
 
-const EmptyMeeting = (): ReactElement => {
+const EmptyMeeting = ({ message }: { message?: string }): ReactElement => {
     const t = useMeetingTranslate();
     return (
         <div className={styles.emptyMeeting}>
             <Empty
-                icon={<IconBrowseOutlineMedium size={32} aria-hidden="true" />}
-                message={t("panel.selection.prompt")}
+                icon={
+                    message === undefined ? (
+                        <ConviviumMark />
+                    ) : (
+                        <IconBrowseOutlineMedium size={32} aria-hidden="true" />
+                    )
+                }
+                message={message ?? t("panel.selection.prompt")}
             />
         </div>
     );
@@ -50,6 +56,7 @@ const MeetingContent = ({
             data-refresh-visible={
                 props.listCached || props.listError !== undefined || props.detailError !== undefined
             }
+            data-placeholder={props.detail === undefined && props.detailError === undefined}
             className={styles.content}
         >
             <div className={styles.refreshSlot}>
@@ -66,11 +73,13 @@ const MeetingContent = ({
             </div>
             {props.detail === undefined ? (
                 props.detailError === undefined ? (
-                    <p>
-                        {props.detailCached
-                            ? t("panel.detail.loading")
-                            : t("panel.detail.unavailable")}
-                    </p>
+                    <EmptyMeeting
+                        message={
+                            props.detailCached
+                                ? t("panel.detail.loading")
+                                : t("panel.detail.unavailable")
+                        }
+                    />
                 ) : (
                     <p role="alert">{props.detailError}</p>
                 )

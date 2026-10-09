@@ -16,6 +16,17 @@
     min-height: 100%;
 }
 
+.content[data-placeholder="true"] {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.content[data-placeholder="true"] .emptyMeeting {
+    flex: 1;
+    min-height: 0;
+}
+
 .refreshSlot {
     position: sticky;
     top: 8px;
