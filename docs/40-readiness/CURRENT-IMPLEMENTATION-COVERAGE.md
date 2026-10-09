@@ -76,6 +76,12 @@
 
 ## Executed Validation
 
+### 2026-10-09：DSH `0.2.0-rc.2` 会议业务冒烟与固定 Web 读回
+
+在 `codex/dsh-rc2-version-audit` 工作树，`CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` 退出 0（410.6 秒，Restore PASS）。隔离临时 Profile 使用 `spawn` provider 和 Jev 议题的确定性材料，完成目标创建、会议启动、四轮议题、八份 EvidenceVersion 的独立审核、四轮发布、归档及 SQLite 冷启动重开。此次真实运行暴露并修复 rc.2 的 Preset include 路径、Persona 字段、Session flush、消息来源格式及安装路径符号链接校验差异；修复后完整场景通过。
+
+固定人工 Web 环境仍使用保留的 `dsh-workspace/` 数据。浏览器读回原 Jev Session 与 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`：会议为已归档、版本 27，证据、Review、Publication、Archive 在界面可见。最终 Host 在 `127.0.0.1:31828` 持续监听，浏览器仍能读取会议页面。**Not Covered**：这次未在固定人工环境创建新会议或让真实模型完成新一轮研究；确定性材料不构成 Jev 效果结论，也不证明长期运行或上游 rc.2 依赖元数据已经修复。
+
 ### 2026-10-09：固定人工 Web 环境升级到 DSH `0.2.0-rc.2`
 
 在 `codex/dsh-rc2-upgrade` 工作树中，先确认固定人工环境的旧 `start.sh` 与 `web` Profile 仍指向 `0.1.2-rc.1`，且 `127.0.0.1:31828` 无 Host 占用。对原安装根执行 `./scripts/install-from-source.sh --workspace "$PWD/dsh-workspace" --dev-refresh`，构建与安装退出 0；安装后回读 `start.sh`、Profile manifest 与 lockfile，DSH 及 SQLite provider 均为 `0.2.0-rc.2`，lockfile 无 `0.1.2-rc.1`。原 SQLite、Session 目录及 `dev.env` 链接保留。用固定 `start.sh` 启动 Host，Web 监听 `127.0.0.1:31828`，随后停止 Host 并确认端口释放。
