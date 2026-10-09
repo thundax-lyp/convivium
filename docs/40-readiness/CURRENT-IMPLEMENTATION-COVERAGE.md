@@ -76,11 +76,17 @@
 
 ## Executed Validation
 
+### 2026-10-09：DSH `0.2.0-rc.2` 隔离安装与 Web 装载
+
+在 `codex/dsh-rc2-upgrade` 工作树中，安装器与自动 smoke 入口改用 rc.2，Client UI primitives 改为发行依赖。`pnpm exec vitest run tests/contract/installation-entrypoints.spec.ts` 通过 1 file / 6 tests。独立临时 `DSH_HOME` 的 `./scripts/install-from-source.sh --workspace <临时 workspace> --dev-refresh` 完成；Profile 的 `patchReload` 为 `startup`，发行插件及 UI primitives 在 Profile 安装目录可解析。`dsh web --dump-config` 含 Convivium 行与七个角色 Preset。启动隔离 Web Host 后，`127.0.0.1:31828` 监听且 10 秒后进程仍运行；Playwright 打开带授权 token 的页面返回 HTTP 200，显示 DeepSeek Harness 初始界面，浏览器 console/page error 均为 0。插件设置页显示 Convivium 已安装且启用，启动图包含 Convivium Client；验收后已停止 Host。
+
+此证据只证明隔离安装、Host 启动和首屏装载。**Not Covered**：会议创建与角色实际运行、历史 Session 恢复、固定人工 Web 环境和长期模型任务。rc.2 上游 Client UI primitives 的发布 manifest 缺少部分运行时依赖声明，本插件以显式发行依赖补齐；不能把这一局部装配验证解释为上游包已修复。
+
 ### 2026-10-09：DSH `0.2.0-rc.2` 编译与自动化测试
 
 在 `codex/dsh-rc2-upgrade` 工作树、Node `v22.23.2` 与 pnpm `10.7.0` 上，同步本地 `dsh-plugin-development` Skill 至其 `0.2.0-rc.2` 发行目录，更新 `plugin/package.json` 的 DSH 依赖和 lockfile，并适配 Host API、Client 图标及 Preset Registry 装配。`pnpm --dir plugin test` 退出 0：95 files / 825 tests；`pnpm --dir plugin build` 退出 0，覆盖 Typert 生成、Host/Client TypeScript 编译和 bundle 构建；`pnpm --dir plugin lint` 退出 0（0 errors、1 warning）。
 
-本阶段 **Not Covered**：真实 DSH Host 加载、Profile/安装脚本适配、历史 Session 兼容与人工 Web 验收。自动化契约与集成测试通过不代表 `0.2.0-rc.2` 的实际 Profile 已可运行或发布；安装脚本仍包含 `0.1.2-rc.1` 入口。
+该次编译与测试快照的 **Not Covered** 包括真实 DSH Host 加载、Profile/安装脚本适配、历史 Session 兼容与人工 Web 验收；当时安装脚本仍包含 `0.1.2-rc.1` 入口。其后的隔离安装与 Web 装载结果见上节，不能从该次自动化测试单独推断运行或发布就绪。
 
 ### 2026-09-28：固定 Jev 议题的全新人工 Web 冒烟
 
