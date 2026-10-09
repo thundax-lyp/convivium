@@ -114,6 +114,24 @@ describe("role resource preflight", () => {
             "repository-analysis"
         ]);
     });
+    it("accepts a Skill resource root that resolves to the same installed directory", async () => {
+        const f = await fixture();
+        const alias = join(f.input.packageRoot, "installed-package-alias");
+        await symlink(join(f.input.packageRoot, "config"), alias);
+        const skill = (await f.skills.snapshot()).skills[0];
+        f.skills.get.mockImplementation(async (name) =>
+            name === skill.name
+                ? {
+                      ...skill,
+                      resourceBase: {
+                          kind: "directory",
+                          path: join(alias, "skills/repository-analysis")
+                      }
+                  }
+                : undefined
+        );
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "ready" });
+    });
     it.each([
         "meeting_manager",
         "domain_architect",
