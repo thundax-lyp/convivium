@@ -76,6 +76,12 @@
 
 ## Executed Validation
 
+### 2026-10-09：固定人工 Web 环境升级到 DSH `0.2.0-rc.2`
+
+在 `codex/dsh-rc2-upgrade` 工作树中，先确认固定人工环境的旧 `start.sh` 与 `web` Profile 仍指向 `0.1.2-rc.1`，且 `127.0.0.1:31828` 无 Host 占用。对原安装根执行 `./scripts/install-from-source.sh --workspace "$PWD/dsh-workspace" --dev-refresh`，构建与安装退出 0；安装后回读 `start.sh`、Profile manifest 与 lockfile，DSH 及 SQLite provider 均为 `0.2.0-rc.2`，lockfile 无 `0.1.2-rc.1`。原 SQLite、Session 目录及 `dev.env` 链接保留。用固定 `start.sh` 启动 Host，Web 监听 `127.0.0.1:31828`，随后停止 Host 并确认端口释放。
+
+**Not Covered**：未从固定环境的旧 Session 读回对话，未打开旧 Meeting 或运行新会议；启动和监听不证明历史数据兼容或会议业务就绪。
+
 ### 2026-10-09：DSH `0.2.0-rc.2` 隔离安装与 Web 装载
 
 在 `codex/dsh-rc2-upgrade` 工作树中，安装器与自动 smoke 入口改用 rc.2，Client UI primitives 改为发行依赖。`pnpm exec vitest run tests/contract/installation-entrypoints.spec.ts` 通过 1 file / 6 tests。独立临时 `DSH_HOME` 的 `./scripts/install-from-source.sh --workspace <临时 workspace> --dev-refresh` 完成；Profile 的 `patchReload` 为 `startup`，发行插件及 UI primitives 在 Profile 安装目录可解析。`dsh web --dump-config` 含 Convivium 行与七个角色 Preset。启动隔离 Web Host 后，`127.0.0.1:31828` 监听且 10 秒后进程仍运行；Playwright 打开带授权 token 的页面返回 HTTP 200，显示 DeepSeek Harness 初始界面，浏览器 console/page error 均为 0。插件设置页显示 Convivium 已安装且启用，启动图包含 Convivium Client；验收后已停止 Host。
