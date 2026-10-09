@@ -65,7 +65,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
         expect(screen.getByRole("heading", { name: "讨论区" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "刷新" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "刷新" })).toBeNull();
         expect(screen.getByRole("tree", { name: "会话" })).toBeTruthy();
         expect(screen.getByText("请选择一个会议。")).toBeTruthy();
 
@@ -158,7 +158,7 @@ describe("Meeting panel localized presentation", () => {
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
         expect(screen.getByRole("heading", { name: "Discussions" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Refresh" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
         expect(screen.getByRole("tree", { name: "Sessions" })).toBeTruthy();
         expect(screen.getByText("Select a meeting.")).toBeTruthy();
     });

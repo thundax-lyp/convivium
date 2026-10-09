@@ -17,6 +17,7 @@ export const MeetingNavigator = ({
     listLoading,
     listCached,
     listError,
+    requestRefresh,
     selectMeeting
 }: {
     meetings: readonly MeetingSummary[];
@@ -24,6 +25,7 @@ export const MeetingNavigator = ({
     listLoading: boolean;
     listCached: boolean;
     listError?: string;
+    requestRefresh(): void;
     selectMeeting(meetingId: string): void;
 }): ReactElement => {
     const t = useMeetingTranslate();
@@ -77,11 +79,7 @@ export const MeetingNavigator = ({
     };
 
     return (
-        <nav
-            data-testid="meeting-navigator"
-            aria-label={t("panel.navigator.title")}
-            className={styles.navigator}
-        >
+        <nav aria-label={t("panel.navigator.title")} className={styles.navigator}>
             <div className={styles.sectionHeader} data-search-open={searchOpen}>
                 <h3 className={styles.sectionLabel} aria-hidden={searchOpen}>
                     {t("panel.navigator.section")}
@@ -139,18 +137,32 @@ export const MeetingNavigator = ({
                     ) : null}
                 </div>
             </div>
-            {listCached ? <p className={styles.notice}>{t("panel.navigator.stale")}</p> : null}
-            {listError === undefined ? null : (
-                <p className={styles.notice} role="alert">
-                    {listError}
-                </p>
-            )}
+            {listCached || listError !== undefined ? (
+                <div className={styles.feedback}>
+                    <div className={styles.feedbackText}>
+                        {listCached ? (
+                            <p className={styles.notice}>{t("panel.navigator.stale")}</p>
+                        ) : null}
+                        {listError === undefined ? null : (
+                            <p className={styles.notice} role="alert">
+                                {listError}
+                            </p>
+                        )}
+                    </div>
+                    {selectedId === undefined ? (
+                        <Button type="button" variant="ghost" size="sm" onClick={requestRefresh}>
+                            {t("panel.actions.retry")}
+                        </Button>
+                    ) : null}
+                </div>
+            ) : null}
             <div data-slot="listArea" className={styles.listArea}>
                 {meetings.length === 0 && listLoading ? (
                     <p className={styles.notice}>{t("panel.navigator.loading")}</p>
                 ) : null}
                 {visibleMeetings.length === 0 && !listLoading && listError === undefined ? (
                     <Empty
+                        icon={<IconSearchOutlineMedium aria-hidden="true" />}
                         message={t(
                             normalizedQuery ? "panel.navigator.noMatches" : "panel.navigator.empty"
                         )}

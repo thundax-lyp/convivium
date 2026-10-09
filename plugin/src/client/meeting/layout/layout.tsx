@@ -150,6 +150,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             listLoading={props.listLoading}
             listCached={props.listCached}
             listError={props.listError}
+            requestRefresh={props.requestRefresh}
             selectMeeting={selectMeeting}
         />
     );
@@ -196,7 +197,6 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
     return (
         <section
             ref={panelRef}
-            data-testid="convivium-meeting-panel"
             aria-label={t("panel.aria")}
             className={styles.panel}
             style={

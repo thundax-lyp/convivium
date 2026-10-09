@@ -82,6 +82,10 @@ DSH Conversation
 
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 
+未选择 Meeting 时，Workspace 只渲染居中的 `Empty` 品牌图形和本地化选择提示；图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。此时若列表读取失败或缓存陈旧，由 Navigator 的错误提示提供重试入口。
+
+选中 Meeting 后，Content 右上角提供带无障碍名称的圆形刷新图标，用于手动补读列表和已选会议详情。正常状态在 Content 悬停或键盘焦点进入时显示；列表或详情读取失败、缓存陈旧时持续显示；无悬停能力的设备上持续显示。图标不遮挡会议标题。
+
 Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；空列表和搜索无匹配使用 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
 会议标题悬停时使用 DSH `Tooltip` 显示完整目标。会议行在悬停或键盘聚焦时以省略号替代尾部时间，点击后使用 DSH `Menu` 显示生命周期和已有的“查看会议”导航动作；信息浮层与操作菜单独立，菜单打开本身不选择会议，也不新增 Meeting command。
@@ -116,9 +120,9 @@ interface MeetingsWorkspaceState {
 
 ### 概览
 
-概览按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
+共享 Header 显示当前议题、lifecycle 和 version；概览不重复这些字段，按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
 
-1. 当前议题、lifecycle、active Agenda、version 与 Objective；
+1. active Agenda 与 Objective 的产出要求、验收标准、约束和可接受风险等级；
 2. 当前 Round、Contribution、申请、ManagerPlan、IdentityRecommendation、MeetingTask 摘要和等待原因；
 3. caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
 4. Question、Issue 与 RiskDisposition；

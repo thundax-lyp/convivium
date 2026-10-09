@@ -1,11 +1,10 @@
 import * as React from "react";
-import type { ReactElement } from "react";
-import { IconSearchOutlineMedium } from "@deepseek-ai/dsh-client-ui-primitives";
+import type { ReactElement, ReactNode } from "react";
 import styles from "./empty.module.css";
 
-export const Empty = ({ message }: { message: string }): ReactElement => (
-    <div data-testid="meeting-navigator-empty" className={styles.empty}>
-        <IconSearchOutlineMedium />
+export const Empty = ({ message, icon }: { message: string; icon: ReactNode }): ReactElement => (
+    <div className={styles.empty}>
+        {icon}
         <span>{message}</span>
     </div>
 );

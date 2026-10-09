@@ -1,0 +1,9 @@
+.slot {
+    display: inline-flex;
+}
+
+.button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+}

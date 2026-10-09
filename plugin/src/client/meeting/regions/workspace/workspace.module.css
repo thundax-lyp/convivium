@@ -4,3 +4,90 @@
     min-height: 0;
     overflow-y: auto;
 }
+
+.emptyMeeting {
+    display: flex;
+    min-height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+.content {
+    min-height: 100%;
+}
+
+.content[data-placeholder="true"] {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.content[data-placeholder="true"] .emptyMeeting {
+    flex: 1;
+    min-height: 0;
+}
+
+.refreshSlot {
+    position: sticky;
+    top: 8px;
+    z-index: 2;
+    display: flex;
+    height: 0;
+    justify-content: flex-end;
+    padding-inline-end: 8px;
+}
+
+.refreshButton {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.content:hover .refreshButton,
+.content:focus-within .refreshButton,
+.content[data-refresh-visible="true"] .refreshButton {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.content > p,
+.meetingHeader > h3 {
+    padding-inline-end: 46px;
+}
+
+.meetingHeader {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding-block-start: 16px;
+    margin-block-end: 16px;
+}
+
+.meetingHeader > h3,
+.metadata {
+    margin: 0;
+}
+
+.statusRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.metadata {
+    color: var(--dsw-alias-label-secondary);
+    font-size: 14px;
+    line-height: 20px;
+}
+
+@media (hover: none) {
+    .refreshButton {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}

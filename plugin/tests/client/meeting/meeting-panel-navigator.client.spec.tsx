@@ -73,9 +73,36 @@ describe("Meeting navigator", () => {
 
         render(translatedLayout(props, "en"));
 
-        expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
+        expect(screen.getByRole("navigation", { name: "Meeting navigator" })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Create meeting" })).toBeNull();
         expect(screen.queryByTestId("meeting-user-controls")).toBeNull();
+    });
+
+    it("offers retry in the navigator when the list fails before a meeting is selected", () => {
+        const media = mediaFixture(false);
+        vi.stubGlobal(
+            "matchMedia",
+            vi.fn(() => media.query)
+        );
+        const { props } = layoutProps();
+        render(
+            translatedLayout(
+                {
+                    ...props,
+                    meetings: [],
+                    selectedId: undefined,
+                    detail: undefined,
+                    listCached: true,
+                    listError: "List unavailable"
+                },
+                "en"
+            )
+        );
+
+        expect(screen.getByRole("alert").textContent).toContain("List unavailable");
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+        expect(props.requestRefresh).toHaveBeenCalledOnce();
+        expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
     });
 
     it("renders a persistent navigator and workspace grid on wide screens", () => {
@@ -93,8 +120,8 @@ describe("Meeting navigator", () => {
                 .getByRole("separator", { name: "Resize meeting navigator" })
                 .getAttribute("aria-valuenow")
         ).toBe("280");
-        expect(screen.getByTestId("meeting-navigator")).toBeTruthy();
-        expect(screen.getByTestId("meeting-workspace")).toBeTruthy();
+        expect(screen.getByRole("navigation", { name: "Meeting navigator" })).toBeTruthy();
+        expect(screen.getByRole("main")).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 
@@ -187,7 +214,6 @@ describe("Meeting navigator", () => {
             )
         );
         expect(screen.getByText("No meetings.")).toBeTruthy();
-        expect(screen.getByTestId("meeting-navigator-empty")).toBeTruthy();
         expect(screen.queryByText("Loading meetings.")).toBeNull();
     });
 
@@ -241,7 +267,9 @@ describe("Meeting navigator", () => {
         const tree = screen.getByRole("tree", { name: "Sessions" });
         expect(tree.getAttribute("data-slot")).toBe("sessionTree");
         expect(
-            screen.getByTestId("meeting-navigator").querySelector('[data-slot="listArea"]')
+            screen
+                .getByRole("navigation", { name: "Meeting navigator" })
+                .querySelector('[data-slot="listArea"]')
         ).toBeTruthy();
         expect(screen.getAllByRole("treeitem").map((item) => item.textContent)).toEqual([
             expect.stringContaining("Newest topic"),
@@ -274,9 +302,7 @@ describe("Meeting navigator", () => {
         fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
             target: { value: "missing" }
         });
-        expect(screen.getByTestId("meeting-navigator-empty").textContent).toContain(
-            "No matching sessions."
-        );
+        expect(screen.getByText("No matching sessions.")).toBeTruthy();
         fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
         expect(screen.queryByRole("searchbox", { name: "Search sessions" })).toBeNull();
         expect(screen.getAllByRole("treeitem")).toHaveLength(3);
