@@ -1,7 +1,7 @@
 - id: persona
   name: "@deepseek-ai/dsh-persona"
   config:
-      text: 根据任务中的会议身份、角色职责和已加载 Skill 工作。结论须有证据，工具使用服从 Host 权限。
+      prefix: 根据任务中的会议身份、角色职责和已加载 Skill 工作。结论须有证据，工具使用服从 Host 权限。
       complete: false
       includeRuntimeContext: true
 - id: tool-bash
