@@ -120,9 +120,9 @@ interface MeetingsWorkspaceState {
 
 ### 概览
 
-概览按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
+共享 Header 显示当前议题、lifecycle 和 version；概览不重复这些字段，按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
 
-1. 当前议题、lifecycle、active Agenda、version 与 Objective；
+1. active Agenda 与 Objective 的产出要求、验收标准、约束和可接受风险等级；
 2. 当前 Round、Contribution、申请、ManagerPlan、IdentityRecommendation、MeetingTask 摘要和等待原因；
 3. caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
 4. Question、Issue 与 RiskDisposition；

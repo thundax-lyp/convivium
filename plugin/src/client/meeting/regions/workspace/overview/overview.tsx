@@ -1,45 +1,53 @@
 import * as React from "react";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
-import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
-import { knownEnum as known, type MeetingTranslate } from "@/client/meeting/shared/index.ts";
-import { lifecycleLabel } from "@/client/meeting/shared/index.ts";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
+import { List, ListItem } from "@/client/meeting/components/index.ts";
+import { knownEnum as known } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { buildTimelineNodes } from "@/client/meeting/regions/workspace/timeline/index.ts";
 import type { MeetingFocusTarget } from "@/client/meeting/shared/index.ts";
 
-export interface SectionProps {
+interface SectionProps {
     detail: MeetingView;
 }
 
-export interface OverviewProps extends SectionProps {
+interface OverviewProps extends SectionProps {
     focusTarget?: MeetingFocusTarget;
     onFocusConsumed?(): void;
     onLocateInTimeline?(target: MeetingFocusTarget): void;
 }
 
-const section = (label: string, ...content: ReactElement[]): ReactElement => {
+const Section = ({
+    label,
+    children,
+    focusKey
+}: {
+    label: string;
+    children: ReactNode;
+    focusKey?: string;
+}): ReactElement => {
     return (
-        <section aria-label={label}>
+        <section
+            aria-label={label}
+            data-overview-key={focusKey}
+            tabIndex={focusKey ? -1 : undefined}
+        >
             <h4>{label}</h4>
-            {content}
+            {children}
         </section>
     );
-};
-
-const values = (items: readonly ReactElement[], t: MeetingTranslate): ReactElement => {
-    return items.length === 0 ? <p>{t("common.none")}</p> : <ul>{items}</ul>;
 };
 
 const overviewKey = (kind: string, id: string): string => `${kind}:${id}`;
 
 const overviewItem = (kind: string, id: string, content: string): ReactElement => (
-    <li key={overviewKey(kind, id)} data-overview-key={overviewKey(kind, id)} tabIndex={-1}>
+    <ListItem key={overviewKey(kind, id)} data-overview-key={overviewKey(kind, id)} tabIndex={-1}>
         {content}
-    </li>
+    </ListItem>
 );
 
-export const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
+const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const objective =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -49,42 +57,45 @@ export const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive.agenda
             : detail.agenda;
-    return section(
-        t("panel.overview.objective"),
-        <p>{objective.statement}</p>,
-        <span data-overview-key={overviewKey("lifecycle", detail.meetingId)} tabIndex={-1}>
-            <Pill>{lifecycleLabel(detail.lifecycle.status, t)}</Pill>
-        </span>,
-        <p>{`${t("panel.summary.version")}: ${detail.version}`}</p>,
-        values(
-            agenda.map((item) => (
-                <li key={item.id}>{`${item.title}: ${known("agenda", item.status, t)}`}</li>
-            )),
-            t
-        ),
-        values(
-            objective.requiredOutputs.map((item) => (
-                <li key={item.id}>{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</li>
-            )),
-            t
-        ),
-        values(
-            objective.acceptanceCriteria.map((item) => (
-                <li key={item.id}>{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</li>
-            )),
-            t
-        ),
-        values(
-            objective.hardConstraints.map((item) => (
-                <li key={item.id}>{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</li>
-            )),
-            t
-        ),
-        <p>{known("riskLevel", objective.acceptableRiskLevel, t)}</p>
+    return (
+        <Section
+            label={t("panel.overview.objective")}
+            focusKey={overviewKey("lifecycle", detail.meetingId)}
+        >
+            <List
+                items={agenda.map((item) => (
+                    <ListItem
+                        key={item.id}
+                    >{`${item.title}: ${known("agenda", item.status, t)}`}</ListItem>
+                ))}
+            />
+            <List
+                items={objective.requiredOutputs.map((item) => (
+                    <ListItem
+                        key={item.id}
+                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
+                ))}
+            />
+            <List
+                items={objective.acceptanceCriteria.map((item) => (
+                    <ListItem
+                        key={item.id}
+                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
+                ))}
+            />
+            <List
+                items={objective.hardConstraints.map((item) => (
+                    <ListItem
+                        key={item.id}
+                    >{`${item.text}: ${known("objectiveStatus", item.status, t)}`}</ListItem>
+                ))}
+            />
+            <p>{known("riskLevel", objective.acceptableRiskLevel, t)}</p>
+        </Section>
     );
 };
 
-export const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
+const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const items: ReactElement[] = [];
     for (const round of detail.rounds) {
@@ -100,20 +111,20 @@ export const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
                 (item) => item.contributorId === contributorId
             );
             items.push(
-                <li key={`participation:${round.id}:${contributorId}`}>
+                <ListItem key={`participation:${round.id}:${contributorId}`}>
                     {`${contributorId}: ${t(
                         response
                             ? `enum.participation.${response.status}`
                             : "enum.participation.pending"
                     )}`}
-                </li>
+                </ListItem>
             );
         }
         for (const contribution of round.contributions) {
             items.push(
-                <li
+                <ListItem
                     key={`contribution:${contribution.id}`}
-                >{`${contribution.id}: ${known("contribution", contribution.status, t)}${contribution.exitReason ? `: ${contribution.exitReason}` : ""}`}</li>
+                >{`${contribution.id}: ${known("contribution", contribution.status, t)}${contribution.exitReason ? `: ${contribution.exitReason}` : ""}`}</ListItem>
             );
         }
     }
@@ -143,10 +154,14 @@ export const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
             overviewItem("task", task.id, `${task.title}: ${known("task", task.status, t)}`)
         );
     }
-    return section(t("panel.overview.progress"), values(items, t));
+    return (
+        <Section label={t("panel.overview.progress")}>
+            <List items={items} />
+        </Section>
+    );
 };
 
-export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
+const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -156,38 +171,38 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
         archive?.decisionCandidates ?? detail.outcomes.pendingDecisionCandidates ?? [];
     const decisions = archive?.decisions ?? detail.outcomes.decisions;
     const facts = archive?.completionFacts ?? detail.outcomes.completionFacts;
-    return section(
-        t("panel.overview.outcomes"),
-        values(
-            [
-                ...candidates.map((item) =>
-                    overviewItem(
-                        "decision_candidate",
-                        item.id,
-                        `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`
+    return (
+        <Section label={t("panel.overview.outcomes")}>
+            <List
+                items={[
+                    ...candidates.map((item) =>
+                        overviewItem(
+                            "decision_candidate",
+                            item.id,
+                            `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`
+                        )
+                    ),
+                    ...decisions.map((item) =>
+                        overviewItem(
+                            "decision",
+                            item.id,
+                            `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`
+                        )
+                    ),
+                    ...facts.map((item) =>
+                        overviewItem(
+                            "completion_fact",
+                            item.id,
+                            `${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`
+                        )
                     )
-                ),
-                ...decisions.map((item) =>
-                    overviewItem(
-                        "decision",
-                        item.id,
-                        `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`
-                    )
-                ),
-                ...facts.map((item) =>
-                    overviewItem(
-                        "completion_fact",
-                        item.id,
-                        `${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`
-                    )
-                )
-            ],
-            t
-        )
+                ]}
+            />
+        </Section>
     );
 };
 
-export const OverviewOpenItems = ({ detail }: SectionProps): ReactElement => {
+const OverviewOpenItems = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -196,60 +211,60 @@ export const OverviewOpenItems = ({ detail }: SectionProps): ReactElement => {
     const questions = archive?.questions ?? detail.questions;
     const issues = archive?.issues ?? detail.issues;
     const risks = archive?.riskDispositions ?? detail.outcomes.riskDispositions;
-    return section(
-        t("panel.overview.openItems"),
-        values(
-            [
-                ...questions.map((item) => (
-                    <li
-                        key={`question:${item.id}`}
-                    >{`${item.text}: ${known("questionStatus", item.status, t)}`}</li>
-                )),
-                ...issues.map((item) => (
-                    <li
-                        key={`issue:${item.id}`}
-                    >{`${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`}</li>
-                )),
-                ...risks.map((item) =>
-                    overviewItem(
-                        "risk_disposition",
-                        item.id,
-                        `${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`
+    return (
+        <Section label={t("panel.overview.openItems")}>
+            <List
+                items={[
+                    ...questions.map((item) => (
+                        <ListItem
+                            key={`question:${item.id}`}
+                        >{`${item.text}: ${known("questionStatus", item.status, t)}`}</ListItem>
+                    )),
+                    ...issues.map((item) => (
+                        <ListItem
+                            key={`issue:${item.id}`}
+                        >{`${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`}</ListItem>
+                    )),
+                    ...risks.map((item) =>
+                        overviewItem(
+                            "risk_disposition",
+                            item.id,
+                            `${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`
+                        )
                     )
-                )
-            ],
-            t
-        )
+                ]}
+            />
+        </Section>
     );
 };
 
-export const OverviewTranscript = ({ detail }: SectionProps): ReactElement => {
+const OverviewTranscript = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
             : undefined;
-    return section(
-        t("panel.overview.transcript"),
-        values(
-            [
-                ...(archive?.publications ?? detail.publications).map((item) =>
-                    overviewItem(
-                        "publication",
-                        item.id,
-                        `${item.id}: ${item.exitReasons.join("; ")}`
+    return (
+        <Section label={t("panel.overview.transcript")}>
+            <List
+                items={[
+                    ...(archive?.publications ?? detail.publications).map((item) =>
+                        overviewItem(
+                            "publication",
+                            item.id,
+                            `${item.id}: ${item.exitReasons.join("; ")}`
+                        )
+                    ),
+                    ...(archive?.messages ?? detail.messages).map((item) =>
+                        overviewItem("formal_message", item.id, `${item.kind}: ${item.body}`)
                     )
-                ),
-                ...(archive?.messages ?? detail.messages).map((item) =>
-                    overviewItem("formal_message", item.id, `${item.kind}: ${item.body}`)
-                )
-            ],
-            t
-        )
+                ]}
+            />
+        </Section>
     );
 };
 
-export const OverviewEvidence = ({ detail }: SectionProps): ReactElement => {
+const OverviewEvidence = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
@@ -261,60 +276,60 @@ export const OverviewEvidence = ({ detail }: SectionProps): ReactElement => {
     const reviews = archive
         ? archive.evidenceBundles.map((bundle) => bundle.review)
         : detail.evidenceReviews;
-    return section(
-        t("panel.overview.evidence"),
-        values(
-            [
-                ...versions.map((item) =>
-                    overviewItem(
-                        "evidence_version",
-                        item.id,
-                        `${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`
-                    )
-                ),
-                ...reviews.map((item) =>
-                    overviewItem("evidence_review", item.id, `${item.id}: ${item.scope}`)
-                ),
-                ...(!archive
-                    ? detail.reviewDeliveries.map((item) =>
-                          overviewItem(
-                              "review_delivery",
-                              item.id,
-                              `${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`
+    return (
+        <Section label={t("panel.overview.evidence")}>
+            <List
+                items={[
+                    ...versions.map((item) =>
+                        overviewItem(
+                            "evidence_version",
+                            item.id,
+                            `${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`
+                        )
+                    ),
+                    ...reviews.map((item) =>
+                        overviewItem("evidence_review", item.id, `${item.id}: ${item.scope}`)
+                    ),
+                    ...(!archive
+                        ? detail.reviewDeliveries.map((item) =>
+                              overviewItem(
+                                  "review_delivery",
+                                  item.id,
+                                  `${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`
+                              )
                           )
-                      )
-                    : [])
-            ],
-            t
-        )
+                        : [])
+                ]}
+            />
+        </Section>
     );
 };
 
-export const OverviewTechnical = ({ detail }: SectionProps): ReactElement => {
+const OverviewTechnical = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const archive =
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
             : undefined;
-    return section(
-        t("panel.overview.technical"),
-        <p>{detail.meetingId}</p>,
-        archive ? (
-            <p data-overview-key={overviewKey("archive", archive.id)} tabIndex={-1}>
-                {archive.id}
-            </p>
-        ) : (
-            values(
-                detail.tasks.map((item) =>
-                    overviewItem(
-                        "task",
-                        item.id,
-                        `${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`
-                    )
-                ),
-                t
-            )
-        )
+    return (
+        <Section label={t("panel.overview.technical")}>
+            <p>{detail.meetingId}</p>
+            {archive ? (
+                <p data-overview-key={overviewKey("archive", archive.id)} tabIndex={-1}>
+                    {archive.id}
+                </p>
+            ) : (
+                <List
+                    items={detail.tasks.map((item) =>
+                        overviewItem(
+                            "task",
+                            item.id,
+                            `${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`
+                        )
+                    )}
+                />
+            )}
+        </Section>
     );
 };
 

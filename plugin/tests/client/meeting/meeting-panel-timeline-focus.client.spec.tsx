@@ -35,6 +35,28 @@ describe("Meeting timeline presentation", () => {
 });
 
 describe("Meeting overview location", () => {
+    it("focuses the objective section for a lifecycle location", () => {
+        const detail = archiveTimelineFixture("complete");
+        const onFocusConsumed = vi.fn();
+        render(
+            withMeetingTranslation(
+                <MeetingPanelOverview
+                    detail={detail}
+                    focusTarget={{
+                        meetingId: detail.meetingId,
+                        objectKind: "lifecycle",
+                        objectId: detail.meetingId
+                    }}
+                    onFocusConsumed={onFocusConsumed}
+                />,
+                "en"
+            )
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole("region", { name: "Objective" }));
+        expect(onFocusConsumed).toHaveBeenCalledOnce();
+    });
+
     it("focuses a displayed decision and reports an undisplayed position as unavailable", () => {
         const detail = archiveTimelineFixture("complete");
         const onFocusConsumed = vi.fn();

@@ -92,6 +92,16 @@ describe("Meeting Header and mode tabs", () => {
         expect(header?.textContent).toContain("Running");
         expect(header?.textContent).toContain(`Meeting version: ${props.detail?.version}`);
         expect(
+            within(screen.getByRole("region", { name: "Objective" })).queryByText(
+                props.detail!.objective.statement,
+                { selector: "p" }
+            )
+        ).toBeNull();
+        expect(screen.getAllByText(`Meeting version: ${props.detail?.version}`)).toHaveLength(1);
+        expect(
+            within(screen.getByRole("region", { name: "Objective" })).queryByText("Running")
+        ).toBeNull();
+        expect(
             within(screen.getByRole("group", { name: "Meeting controls" })).getAllByRole("button")
         ).toHaveLength(2);
         expect(screen.getByRole("button", { name: "Pause meeting" })).toBeTruthy();
