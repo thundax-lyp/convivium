@@ -64,10 +64,11 @@ describe("Meeting panel localized presentation", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "会议", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "讨论区" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "讨论区" })).toBeNull();
         expect(screen.queryByRole("button", { name: "刷新" })).toBeNull();
-        expect(screen.getByRole("tree", { name: "会话" })).toBeTruthy();
-        expect(screen.getByText("请选择一个会议。")).toBeTruthy();
+        expect(screen.queryByRole("tree", { name: "会话" })).toBeNull();
+        expect(screen.getByText("暂无会议。")).toBeTruthy();
+        expect(screen.queryByRole("main")).toBeNull();
 
         const { summary, view } = meetingProjectionFixture();
         rerender(
@@ -157,10 +158,11 @@ describe("Meeting panel localized presentation", () => {
         rerender(emptyLayout("en"));
         expect(screen.getByLabelText("Convivium meetings")).toBeTruthy();
         expect(screen.queryByRole("heading", { name: "Meetings", exact: true })).toBeNull();
-        expect(screen.getByRole("heading", { name: "Discussions" })).toBeTruthy();
+        expect(screen.queryByRole("heading", { name: "Discussions" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
-        expect(screen.getByRole("tree", { name: "Sessions" })).toBeTruthy();
-        expect(screen.getByText("Select a meeting.")).toBeTruthy();
+        expect(screen.queryByRole("tree", { name: "Sessions" })).toBeNull();
+        expect(screen.getByText("No meetings.")).toBeTruthy();
+        expect(screen.queryByRole("main")).toBeNull();
     });
 
     it("retranslates mounted errors without refreshing meeting data", async () => {
@@ -186,11 +188,11 @@ describe("Meeting panel localized presentation", () => {
                 createElement(ConviviumMeetingPanel, { api: protocolApi })
             );
         const { rerender, unmount } = render(panel());
-        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
+        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败。");
         expect(screen.queryByText("stale server detail")).toBeNull();
         activeLocale = "en";
         rerender(panel());
-        expect(screen.getByRole("alert").textContent).toBe("Meeting request failed (CONFLICT).");
+        expect(screen.getByRole("alert").textContent).toBe("Meeting request failed.");
         expect(protocolApi.list).toHaveBeenCalledOnce();
         unmount();
 
@@ -228,7 +230,7 @@ describe("Meeting panel localized presentation", () => {
             await screen.findByRole("treeitem", { name: `${summary.objective} (进行中)` })
         );
 
-        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败（CONFLICT）。");
+        expect((await screen.findByRole("alert")).textContent).toBe("会议请求失败。");
         expect(screen.queryByText("正在加载会议。")).toBeNull();
     });
 });

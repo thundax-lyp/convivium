@@ -126,7 +126,7 @@ describe("Meeting panel lifecycle", () => {
 
         releaseNotice();
 
-        expect(await screen.findByText("Select a meeting.")).toBeTruthy();
+        expect(await screen.findByText("No meetings.")).toBeTruthy();
         expect(screen.queryByRole("region", { name: "Objective" })).toBeNull();
         fireEvent.focus(window);
         await waitFor(() => expect(api.list).toHaveBeenCalledTimes(3));
