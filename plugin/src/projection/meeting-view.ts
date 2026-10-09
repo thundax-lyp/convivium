@@ -306,14 +306,16 @@ export const projectMeetingView = (
                         status,
                         packageId,
                         substantiveSupplementCount,
-                        exitReason
+                        exitReason,
+                        failure
                     }) => ({
                         id,
                         contributorId,
                         status,
                         ...(packageId ? { packageId } : {}),
                         substantiveSupplementCount,
-                        ...(exitReason ? { exitReason } : {})
+                        ...(exitReason ? { exitReason } : {}),
+                        ...(failure ? { failure } : {})
                     })
                 )
         })),

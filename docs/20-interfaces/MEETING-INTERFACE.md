@@ -82,6 +82,7 @@ type MeetingAction =
   | SubmitEvidence
   | ClaimEvidenceReview
   | FailEvidenceValidation
+  | RecordContributionFailure
   | SubmitEvidenceReview
   | RecordReviewDelivery
   | RaiseSupplementHand
@@ -302,6 +303,16 @@ interface FailEvidenceValidation {
   claimId: OpaqueId;
   reason: "review_timeout" | "review_interrupted" | "dispatch_failed";
 }
+interface RecordContributionFailure {
+  kind: "record_contribution_failure";
+  contributionId: OpaqueId;
+  sourceEffectId: OpaqueId;
+  stage: string;
+  failureCode: string;
+  failureSummary: string;
+  attemptCount: number;
+  retryable: boolean;
+}
 interface SubmitEvidenceReview {
   kind: "submit_evidence_review";
   roundId: OpaqueId;
@@ -418,6 +429,8 @@ interface ReviewDimensionInput {
 Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。每个 immutable EvidenceVersion 都携带 `status`、`failureCount` 和可选 `lastFailureReason`：新版本为 `submitted/0`；`ClaimEvidenceReview` 以普通 Meeting version CAS 为一个 current、complete 版本创建独立 `EvidenceReviewClaim` 并置为 `validating`；claim 记录 `claimId`、`sourceEffectId`、`roundId`、reviewerId、versionId、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt。同一 version 同时只能有一个 claim，不限制同一 Round 的其它 version 独立认领。reviewer coordinator 通过 `convivium_run_review_worker` 把该 version 交给一个 DSH 原生 one-shot worker；工具输入只携带 meetingId 与 versionId，Runtime 在启动 worker 前重验 active claim、reviewer ownership，并从当前持久 MeetingState 构造 immutable version 与固定公开 baseline，coordinator 不能提供 worker prompt；缺少有效 claim 或绑定时返回 `REVIEWER_CONFLICT`，不启动 worker。该工具固定使用 `spawn` provider、无工具权限的 child 与本节 `ReviewDimensionsInput` 对应的 object-rooted output schema。只有 provider 返回 `completed` 且 structured object 通过 schema 校验时才返回 completed Review；第一轮各维 `baselineEvidenceIds: []` 合法。
 
 `SubmitEvidenceReview` 只由该 reviewer coordinator 提交，必须携带所属 `roundId`、未过期 `claimId` 和精确 `versionId`，不得携带全局 `expectedMeetingVersion`。Runtime 再验证该版本仍是 current、complete、`validating` 且没有最终 Review；成功时原子追加一份 Review、把版本置为 `validated`、移除 claim 并创建 delivery effect。0 分、负面意见和 `unable_to_assess` 仍是 `validated`。`FailEvidenceValidation` 只消费精确 claim，把版本置为 `validation_failed`、递增 `failureCount` 并记录 `review_timeout | review_interrupted | dispatch_failed`；`failureCount < 5` 才能重新认领。相同 submit requestId 重放返回原 receipt；其它覆盖同一 version 的 effect 在有效 claim 存在时去重完成，原 source effect 延后到 expiresAt。未观察到 turn 结束时，claim 保留到 expiresAt，再以 `review_timeout` 失败；冷恢复从持久 EvidenceStatus、claim 与 Review 继续。
+
+`RecordContributionFailure` 只允许可信 `runtime_recovery` caller 在已接纳但尚无 EvidencePackage 的 Contribution 上执行。Runtime 只在观察到承接已接纳 `hand_disposition` 消息的确切 Contributor turn 以异常结束后提交；转换把 Contribution 置为 `execution_failed`，同时固化 `{sourceEffectId,stage,failureCode,failureSummary,attemptCount,retryable,occurredAt}`，其中 `sourceEffectId` 是触发该 turn 的 outbox effect，`occurredAt` 由 Runtime 时钟注入。该结构是执行失败证据，不是 EvidenceVersion，不触发 Review；相同 source effect 在失败事实已提交但 outbox delivered 尚未提交时直接幂等完成，不再次唤醒 Agent；其它重复或已有 package 的记录拒绝。若这使 Round 全部 Contribution 终态，转换同事务生成 `round_ready`。
 
 Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `validation_cancelled` 并移除 claim，不增加 failureCount、不写 lastFailureReason；旧 review request 完成而不在暂停期间轮询。恢复时为这些 current、complete 版本重新创建 review request，重新领取后回到 `validating`。暂停前旧 turn 的迟到提交因 claim 已不存在返回 `REVIEWER_CONFLICT`。Outbox delivered/failed 只表示运输结果，不改变 EvidenceStatus，也不得提前耗尽 EvidenceVersion 的固定失败预算；ReviewDelivery 只描述已形成 Review 向作者的送达。
 
@@ -605,8 +618,8 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 | 处置风险          | DisposeRisk                               | loopback 本地用户 |
 | 记录完成事实      | RecordCompletionFact                      | loopback 本地用户 |
 | 替换/撤销完成事实 | ChangeCompletionFact                      | loopback 本地用户 |
-| 暂停/恢复        | PauseMeeting / ResumeMeeting              | loopback 本地用户 |
-| 异常终止          | EndMeeting（`cancelled|failed`）         | loopback 本地用户 |
+| 暂停/恢复         | PauseMeeting / ResumeMeeting              | loopback 本地用户 |
+| 异常终止          | EndMeeting（`cancelled|failed`）          | loopback 本地用户 |
 
 `start_archive` 与 `record_archive_session_result` 继续为 Runtime recovery 操作；Manager 正常结束或 Captain 异常终止命令触发现有归档链。用户控制不得取得 Contributor 或 Manager/Reviewer 权限，Agent 不得凭“用户让我做”的文字取得控制权限；只有当前 Manager 可通过专用 `convivium_end_meeting` 提交 `completed|partial|no_consensus`。非 loopback 装载不注册本地用户 Remote；无需新增账户、token 或每 Session 授权系统。任一已授权 MeetingIdentity 可 record_question/record_issue，用户只通过 resolve_question/dispose_issue 处置，不冒充身份提交记录。来源不符返回 UNAUTHORIZED 且零 receipt/fact/outbox；已授权请求再检查目标/版本/领域前提。
 
@@ -869,8 +882,9 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface EvidenceOpportunityRequestView { id: OpaqueId; agendaId: OpaqueId; contributorId: OpaqueId; purpose: string; requestedAt: EpochMs }
     interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; invitedContributorIds?: OpaqueId[]; participationResponses?: Array<{ contributorId: OpaqueId; status: "raised" | "declined" | "no_response"; recordedAt: EpochMs }>; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
     interface PendingHandRaiseView { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; raisedAt: EpochMs }
-    interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "awaiting_response" | "withdrawn" | "submission_missing" | "timed_out" | "supplement_rejected" | "aborted" | "closed"; packageId?: OpaqueId; substantiveSupplementCount: number; exitReason?: string }
-    interface PublicationView { id: OpaqueId; roundId: OpaqueId; seq: number; finalVersionIds: OpaqueId[]; finalReviewIds: OpaqueId[]; exitReasons: string[]; publishedAt: EpochMs }
+    interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "awaiting_response" | "withdrawn" | "submission_missing" | "execution_failed" | "timed_out" | "supplement_rejected" | "aborted" | "closed"; packageId?: OpaqueId; substantiveSupplementCount: number; exitReason?: string; failure?: ContributionFailure }
+    interface ContributionFailure { sourceEffectId: OpaqueId; stage: string; failureCode: string; failureSummary: string; attemptCount: number; retryable: boolean; occurredAt: EpochMs }
+    interface PublicationView { id: OpaqueId; roundId: OpaqueId; seq: number; finalVersionIds: OpaqueId[]; finalReviewIds: OpaqueId[]; exitReasons: string[]; contributionFailures?: Array<{contributionId:OpaqueId;failure:ContributionFailure}>; publishedAt: EpochMs }
     interface EvidencePackageView { id: OpaqueId; roundId: OpaqueId; contributionId: OpaqueId; authorId: OpaqueId; agendaId: OpaqueId; currentVersion: EvidenceVersionView }
     type EvidenceStatus = "submitted" | "validating" | "validated" | "validation_failed" | "validation_cancelled";
     type EvidenceValidationFailureReason = "review_timeout" | "review_interrupted" | "dispatch_failed";

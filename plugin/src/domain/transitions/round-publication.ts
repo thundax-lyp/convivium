@@ -134,7 +134,13 @@ export const publishRound = (state: MeetingState, input: Input): MeetingTransiti
         finalVersionIds,
         finalReviewIds,
         publishedAt: input.now,
-        exitReasons: publicationExitReasons
+        exitReasons: publicationExitReasons,
+        contributionFailures: round.contributionIds.flatMap((id) => {
+            const contribution = state.contributions.find((candidate) => candidate.id === id);
+            return contribution?.failure === undefined
+                ? []
+                : [{ contributionId: contribution.id, failure: contribution.failure }];
+        })
     };
     const nextState: MeetingState = {
         ...state,

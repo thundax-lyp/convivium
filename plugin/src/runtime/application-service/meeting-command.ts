@@ -144,6 +144,7 @@ const authorizedRole = (action: MeetingAction, scope: ResolvedCallerScope): bool
         action.kind === "record_review_delivery" ||
         action.kind === "claim_evidence_review" ||
         action.kind === "fail_evidence_validation" ||
+        action.kind === "record_contribution_failure" ||
         action.kind === "start_archive" ||
         action.kind === "record_archive_session_result" ||
         action.kind === "record_identity_admission_result"
@@ -291,6 +292,7 @@ const actionAuthorizationFailure = (
             "record_review_delivery",
             "claim_evidence_review",
             "fail_evidence_validation",
+            "record_contribution_failure",
             "start_archive",
             "record_archive_session_result",
             "record_identity_admission_result"

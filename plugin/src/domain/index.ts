@@ -9,6 +9,7 @@ export {
     type SupplementHand,
     type EvidenceOpportunityRequest,
     type Contribution,
+    type ContributionFailure,
     type TextWithReason,
     type EvidenceVersion,
     type EvidenceValidationFailureReason,

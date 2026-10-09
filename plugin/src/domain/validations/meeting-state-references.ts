@@ -380,6 +380,7 @@ const validateDeliveriesAndPublications = (parsedState: MeetingState): string | 
         }
     }
     const publications = parsedState.publications;
+    const contributionById = indexById(parsedState.contributions);
     const publicationById = indexById(publications);
     const publicationIds = new Set<string>();
     for (let i = 0; i < publications.length; i++) {
@@ -389,6 +390,19 @@ const validateDeliveriesAndPublications = (parsedState: MeetingState): string | 
         const round = roundById.get(r.roundId as string);
         if (!round || round.status !== "published" || round.publicationId !== r.id) {
             return fail(`${path}.roundId`);
+        }
+        const expectedFailures = round.contributionIds.flatMap((contributionId) => {
+            const contribution = contributionById.get(contributionId);
+            return contribution?.failure === undefined
+                ? []
+                : [{ contributionId, failure: contribution.failure }];
+        });
+        if (
+            (r.contributionFailures === undefined && expectedFailures.length > 0) ||
+            (r.contributionFailures !== undefined &&
+                JSON.stringify(r.contributionFailures) !== JSON.stringify(expectedFailures))
+        ) {
+            return fail(`${path}.contributionFailures`);
         }
         for (const [key, ids] of [
             ["finalVersionIds", versionIds],

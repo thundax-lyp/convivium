@@ -320,6 +320,7 @@ const contributionSchema = z
             "awaiting_response",
             "withdrawn",
             "submission_missing",
+            "execution_failed",
             "timed_out",
             "supplement_rejected",
             "closed"
@@ -328,6 +329,17 @@ const contributionSchema = z
         substantiveSupplementCount: integerSchema.max(2),
         supplementHand: supplementHandSchema.optional(),
         exitReason: textSchema.optional(),
+        failure: z
+            .object({
+                sourceEffectId: opaqueIdSchema,
+                stage: textSchema,
+                failureCode: textSchema,
+                failureSummary: textSchema,
+                attemptCount: integerSchema.positive(),
+                retryable: z.boolean(),
+                occurredAt: epochSchema
+            })
+            .optional(),
         response: textSchema.optional()
     })
     .refine((value) => isAbsentOrDefined(value, "supplementHand"), {
@@ -339,7 +351,10 @@ const contributionSchema = z
             value.status === "awaiting_response" ||
             value.supplementHand.status === "accepted",
         { path: ["supplementHand"] }
-    );
+    )
+    .refine((value) => (value.status === "execution_failed") === own(value, "failure"), {
+        path: ["failure"]
+    });
 const claimSchema = z.object({
     id: opaqueIdSchema,
     statement: textSchema,
@@ -493,7 +508,23 @@ const publicationSchema = z.object({
     finalVersionIds: uniqueIdArraySchema,
     finalReviewIds: uniqueIdArraySchema,
     publishedAt: epochSchema,
-    exitReasons: z.array(textSchema)
+    exitReasons: z.array(textSchema),
+    contributionFailures: z
+        .array(
+            z.object({
+                contributionId: opaqueIdSchema,
+                failure: z.object({
+                    sourceEffectId: opaqueIdSchema,
+                    stage: textSchema,
+                    failureCode: textSchema,
+                    failureSummary: textSchema,
+                    attemptCount: integerSchema.positive(),
+                    retryable: z.boolean(),
+                    occurredAt: epochSchema
+                })
+            })
+        )
+        .optional()
 });
 const formalMessageSchema = z.object({
     id: opaqueIdSchema,
