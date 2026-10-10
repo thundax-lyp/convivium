@@ -4,7 +4,10 @@ import type { MeetingView } from "@/protocol/index.ts";
 import { List } from "@/client/meeting/components/index.ts";
 import { knownEnum as known } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { OverviewItem, Section } from "@/client/meeting/regions/workspace/overview/components/index.ts";
+import {
+    OverviewItem,
+    Section
+} from "@/client/meeting/regions/workspace/overview/components/index.ts";
 
 interface SectionProps {
     detail: MeetingView;
