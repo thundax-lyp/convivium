@@ -84,6 +84,66 @@ const pairsForRound = (
           ))
 ];
 
+const recordsForRound = (
+    round: MeetingView["rounds"][number],
+    roundPairs: EvidencePair[],
+    roundMessages: FormalMessage[],
+    nameFor: (identityId: string) => string
+): ContributorRecord[] => {
+    const linkedMessageIds = new Set<string>();
+    const contributorRecords: ContributorRecord[] = roundPairs.map((pair) => {
+        const relatedMessages = roundMessages.filter(
+            (item) => item.actorId === pair.authorId && item.relatedIds.includes(pair.version.id)
+        );
+        relatedMessages.forEach((item) => linkedMessageIds.add(item.id));
+        return {
+            kind: "evidence",
+            contributorId: pair.authorId,
+            id: pair.version.id,
+            pair,
+            messages: relatedMessages
+        };
+    });
+    contributorRecords.push(
+        ...roundMessages
+            .filter((item) => !linkedMessageIds.has(item.id))
+            .map((message) => ({
+                kind: "message" as const,
+                contributorId: message.actorId,
+                id: message.id,
+                message
+            })),
+        ...round.contributions
+            .filter((item) => !roundPairs.some((pair) => pair.packageId === item.packageId))
+            .map((contribution) => ({
+                kind: "contribution" as const,
+                contributorId: contribution.contributorId,
+                id: contribution.id,
+                contribution
+            })),
+        ...(round.participationResponses ?? [])
+            .filter(
+                (response) => response.status === "declined" || response.status === "no_response"
+            )
+            .map((response) => ({
+                kind: "participation" as const,
+                contributorId: response.contributorId,
+                id: response.contributorId,
+                response
+            }))
+    );
+    contributorRecords.sort(
+        (left, right) =>
+            contributorNameOrder.compare(
+                nameFor(left.contributorId),
+                nameFor(right.contributorId)
+            ) ||
+            left.contributorId.localeCompare(right.contributorId, "en") ||
+            left.id.localeCompare(right.id, "en")
+    );
+    return contributorRecords;
+};
+
 export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
     const t = useMeetingTranslate();
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
@@ -143,63 +203,11 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                               .filter((item) => item.publicationId === publication.id)
                               .sort((left, right) => left.seq - right.seq)
                         : [];
-                    const linkedMessageIds = new Set<string>();
-                    const contributorRecords: ContributorRecord[] = roundPairs.map((pair) => {
-                        const relatedMessages = roundMessages.filter(
-                            (item) =>
-                                item.actorId === pair.authorId &&
-                                item.relatedIds.includes(pair.version.id)
-                        );
-                        relatedMessages.forEach((item) => linkedMessageIds.add(item.id));
-                        return {
-                            kind: "evidence",
-                            contributorId: pair.authorId,
-                            id: pair.version.id,
-                            pair,
-                            messages: relatedMessages
-                        };
-                    });
-                    contributorRecords.push(
-                        ...roundMessages
-                            .filter((item) => !linkedMessageIds.has(item.id))
-                            .map((message) => ({
-                                kind: "message" as const,
-                                contributorId: message.actorId,
-                                id: message.id,
-                                message
-                            })),
-                        ...round.contributions
-                            .filter(
-                                (item) =>
-                                    !roundPairs.some((pair) => pair.packageId === item.packageId)
-                            )
-                            .map((contribution) => ({
-                                kind: "contribution" as const,
-                                contributorId: contribution.contributorId,
-                                id: contribution.id,
-                                contribution
-                            })),
-                        ...(round.participationResponses ?? [])
-                            .filter(
-                                (response) =>
-                                    response.status === "declined" ||
-                                    response.status === "no_response"
-                            )
-                            .map((response) => ({
-                                kind: "participation" as const,
-                                contributorId: response.contributorId,
-                                id: response.contributorId,
-                                response
-                            }))
-                    );
-                    contributorRecords.sort(
-                        (left, right) =>
-                            contributorNameOrder.compare(
-                                nameFor(left.contributorId),
-                                nameFor(right.contributorId)
-                            ) ||
-                            left.contributorId.localeCompare(right.contributorId, "en") ||
-                            left.id.localeCompare(right.id, "en")
+                    const contributorRecords = recordsForRound(
+                        round,
+                        roundPairs,
+                        roundMessages,
+                        nameFor
                     );
                     const messageItem = (item: FormalMessage): ReactElement => (
                         <OverviewItem
