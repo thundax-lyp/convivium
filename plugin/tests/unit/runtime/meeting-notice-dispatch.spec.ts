@@ -471,6 +471,80 @@ describe("meeting notice dispatcher v1", () => {
         expect(deliverObserved).toHaveBeenCalledOnce();
     });
 
+    it.each([
+        ["closed ownership", { lifecycleStatus: "closed" }],
+        ["revoked capability", { capabilityStatus: "revoked" }],
+        ["cross-meeting ownership", { meetingId: "meeting-other" }],
+        ["cross-identity ownership", { identityId: "other" }]
+    ])("rejects %s", async (_name, override) => {
+        const { state, ownership } = fixture();
+        const changed = ownership.map((candidate) =>
+            candidate.identityId === "contributor-v1" ? { ...candidate, ...override } : candidate
+        );
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { deliver: vi.fn(), resume: vi.fn() },
+            definitions: [],
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 1,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 0
+                    },
+                    sessionOwnership: changed
+                })
+            } as never
+        });
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: item({
+                    kind: "agent_notice",
+                    noticeKind: "meeting_started",
+                    recipientId: "contributor-v1",
+                    agendaId: "agenda-v1"
+                }),
+                signal: new AbortController().signal
+            })
+        ).rejects.toThrow("NOTICE_OWNERSHIP_INVALID");
+    });
+
+    it("fails closed for review_request and unknown notice kinds", async () => {
+        const { state, ownership } = fixture();
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { deliver: vi.fn(), resume: vi.fn() },
+            definitions: [],
+            repository: {
+                recover: async () => ({
+                    snapshot: {
+                        meetingId: state.id,
+                        version: 1,
+                        state,
+                        createdAt: 0,
+                        updatedAt: 0
+                    },
+                    sessionOwnership: ownership
+                })
+            } as never
+        });
+        for (const noticeKind of ["review_request", "unknown"]) {
+            await expect(
+                dispatcher.dispatch({
+                    outboxItem: item({
+                        kind: "agent_notice",
+                        noticeKind,
+                        recipientId: "reviewer-v1",
+                        agendaId: "agenda-v1"
+                    }),
+                    signal: new AbortController().signal
+                })
+            ).rejects.toMatchObject({ code: "OUTBOX_ROUTE_UNAVAILABLE", retryable: false });
+        }
+    });
+});
+
+describe("Contributor turn failure notice dispatch", () => {
     it("records an accepted Contributor turn failure as a Runtime fact", async () => {
         const { state, ownership } = fixture();
         state.rounds = [
@@ -585,78 +659,6 @@ describe("meeting notice dispatcher v1", () => {
         });
         expect(deliverObserved).toHaveBeenCalledOnce();
         expect(execute).toHaveBeenCalledOnce();
-    });
-
-    it.each([
-        ["closed ownership", { lifecycleStatus: "closed" }],
-        ["revoked capability", { capabilityStatus: "revoked" }],
-        ["cross-meeting ownership", { meetingId: "meeting-other" }],
-        ["cross-identity ownership", { identityId: "other" }]
-    ])("rejects %s", async (_name, override) => {
-        const { state, ownership } = fixture();
-        const changed = ownership.map((candidate) =>
-            candidate.identityId === "contributor-v1" ? { ...candidate, ...override } : candidate
-        );
-        const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver: vi.fn(), resume: vi.fn() },
-            definitions: [],
-            repository: {
-                recover: async () => ({
-                    snapshot: {
-                        meetingId: state.id,
-                        version: 1,
-                        state,
-                        createdAt: 0,
-                        updatedAt: 0
-                    },
-                    sessionOwnership: changed
-                })
-            } as never
-        });
-        await expect(
-            dispatcher.dispatch({
-                outboxItem: item({
-                    kind: "agent_notice",
-                    noticeKind: "meeting_started",
-                    recipientId: "contributor-v1",
-                    agendaId: "agenda-v1"
-                }),
-                signal: new AbortController().signal
-            })
-        ).rejects.toThrow("NOTICE_OWNERSHIP_INVALID");
-    });
-
-    it("fails closed for review_request and unknown notice kinds", async () => {
-        const { state, ownership } = fixture();
-        const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver: vi.fn(), resume: vi.fn() },
-            definitions: [],
-            repository: {
-                recover: async () => ({
-                    snapshot: {
-                        meetingId: state.id,
-                        version: 1,
-                        state,
-                        createdAt: 0,
-                        updatedAt: 0
-                    },
-                    sessionOwnership: ownership
-                })
-            } as never
-        });
-        for (const noticeKind of ["review_request", "unknown"]) {
-            await expect(
-                dispatcher.dispatch({
-                    outboxItem: item({
-                        kind: "agent_notice",
-                        noticeKind,
-                        recipientId: "reviewer-v1",
-                        agendaId: "agenda-v1"
-                    }),
-                    signal: new AbortController().signal
-                })
-            ).rejects.toMatchObject({ code: "OUTBOX_ROUTE_UNAVAILABLE", retryable: false });
-        }
     });
 });
 
