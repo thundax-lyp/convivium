@@ -148,7 +148,6 @@ const MeetingContent = ({
                                 detail={props.detail}
                                 focusTarget={props.focusTarget}
                                 onFocusConsumed={props.onFocusConsumed}
-                                onLocateInTimeline={props.onLocateInTimeline}
                             />
                         ) : (
                             <MeetingPanelTimeline

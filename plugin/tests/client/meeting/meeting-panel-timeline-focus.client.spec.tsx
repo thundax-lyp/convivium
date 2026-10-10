@@ -62,8 +62,7 @@ describe("Meeting overview location", () => {
         const onFocusConsumed = vi.fn();
         const props = {
             detail,
-            onFocusConsumed,
-            onLocateInTimeline: vi.fn()
+            onFocusConsumed
         };
         const { rerender } = render(
             withMeetingTranslation(
@@ -80,6 +79,7 @@ describe("Meeting overview location", () => {
         );
         expect(document.activeElement?.tagName).toBe("LI");
         expect(document.activeElement?.textContent).toContain("decision-1");
+        expect(screen.queryByRole("navigation", { name: "Timeline" })).toBeNull();
 
         rerender(
             withMeetingTranslation(

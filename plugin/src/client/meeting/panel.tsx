@@ -305,7 +305,6 @@ export const ConviviumMeetingPanel = ({
         onTimelineFiltersChange: meetingWorkspace.setTimelineFilters,
         focusTarget: workspace.focusTarget,
         onFocusConsumed: meetingWorkspace.consumeFocus,
-        onLocateInTimeline: meetingWorkspace.locateInTimeline,
         onLocateInOverview: meetingWorkspace.locateInOverview,
         listError: listFailure === undefined ? undefined : failureMessage(listFailure, t),
         detailError: detailFailure === undefined ? undefined : failureMessage(detailFailure, t),

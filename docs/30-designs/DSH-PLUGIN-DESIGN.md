@@ -120,17 +120,19 @@ interface MeetingsWorkspaceState {
 
 ### 概览
 
-共享 Header 显示当前议题、lifecycle 和 version；概览不重复这些字段，按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
+共享 Header 显示讨论目标（`objective.statement`）、lifecycle 和 version；概览不重复这些字段，按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
 
-1. active Agenda 与 Objective 的产出要求、验收标准和约束；
-2. 当前 Round、Contribution、申请、ManagerPlan、IdentityRecommendation、MeetingTask 摘要和等待原因；
-3. caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
-4. Question、Issue 与 RiskDisposition；
-5. Publication 与 FormalMessage；
-6. EvidenceVersion、EvidenceReview 与 ReviewDelivery；
-7. MeetingTask 详情与技术标识。
+1. “目标”：Objective 产出要求、验收标准与约束；
+2. “议题”：当前 Agenda；
+3. “结论”：存在时的 Termination outcome、caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
+4. “开放项”：Question、Issue 与 RiskDisposition；
+5. 记录：每轮的 Publication、成对的 EvidenceVersion/EvidenceReview、关联的 ReviewDelivery、按 `seq` 排列的 FormalMessage、未形成证据的失败 Contribution，以及明确不举手或到期未回应的参与者；
 
-概览的 OverviewItem 将传入的 `sign` 与 Ellipsis 并列放在 ListItem 中、顶端对齐；Objective 的 `sign` 显示原有状态符号，Agenda 的 `sign` 显示状态符号及本地化状态文字，结果显示蓝色圆点 🔵，开放项显示灰色圆点 🔘，其余条目显示中性圆点。长文本由 Ellipsis 按 `maxLines` 显示预览，其中会议发言最多预览 3 行。只有末尾的「...展开」按钮会展开全文；「收起」按钮位于全文下一行的右侧。
+记录仅使用 caller-visible MeetingView 的真实数据，不通过 URL 参数注入调试轮次；按 Round 的 `openedAt` 排列，标题只显示轮次问题，前置 `open|published|aborted` 的文字图标，状态名称保留在可访问名称中；Publication 只显示标识，不展示 `exitReasons`。每轮按贡献者显示名称排列记录，同名时按身份 ID 和记录 ID 保持稳定顺序。与 EvidenceVersion 显式关联的 FormalMessage、审核状态或 Review 放在同一贡献者记录下；已有可见 Review 时只显示 Review，尚无 Review 时显示 EvidenceVersion 审核状态，之后提供“查看证据”按钮；按钮打开 DSH Modal，展示该可见版本的完整字段，关闭后回焦。无可见证据关联的 FormalMessage 仍作为独立记录展示。尚无可见证据的 Contribution 显示其真实状态；失败 Contribution 与 `declined`、`no_response` 各自占一条贡献者记录，不在概览中另设进展日志。失败条目只是从 Contribution 派生的展示内容，不创建 FormalMessage 或证据链接；`execution_failed` 使用结构化 `failureSummary`，其他未形成证据的终态使用其 `exitReason`。已发布的最终 EvidenceVersion 与其 `versionId` 对应的 Review 成对展示；活动 Meeting 中仍未发布、但对当前 caller 可见的版本与审核留在所属轮次内，不因为布局合并扩大可见范围。`round_evidence` 发言在发布时由最终 EvidenceVersion 生成，引用该版本和 Review，它不是独立提交的第二份证据。可见但无法关联到可见审核的 ReviewDelivery 在同一区域单列，避免丢失投递失败状态。归档展示从完整 ArchiveView 取 Publication、EvidenceBundle 与 FormalMessage，不展示未公开版本。原独立“证据”区域不再重复渲染。概览不显示独立技术信息区，也不提供指向已移除技术信息条目的概览定位入口。
+
+观点正文使用贡献者随 EvidenceVersion 提交的独立 `summary`，审核覆盖摘要与完整证据的一致性；完整证据内容在证据 Modal 展示。对话框以当前轮次议题为标题、顶部元信息按水平等宽三列分别显示贡献者名称、状态值和时间值，不显示“审核状态”“提交时间”标签，存在时的失败原因附在状态列，使用较小字号和次级文字颜色，并通过淡分隔线及留白与正文区分；标题、副标题与关闭按钮保持可见，仅正文区域滚动，不展示证据版本号与审核失败次数。叙述字段使用 DSH `MarkdownText`（过滤原始 HTML 与不安全协议）渲染，应用对话框内的 Markdown 样式，统一标题、段落、列表和表格间距，代码块与宽表可横向滚动；资料定位和版本等结构化引用字段仍保留原文。历史缺少摘要时直接显示 FormalMessage 原文，沿用 Ellipsis 的三行折叠与展开/收起交互；原文在 Modal 保留，不从 interpretation 或正文截断合成摘要。未发布版本在 caller-visible 范围内显示已有摘要。
+
+概览区域共用 `overview/components/` 的 Section 容器；带定位目标的区域由它保留聚焦属性。同目录的 OverviewItem 将传入的 `sign` 与文本 Ellipsis 或交互内容并列放在 ListItem 中、顶端对齐；记录中的“查看证据”按钮也使用该 Item 的布局。`overview/objective/`、`overview/agenda/`、`overview/outcomes/` 和 `overview/open-items/` 分别持有目标、议题、结论和开放项的投影选择、状态图标及条目渲染；各自按状态（RiskDisposition 按 action）选择文字图标，不使用跨区域的状态映射。`overview/records/` 持有记录的归组、排序及渲染。Objective、Agenda 和 Termination outcome 的生成状态文案不在正文显示，状态名称保留在可访问名称中。Termination 正文直接显示 reason，不添加“会议结果：”前缀。其余条目继续展示原有业务文本；记录中的轮次状态使用标题图标，观点和审核分别显示 💡 与 💬，新观点正文直接显示 FormalMessage.body 且不添加 kind 前缀，审核正文直接显示内容且不添加 Review ID 前缀，正文不重复类型文案，类型名称保留在可访问名称中；其余普通条目显示中性圆点，未形成证据的退出显示警示图标。长文本由 Ellipsis 按 `maxLines` 显示预览，其中轮次发布与观点最多预览 3 行。只有末尾的「...展开」按钮会展开全文；「收起」按钮位于全文下一行的右侧。
 
 Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。开放轮次不能执行 `EndMeeting`，投影不提供对应 control，避免面板呈现必然被领域拒绝的异常取消入口。概览内的 Contribution 授权、Decision 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
 
@@ -188,7 +190,7 @@ interface TimelineNode {
 
 ### 模式定位、响应式与失败
 
-概览到时间线的定位设置 `activeMode="timeline"` 和同一 Meeting 的 `focusTarget`；反向定位设置 `activeMode="overview"`。目标挂载后展开、滚动和聚焦，成功或失败均清除一次性 focus。多 phase 对象默认定位时间最晚节点并允许查看其他 phase。目标不存在、被 caller filtering 删除或目标模式不展示时只报告中性失败，不修改筛选、Meeting 或权限。
+概览不显示时间线导航或对象跳转按钮；用户通过 Workspace 的时间线 Tab 进入时间线。时间线到概览的定位设置 `activeMode="overview"` 和同一 Meeting 的 `focusTarget`。目标挂载后展开、滚动和聚焦，成功或失败均清除一次性 focus。多 phase 对象默认定位时间最晚节点并允许查看其他 phase。目标不存在、被 caller filtering 删除或目标模式不展示时只报告中性失败，不修改筛选、Meeting 或权限。
 
 存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线保持五类泳道并横向滚动，DOM 按时间排序，键盘可以遍历时间节点和相邻泳道；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
 

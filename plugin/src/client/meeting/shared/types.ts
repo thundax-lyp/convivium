@@ -64,7 +64,6 @@ export interface MeetingPanelLayoutProps {
     onTimelineFiltersChange?(filters: TimelineFilterState): void;
     focusTarget?: MeetingFocusTarget;
     onFocusConsumed?(): void;
-    onLocateInTimeline?(target: MeetingFocusTarget): void;
     onLocateInOverview?(target: MeetingFocusTarget): void;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
