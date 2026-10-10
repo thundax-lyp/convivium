@@ -2,6 +2,7 @@ import type { EvidenceVersion, MeetingState, OpaqueId, TextWithReason } from "@/
 import { rejectedTransition as reject, type MeetingTransitionResult } from "./result.ts";
 
 export interface EvidenceInput {
+    summary: string;
     observation: string;
     interpretation: string;
     method: string;
@@ -39,10 +40,14 @@ export interface SubmitEvidenceInput {
     now: number;
 }
 const validText = (value: string) => {
-    return value.trim().length > 0;
+    return typeof value === "string" && value.trim().length > 0;
 };
 const validInput = (evidence: EvidenceInput) => {
-    if (![evidence.observation, evidence.interpretation, evidence.method].every(validText)) {
+    if (
+        ![evidence.summary, evidence.observation, evidence.interpretation, evidence.method].every(
+            validText
+        )
+    ) {
         return false;
     }
     if (

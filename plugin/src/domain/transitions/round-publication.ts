@@ -10,6 +10,7 @@ type Input = {
     now: number;
 };
 const body = (version: {
+    summary?: string;
     observation: string;
     interpretation: string;
     method: string;
@@ -18,6 +19,9 @@ const body = (version: {
     uncertainties: readonly { value: string; reason?: string }[];
     limitations: readonly { value: string; reason?: string }[];
 }) => {
+    if (version.summary !== undefined) {
+        return version.summary;
+    }
     const suffix = (reason?: string) => (reason === undefined ? "" : `｜原因：${reason}`);
     return [
         `观察：${version.observation}`,

@@ -86,6 +86,7 @@ function evidenceState() {
         versionId: "version-v1",
         now: 5,
         evidence: {
+            summary: "观点摘要",
             observation: "观察",
             interpretation: "解释",
             method: "方法",
@@ -715,6 +716,11 @@ describe("review delivery and publication", () => {
         });
 
         expect(published.kind).toBe("accepted");
+        expect(published.kind === "accepted" && published.state.messages[0]?.body).toBe("观点摘要");
+        expect(
+            published.kind === "accepted" &&
+                published.state.evidencePackages[0]?.versions[0]?.observation
+        ).toBe("观察");
         expect(published.kind === "accepted" && published.state.contributions[0]?.status).toBe(
             "withdrawn"
         );

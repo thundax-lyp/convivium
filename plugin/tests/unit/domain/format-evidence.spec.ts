@@ -62,6 +62,7 @@ function stateWithContribution() {
     };
 }
 const evidence = {
+    summary: "观点摘要",
     observation: "观察",
     interpretation: "解释",
     method: "方法",
@@ -105,6 +106,10 @@ describe("format and evidence transitions", () => {
             return;
         }
         expect(result.state.evidencePackages[0].versions).toHaveLength(1);
+        expect(result.state.evidencePackages[0].versions[0]).toMatchObject({
+            summary: "观点摘要",
+            observation: "观察"
+        });
         expect(result.state.registrations[0].status).toBe("complete");
         expect(result.state.registrations[0]).toEqual({
             id: "registration-version-v1",
@@ -121,6 +126,19 @@ describe("format and evidence transitions", () => {
                 versionId: "version-v1"
             }
         ]);
+    });
+    it("rejects a blank viewpoint summary without registering evidence", () => {
+        const state = stateWithContribution();
+        const result = submitEvidence(state, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence: { ...evidence, summary: " " },
+            packageId: "package-v1",
+            versionId: "version-v1",
+            now: 4
+        });
+        expect(result.kind).toBe("rejected");
+        expect(result.state).toBe(state);
     });
     it("rejects an incorrect author atomically", () => {
         const state = stateWithContribution();
