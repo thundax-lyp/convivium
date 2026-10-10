@@ -12,14 +12,6 @@
     padding: 4px 8px;
 }
 
-.label {
-    display: block;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .empty {
     margin: 0;
     color: var(--dsw-alias-label-tertiary);

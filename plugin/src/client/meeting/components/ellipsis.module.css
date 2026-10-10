@@ -1,0 +1,38 @@
+.root {
+    position: relative;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.text,
+.measure {
+    white-space: pre-wrap;
+}
+
+.measure {
+    position: absolute;
+    inset: 0 0 auto;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.toggle {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--dsw-alias-label-secondary);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.toggle:focus-visible {
+    outline: 2px solid var(--dsw-alias-border-focus);
+    outline-offset: 2px;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-block-start: 4px;
+}

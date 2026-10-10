@@ -2,11 +2,12 @@ import * as React from "react";
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
-import { List, ListItem } from "@/client/meeting/components/index.ts";
+import { Ellipsis, List, ListItem } from "@/client/meeting/components/index.ts";
 import { knownEnum as known } from "@/client/meeting/shared/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { buildTimelineNodes } from "@/client/meeting/regions/workspace/timeline/index.ts";
 import type { MeetingFocusTarget } from "@/client/meeting/shared/index.ts";
+import styles from "./overview.module.css";
 
 interface SectionProps {
     detail: MeetingView;
@@ -61,9 +62,31 @@ const objectiveStatusIcon: Record<
     violated: "❌"
 };
 
-const overviewItem = (kind: string, id: string, content: string): ReactElement => (
-    <ListItem key={overviewKey(kind, id)} data-overview-key={overviewKey(kind, id)} tabIndex={-1}>
-        {content}
+const OverviewItem = ({
+    kind,
+    id,
+    text,
+    sign,
+    maxLines,
+    accessibleLabel
+}: {
+    kind: string;
+    id: string;
+    text: string;
+    sign: ReactNode;
+    maxLines?: number;
+    accessibleLabel?: string;
+}): ReactElement => (
+    <ListItem
+        className={styles.item}
+        data-overview-key={overviewKey(kind, id)}
+        tabIndex={-1}
+        accessibleLabel={accessibleLabel}
+    >
+        <span className={styles.sign} aria-hidden="true">
+            {sign}
+        </span>
+        <Ellipsis text={text} maxLines={maxLines} />
     </ListItem>
 );
 
@@ -83,9 +106,14 @@ const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
             ? t("panel.overview.unclosedAtTermination")
             : known("objectiveStatus", item.status, t);
         return (
-            <ListItem key={item.id} accessibleLabel={`${item.text}: ${status}`}>
-                {`${unclosed ? "⚠️" : objectiveStatusIcon[item.status]} ${item.text}`}
-            </ListItem>
+            <OverviewItem
+                key={item.id}
+                kind="objective"
+                id={item.id}
+                accessibleLabel={`${item.text}: ${status}`}
+                sign={`${unclosed ? "⚠️" : objectiveStatusIcon[item.status]}`}
+                text={item.text}
+            />
         );
     };
     return (
@@ -100,16 +128,20 @@ const OverviewObjective = ({ detail }: SectionProps): ReactElement => {
                         ? t("panel.overview.unclosedAtTermination")
                         : known("agenda", item.status, t);
                     return (
-                        <ListItem key={item.id} accessibleLabel={`${item.title}: ${status}`}>
-                            {`${unclosed ? "⚠️" : agendaStatusIcon[item.status]} ${item.title}`}
-                        </ListItem>
+                        <OverviewItem
+                            key={item.id}
+                            kind="agenda"
+                            id={item.id}
+                            accessibleLabel={`${item.title}: ${status}`}
+                            sign={`${unclosed ? "⚠️" : agendaStatusIcon[item.status]} ${status}`}
+                            text={item.title}
+                        />
                     );
                 })}
             />
             <List items={objective.requiredOutputs.map(objectiveItem)} />
             <List items={objective.acceptanceCriteria.map(objectiveItem)} />
             <List items={objective.hardConstraints.map(objectiveItem)} />
-            <p>{known("riskLevel", objective.acceptableRiskLevel, t)}</p>
         </Section>
     );
 };
@@ -119,58 +151,86 @@ const OverviewProgress = ({ detail }: SectionProps): ReactElement => {
     const items: ReactElement[] = [];
     for (const round of detail.rounds) {
         items.push(
-            overviewItem(
-                "round",
-                round.id,
-                `${round.roundGoal.question}: ${known("round", round.status, t)}`
-            )
+            <OverviewItem
+                key={overviewKey("round", round.id)}
+                kind="round"
+                id={round.id}
+                sign="•"
+                text={`${round.roundGoal.question}: ${known("round", round.status, t)}`}
+            />
         );
         for (const contributorId of round.invitedContributorIds ?? []) {
             const response = round.participationResponses?.find(
                 (item) => item.contributorId === contributorId
             );
             items.push(
-                <ListItem key={`participation:${round.id}:${contributorId}`}>
-                    {`${contributorId}: ${t(
+                <OverviewItem
+                    key={`participation:${round.id}:${contributorId}`}
+                    kind="participation"
+                    id={`${round.id}:${contributorId}`}
+                    sign="•"
+                    text={`${contributorId}: ${t(
                         response
                             ? `enum.participation.${response.status}`
                             : "enum.participation.pending"
                     )}`}
-                </ListItem>
+                />
             );
         }
         for (const contribution of round.contributions) {
             items.push(
-                <ListItem
+                <OverviewItem
                     key={`contribution:${contribution.id}`}
-                >{`${contribution.id}: ${known("contribution", contribution.status, t)}${contribution.exitReason ? `: ${contribution.exitReason}` : ""}`}</ListItem>
+                    kind="contribution"
+                    id={contribution.id}
+                    sign="•"
+                    text={`${contribution.id}: ${known("contribution", contribution.status, t)}${contribution.exitReason ? `: ${contribution.exitReason}` : ""}`}
+                />
             );
         }
     }
     for (const request of detail.opportunityRequests) {
-        items.push(overviewItem("opportunity_request", request.id, request.purpose));
+        items.push(
+            <OverviewItem
+                key={overviewKey("opportunity_request", request.id)}
+                kind="opportunity_request"
+                id={request.id}
+                sign="•"
+                text={request.purpose}
+            />
+        );
     }
     for (const plan of detail.managerPlans) {
         items.push(
-            overviewItem(
-                "manager_plan",
-                plan.id,
-                `${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`
-            )
+            <OverviewItem
+                key={overviewKey("manager_plan", plan.id)}
+                kind="manager_plan"
+                id={plan.id}
+                sign="•"
+                text={`${known("managerPlanKind", plan.kind, t)}: ${plan.blockingReason ?? plan.rationale}`}
+            />
         );
     }
     for (const recommendation of detail.identityRecommendations ?? []) {
         items.push(
-            overviewItem(
-                "identity_recommendation",
-                recommendation.id,
-                `${recommendation.rationale}: ${known("recommendation", recommendation.status, t)}`
-            )
+            <OverviewItem
+                key={overviewKey("identity_recommendation", recommendation.id)}
+                kind="identity_recommendation"
+                id={recommendation.id}
+                sign="•"
+                text={`${recommendation.rationale}: ${known("recommendation", recommendation.status, t)}`}
+            />
         );
     }
     for (const task of detail.tasks) {
         items.push(
-            overviewItem("task", task.id, `${task.title}: ${known("task", task.status, t)}`)
+            <OverviewItem
+                key={overviewKey("task", task.id)}
+                kind="task"
+                id={task.id}
+                sign="•"
+                text={`${task.title}: ${known("task", task.status, t)}`}
+            />
         );
     }
     return (
@@ -194,27 +254,33 @@ const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
         <Section label={t("panel.overview.outcomes")}>
             <List
                 items={[
-                    ...candidates.map((item) =>
-                        overviewItem(
-                            "decision_candidate",
-                            item.id,
-                            `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`
-                        )
-                    ),
-                    ...decisions.map((item) =>
-                        overviewItem(
-                            "decision",
-                            item.id,
-                            `${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`
-                        )
-                    ),
-                    ...facts.map((item) =>
-                        overviewItem(
-                            "completion_fact",
-                            item.id,
-                            `${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`
-                        )
-                    )
+                    ...candidates.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("decision_candidate", item.id)}
+                            kind="decision_candidate"
+                            id={item.id}
+                            sign="🔵"
+                            text={`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`}
+                        />
+                    )),
+                    ...decisions.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("decision", item.id)}
+                            kind="decision"
+                            id={item.id}
+                            sign="🔵"
+                            text={`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`}
+                        />
+                    )),
+                    ...facts.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("completion_fact", item.id)}
+                            kind="completion_fact"
+                            id={item.id}
+                            sign="🔵"
+                            text={`${item.statement}: ${known("completionStatus", item.status, t)}: ${item.rationale}`}
+                        />
+                    ))
                 ]}
             />
         </Section>
@@ -235,22 +301,32 @@ const OverviewOpenItems = ({ detail }: SectionProps): ReactElement => {
             <List
                 items={[
                     ...questions.map((item) => (
-                        <ListItem
-                            key={`question:${item.id}`}
-                        >{`${item.text}: ${known("questionStatus", item.status, t)}`}</ListItem>
+                        <OverviewItem
+                            key={overviewKey("question", item.id)}
+                            kind="question"
+                            id={item.id}
+                            sign="🔘"
+                            text={`${item.text}: ${known("questionStatus", item.status, t)}`}
+                        />
                     )),
                     ...issues.map((item) => (
-                        <ListItem
-                            key={`issue:${item.id}`}
-                        >{`${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`}</ListItem>
+                        <OverviewItem
+                            key={overviewKey("issue", item.id)}
+                            kind="issue"
+                            id={item.id}
+                            sign="🔘"
+                            text={`${item.description}: ${known("issueStatus", item.status, t)}: ${known("issueClassification", item.classification, t)}: ${item.rationale}`}
+                        />
                     )),
-                    ...risks.map((item) =>
-                        overviewItem(
-                            "risk_disposition",
-                            item.id,
-                            `${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`
-                        )
-                    )
+                    ...risks.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("risk_disposition", item.id)}
+                            kind="risk_disposition"
+                            id={item.id}
+                            sign="🔘"
+                            text={`${known("riskAction", item.action, t)}: ${item.scope}: ${item.rationale}`}
+                        />
+                    ))
                 ]}
             />
         </Section>
@@ -267,16 +343,26 @@ const OverviewTranscript = ({ detail }: SectionProps): ReactElement => {
         <Section label={t("panel.overview.transcript")}>
             <List
                 items={[
-                    ...(archive?.publications ?? detail.publications).map((item) =>
-                        overviewItem(
-                            "publication",
-                            item.id,
-                            `${item.id}: ${item.exitReasons.join("; ")}`
-                        )
-                    ),
-                    ...(archive?.messages ?? detail.messages).map((item) =>
-                        overviewItem("formal_message", item.id, `${item.kind}: ${item.body}`)
-                    )
+                    ...(archive?.publications ?? detail.publications).map((item) => (
+                        <OverviewItem
+                            key={overviewKey("publication", item.id)}
+                            kind="publication"
+                            id={item.id}
+                            sign="•"
+                            text={`${item.id}: ${item.exitReasons.join("; ")}`}
+                            maxLines={3}
+                        />
+                    )),
+                    ...(archive?.messages ?? detail.messages).map((item) => (
+                        <OverviewItem
+                            key={overviewKey("formal_message", item.id)}
+                            kind="formal_message"
+                            id={item.id}
+                            sign="•"
+                            text={`${item.kind}: ${item.body}`}
+                            maxLines={3}
+                        />
+                    ))
                 ]}
             />
         </Section>
@@ -299,24 +385,34 @@ const OverviewEvidence = ({ detail }: SectionProps): ReactElement => {
         <Section label={t("panel.overview.evidence")}>
             <List
                 items={[
-                    ...versions.map((item) =>
-                        overviewItem(
-                            "evidence_version",
-                            item.id,
-                            `${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`
-                        )
-                    ),
-                    ...reviews.map((item) =>
-                        overviewItem("evidence_review", item.id, `${item.id}: ${item.scope}`)
-                    ),
+                    ...versions.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("evidence_version", item.id)}
+                            kind="evidence_version"
+                            id={item.id}
+                            sign="•"
+                            text={`${item.id}: ${item.observation}: ${item.interpretation}: ${item.method}`}
+                        />
+                    )),
+                    ...reviews.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("evidence_review", item.id)}
+                            kind="evidence_review"
+                            id={item.id}
+                            sign="•"
+                            text={`${item.id}: ${item.scope}`}
+                        />
+                    )),
                     ...(!archive
-                        ? detail.reviewDeliveries.map((item) =>
-                              overviewItem(
-                                  "review_delivery",
-                                  item.id,
-                                  `${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`
-                              )
-                          )
+                        ? detail.reviewDeliveries.map((item) => (
+                              <OverviewItem
+                                  key={overviewKey("review_delivery", item.id)}
+                                  kind="review_delivery"
+                                  id={item.id}
+                                  sign="•"
+                                  text={`${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`}
+                              />
+                          ))
                         : [])
                 ]}
             />
@@ -339,13 +435,15 @@ const OverviewTechnical = ({ detail }: SectionProps): ReactElement => {
                 </p>
             ) : (
                 <List
-                    items={detail.tasks.map((item) =>
-                        overviewItem(
-                            "task",
-                            item.id,
-                            `${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`
-                        )
-                    )}
+                    items={detail.tasks.map((item) => (
+                        <OverviewItem
+                            key={overviewKey("task", item.id)}
+                            kind="task"
+                            id={item.id}
+                            sign="•"
+                            text={`${item.id}: ${item.title}: ${known("task", item.status, t)}: ${known("authorization", item.authorizationStatus, t)}${(item.result ?? item.exitReason) ? `: ${item.result ?? item.exitReason}` : ""}`}
+                        />
+                    ))}
                 />
             )}
         </Section>

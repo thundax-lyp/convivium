@@ -122,13 +122,15 @@ interface MeetingsWorkspaceState {
 
 共享 Header 显示当前议题、lifecycle 和 version；概览不重复这些字段，按以下顺序从当前 `MeetingView` 渲染，不生成新的业务摘要或状态：
 
-1. active Agenda 与 Objective 的产出要求、验收标准、约束和可接受风险等级；
+1. active Agenda 与 Objective 的产出要求、验收标准和约束；
 2. 当前 Round、Contribution、申请、ManagerPlan、IdentityRecommendation、MeetingTask 摘要和等待原因；
 3. caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
 4. Question、Issue 与 RiskDisposition；
 5. Publication 与 FormalMessage；
 6. EvidenceVersion、EvidenceReview 与 ReviewDelivery；
 7. MeetingTask 详情与技术标识。
+
+概览的 OverviewItem 将传入的 `sign` 与 Ellipsis 并列放在 ListItem 中、顶端对齐；Objective 的 `sign` 显示原有状态符号，Agenda 的 `sign` 显示状态符号及本地化状态文字，结果显示蓝色圆点 🔵，开放项显示灰色圆点 🔘，其余条目显示中性圆点。长文本由 Ellipsis 按 `maxLines` 显示预览，其中会议发言最多预览 3 行。只有末尾的「...展开」按钮会展开全文；「收起」按钮位于全文下一行的右侧。
 
 Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。开放轮次不能执行 `EndMeeting`，投影不提供对应 control，避免面板呈现必然被领域拒绝的异常取消入口。概览内的 Contribution 授权、Decision 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
 

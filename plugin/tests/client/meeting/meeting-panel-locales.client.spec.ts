@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting/client.ts";
@@ -46,25 +46,27 @@ function emptyLayout(locale: "zh" | "en") {
 }
 
 describe("Meeting panel localized presentation", () => {
-    it("localizes known objective statuses and risk levels while preserving authored text", () => {
+    it("localizes known objective statuses while preserving authored text", () => {
         const { view } = meetingProjectionFixture();
         const { rerender } = render(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
-        expect(screen.getByText("👉 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: 进行中")).toBeTruthy();
-        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: 待处理")).toBeTruthy();
-        expect(screen.getByText("低")).toBeTruthy();
+        expect(within(screen.getByLabelText("议题 A: 进行中")).getByText("👉 进行中")).toBeTruthy();
+        expect(within(screen.getByLabelText("议题 A: 进行中")).getByText("议题 A")).toBeTruthy();
+        expect(within(screen.getByLabelText("形成公开证据: 待处理")).getByText("⏳")).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: 待处理")).getByText("形成公开证据")
+        ).toBeTruthy();
 
         rerender(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
         );
-        expect(screen.getByText("👉 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: Active")).toBeTruthy();
-        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: Pending")).toBeTruthy();
-        expect(screen.getByText("Low")).toBeTruthy();
+        expect(within(screen.getByLabelText("议题 A: Active")).getByText("👉 Active")).toBeTruthy();
+        expect(within(screen.getByLabelText("议题 A: Active")).getByText("议题 A")).toBeTruthy();
+        expect(within(screen.getByLabelText("形成公开证据: Pending")).getByText("⏳")).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: Pending")).getByText("形成公开证据")
+        ).toBeTruthy();
     });
 
     it("marks unfinished archived objectives without presenting them as active", () => {
@@ -72,18 +74,38 @@ describe("Meeting panel localized presentation", () => {
         const { rerender } = render(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
-        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: 结束时未收口")).toBeTruthy();
-        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: 结束时未收口")).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("议题 A: 结束时未收口")).getByText("⚠️ 结束时未收口")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("议题 A: 结束时未收口")).getByText("议题 A")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: 结束时未收口")).getByText("⚠️")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: 结束时未收口")).getByText("形成公开证据")
+        ).toBeTruthy();
 
         rerender(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
         );
-        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: Unclosed at termination")).toBeTruthy();
-        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: Unclosed at termination")).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("议题 A: Unclosed at termination")).getByText(
+                "⚠️ Unclosed at termination"
+            )
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("议题 A: Unclosed at termination")).getByText("议题 A")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: Unclosed at termination")).getByText("⚠️")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: Unclosed at termination")).getByText(
+                "形成公开证据"
+            )
+        ).toBeTruthy();
     });
 
     it("renders the panel shell in Chinese and English", () => {
