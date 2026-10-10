@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { ReactElement } from "react";
 import logoSvg from "./convivium-logo.svg";
 import styles from "./convivium-mark.module.css";
