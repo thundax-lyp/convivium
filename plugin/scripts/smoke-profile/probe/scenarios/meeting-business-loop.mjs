@@ -143,6 +143,7 @@ function reviewerTurnSummary(agent) {
 }
 
 const evidence = (round, suffix) => ({
+    summary: `Deterministic smoke evidence for ${round.id} from ${suffix}; fixture only, not external research.`,
     observation: `fixture observation for ${round.id} from ${suffix}`,
     interpretation: `fixture interpretation for ${round.id} from ${suffix}`,
     method: "deterministic smoke method",
