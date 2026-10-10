@@ -1,0 +1,12 @@
+.item {
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(0, 1fr);
+    align-items: start;
+    column-gap: 4px;
+}
+
+.sign {
+    min-width: 20px;
+    line-height: 22px;
+    text-align: start;
+}

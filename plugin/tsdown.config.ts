@@ -37,6 +37,7 @@ export default defineConfig([
         dts: false,
         deps: { neverBundle: clientExternal, alwaysBundle: clientAlwaysBundle },
         tsconfig: "tsconfig.client.json",
+        inputOptions: { moduleTypes: { ".svg": "text" } },
         outExtensions: () => ({ js: ".js" }),
         outputOptions: {
             banner: 'window.__ModuleLoader__.load({ id: "@convivium/dsh-plugin", factory: (require) => { var module = { exports: {} }; var exports = module.exports;',

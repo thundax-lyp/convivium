@@ -357,7 +357,7 @@ interface AbortRound {
 
 新 Round 中 `record_review_delivery(sent)` 立即把已登记 Contribution 置 `closed` 并记 `review_delivered`，无送达后等待或本轮补证；失败送达不结算。历史 Round 保留送达后响应、补证与超时语义。
 
-`SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权、补充机会和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。新 Round 首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新；历史 Round 才可消费获接纳的 supplement hand，在同一 EvidencePackage 追加 ordinal + 1 并把计数 + 1。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
+`SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。新提交的 `summary` 必须是非空作者观点摘要，与完整证据同版本受审核；轮末以摘要原文生成 `FormalMessage.body`，不删除完整证据、不合并作者或改变消息预算。历史持久版本允许缺少该字段，历史消息不重写；尚未发布的历史版本仍按原证据正文组合发布。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权、补充机会和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。新 Round 首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新；历史 Round 才可消费获接纳的 supplement hand，在同一 EvidencePackage 追加 ordinal + 1 并把计数 + 1。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
 
 `RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution/MeetingTask 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束任务时两种初次申请均返回 `PRECONDITION_FAILED`。
 
@@ -365,10 +365,12 @@ interface AbortRound {
 
 `RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending、本轮已记录选择或已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
 
-`DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|timed_out|supplement_rejected|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或旧状态导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、摘要替代原文或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
+`DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|timed_out|supplement_rejected|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或旧状态导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、删除完整证据仅保留摘要或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
 
 ```ts
+// 新提交必须提供非空作者摘要；历史持久版本/View 可缺少 summary。
 interface EvidenceInput {
+  summary: string;
   observation: string;
   interpretation: string;
   method: string;
@@ -889,7 +891,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     type EvidenceStatus = "submitted" | "validating" | "validated" | "validation_failed" | "validation_cancelled";
     type EvidenceValidationFailureReason = "review_timeout" | "review_interrupted" | "dispatch_failed";
     interface EvidenceValidationStatusView { packageId: OpaqueId; contributionId: OpaqueId; versionId: OpaqueId; status: EvidenceStatus; failureCount: number; lastFailureReason?: EvidenceValidationFailureReason }
-    interface EvidenceVersionView { id: OpaqueId; ordinal: number; observation: string; interpretation: string; method: string; falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[]; claims: EvidenceClaimInput[]; materials: MaterialInput[]; submittedAt: EpochMs; status: EvidenceStatus; failureCount: number; lastFailureReason?: EvidenceValidationFailureReason }
+    interface EvidenceVersionView { id: OpaqueId; ordinal: number; summary?: string; observation: string; interpretation: string; method: string; falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[]; claims: EvidenceClaimInput[]; materials: MaterialInput[]; submittedAt: EpochMs; status: EvidenceStatus; failureCount: number; lastFailureReason?: EvidenceValidationFailureReason }
     interface EvidenceReviewView { id: OpaqueId; versionId: OpaqueId; reviewerId: OpaqueId; baselinePublicationIds: OpaqueId[]; scope: string; dimensions: ReviewDimensionsInput; createdAt: EpochMs }
     interface ReviewDeliveryView { id: OpaqueId; reviewId: OpaqueId; authorId: OpaqueId; status: "sent" | "failed"; sentAt?: EpochMs; failedAt?: EpochMs; failureReason?: string }
     interface FormalMessageView { id: OpaqueId; seq: number; actorId: OpaqueId; agendaId: OpaqueId; kind: string; body: string; publicationId: OpaqueId; relatedIds: OpaqueId[]; createdAt: EpochMs }

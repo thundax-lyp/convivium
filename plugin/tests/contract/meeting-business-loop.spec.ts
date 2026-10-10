@@ -25,6 +25,7 @@ const identity = {
     decision: "admit" as const
 };
 const evidence = {
+    summary: "作者观点摘要",
     observation: "observation",
     interpretation: "interpretation",
     method: "method",
@@ -59,6 +60,18 @@ const evidence = {
 const dimension = { score: 3 as const, scope: "scope", reason: "reason", baselineEvidenceIds: [] };
 
 describe("target Meeting business-loop protocol", () => {
+    it("requires an author summary for new evidence submissions", () => {
+        const { summary: _summary, ...legacyEvidence } = evidence;
+        for (const input of [legacyEvidence, { ...evidence, summary: " " }]) {
+            expect(
+                MeetingActionSchema.safeParse({
+                    kind: "submit_evidence",
+                    contributionId: "contribution-1",
+                    evidence: input
+                }).success
+            ).toBe(false);
+        }
+    });
     it("parses all thirteen target write actions and strips runtime fields", () => {
         const actions = [
             {

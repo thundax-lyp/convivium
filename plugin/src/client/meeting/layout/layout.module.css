@@ -25,11 +25,19 @@
     display: block;
 }
 
+.narrowNavigatorToggle {
+    margin-inline: 16px;
+}
+
 .workspaceReveal {
     display: flex;
     min-width: 0;
     min-height: 0;
     animation: workspace-reveal 180ms ease-out both;
+}
+
+.shellNarrow .workspaceReveal {
+    padding-inline: 16px;
 }
 
 @keyframes workspace-reveal {

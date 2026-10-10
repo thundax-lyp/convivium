@@ -178,6 +178,7 @@ const material = z.object({
 export const EvidenceVersionViewSchema = z.object({
     id,
     ordinal: z.number().int().positive(),
+    summary: text.optional(),
     observation: text,
     interpretation: text,
     method: text,

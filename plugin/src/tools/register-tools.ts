@@ -159,6 +159,9 @@ const actionSchemas = {
         kind: { type: "string", const: "submit_evidence", required: true },
         contributionId: requiredString("Accepted contribution identifier."),
         evidence: requiredObject({
+            summary: requiredString(
+                "Author-written viewpoint summary covering the judgment, supporting evidence and material limits. Published verbatim as the formal message after review."
+            ),
             observation: requiredString("Observed facts."),
             interpretation: requiredString("Interpretation separated from observation."),
             method: requiredString("Method used to obtain or assess the evidence."),

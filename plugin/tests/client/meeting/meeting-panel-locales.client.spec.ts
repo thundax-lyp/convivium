@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtocolFailure, type MeetingClient } from "@/client/meeting/client.ts";
@@ -46,46 +46,164 @@ function emptyLayout(locale: "zh" | "en") {
 }
 
 describe("Meeting panel localized presentation", () => {
-    it("localizes known objective statuses and risk levels while preserving authored text", () => {
+    it("localizes known objective statuses while preserving authored text", () => {
         const { view } = meetingProjectionFixture();
         const { rerender } = render(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
-        expect(screen.getByText("👉 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: 进行中")).toBeTruthy();
-        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: 待处理")).toBeTruthy();
-        expect(screen.getByText("低")).toBeTruthy();
+        expect(screen.queryByRole("region", { name: "技术信息" })).toBeNull();
+        const objective = screen.getByRole("region", { name: "目标" });
+        const agenda = screen.getByRole("region", { name: "议题" });
+        expect(
+            within(within(agenda).getByLabelText("议题 A: 进行中")).getByText("👉")
+        ).toBeTruthy();
+        expect(within(agenda).queryByText("进行中")).toBeNull();
+        expect(
+            within(within(objective).getByLabelText("形成公开证据: 待处理")).getByText("⏳")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: 待处理")).getByText("形成公开证据")
+        ).toBeTruthy();
 
         rerender(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
         );
-        expect(screen.getByText("👉 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: Active")).toBeTruthy();
-        expect(screen.getByText("⏳ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: Pending")).toBeTruthy();
-        expect(screen.getByText("Low")).toBeTruthy();
+        expect(
+            within(
+                within(screen.getByRole("region", { name: "Agenda" })).getByLabelText(
+                    "议题 A: Active"
+                )
+            ).getByText("👉")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Agenda" })).queryByText("Active")
+        ).toBeNull();
+        expect(within(screen.getByLabelText("形成公开证据: Pending")).getByText("⏳")).toBeTruthy();
+        expect(
+            within(screen.getByLabelText("形成公开证据: Pending")).getByText("形成公开证据")
+        ).toBeTruthy();
     });
 
-    it("marks unfinished archived objectives without presenting them as active", () => {
+    it("groups archived agenda, objective targets, and meeting outcome with icon-only statuses", () => {
         const view = archiveTimelineFixture();
         const { rerender } = render(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh")
         );
-        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: 结束时未收口")).toBeTruthy();
-        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: 结束时未收口")).toBeTruthy();
+        expect(screen.queryByRole("region", { name: "技术信息" })).toBeNull();
+        const objective = screen.getByRole("region", { name: "目标" });
+        const agenda = screen.getByRole("region", { name: "议题" });
+        const conclusion = screen.getByRole("region", { name: "结论" });
+        const openItems = screen.getByRole("region", { name: "开放项" });
+        expect(
+            screen
+                .getAllByRole("heading", { level: 4 })
+                .slice(0, 4)
+                .map((item) => item.textContent)
+        ).toEqual(["目标", "议题", "结论", "开放项"]);
+        expect(
+            within(within(agenda).getByLabelText("议题 A: 进行中")).getByText("👉")
+        ).toBeTruthy();
+        expect(within(agenda).queryByText("进行中")).toBeNull();
+        expect(
+            within(within(objective).getByLabelText("形成公开证据: 待处理")).getByText("⏳")
+        ).toBeTruthy();
+        expect(within(objective).queryByLabelText("会议结果: 部分完成")).toBeNull();
+        expect(within(conclusion).getByLabelText("会议结果: 部分完成")).toBeTruthy();
+        expect(within(conclusion).getByText("termination reason")).toBeTruthy();
+        expect(
+            within(conclusion).getByText("candidate-1: 采纳: candidate rationale").closest("li")
+                ?.textContent
+        ).toContain("✅");
+        expect(
+            within(conclusion)
+                .getByText("decision-1: 采纳: 已接受: candidate rationale")
+                .closest("li")?.textContent
+        ).toContain("✅");
+        expect(
+            within(conclusion)
+                .getByText("completion statement: 有效: completion rationale")
+                .closest("li")?.textContent
+        ).toContain("✅");
+        expect(within(conclusion).queryByRole("region", { name: "开放项" })).toBeNull();
+        expect(
+            within(openItems).getByText("接受: risk scope: risk rationale").closest("li")
+                ?.textContent
+        ).toContain("✅");
+        expect(within(conclusion).queryByText("部分完成")).toBeNull();
+        expect(screen.queryByText("结束时未收口")).toBeNull();
 
         rerender(
             withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "en")
         );
-        expect(screen.getByText("⚠️ 议题 A")).toBeTruthy();
-        expect(screen.getByLabelText("议题 A: Unclosed at termination")).toBeTruthy();
-        expect(screen.getByText("⚠️ 形成公开证据")).toBeTruthy();
-        expect(screen.getByLabelText("形成公开证据: Unclosed at termination")).toBeTruthy();
+        expect(screen.getByRole("region", { name: "Agenda" })).toBeTruthy();
+        expect(
+            within(
+                within(screen.getByRole("region", { name: "Objective" })).getByLabelText(
+                    "形成公开证据: Pending"
+                )
+            ).getByText("⏳")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Agenda" })).getByLabelText("议题 A: Active")
+        ).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Conclusions" })).getByLabelText(
+                "Meeting outcome: Partial"
+            )
+        ).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Conclusions" })).queryByText("Partial")
+        ).toBeNull();
+        expect(screen.getByRole("region", { name: "Open items" })).toBeTruthy();
+        expect(
+            within(screen.getByRole("region", { name: "Conclusions" })).queryByRole("region", {
+                name: "Open items"
+            })
+        ).toBeNull();
+        expect(screen.queryByText("Unclosed at termination")).toBeNull();
     });
 
+    it("uses each conclusion item's current status for its icon", () => {
+        const base = archiveTimelineFixture();
+        const view = {
+            ...base,
+            archive: {
+                ...base.archive!,
+                decisions: base.archive!.decisions.map((item) => ({
+                    ...item,
+                    status: "revoked" as const
+                })),
+                completionFacts: base.archive!.completionFacts.map((item) => ({
+                    ...item,
+                    status: "superseded" as const
+                })),
+                riskDispositions: base.archive!.riskDispositions.map((item) => ({
+                    ...item,
+                    action: "reject" as const
+                }))
+            }
+        };
+        render(withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh"));
+        const conclusion = screen.getByRole("region", { name: "结论" });
+        const openItems = screen.getByRole("region", { name: "开放项" });
+        expect(
+            within(conclusion)
+                .getByText("decision-1: 采纳: 已撤销: candidate rationale")
+                .closest("li")?.textContent
+        ).toContain("🚫");
+        expect(
+            within(conclusion)
+                .getByText("completion statement: 已取代: completion rationale")
+                .closest("li")?.textContent
+        ).toContain("⏹️");
+        expect(
+            within(openItems).getByText("拒绝: risk scope: risk rationale").closest("li")
+                ?.textContent
+        ).toContain("❌");
+    });
+});
+
+describe("Meeting panel shell localization", () => {
     it("renders the panel shell in Chinese and English", () => {
         const { rerender } = render(emptyLayout("zh"));
         expect(screen.getByLabelText("Convivium 会议")).toBeTruthy();

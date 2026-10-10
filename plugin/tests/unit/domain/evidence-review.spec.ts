@@ -86,6 +86,7 @@ function evidenceState() {
         versionId: "version-v1",
         now: 5,
         evidence: {
+            summary: "观点摘要",
             observation: "观察",
             interpretation: "解释",
             method: "方法",
@@ -715,16 +716,15 @@ describe("review delivery and publication", () => {
         });
 
         expect(published.kind).toBe("accepted");
-        expect(published.kind === "accepted" && published.state.contributions[0]?.status).toBe(
-            "withdrawn"
-        );
-        expect(published.kind === "accepted" && published.state.contributions[0]?.exitReason).toBe(
-            "不再补充"
-        );
-        expect(
-            published.kind === "accepted" && published.state.publications[0]?.exitReasons
-        ).toEqual(["不再补充"]);
-        expect(published.kind === "accepted" && published.effectRequests).toEqual(
+        if (published.kind !== "accepted") {
+            throw new Error("publication");
+        }
+        expect(published.state.messages[0]?.body).toBe("观点摘要");
+        expect(published.state.evidencePackages[0]?.versions[0]?.observation).toBe("观察");
+        expect(published.state.contributions[0]?.status).toBe("withdrawn");
+        expect(published.state.contributions[0]?.exitReason).toBe("不再补充");
+        expect(published.state.publications[0]?.exitReasons).toEqual(["不再补充"]);
+        expect(published.effectRequests).toEqual(
             ["manager-v1", "contributor-v1", "reviewer-v1"].map((recipientId) => ({
                 kind: "agent_notice",
                 noticeKind: "transcript_update",
@@ -733,8 +733,6 @@ describe("review delivery and publication", () => {
                 publicMessageId: "message-v1"
             }))
         );
-        expect(
-            published.kind === "accepted" && validateMeetingState(published.state)
-        ).toMatchObject({ kind: "valid" });
+        expect(validateMeetingState(published.state)).toMatchObject({ kind: "valid" });
     });
 });

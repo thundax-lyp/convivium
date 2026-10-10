@@ -50,7 +50,7 @@
             "evidenceScopes": ["repository"],
             "agentInstructions": {
                 "roleDefinitionId": "domain_architect",
-                "sha256": "40d4c25ed09763396191b50378df950725770aebb32e839913de9d1013e5564e"
+                "sha256": "a37aacb0d141bd99f1290006ca16388b47aa9b654cd76990839eaba296bb9224"
             }
         },
         {
@@ -76,7 +76,7 @@
             "evidenceScopes": ["repository"],
             "agentInstructions": {
                 "roleDefinitionId": "runtime_engineer",
-                "sha256": "e387084976b3796ddf2b10b03203b00df381adb34299ced0c5e8f2f4d7019ab6"
+                "sha256": "a8e7d1b28662e16c7a4cfeaa084deb9de01b4a1c61af6fdfe3a1d89748ccbcd8"
             }
         },
         {
@@ -102,7 +102,7 @@
             "evidenceScopes": ["repository"],
             "agentInstructions": {
                 "roleDefinitionId": "protocol_ui_engineer",
-                "sha256": "7cd74d693fad6567e06670a42e33c2b725e324ccc167758d46b31e580a1d7ed6"
+                "sha256": "4cd6b899a7ac0cc523b328a8dd4da9f47a8ec87aed02391739ef5a1e89164524"
             }
         },
         {
@@ -150,7 +150,7 @@
             "evidenceScopes": ["github"],
             "agentInstructions": {
                 "roleDefinitionId": "github_research_analyst",
-                "sha256": "01397c2ad03db42588eab6e095f1bcc11c2ac46473467b58b0ea24afeeab12ba"
+                "sha256": "6f98176fc77621766bc3f4b72a5e515c58c7deadb02f58f60b3fda67b425e62a"
             }
         },
         {
@@ -176,7 +176,7 @@
             "evidenceScopes": ["arxiv"],
             "agentInstructions": {
                 "roleDefinitionId": "arxiv_research_analyst",
-                "sha256": "d1b1327cea37f66e95905c75b32af2926d1acc3a447c677a5850dc077227ef3a"
+                "sha256": "d6f86605fa544cf822aad1f166a75dfdf6c7d3004811a5b59aba674fe0ca0e0a"
             }
         }
     ]

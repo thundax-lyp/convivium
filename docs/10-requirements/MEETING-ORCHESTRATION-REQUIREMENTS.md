@@ -263,12 +263,13 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源进入对应角色泳道；没有明确行为者字段的对象进入系统泳道。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
 10. 同一对象的多个已发生时间分别形成 phase 节点。稳定排序、分组、筛选、高亮和对象定位只用于展示，不得据此构造领域提交顺序、因果关系或新的 Timeline event；首版不绘制推断性的 phase 间因果箭头。
 11. 时间线必须提供基于现有可见字段的身份、数据类型、状态和关联对象筛选，以及缩放、滚动、折叠泳道和回到最新；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
-12. 概览与时间线之间的定位只在同一 Selected Meeting Workspace 内切换模式并定位稳定对象。定位目标不存在、不可见或目标模式不展示时使用中性失败提示，不得区分不存在与无权查看，也不得改变 Meeting 状态、筛选或权限。
+12. 概览不显示时间线内容或对象定位按钮，时间线通过 Workspace 的独立 Tab 访问；时间线到概览的定位只在同一 Selected Meeting Workspace 内切换模式并定位稳定对象。定位目标不存在、不可见或目标模式不展示时使用中性失败提示，不得区分不存在与无权查看，也不得改变 Meeting 状态、筛选或权限。
 13. 宽屏中 Navigator 作为左侧栏；窄屏中同一 Navigator 折叠为显示当前 Meeting 的按钮和摘要列表抽屉，关闭后 Workspace 占满可用宽度。时间线在窄屏仍保留泳道模型并使用水平滚动，不产生第二份选择状态。
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘可以遍历节点和相邻泳道；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
 15. Meetings View 的新增标签、筛选、空状态、错误、ARIA 文案和已知 enum label 继续遵守 MO-FR-16 的 `zh`、`en` 本地化与原文保持边界；时间使用 DSH/Host 的 locale 与时区格式，不得从格式化结果反推字段。
 16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
 17. 首次列表读取尚未完成、失败或成功返回空列表且没有 last-good 摘要时，Meetings View 只显示占满主区域的 Navigator 页面状态，不显示搜索、Workspace 或分隔条；三种状态分别使用同一个 `Empty` 品牌图形和本地化 loading、error、empty text，不提供手动重试。取得非空完整列表后才显示 Navigator、Workspace 和宽屏分隔条，Workspace 使用尊重 `prefers-reduced-motion` 的轻量入场动画。刷新期间或失败后已有非空 last-good 摘要时继续保留双栏和当前 Workspace，不重新播放入场动画。
+18. 概览的轮次记录按贡献者展示已提交的过程事实：正式发言尚未生成时显示可见的 Contribution 或 EvidenceVersion 审核状态，不生成虚构 FormalMessage。已有可见 Review 时只显示 Review，不重复显示对应的 EvidenceVersion 审核状态；尚无 Review 时保留审核状态。证据入口打开模态对话框，完整展示当前 caller 投影中可见的 EvidenceVersion 内容、主张与参考资料；对话框标题使用当前轮次议题，副标题显示提交人；不显示证据版本号和失败次数。叙述字段按 Markdown 排版，渲染过滤原始 HTML 和不安全链接，并提供内部排版样式；不修改持久证据正文。关闭后返回原位置。入口和对话框不得请求或推断 caller 无权读取的未公开证据。
 
 ### MO-FR-18：聊天框启动会议
 
@@ -417,6 +418,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 62. 在真实本地 DSH Web Conversation 中输入 `/convivium 调查TypeSafe JEV的最新进展`，不操作 Meetings View 表单即可得到已提交的 `meetingId`，其 objective 保留用户目标，Manager、Reviewer、Host 配置选中的 Contributor 与一个 pending active 议题齐全；当前部署配置下两个研究角色参会、三个工程角色未进入会议，且会议启动后的投递不依赖输入 Session 常驻。
 63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
 64. 首次列表 loading、error 和 empty result 分别只呈现 `Empty` 品牌图形与对应本地化文本，没有搜索、Workspace、分隔条或 retry；非空列表首次可用后 Workspace 轻量入场，reduced-motion 环境无动画。已有非空 last-good 列表的 refresh loading/failure 仍保留 Navigator、Workspace、选择和陈旧标记。
+65. 已接纳但尚未提交证据的贡献者在记录中可见准备状态；已提交且正在审核的版本在没有 FormalMessage 时可见审核状态。点击当前 caller 可见版本的证据入口，模态对话框显示其观察、解释、方法、反证条件、不确定性、限制、主张和参考资料全部字段；关闭后焦点回到入口。无可见 EvidenceVersion 的失败贡献没有证据入口。
 
 ## Related Documents
 

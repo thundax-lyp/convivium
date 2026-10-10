@@ -1,0 +1,152 @@
+.modal {
+    width: min(760px, 100%);
+    max-height: 100%;
+}
+
+.content {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.content > :not(:last-child) {
+    flex-shrink: 0;
+}
+
+.content > :last-child {
+    min-height: 0;
+    overflow: hidden;
+    margin-top: 0;
+}
+
+.evidence {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    gap: 20px;
+}
+
+.metadata {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    flex-shrink: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--dsw-alias-border-l2);
+    color: var(--dsw-alias-label-secondary);
+    font-size: 12px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+}
+
+.metadata > :nth-child(2) {
+    text-align: center;
+}
+
+.metadata > :last-child {
+    text-align: right;
+}
+
+.metadata small {
+    display: block;
+}
+
+.body {
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    gap: 20px;
+    overflow-wrap: anywhere;
+}
+
+.body section > h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.body dl {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.field {
+    display: grid;
+    gap: 2px;
+}
+
+.field dt {
+    color: var(--dsw-alias-label-secondary);
+    font-size: 12px;
+}
+
+.field dd {
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.body section > ul {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding-inline-start: 20px;
+}
+
+.body section > p {
+    margin: 0;
+}
+
+.markdown {
+    white-space: normal;
+    line-height: 1.6;
+    min-width: 0;
+}
+
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+    margin-block: 16px 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.markdown :is(p, ul, ol, blockquote, pre, table) {
+    margin-block: 8px;
+}
+
+.markdown :is(ul, ol) {
+    padding-inline-start: 24px;
+}
+
+.markdown li + li {
+    margin-top: 4px;
+}
+
+.markdown pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.markdown table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.markdown :is(th, td) {
+    padding: 6px 10px;
+}
+
+.markdown > div > :first-child {
+    margin-top: 0;
+}
+
+.markdown > div > :last-child {
+    margin-bottom: 0;
+}
+
+.body .markdown > div {
+    color: var(--dsw-alias-label-primary);
+    line-height: 1.6;
+}

@@ -213,6 +213,7 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
                     type="button"
                     variant="outline"
                     size="sm"
+                    className={styles.narrowNavigatorToggle}
                     aria-label={t("panel.navigator.open")}
                     onClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
                         openerRef.current = event.currentTarget;

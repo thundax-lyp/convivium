@@ -33,6 +33,7 @@ function reviewedState() {
                 {
                     id: "version-1",
                     ordinal: 1,
+                    summary: "作者观点摘要",
                     observation: "observation",
                     interpretation: "interpretation",
                     method: "method",
