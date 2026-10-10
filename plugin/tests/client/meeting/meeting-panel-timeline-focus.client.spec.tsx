@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MeetingPanelTimeline } from "@/client/meeting/regions/workspace/timeline/index.ts";
@@ -10,6 +10,83 @@ import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timelin
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
+    it("alternates event cards, keeps round openings on the left and hides coordination details by default", () => {
+        const detail = activeTimelineFixture();
+        detail.rounds.push({
+            ...detail.rounds[0]!,
+            id: "round-2",
+            openedAt: 28,
+            abortedAt: undefined,
+            status: "open",
+            pendingHandRaises: []
+        });
+        render(
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={detail}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    locale="zh"
+                    onFiltersChange={() => undefined}
+                />,
+                "zh"
+            )
+        );
+        const cards = screen.getAllByTestId("timeline-node");
+        expect(
+            cards.find((node) => node.dataset.nodeKey === "round:round-1:aborted")?.dataset.emphasis
+        ).toBe("warning");
+        const round = cards.find((node) => node.dataset.nodeKey === "round:round-1:opened")!;
+        expect(round.dataset.side).toBe("left");
+        expect(round.dataset.emphasis).toBe("milestone");
+        expect(
+            cards.find((node) => node.dataset.nodeKey === "round:round-2:opened")?.dataset.side
+        ).toBe("left");
+        fireEvent.keyDown(round, { key: "ArrowDown" });
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("round:round-1:aborted");
+        expect(
+            cards.find((node) => node.dataset.nodeKey === "evidence_version:version-1:submitted")
+                ?.dataset.side
+        ).toBe("left");
+        expect(
+            cards.find((node) => node.dataset.nodeKey === "evidence_review:review-1:created")
+                ?.dataset.side
+        ).toBe("right");
+        expect(cards.some((node) => node.dataset.nodeKey?.startsWith("hand_raise:"))).toBe(false);
+        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
+        expect(
+            screen
+                .getAllByTestId("timeline-node")
+                .some((node) => node.dataset.nodeKey?.startsWith("hand_raise:"))
+        ).toBe(true);
+    });
+
+    it.each(["partial", "cancelled"] as const)(
+        "emphasizes %s termination and completed archive",
+        (outcome) => {
+            const detail = archiveTimelineFixture();
+            detail.archive!.termination!.outcome = outcome;
+            render(
+                withMeetingTranslation(
+                    <MeetingPanelTimeline
+                        detail={detail}
+                        filters={INITIAL_TIMELINE_FILTERS}
+                        viewportRevision={0}
+                        onFiltersChange={() => undefined}
+                    />,
+                    "zh"
+                )
+            );
+            const milestones = screen
+                .getAllByTestId("timeline-node")
+                .filter((node) => /^(termination|archive):/.test(node.dataset.nodeKey ?? ""));
+            expect(milestones).toHaveLength(2);
+            for (const node of milestones) {
+                expect(node.dataset.emphasis).toBe("milestone");
+            }
+        }
+    );
+
     it("shows timeline controls and visible node information", () => {
         render(
             withMeetingTranslation(

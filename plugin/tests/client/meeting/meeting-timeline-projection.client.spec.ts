@@ -10,7 +10,7 @@ import {
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 
 describe("Timeline projection", () => {
-    it("moves between adjacent visible lanes by time", () => {
+    it("moves chronologically and skips hidden roles", () => {
         const nodes = buildTimelineNodes(activeTimelineFixture());
         expect(
             findAdjacentTimelineKey({
@@ -19,7 +19,7 @@ describe("Timeline projection", () => {
                 direction: "up",
                 collapsedLanes: []
             })
-        ).toBe("formal_message:message-1:created");
+        ).toBe("round:round-1:aborted");
         expect(
             findAdjacentTimelineKey({
                 nodes,
@@ -27,7 +27,7 @@ describe("Timeline projection", () => {
                 direction: "up",
                 collapsedLanes: ["manager"]
             })
-        ).toBe("decision_candidate:candidate-1:created");
+        ).toBe("round:round-1:aborted");
     });
 
     it("maps every active source with phases, lanes, status and stable chronological order", () => {

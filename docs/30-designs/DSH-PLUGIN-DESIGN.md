@@ -94,7 +94,7 @@ DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的
 
 Meeting panel 的高度以 Host 可视内容区为界，并给底部固定输入区留出空间；宽屏 Navigator 和 Workspace 分别滚动，窄屏 Workspace 独立滚动，不让长 Meeting 内容撑高整个 Host 页面。
 
-Meeting Client 的静态样式随组件放在 CSS Module 中，颜色使用 DSH theme 提供的语义变量；Host 负责应用当前主题，Client 不另建主题状态。运行时计算的面板高度、Navigator 宽度和 Timeline 网格尺寸通过组件局部 CSS 变量传给样式。
+Meeting Client 的静态样式随组件放在 CSS Module 中，颜色使用 DSH theme 提供的语义变量；Host 负责应用当前主题，Client 不另建主题状态。运行时计算的面板高度、Navigator 宽度和 Timeline 卡片间距通过组件局部 CSS 变量传给样式。
 
 Workspace 只拥有可丢弃的展示状态：
 
@@ -155,7 +155,7 @@ interface TimelineNode {
 
 `TimelineNode` 不是领域 event，不离开 Client。节点正文继续从源 DTO 渲染；同一对象的不同已发生时间分别形成 phase，例如 `task:started` 与 `task:completed`。排序固定为 `time → objectKind order → objectId → phase order`，只防止 UI 抖动，不表示提交顺序或因果关系。首版不绘制 phase 间因果箭头。
 
-| 数据                                        | 时间                       | 泳道依据                      | 来源限制                                        |
+| 数据                                        | 时间                       | 角色依据                      | 来源限制                                        |
 | ------------------------------------------- | -------------------------- | ----------------------------- | ----------------------------------------------- |
 | `LifecycleView`                             | `changedAt`                | 系统                          | 只表示最近变化                                  |
 | `RoundView`                                 | `openedAt`、`abortedAt`    | 系统                          | 活动顶层；deadline 不是已发生节点               |
@@ -182,9 +182,9 @@ interface TimelineNode {
 
 没有公开时间字段的 `IdentityView`、`AgendaView`、`QuestionView`、`IssueView` 和 `ContributionView` 不形成节点；`deadlineAt` 只表示期限，不是已发生节点。`PrivateMailView` 即使对 caller 可见且带时间，也不进入公开时间线。
 
-对象有明确 actor/author/reviewer/manager/contributor 字段时才按身份角色进入 Captain、Manager、Contributor 或 Reviewer 泳道；无明确行为者进入系统泳道。关联身份、assignee 与业务常识不能替代 actor。一个 identity 有多个角色但对象不能确定行为角色时同样进入系统泳道。卡片同时显示具体 `displayName`，角色和状态不只用颜色表示。
+对象有明确 actor/author/reviewer/manager/contributor 字段时才按身份角色标记为 Captain、Manager、Contributor 或 Reviewer 角色；无明确行为者标记为系统角色。关联身份、assignee 与业务常识不能替代 actor。一个 identity 有多个角色但对象不能确定行为角色时同样标记为系统角色。卡片同时显示具体 `displayName`，角色和状态不只用颜色表示。
 
-时间线提供 identity、object type、原状态和已有关联对象筛选，以及 zoom、横向滚动、泳道折叠和回到最新。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、统一 Timeline event、额外 event ID 或因果推断。
+时间线提供 identity、object type、原状态和已有关联对象筛选，以及卡片间距 zoom、滚动、角色隐藏和回到最新。默认与详细事件展示遵循 MO-FR-17.18；显式筛选可以直接显示匹配的过程事件。卡片左右交错，轮次开启固定在左侧且不消耗交替序号；里程碑背景由已有 kind、phase 和 status 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、统一 Timeline event、额外 event ID 或因果推断。
 
 `relatedObjects` 只从源 DTO 能唯一确定目标类型的 `roundId`、`publicationId`、`evidenceIds`、`positionIds`、`decisionIds` 等引用建立，并记录对象类型与 ID。没有 target kind 的 `relatedIds` 不进入首版 `relatedObjects`；时间相邻、相同文本、可见 ID 索引或业务常识都不得猜测其类型。选中节点时只高亮同一已类型关联对象的可见 phase。
 
@@ -192,7 +192,7 @@ interface TimelineNode {
 
 概览不显示时间线导航或对象跳转按钮；用户通过 Workspace 的时间线 Tab 进入时间线。时间线到概览的定位设置 `activeMode="overview"` 和同一 Meeting 的 `focusTarget`。目标挂载后展开、滚动和聚焦，成功或失败均清除一次性 focus。多 phase 对象默认定位时间最晚节点并允许查看其他 phase。目标不存在、被 caller filtering 删除或目标模式不展示时只报告中性失败，不修改筛选、Meeting 或权限。
 
-存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线保持五类泳道并横向滚动，DOM 按时间排序，键盘可以遍历时间节点和相邻泳道；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
+存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线采用纵向左右交错卡片，窄屏必要时横向滚动，保留五类角色文字与隐藏控制；DOM 按时间排序，方向键遍历相邻可见时间节点；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
 
 状态呈现如下：
 
@@ -227,5 +227,5 @@ DSH 接受输入、Session 投递成功、Agent 执行完成和 Meeting 事实�
 5. 停止、恢复和归档均不会操作无法证明归属的 Session。
 6. Client 只注册一个 `convivium-meetings` View；未选择 Meeting 时不读取详情，概览和时间线共享同一选择、详情与刷新订阅。
 7. 切换 Meeting、补读后选中项消失、详情失败和断线分别按 Meetings Workspace 状态规则处理，不发生隐式改选或跨 Meeting 本地状态泄漏。
-8. 活动与归档 Timeline 分别只从其允许的 caller-filtered 数据源确定性生成节点；身份泳道、系统泳道、多 phase、筛选与定位不生成新事实或泄露隐藏对象。
-9. 宽屏侧栏与窄屏抽屉共享选择状态；五类泳道、键盘顺序、焦点、本地化和颜色之外的状态表达通过 Client 与真实 DSH Web 验证。
+8. 活动与归档 Timeline 分别只从其允许的 caller-filtered 数据源确定性生成节点；身份角色、系统角色、多 phase、筛选与定位不生成新事实或泄露隐藏对象。
+9. 宽屏侧栏与窄屏抽屉共享选择状态；左右交错卡片、角色标识、键盘顺序、焦点、本地化和颜色之外的状态表达通过 Client 与真实 DSH Web 验证。
