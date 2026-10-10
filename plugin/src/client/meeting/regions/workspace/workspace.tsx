@@ -16,7 +16,7 @@ import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { ButtonGroup, ConviviumMark, Empty } from "@/client/meeting/components/index.ts";
 import { MeetingPanelOverview } from "./overview/index.ts";
 import { MeetingPanelTimeline } from "./timeline/index.ts";
-import { MeetingControls } from "./meeting-controls.tsx";
+import { MeetingControls } from "./meeting-controls/index.ts";
 import styles from "./workspace.module.css";
 
 const EmptyMeeting = ({ message }: { message?: string }): ReactElement => {
