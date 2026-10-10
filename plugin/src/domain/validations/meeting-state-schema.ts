@@ -396,6 +396,7 @@ const evidenceVersionSchema = withDefinedOptionals(
     z.object({
         id: opaqueIdSchema,
         ordinal: positiveIntegerSchema,
+        summary: textSchema.optional(),
         observation: textSchema,
         interpretation: textSchema,
         method: textSchema,
@@ -417,7 +418,7 @@ const evidenceVersionSchema = withDefinedOptionals(
             .enum(["review_timeout", "review_interrupted", "dispatch_failed"])
             .optional()
     }),
-    ["lastFailureReason"]
+    ["summary", "lastFailureReason"]
 ).superRefine((version, ctx) => {
     if ((version.status === "validation_failed") !== (version.lastFailureReason !== undefined)) {
         ctx.addIssue({ code: "custom", path: ["lastFailureReason"] });

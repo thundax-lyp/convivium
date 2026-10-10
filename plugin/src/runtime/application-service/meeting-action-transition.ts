@@ -433,6 +433,30 @@ const runManagerPlanTransition = (
     };
 };
 
+const runRoundPublicationTransition = (
+    input: TransitionInput,
+    action: Extract<MeetingCommand["action"], { kind: "publish_round" }>,
+    actorId: string
+): CommandTransition => {
+    const { snapshot, deps, now } = input;
+    const generated = (kind: string) => deps.ids.nextId(kind);
+    const round = snapshot.state.rounds.find((candidate) => candidate.id === action.roundId);
+    const count =
+        round?.contributionIds.filter((id) => {
+            const contribution = snapshot.state.contributions.find(
+                (candidate) => candidate.id === id
+            );
+            return contribution?.packageId !== undefined;
+        }).length ?? 0;
+    return publishRound(snapshot.state, {
+        roundId: action.roundId,
+        managerId: actorId,
+        publicationId: generated("publication"),
+        messageIds: Array.from({ length: count }, () => generated("formal_message")),
+        now
+    });
+};
+
 export const runMeetingActionTransition = (input: TransitionInput): CommandTransition => {
     const { snapshot, deps, command, scope, now } = input;
     const generated = (kind: string) => deps.ids.nextId(kind);
@@ -576,26 +600,9 @@ export const runMeetingActionTransition = (input: TransitionInput): CommandTrans
                 now
             });
             break;
-        case "publish_round": {
-            const round = snapshot.state.rounds.find(
-                (candidate) => candidate.id === action.roundId
-            );
-            const count =
-                round?.contributionIds.filter((id) => {
-                    const contribution = snapshot.state.contributions.find(
-                        (candidate) => candidate.id === id
-                    );
-                    return contribution?.packageId !== undefined;
-                }).length ?? 0;
-            transition = publishRound(snapshot.state, {
-                roundId: action.roundId,
-                managerId: actorId,
-                publicationId: generated("publication"),
-                messageIds: Array.from({ length: count }, () => generated("formal_message")),
-                now
-            });
+        case "publish_round":
+            transition = runRoundPublicationTransition(input, action, actorId);
             break;
-        }
         case "activate_agenda":
         case "dispose_agenda_candidate":
         case "resolve_question":

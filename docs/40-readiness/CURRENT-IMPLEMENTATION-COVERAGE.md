@@ -76,6 +76,40 @@
 
 ## Executed Validation
 
+### 2026-10-10：历史观点缺少摘要时显示原文
+
+缺少独立摘要的历史观点直接显示已持久化的 FormalMessage 正文，沿用三行折叠与展开/收起交互，证据对话框仍保留原文。相关 records/locales 测试 2 files/15 tests、Client typecheck 与 diff check 通过；人工安装刷新后，真实归档会议的两条历史观点显示原文及“...展开”，不再显示缺少摘要的占位文案。未修改历史持久数据。
+
+### 2026-10-10：撤销记录调试数据
+
+移除记录预览轮次、预览名称映射和 URL 参数入口，并删除仅验证预览注入的测试及操作说明。会议 Client 13 个测试文件共 75 项通过，Client typecheck、构建、固定人工刷新与 git diff --check 通过。浏览器切回不带预览参数的本机地址，读回真实会议仅有原已发布轮次，不再显示调试记录；会议 SQLite 未修改。未重跑 Host 或真实模型会议。
+
+### 2026-10-10：概览移除时间线导航
+
+概览移除时间线对象导航按钮及其单向定位回调，独立时间线 Tab 与时间线到概览定位保留。会议 Client 13 个测试文件共 76 项通过，Client typecheck、构建、固定人工刷新与 git diff --check 通过。内置浏览器读回概览，时间线只作为 Workspace Tab 出现，不再有概览内的时间线导航。未重跑完整 Host/contract 测试或真实模型会议。
+
+### 2026-10-10：概览移除技术信息
+
+概览不再渲染独立技术信息区，移除其 archive/task 概览定位入口；领域数据和时间线保留。会议 Client 13 个测试文件共 76 项通过，Client typecheck、构建、固定人工刷新与 git diff --check 通过。内置浏览器读回概览，仅有目标、议题、结论、开放项和记录五个区域，没有技术信息区域。未重跑 Host 或真实模型会议。
+
+### 2026-10-10：证据对话框固定标题
+
+局部 CSS 将滚动限定在证据正文，标题、贡献者副标题和关闭按钮不参与滚动。构建与固定人工安装刷新通过，git diff --check 通过；内置浏览器将现有长证据滚动到最后一项参考资料，确认标题、副标题和关闭按钮仍在顶部可见。本次为布局调整，未新增测试或重跑行为套件。
+
+后续将审核状态和提交时间移至贡献者所在的固定副标题，正文不再重复显示元信息；相关 16 项 Client 测试和 Client typecheck 通过，构建与人工刷新成功，浏览器确认贡献者、审核状态和日期时间在同一区域显示。元信息进一步使用 12px 次级文字、淡分隔线和下方留白，与正文形成视觉区分；后续改为提交人、状态值和时间值的水平等宽三列，去掉状态与时间标签。相关 16 项 UI 测试、Client typecheck、构建和人工刷新通过，浏览器确认三列布局且滚动到底部后仍保持可见。
+
+### 2026-10-10：证据对话框标题与 Markdown 排版
+
+证据 Modal 使用轮次议题标题与贡献者名称副标题，隐藏证据版本序号和审核失败次数；叙述字段复用 DSH MarkdownText，结构化引用字段保留原文，配套局部样式处理正文颜色、标题/段落/列表间距及宽表/代码块滚动。相关 2 个 Client 测试文件共 16 项通过，Client typecheck、构建与固定人工安装刷新通过，根 lint 为 0 errors、4 warnings，git diff --check 通过。内置浏览器检查已有归档证据：议题标题可换行、作者名称显示、正文颜色与段落间距正常；Markdown 标题、粗体、表格及完整证据内容由组件测试验证。未重跑完整 Host/contract 测试或真实模型会议。
+
+### 2026-10-10：独立观点摘要
+
+新 SubmitEvidence 要求作者提供独立非空 `summary`，同版本审核覆盖摘要与完整证据的一致性及重要限制，发布后的 FormalMessage 原样使用摘要。完整证据保留；历史持久版本兼容缺少摘要，已有消息不重写，概览明确标注缺失摘要，证据 Modal 保留历史观点原文。未发布但 caller-visible 的版本显示已有摘要。相关 5 个测试文件共 41 项通过；Host/Client/remote-test typecheck 通过，根 lint 为 0 errors、4 warnings，构建和固定人工安装刷新成功。全量测试通过 855 项，另 1 项因已有 import-graph helper 不支持 LOGO 的 SVG import 失败（HEAD 中已存在同一 import）；不能报告为全量通过。内置浏览器读回已有归档会议，确认缺失摘要提示、Modal 原文和完整字段可读、关闭回到概览。Not Covered：未新建真实模型会议验证作者实际生成 summary 和审核人遵循摘要审核提示。
+
+### 2026-10-10：轮次记录过程状态与证据对话框
+
+在当前未提交的 Client 工作区，`meeting-round-records.client.spec.tsx` 与 `meeting-panel-locales.client.spec.ts` 共 14 项测试通过，`pnpm typecheck:client` 通过，根目录 `pnpm lint` 为 0 errors、2 个无关既有 warnings，`git diff --check` 通过。固定人工 DSH Web 经 `--dev-refresh` 后复用原会议 SQLite；内置浏览器读回归档会议，证据按钮能打开包含主张和参考资料的完整对话框，关闭后焦点返回按钮，提交时间显示为可读日期。未在真实运行会议中观察到“准备中／审核中”状态切换；该过程路径目前由 caller-visible 投影的组件测试验证。
+
 ### 2026-10-10：长 Agent turn 的 outbox lease 续约与丢租约隔离
 
 本次 Convivium 改动不修改 DSH 源代码。outbox worker 在等待 Agent turn 等长投递期间按半个 TTL 周期续约当前 lease；续约或 completion 发生 `LEASE_LOST` 时，不再用旧 token 二次写 retry/failed，也不终止 worker loop，而是继续处理后续持久 effect。回归测试先分别观察到长投递不续租超时、completion 丢租约导致 worker 退出，再在实现后通过。`pnpm --dir plugin verify` 退出 0：96 个测试文件、841 个测试，以及 format、lint、Host/Client/remote-test typecheck、build、环境、契约、七角色 Definition 与 package 检查通过；lint 有 2 个非阻断既有 warning。`node .github/scripts/check-doc-links.mjs` 检查 1124 个本地链接、0 errors。

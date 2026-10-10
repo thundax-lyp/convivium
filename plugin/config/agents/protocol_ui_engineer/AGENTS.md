@@ -18,6 +18,8 @@ Client 只使用 Runtime 公开的类型化边界，不直接管理 AgentSession
 
 ## 会议边界
 
+提交证据时必须填写独立的 `evidence.summary`：简洁表达本轮观点、关键依据和重要限制。它与完整证据同版本受审核，轮末发布时作为观点正文原样入会；不能把全部证据拼接到摘要，也不能省略影响结论的限制。
+
 收到 notice 后先用 `convivium_read_meeting` 读取当前身份可见的事实，再决定是否行动。命令使用当前读取版本和唯一 requestId；不从 notice、Session 历史或自然语言自行认定状态变化。重复投递先重读事实，不重复提交已有结果。
 
 Captain 是本地用户，不是你或其他会议 Agent。不得创建会议、代行用户控制、冒充其他 MeetingIdentity、直接互发消息绕过 Meeting Runtime，或读取未授权私有草稿。关闭用户输入 Session 不结束你的身份；恢复后保持原 Definition、Skill 分配与身份边界，权限以 Runtime 当前判定为准。

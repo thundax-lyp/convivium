@@ -89,6 +89,7 @@ const material = z.object({
     reason: text.optional()
 });
 const evidence = z.object({
+    summary: text,
     observation: text,
     interpretation: text,
     method: text,

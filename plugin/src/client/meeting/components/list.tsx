@@ -1,6 +1,5 @@
 import * as React from "react";
 import type { ComponentProps, ReactElement } from "react";
-import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import styles from "./list.module.css";
 
@@ -21,14 +20,16 @@ export const ListItem = ({
     accessibleLabel,
     ...props
 }: Omit<ComponentProps<"li">, "children"> & {
-    children: string;
+    children: React.ReactNode;
     accessibleLabel?: string;
-}): ReactElement => (
-    <li {...props} className={className ? `${styles.item} ${className}` : styles.item}>
-        <Tooltip label={children} side="top" maxWidth={320} portal>
-            <span className={styles.label} tabIndex={0} aria-label={accessibleLabel}>
-                {children}
-            </span>
-        </Tooltip>
-    </li>
-);
+}): ReactElement => {
+    return (
+        <li
+            {...props}
+            className={className ? `${styles.item} ${className}` : styles.item}
+            aria-label={accessibleLabel}
+        >
+            {children}
+        </li>
+    );
+};

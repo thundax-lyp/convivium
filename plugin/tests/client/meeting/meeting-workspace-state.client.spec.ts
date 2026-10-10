@@ -31,11 +31,12 @@ describe("Meetings workspace state", () => {
                 ...INITIAL_TIMELINE_FILTERS,
                 identityIds: ["contributor-1"]
             });
-            result.current.locateInTimeline({
+            result.current.locateInOverview({
                 meetingId: "meeting-1",
                 objectKind: "decision",
                 objectId: "decision-1"
             });
+            result.current.setMode("timeline");
         });
         act(() => result.current.selectMeeting("meeting-2"));
 

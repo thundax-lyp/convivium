@@ -40,9 +40,6 @@ export const useMeetingWorkspace = () => {
     const consumeFocus = () => {
         setWorkspace((current) => ({ ...current, focusTarget: undefined }));
     };
-    const locateInTimeline = (focusTarget: MeetingFocusTarget) => {
-        setWorkspace((current) => ({ ...current, activeMode: "timeline", focusTarget }));
-    };
     const locateInOverview = (focusTarget: MeetingFocusTarget) => {
         setWorkspace((current) => ({ ...current, activeMode: "overview", focusTarget }));
     };
@@ -54,7 +51,6 @@ export const useMeetingWorkspace = () => {
         setMode,
         setTimelineFilters,
         consumeFocus,
-        locateInTimeline,
         locateInOverview
     };
 };

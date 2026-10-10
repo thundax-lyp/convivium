@@ -1,0 +1,40 @@
+.round {
+    margin-block: 12px 20px;
+}
+
+.round h5,
+.unmatchedDeliveries h5 {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.contributorRecord {
+    margin: 8px 0 8px 8px;
+    padding-inline-start: 8px;
+    border-inline-start: 2px solid var(--dsw-alias-border-l2);
+}
+
+.contributorRecord h6 {
+    margin: 0;
+    color: var(--dsw-alias-label-secondary);
+    font-size: 12px;
+}
+
+.evidenceButton {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dsw-alias-label-primary);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.evidenceButton:hover {
+    text-decoration-thickness: 2px;
+}
+
+.unmatchedDeliveries {
+    margin-block-start: 16px;
+}

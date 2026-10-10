@@ -1,6 +1,6 @@
 # Convivium
 
-<img src="assets/convivium-logo.svg" alt="" width="176" />
+<img src="assets/convivium-picnic-basket.png" alt="Picnic basket with baguettes, wine, flowers, and grapes" width="280" />
 
 A local evidence-gathering runtime for human-directed agent work.
 

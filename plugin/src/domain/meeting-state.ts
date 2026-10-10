@@ -263,6 +263,8 @@ export interface EvidenceMaterial {
 }
 
 export interface EvidenceVersion {
+    /** Absent only on historical evidence versions. */
+    summary?: string;
     id: OpaqueId;
     ordinal: number;
     observation: string;

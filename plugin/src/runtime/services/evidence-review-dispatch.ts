@@ -344,7 +344,7 @@ export const createReviewWorkerPromptResolver = (dependencies: {
             reviewConstraint: { versionId, allowedBaselineEvidenceIds },
             reviewItemRules,
             instructions:
-                "只审核 pending.version 与所列固定 baseline。返回符合 workerOutputSchema 的 object；versionId 必须等于 reviewConstraint.versionId；各维 baselineEvidenceIds 只能取 allowedBaselineEvidenceIds，首轮无 baseline 时使用 []。"
+                "只审核 pending.version 与所列固定 baseline。核对 pending.version.summary 与完整证据的一致性及重要限制，将摘要支撑度纳入 support、遗漏纳入 completeness；历史版本无 summary 时按完整证据审核，不补写摘要。返回符合 workerOutputSchema 的 object；versionId 必须等于 reviewConstraint.versionId；各维 baselineEvidenceIds 只能取 allowedBaselineEvidenceIds，首轮无 baseline 时使用 []。"
         });
     }
 });
