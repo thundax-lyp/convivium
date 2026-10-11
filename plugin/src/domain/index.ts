@@ -68,3 +68,15 @@ export {
     type TargetDomainFactPayload
 } from "./meeting-state-transitions.ts";
 export { captainActorIdFor } from "./control-actor.ts";
+export {
+    MEETING_EVENT_LOG_VERSION,
+    MEETING_EVENT_KINDS,
+    type MeetingEventKind,
+    type MeetingEventActor,
+    type MeetingEventObjectKind,
+    type MeetingEventObjectRef,
+    type MeetingEventDataByKind,
+    type MeetingEventPayload,
+    type MeetingEventInput,
+    type PersistedMeetingEvent
+} from "./meeting-event.ts";

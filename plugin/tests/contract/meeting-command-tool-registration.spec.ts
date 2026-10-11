@@ -138,7 +138,6 @@ describe("target Meeting tool registration", () => {
             "convivium_raise_hand",
             "convivium_decline_hand",
             "convivium_submit_evidence",
-            "convivium_submit_evidence_review",
             "convivium_recommend_identity"
         ]);
         for (const definition of definitions) {

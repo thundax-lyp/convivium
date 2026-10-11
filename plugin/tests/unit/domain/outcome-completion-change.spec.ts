@@ -158,6 +158,7 @@ describe("CompletionFact change", () => {
     ] as const)("rejects change shape %s", (_name, overrides) => {
         const state = ready();
         expect(change(state, overrides)).toMatchObject({
+            kind: "rejected",
             error: { code: "INVALID_ARGUMENT" },
             state,
             relatedIds: [],

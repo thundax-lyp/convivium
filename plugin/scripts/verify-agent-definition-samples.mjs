@@ -123,7 +123,6 @@ export async function verifyMeetingAgentDefinitions(root) {
                         "convivium_publish_round",
                         "convivium_end_meeting",
                         "convivium_run_review_worker",
-                        "convivium_submit_evidence_review",
                         "convivium_recommend_identity"
                     ];
                     const toolFilter =
@@ -145,8 +144,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                     allow: [
                                         "skill",
                                         "convivium_read_meeting",
-                                        "convivium_run_review_worker",
-                                        "convivium_submit_evidence_review"
+                                        "convivium_run_review_worker"
                                     ]
                                 }
                               : { deny: contributorDeny };

@@ -2,6 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import {
     defineTool,
+    validateJsonSchemaValue,
     type ParameterSchemaSpec,
     type ToolRuntime,
     type ValueSchemaSpec
@@ -51,7 +52,7 @@ export interface MeetingCommandToolDependencies {
             versionId: string;
             caller: ResolvedMeetingCaller;
             signal: AbortSignal;
-        }): Promise<string | undefined>;
+        }): Promise<{ prompt: string; claimId: string; roundId: string } | undefined>;
     };
     readonly callers: TargetMeetingToolCallerResolver;
     readonly reader: TargetMeetingToolReader;
@@ -84,20 +85,6 @@ const evidenceTextSchema = {
     value: requiredString("Evidence statement."),
     reason: optionalString("Optional qualification or reason.")
 };
-const reviewDimensionSchema = {
-    score: {
-        oneOf: [
-            { type: "integer", enum: [0, 1, 2, 3] },
-            { type: "string", const: "unable_to_assess" }
-        ],
-        required: true,
-        description: "Dimension score or unable_to_assess."
-    },
-    scope: requiredString("Scope assessed by this dimension."),
-    reason: requiredString("Reason for the score."),
-    baselineEvidenceIds: requiredStringArray("Baseline evidence identifiers used.")
-} satisfies ParameterSchemaSpec;
-
 const actionSchemas = {
     open_round: exactObject({
         kind: { type: "string", const: "open_round", required: true },
@@ -209,19 +196,6 @@ const actionSchemas = {
             )
         })
     }),
-    submit_evidence_review: exactObject({
-        kind: { type: "string", const: "submit_evidence_review", required: true },
-        roundId: requiredString("Round identifier covered by the claim."),
-        claimId: requiredString("Active EvidenceReviewClaim identifier."),
-        versionId: requiredString("Evidence version identifier."),
-        dimensions: requiredObject({
-            source: requiredObject(reviewDimensionSchema),
-            credibility: requiredObject(reviewDimensionSchema),
-            completeness: requiredObject(reviewDimensionSchema),
-            support: requiredObject(reviewDimensionSchema)
-        }),
-        scope: requiredString("Overall review scope.")
-    }),
     recommend_identity: exactObject({
         kind: { type: "string", const: "recommend_identity", required: true },
         candidateId: requiredString("Catalog candidate identifier."),
@@ -288,15 +262,11 @@ const commandToolParameters = (kind: keyof typeof actionSchemas): ParameterSchem
         description: "Meeting protocol version."
     },
     meetingId: requiredString("Target Meeting identifier."),
-    ...(kind === "submit_evidence_review"
-        ? {}
-        : {
-              expectedMeetingVersion: {
-                  type: "integer" as const,
-                  required: true as const,
-                  description: "Current version returned by convivium_read_meeting."
-              }
-          }),
+    expectedMeetingVersion: {
+        type: "integer",
+        required: true,
+        description: "Current version returned by convivium_read_meeting."
+    },
     requestId: requiredString(
         "Unique idempotency key; reuse only when retrying the exact same command."
     ),
@@ -440,7 +410,7 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
         defineTool({
             name: "convivium_run_review_worker",
             description:
-                "Run one isolated review worker with the Meeting review output schema enforced by the provider.",
+                "Run one isolated review worker, validate its structured result and submit the Review under the active reviewer claim. Returns the submission receipt or rejection, not a Review to copy.",
             parameters: reviewWorkerParameters,
             output: {
                 schema: { type: "json" },
@@ -487,7 +457,7 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                 }
                 const run = await dependencies.reviewWorkers.start("spawn", {
                     label: `convivium:review:${versionId}`,
-                    prompt: [{ type: "text", text: prompt }],
+                    prompt: [{ type: "text", text: prompt.prompt }],
                     parent: exec.agent,
                     signal: exec.signal,
                     outputSchema: ReviewWorkerOutputSchema,
@@ -495,6 +465,7 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                 });
                 try {
                     const result = await run.result;
+                    exec.signal.throwIfAborted();
                     if (
                         result.stopReason !== "completed" ||
                         result.structured === undefined ||
@@ -511,10 +482,16 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                         } as JsonValue;
                     }
                     const output = result.structured as Record<string, unknown>;
+                    if (validateJsonSchemaValue(ReviewWorkerOutputSchema, output).length !== 0) {
+                        return {
+                            kind: "failed",
+                            code: "REVIEW_WORKER_OUTPUT_INVALID"
+                        } as JsonValue;
+                    }
                     const parsed = SubmitEvidenceReviewActionSchema.safeParse({
                         kind: "submit_evidence_review",
-                        roundId: "worker-output",
-                        claimId: "worker-output",
+                        roundId: prompt.roundId,
+                        claimId: prompt.claimId,
                         versionId: output.versionId,
                         dimensions: output.dimensions,
                         scope: output.scope
@@ -525,14 +502,16 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                             code: "REVIEW_WORKER_OUTPUT_INVALID"
                         } as JsonValue;
                     }
-                    return {
-                        kind: "completed",
-                        review: {
-                            versionId: parsed.data.versionId,
-                            dimensions: parsed.data.dimensions,
-                            scope: parsed.data.scope
-                        }
-                    } as JsonValue;
+                    return (await dependencies.application.execute(
+                        {
+                            protocolVersion: 1,
+                            meetingId,
+                            requestId: `evidence-review:${prompt.claimId}`,
+                            action: parsed.data
+                        },
+                        { caller: caller.caller },
+                        exec.signal
+                    )) as unknown as JsonValue;
                 } finally {
                     await run.dispose();
                 }
@@ -568,11 +547,6 @@ export function registerMeetingTools(
             name: "convivium_submit_evidence",
             kind: "submit_evidence",
             schema: SubmitEvidenceActionSchema
-        },
-        {
-            name: "convivium_submit_evidence_review",
-            kind: "submit_evidence_review",
-            schema: SubmitEvidenceReviewActionSchema
         },
         {
             name: "convivium_recommend_identity",

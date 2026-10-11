@@ -98,7 +98,7 @@ DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的
 
 Meeting panel 的高度以 Host 可视内容区为界，并给底部固定输入区留出空间；宽屏 Navigator 和 Workspace 分别滚动，窄屏 Workspace 独立滚动，不让长 Meeting 内容撑高整个 Host 页面。
 
-Meeting Client 的静态样式随组件放在 CSS Module 中，颜色使用 DSH theme 提供的语义变量；Host 负责应用当前主题，Client 不另建主题状态。运行时计算的面板高度、Navigator 宽度和 Timeline 网格尺寸通过组件局部 CSS 变量传给样式。
+Meeting Client 的静态样式随组件放在 CSS Module 中，颜色使用 DSH theme 提供的语义变量；Host 负责应用当前主题，Client 不另建主题状态。运行时计算的面板高度、Navigator 宽度和 Timeline 卡片间距通过组件局部 CSS 变量传给样式。
 
 Workspace 只拥有可丢弃的展示状态：
 
@@ -146,57 +146,99 @@ Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`�
 
 ```ts
 interface TimelineNode {
-  key: string; // objectKind:objectId:phase
+  key: string; // event:<eventSeq>
+  eventSeq: number;
+  meetingVersion: number; // 仅用于核对同一次提交，不进入 milestone group
+  eventKind: MeetingEventKind;
   objectKind: string;
   objectId: string;
-  phase: string;
   time: number;
   lane: "captain" | "manager" | "contributor" | "reviewer" | "system";
   identityId?: string;
   relatedObjects: Array<{ objectKind: string; objectId: string }>;
+  eventData: MeetingEventDataByKind[MeetingEventKind];
 }
 ```
 
-`TimelineNode` 不是领域 event，不离开 Client。节点正文继续从源 DTO 渲染；同一对象的不同已发生时间分别形成 phase，例如 `task:started` 与 `task:completed`。排序固定为 `time → objectKind order → objectId → phase order`，只防止 UI 抖动，不表示提交顺序或因果关系。首版不绘制 phase 间因果箭头。
+`TimelineNode` 是基础 `MeetingEventView` 的 Client 展示投影，不离开 Client，也不反向写入事件日志。节点先用 event `data` 呈现发生时不可变的 status、reason、summary 或 failure，再用同一 caller-filtered `MeetingView` 中与 `subject` 匹配的 DTO 补充当前可见详情；不得用当前 DTO 覆盖已经记录的历史值。对象当前已不可见或已被替换时仍可显示 event 自带的安全 occurrence 数据和稳定对象 ID，不反向猜测完整对象。排序固定为 `time → eventSeq`；`eventSeq` 只消除同一时刻的 UI 抖动，不表示业务因果关系。首版不绘制事件间推断性因果箭头。
 
-| 数据                                        | 时间                       | 泳道依据                      | 来源限制                                        |
-| ------------------------------------------- | -------------------------- | ----------------------------- | ----------------------------------------------- |
-| `LifecycleView`                             | `changedAt`                | 系统                          | 只表示最近变化                                  |
-| `RoundView`                                 | `openedAt`、`abortedAt`    | 系统                          | 活动顶层；deadline 不是已发生节点               |
-| `EvidenceOpportunityRequestView`            | `requestedAt`              | `contributorId`               | 活动顶层 caller-visible                         |
-| `PendingHandRaiseView`                      | `raisedAt`                 | `contributorId`               | 活动顶层 caller-visible                         |
-| `EvidenceVersionView`                       | `submittedAt`              | package/Archive bundle author | 当前 projection 实际返回的版本                  |
-| `EvidenceReviewView`                        | `createdAt`                | `reviewerId`                  | 不展示 reviewer 内部过程                        |
-| `ReviewDeliveryView`                        | `sentAt` 或 `failedAt`     | 系统                          | 活动顶层；只表示投递结果                        |
-| `PublicationView`                           | `publishedAt`              | 系统                          | 不推断发布者                                    |
-| `FormalMessageView`                         | `createdAt`                | `actorId`                     | 使用明确引用关联对象                            |
-| `IdentityRecommendationView`                | `createdAt`                | 系统                          | 活动顶层 caller-visible；没有公开 actor 字段    |
-| `ProposalRevisionView`                      | `createdAt`                | `actorId`                     | 仅 Archive                                      |
-| `PositionView`                              | `createdAt`                | `actorId`                     | 仅 Archive                                      |
-| `DecisionCandidateView`                     | `createdAt`                | `actorId`                     | 活动只取 caller-visible pending；归档取 Archive |
-| `DecisionView`                              | `createdAt`                | `actorId`                     | 保留原状态                                      |
-| `CompletionFactView`、`RiskDispositionView` | `createdAt`                | `actorId`                     | 不合成新结论                                    |
-| `CommittedFactView`                         | `occurredAt`               | `actorId`                     | 仅 Archive Question/Issue disposition facts     |
-| `ManagerPlanView`                           | `createdAt`                | `managerId`                   | 活动顶层 caller-visible                         |
-| `TaskView`                                  | `startedAt`、`completedAt` | 系统                          | `assigneeId` 不是行为者                         |
-| `TerminationView`                           | `endedAt`                  | 系统                          | 展示原 outcome/reason                           |
-| `ArchiveView`                               | `createdAt`                | 系统                          | 展示原 status                                   |
+#### 阶段性里程碑与事件分组
 
-活动 Meeting 只从顶层 caller-filtered projection 建节点，并从顶层 `IdentityView` 解析身份。归档 Meeting 只从完整 `ArchiveView` 建历史节点，并从 `identityProvenance` 解析身份；不从顶层 rounds、deliveries、plans、tasks、request 或 hand raise 回填，不复制 Archive 已物化对象。Archive 缺失或不完整时显示归档读取失败，不混合两个来源。
+时间线的展示模型分为两层：阶段性里程碑是章节，事件是章节内已经发生的事实。里程碑标题、阶段状态、时间范围和摘要只组织当前 caller 可见的 `TimelineNode`，不创建新的领域 event、提交记录或完成结论，也不离开 Client：
 
-没有公开时间字段的 `IdentityView`、`AgendaView`、`QuestionView`、`IssueView` 和 `ContributionView` 不形成节点；`deadlineAt` 只表示期限，不是已发生节点。`PrivateMailView` 即使对 caller 可见且带时间，也不进入公开时间线。
+```ts
+interface TimelineMilestoneGroup {
+  key: string;
+  kind:
+    | "meeting_start"
+    | "round"
+    | "convergence"
+    | "completion"
+    | "closure"
+    | "other";
+  occurrence: number;
+  title: string;
+  status: "active" | "completed" | "aborted" | "blocked";
+  startedAt: number;
+  completedAt?: number;
+  eventKeys: string[];
+}
+```
 
-对象有明确 actor/author/reviewer/manager/contributor 字段时才按身份角色进入 Captain、Manager、Contributor 或 Reviewer 泳道；无明确行为者进入系统泳道。关联身份、assignee 与业务常识不能替代 actor。一个 identity 有多个角色但对象不能确定行为角色时同样进入系统泳道。卡片同时显示具体 `displayName`，角色和状态不只用颜色表示。
+`occurrence` 区分同类阶段的多次进入，只存在于 Client group。固定 key 为 `milestone:meeting-start:1`、`milestone:round:<roundId>`、`milestone:convergence:<occurrence>`、`milestone:completion:<occurrence>`、`milestone:closure:1` 和 `milestone:other:1`。meeting-start、closure、other 的 occurrence 为 1；round occurrence 是 `round.opened` 按 `eventSeq` 出现的序号；convergence 与其 completion 共用从 1 开始的 occurrence。没有事件节点的内部实例不输出 group。
 
-时间线提供 identity、object type、原状态和已有关联对象筛选，以及 zoom、横向滚动、泳道折叠和回到最新。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、统一 Timeline event、额外 event ID 或因果推断。
+分组器先对完整、未经过详情开关或显式筛选的 event nodes 按 `eventSeq` 执行以下确定性 reducer，再对每组节点应用可见性筛选；筛选不得改变 group key、occurrence、status、startedAt 或 completedAt，筛选后没有可见节点的 group 不渲染。摘要只能读取筛选后仍可见的节点。
 
-`relatedObjects` 只从源 DTO 能唯一确定目标类型的 `roundId`、`publicationId`、`evidenceIds`、`positionIds`、`decisionIds` 等引用建立，并记录对象类型与 ID。没有 target kind 的 `relatedIds` 不进入首版 `relatedObjects`；时间相邻、相同文本、可见 ID 索引或业务常识都不得猜测其类型。选中节点时只高亮同一已类型关联对象的可见 phase。
+1. `meeting.created` 建立并完成 meeting-start，且该事件归入该组。
+2. `round.opened` 建立对应 round group；后续只有 subject 或 relation 明确指向该 round ID 的 round 类事件才能进入。`round.published` 将其完成，`round.aborted` 将其中止；找不到已建立 round group 时进入 other，不补建或回填历史 round。
+3. 扫描到 `meeting.lifecycle_changed` 且 `to="converging"` 时，若当前没有活动 convergence，则 occurrence 加一并建立该 convergence；该 lifecycle event 归入 convergence。已经存在活动 convergence 时不递增 occurrence。
+4. 扫描到 convergence 类事件且没有活动 convergence 时，occurrence 加一并建立 convergence；该事件归入当前 convergence。扫描到 completion 类事件时，若没有活动 convergence，则 occurrence 加一并建立无节点的内部 convergence，再建立同 occurrence 的 completion；该事件只归入 completion。没有事件节点的内部 convergence 不输出空 group。
+5. 扫描到 `meeting.lifecycle_changed` 且 `from="converging"`、`to!=="converging"` 时，它归入同 occurrence 已存在的 completion，否则归入 convergence。`to="terminal"` 时保留活动实例，由同次提交后续的 `meeting.ended` 按 outcome 关闭，不提前推断阶段完成；其它目标同时关闭活动 convergence 和 completion，`to="paused"` 时状态为 `blocked`，其余为 `completed`，`completedAt` 取 lifecycle event 的 `occurredAt`。关闭后清除活动实例，下一次进入重新递增 occurrence。
+6. `meeting.ended` 先关闭仍活动的 convergence/completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时进入 other。`archive.completed` 完成 closure。
+7. 唯一的已关闭 round 归组例外：`formal_message.published` 的 typed relations 必须唯一指向一个已扫描的 `round.published` subject publication 和它所属的 round，且两条事件的 `meetingVersion` 相同；该正式消息仍归入原 round，但不得修改其 occurrence、status 或 completedAt。仅凭 round ID、时间相同或相邻 seq 不满足此例外；不同提交、publication 关联缺失或冲突时进入 other。
+8. 未命中上述唯一规则的事件进入 other。除第 7 条的同次 publication 正式消息外，已经关闭的里程碑保持不变，不把后续事件回填为其历史。
+
+状态只从上述明确事件派生：meeting-start 当场完成；round 为 active/completed/aborted；convergence 与 completion 为 active/completed/aborted/blocked；closure 为 active/completed；other 保持 active。`startedAt` 取该组首个实际成员的 `occurredAt`，`completedAt` 只取明确关闭事件。不得根据沉默、时间间隔、当前 DTO 状态或下一组已经出现推断本组完成。
+
+默认分组承担以下用户叙事：
+
+| 里程碑         | 默认关键事件                                                            | 可展开的过程细节                                                     |
+| -------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 会议启动       | 创建或启动、目标或范围确认、准备失败                                    | 身份推荐、准入和其它准备过程                                         |
+| 议题与证据轮次 | 轮次开启、证据提交、审核完成或失败、审核送达失败、Publication、轮次中止 | opportunity request、举手、拒绝、未回应、Contribution 处置、送达成功 |
+| 方案收敛       | Question/Issue/Risk 处置、Decision 形成、替代或撤销                     | ManagerPlan、ProposalRevision、Position、DecisionCandidate           |
+| 完成判定       | CompletionFact 形成、替代或撤销，影响完成判定的未解决事项               | 支撑完成判断的普通正式消息和任务过程                                 |
+| 结束与归档     | Termination、异常取消、Archive 完成                                     | 正常关闭过程和可复用材料关联                                         |
+| 其他已发生事件 | 无法可靠归属但默认必须可见的关键事件                                    | 无法可靠归属的普通过程事件                                           |
+
+关键事件默认展开，过程细节由“显示过程细节”或显式筛选显示。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
+
+事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。“回到最新”独立按当前可见节点的 `time → eventSeq` 选择最新目标，排除已隐藏角色，不以分组后的尾节点代替最新 occurrence。
+
+| 事件 kind                                                                                                                                                                            | 主分组                                                   | 默认可见性                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------- |
+| `meeting.created`                                                                                                                                                                    | `meeting_start`                                          | 关键                                  |
+| `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                       | 关键；正式消息和成功送达按过程细节    |
+| `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                       | 过程细节；失败事件保持关键可见        |
+| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 当前 `convergence`；没有活动实例时新建                   | Decision 与处置为关键；计划为过程细节 |
+| `completion_fact.recorded`、`completion_fact.changed`                                                                                                                                | 当前 `completion`；没有活动实例时随当前 convergence 建立 | 关键                                  |
+| `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                                | 关键                                  |
+| `identity.recommended`、`identity.admission_recorded`                                                                                                                                | `other`                                                  | 过程细节；失败保持关键可见            |
+| `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | `other`                                                  | 关键状态变化                          |
+
+有 `timelineEvents` 时，活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
+
+为保留固定人工 Web 工作区中的旧 Meeting，`timelineEvents` 缺席时继续调用现有 `buildTimelineNodesFromLegacyView`：它保持变更前按 DTO 明确时间建立节点的行为，但不与事件节点混合，也不写回事件日志。`timelineEvents` 即使为空数组也表示完整事件模式，不得降级到 legacy；新 Meeting 的数组至少包含 `meeting.created`。
+
+lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
+
+时间线提供 identity、object type、事件 kind、事件发生时状态和 typed relation 筛选，以及卡片间距 zoom、滚动、角色隐藏和回到最新。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
 
 ### 模式定位、响应式与失败
 
 概览不显示时间线导航或对象跳转按钮；用户通过 Workspace 的时间线 Tab 进入时间线。时间线到概览的定位设置 `activeMode="overview"` 和同一 Meeting 的 `focusTarget`。目标挂载后展开、滚动和聚焦，成功或失败均清除一次性 focus。多 phase 对象默认定位时间最晚节点并允许查看其他 phase。目标不存在、被 caller filtering 删除或目标模式不展示时只报告中性失败，不修改筛选、Meeting 或权限。
 
-存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线保持五类泳道并横向滚动，DOM 按时间排序，键盘可以遍历时间节点和相邻泳道；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
+存在非空可用列表时，宽屏 Navigator 是常驻左栏；窄屏将同一 Navigator 呈现为当前 Meeting 按钮与摘要列表抽屉，抽屉关闭后 Workspace 占满宽度，这两个呈现共享唯一 `selectedMeetingId`。没有非空列表时不进入抽屉结构，Navigator 页面状态直接占满宽屏或窄屏主区域。时间线采用纵向左右交错卡片，窄屏必要时横向滚动，保留五类角色文字与隐藏控制；DOM 按时间排序，方向键遍历相邻可见时间节点；定位后焦点落到目标卡片并由可访问文本报告时间、身份、类型和状态。
 
 状态呈现如下：
 
@@ -231,5 +273,5 @@ DSH 接受输入、Session 投递成功、Agent 执行完成和 Meeting 事实�
 5. 停止、恢复和归档均不会操作无法证明归属的 Session。
 6. Client 只注册一个 `convivium-meetings` View；未选择 Meeting 时不读取详情，概览和时间线共享同一选择、详情与刷新订阅。
 7. 切换 Meeting、补读后选中项消失、详情失败和断线分别按 Meetings Workspace 状态规则处理，不发生隐式改选或跨 Meeting 本地状态泄漏。
-8. 活动与归档 Timeline 分别只从其允许的 caller-filtered 数据源确定性生成节点；身份泳道、系统泳道、多 phase、筛选与定位不生成新事实或泄露隐藏对象。
-9. 宽屏侧栏与窄屏抽屉共享选择状态；五类泳道、键盘顺序、焦点、本地化和颜色之外的状态表达通过 Client 与真实 DSH Web 验证。
+8. 活动与归档 Timeline 分别只从其允许的 caller-filtered 数据源确定性生成节点；身份角色、系统角色、多 phase、筛选与定位不生成新事实或泄露隐藏对象。
+9. 宽屏侧栏与窄屏抽屉共享选择状态；左右交错卡片、角色标识、键盘顺序、焦点、本地化和颜色之外的状态表达通过 Client 与真实 DSH Web 验证。

@@ -120,7 +120,11 @@ async function run(ctx) {
         ) {
             const meetingId = process.env.CONVIVIUM_SMOKE_MEETING_ID;
             assert(meetingId, "cold reopen requires the original meeting id");
-            const runtimeApi = ctx.get("conviviumMeetingRuntime");
+            const runtimeApi = await new Promise((resolve) => {
+                ctx.inject(["conviviumMeetingRuntime"], (runtimeContext) => {
+                    resolve(runtimeContext.get("conviviumMeetingRuntime"));
+                });
+            });
             assert(runtimeApi, "cold reopen Meeting runtime is unavailable");
             const reopened = await runtimeApi.read(
                 { protocolVersion: 1, meetingId },
@@ -283,6 +287,21 @@ async function run(ctx) {
 }
 
 export function apply(ctx) {
+    // The probe drives these fixture roles through real tools. Do not let their
+    // model turns race the fixed four-round sequence; reviewers remain live.
+    ctx.on("agent/pre-step", async ({ agent }, next) => {
+        if (
+            scenario === "meeting-business-loop" &&
+            [
+                "convivium-manager",
+                "convivium-github-research-analyst",
+                "convivium-arxiv-research-analyst"
+            ].includes(agent.session.header.agentPreset)
+        ) {
+            return { kind: "reject" };
+        }
+        return next();
+    });
     ctx.on("agent/created", ({ agent }) => {
         observedAgents.set(String(agent.id), agent);
         {

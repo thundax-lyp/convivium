@@ -40,6 +40,7 @@ export interface MeetingSnapshot<TState = JsonObject> {
 export interface DomainEventInput {
     type: MeetingEventType;
     payload: JsonObject;
+    occurredAt?: number;
     turnId?: string;
     attemptId?: string;
 }

@@ -3,6 +3,7 @@ import {
     TransitionRejected,
     type CommandTransition
 } from "./meeting-action-transition.ts";
+import { buildMeetingEvents } from "./meeting-event.ts";
 import {
     captainActorIdFor,
     type IdentityAdmissionResultContext,
@@ -524,7 +525,26 @@ const createRepositoryCommand = (input: {
                 snapshotVersion: snapshot.version
             });
             repositoryCommand.facts = finalized.facts;
-            return finalized.repositoryTransition;
+            return {
+                ...finalized.repositoryTransition,
+                events: buildMeetingEvents({
+                    action: command.action,
+                    scope,
+                    beforeState: snapshot.state,
+                    transition,
+                    meetingId: command.meetingId,
+                    now
+                }).map((event) => ({
+                    ...event,
+                    payload: {
+                        ...event.payload,
+                        subject: { ...event.payload.subject },
+                        relatedObjects: event.payload.relatedObjects.map((object) => ({
+                            ...object
+                        }))
+                    }
+                }))
+            };
         }
     };
     return repositoryCommand;

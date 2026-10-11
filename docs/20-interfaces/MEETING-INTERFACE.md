@@ -22,7 +22,11 @@ interface MeetingCommand {
 }
 interface CallerBinding {
   channel:
-    "dsh_tool" | "loopback_remote" | "skill_invocation" | "runtime_recovery" | "deadline_handler";
+    | "dsh_tool"
+    | "loopback_remote"
+    | "skill_invocation"
+    | "runtime_recovery"
+    | "deadline_handler";
   principalId: OpaqueId;
   sessionBindingId?: OpaqueId;
 }
@@ -428,9 +432,11 @@ interface ReviewDimensionInput {
 
 `falsifiers`、`uncertainties`、`limitations`、`claims`、`materials` 各至少一项；每个 `TextWithReason.value` 必须非空，填写“无”或“未知”时必须有非空 `reason`，不能由公开模板替作者生成缺项理由。每个 claim 至少引用一个本 evidence 的 material。kind 为 unknown/not_applicable 时必须给出 reason；Runtime 从 Round 注入固定 `baselinePublicationIds`，请求不得提供它。每维 `scope` 与 `reason` 均须非空；每维 `baselineEvidenceIds` 只可引用固定 baseline 中 Publication.finalVersionIds 所列的版本；未引用上一轮依据时数组明确为 []，不能用本轮其他证据补入。reviewer 不能审核作者 identity 的版本，且只能审核当前、已 complete 的版本。
 
-Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。每个 immutable EvidenceVersion 都携带 `status`、`failureCount` 和可选 `lastFailureReason`：新版本为 `submitted/0`；`ClaimEvidenceReview` 以普通 Meeting version CAS 为一个 current、complete 版本创建独立 `EvidenceReviewClaim` 并置为 `validating`；claim 记录 `claimId`、`sourceEffectId`、`roundId`、reviewerId、versionId、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt。同一 version 同时只能有一个 claim，不限制同一 Round 的其它 version 独立认领。reviewer coordinator 通过 `convivium_run_review_worker` 把该 version 交给一个 DSH 原生 one-shot worker；工具输入只携带 meetingId 与 versionId，Runtime 在启动 worker 前重验 active claim、reviewer ownership，并从当前持久 MeetingState 构造 immutable version 与固定公开 baseline，coordinator 不能提供 worker prompt；缺少有效 claim 或绑定时返回 `REVIEWER_CONFLICT`，不启动 worker。该工具固定使用 `spawn` provider、无工具权限的 child 与本节 `ReviewDimensionsInput` 对应的 object-rooted output schema。只有 provider 返回 `completed` 且 structured object 通过 schema 校验时才返回 completed Review；第一轮各维 `baselineEvidenceIds: []` 合法。
+Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity；该身份的 roles 必须精确为 `["evidence_reviewer"]`。每个 immutable EvidenceVersion 都携带 `status`、`failureCount` 和可选 `lastFailureReason`：新版本为 `submitted/0`；`ClaimEvidenceReview` 以普通 Meeting version CAS 为一个 current、complete 版本创建独立 `EvidenceReviewClaim` 并置为 `validating`；claim 记录 `claimId`、`sourceEffectId`、`roundId`、reviewerId、versionId、claimedAt 和由 `reviewDeadlineMs` 派生的 expiresAt。同一 version 同时只能有一个 claim，不限制同一 Round 的其它 version 独立认领。reviewer coordinator 只调用一次 `convivium_run_review_worker` 把该 version 交给一个 DSH 原生 one-shot worker；工具 arguments 为 `{input: {meetingId, versionId}}`，不接受 prompt、claimId 或审核字段。Runtime 在启动前重验 active claim、reviewer ownership，从持久 MeetingState 构造 immutable version 与固定公开 baseline，并在模型之外捕获 claimId 和 roundId；缺少有效 claim 或绑定时返回 `REVIEWER_CONFLICT`，不启动 worker。工具固定使用 `spawn` provider、无工具权限的 child 与本节 `ReviewDimensionsInput` 对应的 object-rooted output schema；Runtime 再校验 structured object 的完整 schema、非空业务字段及精确 versionId，不容忍额外字段。第一轮各维 `baselineEvidenceIds: []` 合法。
 
-`SubmitEvidenceReview` 只由该 reviewer coordinator 提交，必须携带所属 `roundId`、未过期 `claimId` 和精确 `versionId`，不得携带全局 `expectedMeetingVersion`。Runtime 再验证该版本仍是 current、complete、`validating` 且没有最终 Review；成功时原子追加一份 Review、把版本置为 `validated`、移除 claim 并创建 delivery effect。0 分、负面意见和 `unable_to_assess` 仍是 `validated`。`FailEvidenceValidation` 只消费精确 claim，把版本置为 `validation_failed`、递增 `failureCount` 并记录 `review_timeout | review_interrupted | dispatch_failed`；`failureCount < 5` 才能重新认领。相同 submit requestId 重放返回原 receipt；其它覆盖同一 version 的 effect 在有效 claim 存在时去重完成，原 source effect 延后到 expiresAt。未观察到 turn 结束时，claim 保留到 expiresAt，再以 `review_timeout` 失败；冷恢复从持久 EvidenceStatus、claim 与 Review 继续。
+worker 未 completed、version 不匹配或结构无效分别返回 `{kind: "failed", code: "REVIEW_WORKER_NOT_COMPLETED" | "REVIEW_WORKER_VERSION_MISMATCH" | "REVIEW_WORKER_OUTPUT_INVALID"}`，不调用提交；取消时不提交，所有取得的 worker run 均须 dispose。合法结果由 Runtime 直接构造 `SubmitEvidenceReview`，使用启动前捕获的 claimId/roundId、原 reviewer caller 和 `requestId = evidence-review:${claimId}`，不携带 `expectedMeetingVersion`，不改用后来创建的 claim。工具直接返回应用层的 `MeetingCommandResult`：`accepted` 表示已原子提交的 receipt，`rejected` 表示未接纳，不返回供 coordinator 转抄的 Review object。模型工具面不注册 `convivium_submit_evidence_review`；内部 action 契约保留。
+
+`SubmitEvidenceReview` 只由 Runtime 在该 reviewer caller 权限下提交，必须携带所属 `roundId`、未过期 `claimId` 和精确 `versionId`，不得携带全局 `expectedMeetingVersion`。应用层提交时重验 caller ownership、claim、版本仍是 current、complete、`validating` 且没有最终 Review，以及每维的固定 baseline 引用；不绕过事务、权限或并发保护。成功时原子追加一份 Review、把版本置为 `validated`、移除 claim 并创建 delivery effect。0 分、负面意见和 `unable_to_assess` 仍是 `validated`。`FailEvidenceValidation` 只消费精确 claim，把版本置为 `validation_failed`、递增 `failureCount` 并记录 `review_timeout | review_interrupted | dispatch_failed`；`failureCount < 5` 才能重新认领。相同 submit requestId 重放返回原 receipt；其它覆盖同一 version 的 effect 在有效 claim 存在时去重完成，原 source effect 延后到 expiresAt。已观察到 coordinator turn 完成而无 Review 且原 claim 仍有效时立即记 `dispatch_failed`；未观察到 turn 结束时，claim 保留到 expiresAt，再以 `review_timeout` 失败；冷恢复从持久 EvidenceStatus、claim 与 Review 继续。
 
 `RecordContributionFailure` 只允许可信 `runtime_recovery` caller 在已接纳但尚无 EvidencePackage 的 Contribution 上执行。Runtime 只在观察到承接已接纳 `hand_disposition` 消息的确切 Contributor turn 以异常结束后提交；转换把 Contribution 置为 `execution_failed`，同时固化 `{sourceEffectId,stage,failureCode,failureSummary,attemptCount,retryable,occurredAt}`，其中 `sourceEffectId` 是触发该 turn 的 outbox effect，`occurredAt` 由 Runtime 时钟注入。该结构是执行失败证据，不是 EvidenceVersion，不触发 Review；相同 source effect 在失败事实已提交但 outbox delivered 尚未提交时直接幂等完成，不再次唤醒 Agent；其它重复或已有 package 的记录拒绝。若这使 Round 全部 Contribution 终态，转换同事务生成 `round_ready`。
 
@@ -607,21 +613,21 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 
 `convivium_start_meeting` 的 arguments 精确为空对象，目标取斜杠后的非空原始用户文字，且一次输入最多提交一次。适配器补齐 Manager、Reviewer 和 Host `initialContributorRoleIds` 选中的 Contributor 初始身份的 `convivium.<role>` Definition、全部 `required:true`、唯一 Manager 和 Evidence Reviewer、一个 `initial` pending active Agenda；一个 `primary` 必需产出是完成原始目标，一个 `verifiable` 验收条件要求可核验的产出、依据和剩余限制，一个 `evidence` 硬约束禁止把未经验证的推断当作事实。默认 `acceptableRiskLevel=low`；`maxFormalMessages=200`、`maxDurationMs=86400000`、`taskDeadlineMs=3600000`、`reviewDeadlineMs=900000`。这些是创建时固化的保守默认值，不表示目标已完成或风险已接受。缺失 Skill、目标为空、非直接用户来源、已消费授权或 Meeting-owned Session 均拒绝创建；模型不能通过工具参数改写上述字段。
 
-| 用户操作          | action schema                             | 来源              |
-| ----------------- | ----------------------------------------- | ----------------- |
-| 创建会议          | CreateMeeting                             | loopback 本地用户 |
-| 激活议题          | ActivateAgenda                            | loopback 本地用户 |
-| 处置议题候选      | DisposeAgendaCandidate                    | loopback 本地用户 |
-| 解决问题          | ResolveQuestion                           | loopback 本地用户 |
-| 处置 Issue        | DisposeIssue                              | loopback 本地用户 |
-| 中止轮次          | AbortRound                                | loopback 本地用户 |
-| 接受决策          | Decide                                    | loopback 本地用户 |
-| 替换/撤销决策     | ChangeDecision                            | loopback 本地用户 |
-| 处置风险          | DisposeRisk                               | loopback 本地用户 |
-| 记录完成事实      | RecordCompletionFact                      | loopback 本地用户 |
-| 替换/撤销完成事实 | ChangeCompletionFact                      | loopback 本地用户 |
-| 暂停/恢复         | PauseMeeting / ResumeMeeting              | loopback 本地用户 |
-| 异常终止          | EndMeeting（`cancelled|failed`）          | loopback 本地用户 |
+| 用户操作          | action schema                     | 来源              |
+| ----------------- | --------------------------------- | ----------------- |
+| 创建会议          | CreateMeeting                     | loopback 本地用户 |
+| 激活议题          | ActivateAgenda                    | loopback 本地用户 |
+| 处置议题候选      | DisposeAgendaCandidate            | loopback 本地用户 |
+| 解决问题          | ResolveQuestion                   | loopback 本地用户 |
+| 处置 Issue        | DisposeIssue                      | loopback 本地用户 |
+| 中止轮次          | AbortRound                        | loopback 本地用户 |
+| 接受决策          | Decide                            | loopback 本地用户 |
+| 替换/撤销决策     | ChangeDecision                    | loopback 本地用户 |
+| 处置风险          | DisposeRisk                       | loopback 本地用户 |
+| 记录完成事实      | RecordCompletionFact              | loopback 本地用户 |
+| 替换/撤销完成事实 | ChangeCompletionFact              | loopback 本地用户 |
+| 暂停/恢复         | PauseMeeting / ResumeMeeting      | loopback 本地用户 |
+| 异常终止          | EndMeeting（`cancelled\|failed`） | loopback 本地用户 |
 
 `start_archive` 与 `record_archive_session_result` 继续为 Runtime recovery 操作；Manager 正常结束或 Captain 异常终止命令触发现有归档链。用户控制不得取得 Contributor 或 Manager/Reviewer 权限，Agent 不得凭“用户让我做”的文字取得控制权限；只有当前 Manager 可通过专用 `convivium_end_meeting` 提交 `completed|partial|no_consensus`。非 loopback 装载不注册本地用户 Remote；无需新增账户、token 或每 Session 授权系统。任一已授权 MeetingIdentity 可 record_question/record_issue，用户只通过 resolve_question/dispose_issue 处置，不冒充身份提交记录。来源不符返回 UNAUTHORIZED 且零 receipt/fact/outbox；已授权请求再检查目标/版本/领域前提。
 
@@ -829,13 +835,213 @@ interface IdentityRecommendationView {
   identityId?: OpaqueId;
   failureCode?: RoleError["code"];
 }
+type MeetingEventKind =
+  | "meeting.created"
+  | "meeting.lifecycle_changed"
+  | "agenda.activated"
+  | "agenda_candidate.disposed"
+  | "manager_plan.recorded"
+  | "round.opened"
+  | "round.participation_recorded"
+  | "hand_raise.recorded"
+  | "hand_raise.disposed"
+  | "evidence.submitted"
+  | "contribution.closed"
+  | "contribution.failed"
+  | "evidence_review.claimed"
+  | "evidence_validation.failed"
+  | "evidence_review.submitted"
+  | "review_delivery.recorded"
+  | "round.published"
+  | "formal_message.published"
+  | "round.aborted"
+  | "identity.recommended"
+  | "identity.admission_recorded"
+  | "question.disposed"
+  | "issue.disposed"
+  | "risk.disposed"
+  | "decision.recorded"
+  | "decision.changed"
+  | "completion_fact.recorded"
+  | "completion_fact.changed"
+  | "meeting.ended"
+  | "archive.started"
+  | "archive.completed";
+type MeetingEventObjectKind =
+  | "meeting"
+  | "agenda"
+  | "agenda_candidate"
+  | "manager_plan"
+  | "round"
+  | "contribution"
+  | "evidence_version"
+  | "evidence_review"
+  | "review_delivery"
+  | "publication"
+  | "formal_message"
+  | "identity_recommendation"
+  | "identity"
+  | "question"
+  | "issue"
+  | "decision"
+  | "completion_fact"
+  | "risk_disposition"
+  | "termination"
+  | "archive";
+interface MeetingEventObjectRef {
+  kind: MeetingEventObjectKind;
+  id: OpaqueId;
+}
+type EmptyMeetingEventData = Record<string, never>;
+interface MeetingEventDataByKind {
+  "meeting.created": EmptyMeetingEventData;
+  "meeting.lifecycle_changed": {
+    from:
+      | "preparing"
+      | "running"
+      | "paused"
+      | "converging"
+      | "ending"
+      | "terminal"
+      | "archiving"
+      | "archived";
+    to:
+      | "preparing"
+      | "running"
+      | "paused"
+      | "converging"
+      | "ending"
+      | "terminal"
+      | "archiving"
+      | "archived";
+    reason?: string;
+  };
+  "agenda.activated": {
+    previousDisposition: "completed" | "deferred" | "closed";
+    reason: string;
+  };
+  "agenda_candidate.disposed": {
+    disposition: "promoted" | "parked" | "rejected";
+    reason: string;
+  };
+  "manager_plan.recorded": {
+    planKind:
+      | "open_round"
+      | "continue_agenda"
+      | "stop_agenda"
+      | "raise_agenda_candidate"
+      | "wait_for_required_identity";
+    rationale: string;
+    blockingReason?: string;
+  };
+  "round.opened": { deadlineAt?: EpochMs };
+  "round.participation_recorded":
+    | { contributorId: OpaqueId; status: "declined"; reason: string }
+    | { contributorId: OpaqueId; status: "no_response" };
+  "hand_raise.recorded": { contributorId: OpaqueId; purpose: string };
+  "hand_raise.disposed":
+    | {
+        contributorId: OpaqueId;
+        disposition: "accepted";
+        reason: string;
+        contributionId: OpaqueId;
+      }
+    | {
+        contributorId: OpaqueId;
+        disposition: "rejected" | "deferred";
+        reason: string;
+      };
+  "evidence.submitted": { summary: string };
+  "contribution.closed": {
+    exit: "withdrawn" | "timed_out" | "submission_missing";
+    reason: string;
+  };
+  "contribution.failed": {
+    sourceEffectId: OpaqueId;
+    stage: string;
+    failureCode: string;
+    failureSummary: string;
+    attemptCount: number;
+    retryable: boolean;
+  };
+  "evidence_review.claimed": { claimId: OpaqueId; sourceEffectId: OpaqueId };
+  "evidence_validation.failed": {
+    claimId: OpaqueId;
+    reason: "review_timeout" | "review_interrupted" | "dispatch_failed";
+  };
+  "evidence_review.submitted": { claimId: OpaqueId; scope: string };
+  "review_delivery.recorded":
+    { status: "sent" } | { status: "failed"; failureReason: string };
+  "round.published": EmptyMeetingEventData;
+  "formal_message.published": { messageKind: string };
+  "round.aborted": { reason: string };
+  "identity.recommended":
+    | { decision: "reject"; status: "rejected"; rationale: string }
+    | {
+        decision: "admit";
+        status: "provisioning" | "active";
+        rationale: string;
+      };
+  "identity.admission_recorded":
+    { status: "active" } | { status: "failed"; failureCode: string };
+  "question.disposed": {
+    status: "answered" | "withdrawn" | "deferred";
+    rationale: string;
+  };
+  "issue.disposed": {
+    status: "resolved" | "deferred" | "out_of_scope";
+    rationale: string;
+  };
+  "risk.disposed": {
+    action: "accept" | "reject";
+    scope: string;
+    rationale: string;
+  };
+  "decision.recorded": { status: "accepted" };
+  "decision.changed":
+    | {
+        status: "superseded";
+        rationale: string;
+        replacementDecisionId: OpaqueId;
+      }
+    | { status: "revoked"; rationale: string };
+  "completion_fact.recorded": {
+    outputId: OpaqueId;
+    statement: string;
+    rationale: string;
+  };
+  "completion_fact.changed":
+    | { status: "superseded"; rationale: string; replacementFactId: OpaqueId }
+    | { status: "revoked"; rationale: string };
+  "meeting.ended": {
+    outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
+    reason: string;
+  };
+  "archive.started": { status: "complete" };
+  "archive.completed": { status: "complete" };
+}
+type MeetingEventView = {
+  [K in MeetingEventKind]: {
+    eventSeq: number;
+    meetingVersion: number;
+    kind: K;
+    occurredAt: EpochMs;
+    actor:
+      | { kind: "captain"; actorId: OpaqueId }
+      | { kind: "identity"; actorId: OpaqueId }
+      | { kind: "system" };
+    subject: MeetingEventObjectRef;
+    relatedObjects: MeetingEventObjectRef[];
+    data: MeetingEventDataByKind[K];
+  };
+}[MeetingEventKind];
 interface ManagerCatalogView {
   catalogId: OpaqueId;
   catalogVersion: string;
   candidates: Array<{
     candidateId: OpaqueId;
     definitionId: OpaqueId;
-      displayName: string;
+    displayName: string;
     availability: "available" | "unavailable";
     meetingRoles: MeetingRole[];
     responsibilitySummary: string;
@@ -871,6 +1077,7 @@ interface MeetingView {
   managerPlans: ManagerPlanView[];
   tasks: TaskView[];
   privateMail: PrivateMailView[];
+  timelineEvents?: MeetingEventView[];
   controls: AllowedControl[];
 }
 interface RefreshNotice {
@@ -880,7 +1087,51 @@ interface RefreshNotice {
 }
 ```
 
-Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input:ReadMeetingRequest}`；adapter 必须从 exec.agent 解析 active meeting-owned ownership，并核对 meetingId、identityId、角色与 sessionOwnershipId。Agent 无绑定或跨 Meeting 一律 UNAUTHORIZED，不再有 Captain Session 回退。用户侧通过可信 loopback `conviviumMeetings.read` 获取用户投影；无需 Session。两条路径均不提交 command、不改变 version、不产生 receipt/fact/outbox。解析错误 INVALID_ARGUMENT，恢复失败不得返回不完整事实。
+Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input:ReadMeetingRequest}`；adapter 必须从 exec.agent 解析 active meeting-owned ownership，并核对 meetingId、identityId、角色与 sessionOwnershipId。Agent 无绑定或跨 Meeting 一律 UNAUTHORIZED，不再有 Captain Session 回退。用户侧通过可信 loopback `conviviumMeetings.read` 获取用户投影；无需 Session。两条路径均不提交 command、不改变 version、不产生 receipt/fact/event/outbox。解析错误 INVALID_ARGUMENT，恢复失败不得返回不完整事实。
+
+`timelineEvents` 只向可信 loopback local controller 返回，Agent identity projection 必须缺席；它按 `eventSeq` 升序复制下述安全字段。基础事件排除 private content、Session 和 capability，因此当前唯一接收者可以读取完整事件序列；未来若向普通 identity 开放，必须另行定义 event-level caller filtering，不得复用本契约扩大可见性。`eventSeq` 是 Meeting 内单调递增的 Repository 序号，`(meetingId,eventSeq)` 是唯一身份，不新增 event ID。`occurredAt` 由 application 的一次 `Clock.now()` 注入，同一 command 产生的全部 event 与 fact 使用该值；Repository 不为事件另取发生时间。`meetingVersion` 是该提交的新版本；actor、subject、typed relations 和 `data` 由 Runtime 从可信 caller scope、action、transition result 与提交前后状态生成，caller 不能提交。
+
+一个形成公开 Meeting 事实的成功 command 追加 `0..n` 条基础事件；事件 kind 描述实际发生结果而不是复用 command 名称，一条事件只表达一个 occurrence。一次发布若物化一个 Publication 和多个 FormalMessage，必须分别追加一条 `round.published` 和每个消息各一条 `formal_message.published`；同一次提交发生 lifecycle 变化时另追加 `meeting.lifecycle_changed`。无公开结果的内部 Session ownership 更新可以产生零事件。读取、协议或领域拒绝、version conflict、receipt 重放、outbox claim/lease/delivery、refresh、Session notice 和 Client 交互不追加事件。
+
+`data` 保存该 occurrence 在未来重放时仍需成立的最小不可变值，例如 disposition/status、reason、outcome、failure code 或发生时摘要；不能仅依赖当前 DTO 恢复已被替换、删除或改变的历史。契约明确列出的 `summary`、`statement`、`rationale`、`reason`、`scope` 和失败摘要是允许的最小不可变文本，不等于允许复制完整领域对象。所有 `OpaqueId` 和 string 文本必须非空，`EpochMs` 必须是非负安全整数，`attemptCount` 必须是正安全整数；`meeting.lifecycle_changed.from` 与 `to` 必须不同，discriminated union 中未出现的字段必须缺席。`data` 不保存 milestone、occurrence、title、lane、group status、折叠状态、私信、Session、capability、凭据或隐藏推理。事件 payload 必须按 kind 使用 strict schema，不接受任意扩张字段。`CommittedFactRecord`、事件日志与 outbox 分别负责命令审计、可见发生历史与待投递效果，任何一个都不替代另外两个。
+
+事件数据契约按下表固定；未列字段不得进入对应 `data`。表中的可选字段只有在该次 occurrence 实际存在时出现：
+
+| event kind                     | `subject`               | `data` source                                            |
+| ------------------------------ | ----------------------- | -------------------------------------------------------- |
+| `meeting.created`              | meeting                 | `MeetingEventDataByKind["meeting.created"]`              |
+| `meeting.lifecycle_changed`    | meeting                 | `MeetingEventDataByKind["meeting.lifecycle_changed"]`    |
+| `agenda.activated`             | agenda                  | `MeetingEventDataByKind["agenda.activated"]`             |
+| `agenda_candidate.disposed`    | agenda_candidate        | `MeetingEventDataByKind["agenda_candidate.disposed"]`    |
+| `manager_plan.recorded`        | manager_plan            | `MeetingEventDataByKind["manager_plan.recorded"]`        |
+| `round.opened`                 | round                   | `MeetingEventDataByKind["round.opened"]`                 |
+| `round.participation_recorded` | round                   | `MeetingEventDataByKind["round.participation_recorded"]` |
+| `hand_raise.recorded`          | round                   | `MeetingEventDataByKind["hand_raise.recorded"]`          |
+| `hand_raise.disposed`          | round                   | `MeetingEventDataByKind["hand_raise.disposed"]`          |
+| `evidence.submitted`           | evidence_version        | `MeetingEventDataByKind["evidence.submitted"]`           |
+| `contribution.closed`          | contribution            | `MeetingEventDataByKind["contribution.closed"]`          |
+| `contribution.failed`          | contribution            | `MeetingEventDataByKind["contribution.failed"]`          |
+| `evidence_review.claimed`      | evidence_version        | `MeetingEventDataByKind["evidence_review.claimed"]`      |
+| `evidence_validation.failed`   | evidence_version        | `MeetingEventDataByKind["evidence_validation.failed"]`   |
+| `evidence_review.submitted`    | evidence_review         | `MeetingEventDataByKind["evidence_review.submitted"]`    |
+| `review_delivery.recorded`     | review_delivery         | `MeetingEventDataByKind["review_delivery.recorded"]`     |
+| `round.published`              | publication             | `MeetingEventDataByKind["round.published"]`              |
+| `formal_message.published`     | formal_message          | `MeetingEventDataByKind["formal_message.published"]`     |
+| `round.aborted`                | round                   | `MeetingEventDataByKind["round.aborted"]`                |
+| `identity.recommended`         | identity_recommendation | `MeetingEventDataByKind["identity.recommended"]`         |
+| `identity.admission_recorded`  | identity_recommendation | `MeetingEventDataByKind["identity.admission_recorded"]`  |
+| `question.disposed`            | question                | `MeetingEventDataByKind["question.disposed"]`            |
+| `issue.disposed`               | issue                   | `MeetingEventDataByKind["issue.disposed"]`               |
+| `risk.disposed`                | risk_disposition        | `MeetingEventDataByKind["risk.disposed"]`                |
+| `decision.recorded`            | decision                | `MeetingEventDataByKind["decision.recorded"]`            |
+| `decision.changed`             | decision                | `MeetingEventDataByKind["decision.changed"]`             |
+| `completion_fact.recorded`     | completion_fact         | `MeetingEventDataByKind["completion_fact.recorded"]`     |
+| `completion_fact.changed`      | completion_fact         | `MeetingEventDataByKind["completion_fact.changed"]`      |
+| `meeting.ended`                | termination             | `MeetingEventDataByKind["meeting.ended"]`                |
+| `archive.started`              | archive                 | `MeetingEventDataByKind["archive.started"]`              |
+| `archive.completed`            | archive                 | `MeetingEventDataByKind["archive.completed"]`            |
+
+新 Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。旧 Meeting 的首条事件没有 `logVersion:1` 时，`timelineEvents` 整体缺席；后续命令可以沿用通用 Repository event append，但这些尾部记录不构成完整历史且不得公开，读取时不回填或改写旧 Meeting。
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 

@@ -1,6 +1,73 @@
 import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { MeetingViewSchema, type MeetingView } from "@/protocol/meeting-view.ts";
 import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
+import type { MeetingEventView } from "@/protocol/index.ts";
+
+export const eventTimelineFixture = (events?: MeetingEventView[]): MeetingView => ({
+    ...activeTimelineFixture(),
+    timelineEvents: events ?? [
+        {
+            eventSeq: 1,
+            meetingVersion: 1,
+            kind: "meeting.created",
+            occurredAt: 10,
+            actor: { kind: "captain", actorId: "captain" },
+            subject: { kind: "meeting", id: "meeting-v1" },
+            relatedObjects: [],
+            data: {}
+        },
+        {
+            eventSeq: 2,
+            meetingVersion: 2,
+            kind: "round.opened",
+            occurredAt: 20,
+            actor: { kind: "identity", actorId: "manager-v1" },
+            subject: { kind: "round", id: "round-1" },
+            relatedObjects: [],
+            data: {}
+        },
+        {
+            eventSeq: 3,
+            meetingVersion: 3,
+            kind: "evidence.submitted",
+            occurredAt: 20,
+            actor: { kind: "identity", actorId: "contributor-v1" },
+            subject: { kind: "evidence_version", id: "version-1" },
+            relatedObjects: [{ kind: "round", id: "round-1" }],
+            data: { summary: "immutable evidence summary" }
+        },
+        {
+            eventSeq: 4,
+            meetingVersion: 4,
+            kind: "evidence_review.claimed",
+            occurredAt: 21,
+            actor: { kind: "system" },
+            subject: { kind: "evidence_version", id: "version-1" },
+            relatedObjects: [{ kind: "round", id: "round-1" }],
+            data: { claimId: "claim", sourceEffectId: "effect" }
+        },
+        {
+            eventSeq: 5,
+            meetingVersion: 5,
+            kind: "review_delivery.recorded",
+            occurredAt: 22,
+            actor: { kind: "system" },
+            subject: { kind: "review_delivery", id: "delivery-1" },
+            relatedObjects: [{ kind: "round", id: "round-1" }],
+            data: { status: "failed", failureReason: "delivery failed" }
+        },
+        {
+            eventSeq: 6,
+            meetingVersion: 6,
+            kind: "round.published",
+            occurredAt: 23,
+            actor: { kind: "identity", actorId: "manager-v1" },
+            subject: { kind: "publication", id: "publication-1" },
+            relatedObjects: [{ kind: "round", id: "round-1" }],
+            data: {}
+        }
+    ]
+});
 
 const version = {
     id: "version-1",

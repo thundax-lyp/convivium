@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { MEETING_EVENT_KINDS } from "@/domain/index.ts";
+import { MeetingEventKindSchema, MeetingViewSchema } from "@/protocol/index.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import { projectMeetingView } from "@/projection/meeting-view.ts";
 import { endMeeting, startMeetingArchive } from "@/domain/index.ts";
+describe("Meeting event protocol parity", () => {
+    it("keeps Domain, public schemas and the formal data contract on the same 31 kinds", () => {
+        const contract = readFileSync(
+            new URL("../../../docs/20-interfaces/MEETING-INTERFACE.md", import.meta.url),
+            "utf8"
+        );
+        const mapping =
+            contract
+                .split("interface MeetingEventDataByKind {")[1]
+                ?.split("type MeetingEventView =")[0] ?? "";
+        const documentedKinds = [...mapping.matchAll(/^ {2}"([^"]+)":/gm)].map((match) => match[1]);
+        expect(MEETING_EVENT_KINDS).toHaveLength(31);
+        expect(new Set(MEETING_EVENT_KINDS).size).toBe(31);
+        expect(MeetingEventKindSchema.options).toEqual([...MEETING_EVENT_KINDS]);
+        expect(documentedKinds).toEqual([...MEETING_EVENT_KINDS]);
+    });
+
+    it("accepts an identity MeetingView without an event log", () => {
+        const state = makeRunningMeetingStateV1();
+        const view = projectMeetingView(
+            { meetingId: state.id, version: state.version, state, createdAt: 0, updatedAt: 1 },
+            { kind: "identity", identityId: "contributor-v1", roles: ["contributor"] }
+        );
+        expect(MeetingViewSchema.parse(view)).not.toHaveProperty("timelineEvents");
+    });
+});
 describe("round participation visibility", () => {
     it("shows every participation choice to the Manager but only the caller's choice to a Contributor", () => {
         const state = makeRunningMeetingStateV1();
