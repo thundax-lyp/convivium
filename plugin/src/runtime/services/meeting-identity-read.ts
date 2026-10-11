@@ -93,7 +93,8 @@ export const createMeetingIdentityReader = (
                 identityId: identity.id,
                 roles: identity.roles
             },
-            catalog?.kind === "available" ? catalog.snapshot : undefined
+            catalog?.kind === "available" ? catalog.snapshot : undefined,
+            undefined
         );
     }
 });

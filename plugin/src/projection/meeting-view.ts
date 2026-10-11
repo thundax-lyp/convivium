@@ -3,6 +3,7 @@ import {
     type ArchivePackage,
     type MeetingRole,
     type MeetingState,
+    type PersistedMeetingEvent,
     type OpaqueId
 } from "@/domain/index.ts";
 import type { MeetingAgentCatalog } from "@/dsh/index.ts";
@@ -191,7 +192,8 @@ export const projectArchiveView = (
 export const projectMeetingView = (
     snapshot: MeetingSnapshot<MeetingState>,
     caller: MeetingProjectionCaller,
-    managerCatalog?: MeetingAgentCatalog
+    managerCatalog?: MeetingAgentCatalog,
+    completeEvents?: readonly PersistedMeetingEvent[]
 ): MeetingView => {
     const state = snapshot.state;
     const manager = hasRole(caller, "manager");
@@ -223,6 +225,20 @@ export const projectMeetingView = (
         return delivery.authorId === caller.identityId;
     });
     const result = {
+        ...(caller.kind === "captain" && completeEvents !== undefined
+            ? {
+                  timelineEvents: completeEvents.map((event) => ({
+                      eventSeq: event.eventSeq,
+                      meetingVersion: event.meetingVersion,
+                      kind: event.type,
+                      occurredAt: event.createdAt,
+                      actor: copy(event.payload.actor),
+                      subject: copy(event.payload.subject),
+                      relatedObjects: copy(event.payload.relatedObjects),
+                      data: copy(event.payload.data)
+                  }))
+              }
+            : {}),
         meetingId: snapshot.meetingId,
         version: snapshot.version,
         objective: copy(state.objective),

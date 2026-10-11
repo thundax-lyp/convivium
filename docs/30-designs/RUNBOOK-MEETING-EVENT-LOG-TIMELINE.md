@@ -374,38 +374,6 @@ MeetingAction + trusted scope + Clock.now
 ## 7. 机械执行步骤
 
 
-### T4：只向 local controller 投影完整事件
-
-前置状态：T3 PASS。
-
-允许修改：
-
-- `plugin/src/projection/meeting-view.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/src/runtime/services/meeting-identity-read.ts`
-- `plugin/tests/contract/meeting-identity-view.spec.ts`
-- `plugin/tests/contract/meeting-timeline-events-view.spec.ts`（新增）
-
-禁止修改：Remote methods、identity authorization、Meeting state filtering。
-
-执行：
-
-1. 把 `projectMeetingView` 第四参数固定为 optional complete events；captain 才投影 `timelineEvents`，identity 强制缺席。
-2. `meeting-lifecycle.ts` captain read 在 repository recovery 后调用 `readCommittedEvents`；complete 传 events，legacy 传 undefined。
-3. Host mapper 完整复制 validated safe events；因为当前只向 captain 返回，且 payload 只允许 Meeting Interface `MeetingEventDataByKind` 的最小不可变文本并禁止完整对象、PrivateMail、Session、capability、凭据和隐藏推理，所以不做对象存在性过滤。普通 identity 必须整体缺席，不能留下 redacted placeholder；文档和代码不得把当前结果误称为 caller-filtered event log。
-4. identity reader 保持不读 event port，并显式传 undefined。
-5. 测试 complete captain 顺序、legacy 缺席、identity 缺席、payload 无 private 字段、损坏日志读取失败。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-identity-view.spec.ts tests/contract/meeting-timeline-events-view.spec.ts --project contract
-pnpm --dir plugin typecheck:host
-```
-
-PASS：退出 0；captain public event 不含 logVersion/turnId/attemptId/private content。
-
-STOP：事件 payload 出现未被 `MeetingEventDataByKind` 列出的完整正文或完整对象、PrivateMail、Session、capability、凭据、隐藏推理或其它非 4.1 字段；契约明确允许的 summary/statement/rationale/reason/scope/失败摘要不触发本 STOP。
 
 ### T5：实现 event-first Client projection 与 milestone 分组
 
