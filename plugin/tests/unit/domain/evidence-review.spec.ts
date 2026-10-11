@@ -7,7 +7,6 @@ import { submitEvidence } from "@/domain/transitions/format-evidence.ts";
 import {
     claimEvidenceReview,
     failEvidenceValidation,
-    MAX_EVIDENCE_VALIDATION_FAILURES,
     recordReviewDelivery,
     submitEvidenceReview
 } from "@/domain/transitions/evidence-review.ts";
@@ -203,7 +202,8 @@ describe("evidence review and delivery", () => {
             failureCount: 0
         });
 
-        for (let attempt = 1; attempt <= MAX_EVIDENCE_VALIDATION_FAILURES; attempt += 1) {
+        // ER-FR-5 fixes the per-version failure budget at five, independently of implementation.
+        for (let attempt = 1; attempt <= 5; attempt += 1) {
             const claim = claimEvidenceReview(state, {
                 claimId: `claim-${attempt}`,
                 sourceEffectId: `effect-${attempt}`,
