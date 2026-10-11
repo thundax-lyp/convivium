@@ -14,11 +14,12 @@
 
 1. 严格按 T0 → T7 顺序执行。每步只有 PASS 后才能进入下一步。
 2. 只修改该步骤“允许修改”的文件。编译错误若要求触碰未列文件，立即 STOP。
-3. 不引入 event bus、durable queue、consumer offset、ack、后台 worker、新数据库、通用 projection framework 或第三方依赖。
-4. 不向 event type、payload 或 Repository 增加 `milestone`、`stageInstance`、`occurrence`、`title`、`lane`、`collapsed`、`groupStatus` 等展示字段。
-5. 不用 `CommittedFactRecord` 或 outbox 替代基础事件；不删除或改写既有 fact/outbox 语义。
-6. 不迁移、回填或删除旧 Meeting；不得把 legacy DTO 节点与 event 节点合并。
-7. 任一步失败时保留工作树，禁止回滚用户已有修改。STOP 报告必须包含最后 PASS 步骤、文件与 symbol、复现命令、实际输出和所需人工决定。
+3. 每个步骤的“允许修改”清单最多包含 10 个唯一文件；执行中若完成该步骤必须修改第 11 个文件，立即 STOP，不得把额外文件并入当前步骤或借验证步骤修复。
+4. 不引入 event bus、durable queue、consumer offset、ack、后台 worker、新数据库、通用 projection framework 或第三方依赖。
+5. 不向 event type、payload 或 Repository 增加 `milestone`、`stageInstance`、`occurrence`、`title`、`lane`、`collapsed`、`groupStatus` 等展示字段。
+6. 不用 `CommittedFactRecord` 或 outbox 替代基础事件；不删除或改写既有 fact/outbox 语义。
+7. 不迁移、回填或删除旧 Meeting；不得把 legacy DTO 节点与 event 节点合并。
+8. 任一步失败时保留工作树，禁止回滚用户已有修改。STOP 报告必须包含最后 PASS 步骤、文件与 symbol、复现命令、实际输出和所需人工决定。
 
 ## 2. 正式依据与当前断点
 
@@ -570,11 +571,11 @@ STOP：渲染某 event 必须读取 caller-filtered view 中不存在的正文�
 
 前置状态：T5 PASS。
 
-允许修改：仅 T1-T5 已列测试/production 文件中由 Prettier 产生的机械格式变化。
+允许修改：无。
 
-禁止修改：正式需求、接口、设计、readiness 和 RUNBOOK 状态。
+禁止修改：全仓库。
 
-执行：运行固定门禁；失败只修复本任务引入且位于允许文件的错误。
+执行：只运行固定门禁并保存输出；本步骤不修复任何失败，也不运行会改写文件的格式化命令。
 
 验证：
 
@@ -584,9 +585,9 @@ node .github/scripts/check-doc-links.mjs
 git diff --check
 ```
 
-PASS：三条命令全部退出 0。
+PASS：三条命令全部退出 0，且 `git status --short` 与进入 T6 时相比没有新增或改写文件。
 
-STOP：失败来自任务外基线、必须放宽 lint/schema/test、或要求扩大 Non-goals。
+STOP：任一命令退出非 0、门禁改写文件，或验证失败要求修改任何文件；报告失败命令、实际输出、被指向的文件及其所属 T1-T5 步骤，不在 T6 回修、放宽 lint/schema/test 或扩大 Non-goals。
 
 ### T7：人工 smoke、readiness 迁移与关闭准备
 
@@ -595,7 +596,7 @@ STOP：失败来自任务外基线、必须放宽 lint/schema/test、或要求�
 允许修改：
 
 - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
-- 本 RUNBOOK（只记录验证结果；关闭时删除）
+- `docs/30-designs/RUNBOOK-MEETING-EVENT-LOG-TIMELINE.md`（只记录验证结果；关闭时删除）
 
 禁止修改：正式 requirements/interfaces/designs、operations 命令；禁止直接编辑、替换、清空或重建 `dsh-workspace/` 的安装与 SQLite 文件。只允许固定的 `meeting-business-loop` smoke 通过 Repository 正常提交路径向现有人工 SQLite 新增本步骤 Meeting；不得删除或改写既有 Meeting。
 
@@ -659,6 +660,7 @@ git diff --check
 - 正式行为、数据结构、owner、兼容策略、action 映射、文件/symbol、验证与 STOP 已固定。
 - event 与 milestone、fact、outbox、legacy projection 的职责互斥。
 - 未授权的迁移、通用抽象、额外事件源和相邻产品能力均列入 Non-goals。
+- 单步允许修改文件数已经逐项核对：T0=0、T1=8、T2=6、T3=5、T4=5、T5=8、T6=0、T7=2；不存在超过 10 个文件的步骤或跨步骤通配修改范围。
 - 作者验证：`node .github/scripts/check-doc-links.mjs` PASS（1130 个本地链接，0 error）；`git diff --check` PASS；五份目标文档的 Prettier check PASS；静态契约核对确认 31 个 event kind 唯一，RUNBOOK 与 Meeting Interface 的 data mapping 键集合及顺序一致。
 - 作者 baseline：T0 的三份 focused test 共 29 tests PASS；Vite 报告 DSH UI primitives 缺少 `index.js.map` 的非阻断 warning，测试退出码仍为 0。
 - 未运行：`pnpm verify`、新增事件测试、真实人工 Web smoke；这些属于执行 T1-T7 后的门禁，当前结论不把它们描述为通过。
