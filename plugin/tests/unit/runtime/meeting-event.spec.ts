@@ -62,11 +62,34 @@ describe("Meeting occurrence mapping", () => {
         expect(events[0]!.payload.data).toEqual({ claimId: "claim", sourceEffectId: "effect" });
     });
 
-    it("rejects a claim whose transition ID or provenance does not match", () => {
+    it.each([
+        { boundary: "missing transition ID", ids: [], override: {} },
+        { boundary: "mismatched transition ID", ids: ["other", "version"], override: {} },
+        {
+            boundary: "source effect",
+            ids: ["claim", "version"],
+            override: { sourceEffectId: "other" }
+        },
+        { boundary: "round", ids: ["claim", "version"], override: { roundId: "other" } },
+        { boundary: "version", ids: ["claim", "version"], override: { versionId: "other" } }
+    ])("rejects a claim with a $boundary mismatch", ({ ids, override }) => {
         const input = fixture();
+        input.transition.state.reviewClaims = [
+            {
+                id: "claim",
+                sourceEffectId: "effect",
+                roundId: "round",
+                versionId: "version",
+                reviewerId: "reviewer-v1",
+                claimedAt: 20,
+                expiresAt: 30,
+                ...override
+            }
+        ];
         expect(() =>
             buildMeetingEvents({
                 ...input,
+                transition: { ...input.transition, relatedIds: ids },
                 action: {
                     kind: "claim_evidence_review",
                     sourceEffectId: "effect",

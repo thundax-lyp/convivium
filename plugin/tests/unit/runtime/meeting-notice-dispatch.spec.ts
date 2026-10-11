@@ -357,7 +357,9 @@ describe("meeting notice dispatcher v1", () => {
 
         expect(deliver).toHaveBeenCalledOnce();
     });
+});
 
+describe("committed meeting notice shapes", () => {
     it("validates and delivers the remaining committed notice shapes", async () => {
         const { state, ownership } = fixture();
         state.opportunityRequests = [
@@ -462,15 +464,31 @@ describe("meeting notice dispatcher v1", () => {
             }
         ];
         for (const notice of notices) {
+            deliver.mockClear();
+            deliverObserved.mockClear();
             await dispatcher.dispatch({
                 outboxItem: item({ kind: "agent_notice", agendaId: "agenda-v1", ...notice }),
                 signal: new AbortController().signal
             });
+            expect(deliver).toHaveBeenCalledOnce();
+            const delivery = deliver.mock.calls[0]?.[0];
+            expect(delivery.ownership.sessionId).toBe(`session:${notice.recipientId}`);
+            expect(delivery.deliveryId).toBe("effect-1");
+            const { recipientId: _recipientId, ...details } = notice;
+            expect(JSON.parse(delivery.text)).toEqual({
+                effectId: "effect-1",
+                meetingId: state.id,
+                agendaId: "agenda-v1",
+                ...details
+            });
+            expect(deliverObserved).toHaveBeenCalledTimes(
+                notice.noticeKind === "hand_disposition" ? 1 : 0
+            );
         }
-        expect(deliver).toHaveBeenCalledTimes(4);
-        expect(deliverObserved).toHaveBeenCalledOnce();
     });
+});
 
+describe("meeting notice ownership and routing", () => {
     it.each([
         ["closed ownership", { lifecycleStatus: "closed" }],
         ["revoked capability", { capabilityStatus: "revoked" }],

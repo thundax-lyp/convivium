@@ -72,6 +72,7 @@ describe("Meeting identity read", () => {
 
     it("fails closed when the resolved identity is absent from the committed Meeting", async () => {
         const state = makeRunningMeetingStateV1();
+        const resolved = caller("participant", "identity-missing");
         state.identities = state.identities.map((identity) => ({
             ...identity,
             sessionOwnershipId: `owner:${identity.id}`
@@ -87,7 +88,7 @@ describe("Meeting identity read", () => {
                             createdAt: 0,
                             updatedAt: 1
                         },
-                        sessionOwnership: []
+                        sessionOwnership: [resolved.ownership]
                     })
                 }))
             }
@@ -96,7 +97,7 @@ describe("Meeting identity read", () => {
         await expect(
             reader.read(
                 { protocolVersion: 1, meetingId: state.id },
-                caller("participant", "identity-missing"),
+                resolved,
                 new AbortController().signal
             )
         ).resolves.toBeUndefined();
