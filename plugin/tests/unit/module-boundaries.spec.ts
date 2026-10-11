@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 type ModuleName =
@@ -80,7 +81,7 @@ const moduleBoundaries: readonly ModuleBoundary[] = [
 const sourceRoot = resolve(import.meta.dirname, "../../src");
 const sourceExtensions = new Set([".ts", ".tsx"]);
 
-function sourceFiles(directory: string): string[] {
+const sourceFiles = (directory: string): string[] => {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
         const path = join(directory, entry.name);
         return entry.isDirectory()
@@ -89,41 +90,79 @@ function sourceFiles(directory: string): string[] {
               ? [path]
               : [];
     });
-}
+};
 
-function moduleForFile(file: string): ModuleName | undefined {
+const moduleForFile = (file: string): ModuleName | undefined => {
     const topLevel = relative(sourceRoot, file).split("/")[0];
     return moduleBoundaries.some(({ name }) => name === topLevel)
         ? (topLevel as ModuleName)
         : undefined;
-}
+};
 
-function importsOf(source: string): string[] {
-    const runtimeSource = source.replace(
-        /import\s+type\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+(['"])[^'"]+\1\s*;?/g,
-        ""
+const typeOnlyImport = (clause: ts.ImportClause | undefined): boolean => {
+    const bindings = clause?.namedBindings;
+    return Boolean(
+        clause?.isTypeOnly ||
+        (!clause?.name &&
+            bindings &&
+            ts.isNamedImports(bindings) &&
+            bindings.elements.length > 0 &&
+            bindings.elements.every((element) => element.isTypeOnly))
     );
-    return [...runtimeSource.matchAll(/(?:from\s+|import\s*\()(['"])(.*?)\1/g)].map(
-        (match) => match[2]
+};
+const typeOnlyExport = (node: ts.ExportDeclaration): boolean => {
+    const clause = node.exportClause;
+    return Boolean(
+        node.isTypeOnly ||
+        (clause &&
+            ts.isNamedExports(clause) &&
+            clause.elements.length > 0 &&
+            clause.elements.every((element) => element.isTypeOnly))
     );
-}
+};
+const literalSpecifier = (node: ts.Node | undefined): string | undefined =>
+    node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+        ? node.text
+        : undefined;
+const moduleSpecifier = (node: ts.Node, includeTypes: boolean): string | undefined => {
+    if (ts.isImportDeclaration(node)) {
+        return includeTypes || !typeOnlyImport(node.importClause)
+            ? literalSpecifier(node.moduleSpecifier)
+            : undefined;
+    }
+    if (ts.isExportDeclaration(node)) {
+        return includeTypes || !typeOnlyExport(node)
+            ? literalSpecifier(node.moduleSpecifier)
+            : undefined;
+    }
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        return literalSpecifier(node.arguments[0]);
+    }
+    if (includeTypes && ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+        return literalSpecifier(node.argument.literal);
+    }
+    return undefined;
+};
+const importsOf = (file: string, includeTypes = false): string[] => {
+    const source = ts.createSourceFile(
+        file,
+        readFileSync(file, "utf8"),
+        ts.ScriptTarget.Latest,
+        true
+    );
+    const specifiers: string[] = [];
+    const visit = (node: ts.Node): void => {
+        const specifier = moduleSpecifier(node, includeTypes);
+        if (specifier !== undefined) {
+            specifiers.push(specifier);
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(source);
+    return [...new Set(specifiers)];
+};
 
-function reexportsOf(source: string): string[] {
-    return [
-        ...source.matchAll(/export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+(['"])(.*?)\1\s*;?/g)
-    ].map((match) => match[2]);
-}
-
-function allModuleSpecifiersOf(source: string): string[] {
-    const typeOnlyImports = [
-        ...source.matchAll(
-            /import\s+type\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+(["'])([^"']+)\1\s*;?/g
-        )
-    ].map((match) => match[2]!);
-    return [...new Set([...importsOf(source), ...reexportsOf(source), ...typeOnlyImports])];
-}
-
-function localImportPath(file: string, specifier: string): string | undefined {
+const localImportPath = (file: string, specifier: string): string | undefined => {
     if (specifier.startsWith("@/")) {
         return resolve(sourceRoot, specifier.slice(2));
     }
@@ -131,9 +170,9 @@ function localImportPath(file: string, specifier: string): string | undefined {
         return resolve(dirname(file), specifier);
     }
     return undefined;
-}
+};
 
-function importedModule(file: string, specifier: string): ModuleName | undefined {
+const importedModule = (file: string, specifier: string): ModuleName | undefined => {
     const candidate = localImportPath(file, specifier);
     if (candidate === undefined) {
         return undefined;
@@ -144,26 +183,28 @@ function importedModule(file: string, specifier: string): ModuleName | undefined
         return sourceFile === candidate || withoutExtension === candidateWithoutExtension;
     });
     return path ? moduleForFile(path) : undefined;
-}
+};
 
-function violations(module: ModuleName, specifiers: readonly string[]): string[] {
+const violations = (file: string, module: ModuleName, specifiers: readonly string[]): string[] => {
     const boundary = moduleBoundaries.find((item) => item.name === module);
     if (!boundary) {
         return [`unknown module ${module}`];
     }
     return specifiers.flatMap((specifier) => {
-        const imported = importedModule(join(sourceRoot, module, "index.ts"), specifier);
+        const imported = importedModule(file, specifier);
         if (imported && imported !== module && !boundary.mayImport.includes(imported)) {
             return [`${module} may not import ${imported}`];
         }
         if (
+            // The stable Captain ID uses synchronous SHA-256 only in this module.
+            !(
+                relative(sourceRoot, file) === "domain/control-actor.ts" &&
+                specifier === "node:crypto"
+            ) &&
+            !(module === "client" && specifier === "@deepseek-ai/dsh-client-ui-primitives") &&
             boundary.forbiddenRuntimeImports.some((forbidden) =>
-                forbidden.endsWith("-")
-                    ? specifier.includes(forbidden) &&
-                      !(
-                          module === "client" &&
-                          specifier === "@deepseek-ai/dsh-client-ui-primitives"
-                      )
+                forbidden.endsWith("-") || forbidden.endsWith(":")
+                    ? specifier.startsWith(forbidden)
                     : specifier === forbidden
             )
         ) {
@@ -171,13 +212,13 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
         }
         return [];
     });
-}
+};
 
 describe("plugin module boundaries", () => {
     it("accepts the current source import graph", () => {
         const errors = sourceFiles(sourceRoot).flatMap((file) => {
             const module = moduleForFile(file);
-            return module ? violations(module, importsOf(readFileSync(file, "utf8"))) : [];
+            return module ? violations(file, module, importsOf(file)) : [];
         });
         expect(errors).toEqual([]);
     });
@@ -191,9 +232,7 @@ describe("plugin module boundaries", () => {
         ]);
         expect(
             sourceFiles(sourceRoot).flatMap((file) =>
-                allModuleSpecifiersOf(readFileSync(file, "utf8")).filter((specifier) =>
-                    forbidden.has(specifier)
-                )
+                importsOf(file, true).filter((specifier) => forbidden.has(specifier))
             )
         ).toEqual([]);
     });
