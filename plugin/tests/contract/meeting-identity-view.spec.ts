@@ -15,7 +15,7 @@ describe("Meeting event protocol parity", () => {
             contract
                 .split("interface MeetingEventDataByKind {")[1]
                 ?.split("type MeetingEventView =")[0] ?? "";
-        const documentedKinds = [...mapping.matchAll(/^  "([^"]+)":/gm)].map((match) => match[1]);
+        const documentedKinds = [...mapping.matchAll(/^ {2}"([^"]+)":/gm)].map((match) => match[1]);
         expect(MEETING_EVENT_KINDS).toHaveLength(31);
         expect(new Set(MEETING_EVENT_KINDS).size).toBe(31);
         expect(MeetingEventKindSchema.options).toEqual([...MEETING_EVENT_KINDS]);
