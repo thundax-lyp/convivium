@@ -566,6 +566,49 @@ export const groupTimelineMilestones = (
             group.completedAt = time;
         }
     };
+    const resolveRoundGroup = (node: TimelineNode): TimelineMilestoneGroup | undefined => {
+        const kind = node.eventKind;
+        let group: TimelineMilestoneGroup | undefined;
+        const roundIds = [
+            ...new Set([
+                ...(node.objectKind === "round" ? [node.objectId] : []),
+                ...node.relatedObjects
+                    .filter((ref) => ref.objectKind === "round")
+                    .map((ref) => ref.objectId)
+            ])
+        ];
+        const candidate = roundIds.length === 1 ? rounds.get(roundIds[0]!) : undefined;
+        const publicationIds = [
+            ...new Set(
+                node.relatedObjects
+                    .filter((ref) => ref.objectKind === "publication")
+                    .map((ref) => ref.objectId)
+            )
+        ];
+        const publication =
+            publicationIds.length === 1 ? publications.get(publicationIds[0]!) : undefined;
+        if (candidate?.status === "active") {
+            group = candidate;
+            if (kind === "round.published" || kind === "round.aborted") {
+                close(group, kind === "round.published" ? "completed" : "aborted", node.time);
+                if (kind === "round.published" && node.meetingVersion !== undefined) {
+                    publications.set(node.objectId, {
+                        roundId: roundIds[0]!,
+                        meetingVersion: node.meetingVersion
+                    });
+                }
+            }
+        } else if (
+            kind === "formal_message.published" &&
+            candidate?.status === "completed" &&
+            publication?.roundId === roundIds[0] &&
+            publication?.meetingVersion === node.meetingVersion
+        ) {
+            group = candidate;
+        }
+
+        return group;
+    };
     for (const node of [...nodes].sort((a, b) => (a.eventSeq ?? 0) - (b.eventSeq ?? 0))) {
         const kind = node.eventKind;
         const data = node.eventData;
@@ -581,43 +624,7 @@ export const groupTimelineMilestones = (
             group = create("round", `milestone:round:${node.objectId}`, roundOccurrence, node.time);
             rounds.set(node.objectId, group);
         } else if (roundEvents.has(kind)) {
-            const roundIds = [
-                ...new Set([
-                    ...(node.objectKind === "round" ? [node.objectId] : []),
-                    ...node.relatedObjects
-                        .filter((ref) => ref.objectKind === "round")
-                        .map((ref) => ref.objectId)
-                ])
-            ];
-            const candidate = roundIds.length === 1 ? rounds.get(roundIds[0]!) : undefined;
-            const publicationIds = [
-                ...new Set(
-                    node.relatedObjects
-                        .filter((ref) => ref.objectKind === "publication")
-                        .map((ref) => ref.objectId)
-                )
-            ];
-            const publication =
-                publicationIds.length === 1 ? publications.get(publicationIds[0]!) : undefined;
-            if (candidate?.status === "active") {
-                group = candidate;
-                if (kind === "round.published" || kind === "round.aborted") {
-                    close(group, kind === "round.published" ? "completed" : "aborted", node.time);
-                    if (kind === "round.published" && node.meetingVersion !== undefined) {
-                        publications.set(node.objectId, {
-                            roundId: roundIds[0]!,
-                            meetingVersion: node.meetingVersion
-                        });
-                    }
-                }
-            } else if (
-                kind === "formal_message.published" &&
-                candidate?.status === "completed" &&
-                publication?.roundId === roundIds[0] &&
-                publication?.meetingVersion === node.meetingVersion
-            ) {
-                group = candidate;
-            }
+            group = resolveRoundGroup(node);
         } else if (
             kind === "meeting.lifecycle_changed" &&
             "to" in data &&

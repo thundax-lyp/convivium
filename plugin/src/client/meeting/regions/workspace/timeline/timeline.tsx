@@ -380,6 +380,77 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     );
 };
 
+interface TimelineNodeContentProps {
+    detail: MeetingView;
+    node: TimelineNode;
+    dateFormatter: Intl.DateTimeFormat;
+    onLocateInOverview?: TimelineProps["onLocateInOverview"];
+}
+
+const TimelineNodeContent = ({
+    detail,
+    node,
+    dateFormatter,
+    onLocateInOverview
+}: TimelineNodeContentProps): ReactElement => {
+    const t = useMeetingTranslate();
+    const content = resolveTimelineNodeContent(detail, node);
+    const laneLabel = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
+    const identity = identityName(detail, node);
+    return (
+        <>
+            <p>{identity ? `${laneLabel}: ${identity}` : laneLabel}</p>
+            <p>{label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)}</p>
+            <p>
+                {label(
+                    node.eventKind === undefined
+                        ? `enum.timelinePhase.${node.phase}`
+                        : `enum.timelineEvent.${node.eventKind}`,
+                    node.eventKind ?? node.phase,
+                    t
+                )}
+            </p>
+            <time dateTime={new Date(node.time).toISOString()}>
+                {dateFormatter.format(new Date(node.time))}
+            </time>
+            {node.status === undefined ? null : <p>{statusLabel(node, t)}</p>}
+            {onLocateInOverview ? (
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                        onLocateInOverview({
+                            meetingId: detail.meetingId,
+                            objectKind: node.objectKind,
+                            objectId: node.objectId
+                        })
+                    }
+                >
+                    {t("panel.mode.overview")}
+                </Button>
+            ) : null}
+            {content === undefined ? (
+                <p>{t("panel.state.focusMissing")}</p>
+            ) : (
+                <div>
+                    <Ellipsis text={contentTitle(node, content.title, t)} maxLines={3} />
+                    {content.detail === undefined ? null : (
+                        <details>
+                            <summary>{t("panel.timeline.details")}</summary>
+                            <p>
+                                {node.objectKind === "identity_recommendation"
+                                    ? knownEnum("recommendation", content.detail, t)
+                                    : content.detail}
+                            </p>
+                        </details>
+                    )}
+                </div>
+            )}
+        </>
+    );
+};
+
 export const TimelineViewport = ({
     detail,
     nodes,
@@ -577,7 +648,6 @@ export const TimelineViewport = ({
                                             : alternatingIndex++ % 2 === 0
                                               ? "left"
                                               : "right";
-                                    const content = resolveTimelineNodeContent(detail, node);
                                     const laneLabel = t(
                                         `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
                                     );
@@ -644,74 +714,12 @@ export const TimelineViewport = ({
                                                 .join("; ")}
                                             className={styles.node}
                                         >
-                                            <p>
-                                                {identity ? `${laneLabel}: ${identity}` : laneLabel}
-                                            </p>
-                                            <p>
-                                                {label(
-                                                    `enum.timelineKind.${node.objectKind}`,
-                                                    node.objectKind,
-                                                    t
-                                                )}
-                                            </p>
-                                            <p>
-                                                {label(
-                                                    node.eventKind === undefined
-                                                        ? `enum.timelinePhase.${node.phase}`
-                                                        : `enum.timelineEvent.${node.eventKind}`,
-                                                    node.eventKind ?? node.phase,
-                                                    t
-                                                )}
-                                            </p>
-                                            <time dateTime={new Date(node.time).toISOString()}>
-                                                {dateFormatter.format(new Date(node.time))}
-                                            </time>
-                                            {node.status === undefined ? null : (
-                                                <p>{statusLabel(node, t)}</p>
-                                            )}
-                                            {onLocateInOverview ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        onLocateInOverview({
-                                                            meetingId: detail.meetingId,
-                                                            objectKind: node.objectKind,
-                                                            objectId: node.objectId
-                                                        })
-                                                    }
-                                                >
-                                                    {t("panel.mode.overview")}
-                                                </Button>
-                                            ) : null}
-                                            {content === undefined ? (
-                                                <p>{t("panel.state.focusMissing")}</p>
-                                            ) : (
-                                                <div>
-                                                    <Ellipsis
-                                                        text={contentTitle(node, content.title, t)}
-                                                        maxLines={3}
-                                                    />
-                                                    {content.detail === undefined ? null : (
-                                                        <details>
-                                                            <summary>
-                                                                {t("panel.timeline.details")}
-                                                            </summary>
-                                                            <p>
-                                                                {node.objectKind ===
-                                                                "identity_recommendation"
-                                                                    ? knownEnum(
-                                                                          "recommendation",
-                                                                          content.detail,
-                                                                          t
-                                                                      )
-                                                                    : content.detail}
-                                                            </p>
-                                                        </details>
-                                                    )}
-                                                </div>
-                                            )}
+                                            <TimelineNodeContent
+                                                detail={detail}
+                                                node={node}
+                                                dateFormatter={dateFormatter}
+                                                onLocateInOverview={onLocateInOverview}
+                                            />
                                         </article>
                                     );
                                 })}

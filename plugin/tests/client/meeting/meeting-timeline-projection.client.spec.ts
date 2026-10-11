@@ -53,8 +53,8 @@ const ended = (
 const groupsFor = (events: MeetingEventView[]) =>
     groupTimelineMilestones(buildTimelineNodes(eventTimelineFixture(events)));
 
-describe("Timeline projection", () => {
-    it("keeps publication's subsequent formal message in its round as required by T7", () => {
+describe("Timeline event milestone grouping", () => {
+    it("keeps publication's subsequent formal message in its round", () => {
         const view = eventTimelineFixture();
         view.timelineEvents!.push({
             eventSeq: 7,
@@ -274,7 +274,9 @@ describe("Timeline projection", () => {
             })
         ).toBe("round:round-1:aborted");
     });
+});
 
+describe("Legacy timeline source projection", () => {
     it("maps every active source with phases, lanes, status and stable chronological order", () => {
         const nodes = buildTimelineNodes(activeTimelineFixture());
         expect(nodes.map(({ key }) => key)).toEqual([
