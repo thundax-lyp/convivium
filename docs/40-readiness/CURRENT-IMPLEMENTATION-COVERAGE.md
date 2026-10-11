@@ -76,6 +76,43 @@
 
 ## Executed Validation
 
+### 2026-10-11：基础事件日志与里程碑时间线
+
+实现基线为 `codex/meeting-event-timeline` 的 T1-T5（`bce23862`、`e2a530e9`、`bbf955d9`、`e54838b3`、`b0ec0ee4`）。31 种基础事件在成功 command commit 中与 snapshot/fact/receipt/outbox 原子追加；只有可信 local controller 得到完整 `timelineEvents`，identity projection 缺席。Client 一条 event 对应一条稳定节点，里程碑只在 Client 派生；同次 publication 且显式关联它和 round 的正式消息归入已完成 round，不改变关闭状态或时间。旧 Meeting 继续独立 DTO fallback，不回填、不混合。
+
+自动证据：T3 Runtime focused 33 tests、T4 projection contract 16 tests、T5 Client focused 32 tests及对应 Host/Client typecheck 通过。T6 `pnpm verify` 通过（102 files/960 tests，format/lint/typecheck/build/environment/contract/agent definitions/package），本地文档链接 1130 项零错误，diff check 通过。lint 有 5 项函数长度/复杂度 warning，0 error；Vite 的 DSH UI primitives 缺失 source map warning 非阻断。
+
+人工固定环境使用既有 `dsh-workspace/`、`dsh-workspace/dsh-home/`、`dsh-workspace/projects/meetings-view/` 与 `dsh-workspace/web-ui/convivium-user/convivium-storage.sqlite`，Node `v24.19.0`、DSH `0.2.0-rc.2`、spawn provider、Web `http://127.0.0.1:31828/`。`--dev-refresh` 成功，release 为 `0.1.0-alpha.1-f7c61eb6c77032e47025080ed54775dfec1c9249f695908c4fe913ee327fbad5`；原 Session、SQLite、dev.env 和已有会议保留，不读取或复制 key。
+
+smoke 独立修复：`4cce979b` 只在 business-loop probe 拒绝 Manager/两位 Contributor 的自主模型步骤，保留真实工具及 Reviewer/worker；原 unsolicited round 失败后，隔离复验四轮、八份审核、八个 worker、四次发布、归档和 cold reopen 全通过（321166 ms）。`25c55281` 使用每次独立创建 requestId，并通过 Cordis inject 等待冷恢复 Runtime 发布，修复持久库命中旧创建 receipt 和装载时序失败。旧失败会议没有删除。
+
+本次唯一验收 seed 命令（Host 停止时执行，`web_ui_root` 指向上述固定安装根）：
+
+```sh
+CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop \
+  CONVIVIUM_SMOKE_STORAGE_PATH="$web_ui_root/convivium-storage.sqlite" \
+  pnpm --dir plugin smoke:profile --json
+```
+
+结果为 PASS（385667 ms），`storagePersistence="PRESERVED"`、`restore="PASS"`，新会议 `meeting-522f826ffd8d1fc01e4d92f2948a1162` 为 archived/version 69，4 rounds、8 EvidenceVersion、8 Reviews、8 个不同 worker Session、4 Publications，cold reopen 通过。Restore 只清理隔离 smoke 环境；固定 SQLite 中的验收会议及此前失败运行保留。外部材料为 fixture，不是 Jev 研究结论。
+
+真实 Chrome 页面交互与 DOM 检查（浏览器工具辅助，非独立自动 smoke）：展开过程详情后为 8 组、77 个唯一 `event:` 节点，与 local controller 完整事件序列逐 seq 一一对应。逐组计数如下，所有 round 均 completed：
+
+| 分组    | 开轮 | 证据 | claim | 成功审核 | sent delivery | publication | 正式消息 | 审核失败 | 其他事件      | 总节点 |
+| ------- | ---- | ---- | ----- | -------- | ------------- | ----------- | -------- | -------- | ------------- | ------ |
+| round 1 | 1    | 2    | 2     | 2        | 2             | 1           | 2        | 0        | 举手/处置各 2 | 16     |
+| round 2 | 1    | 2    | 3     | 2        | 2             | 1           | 2        | 1        | 举手/处置各 2 | 18     |
+| round 3 | 1    | 2    | 2     | 2        | 2             | 1           | 2        | 0        | 举手/处置各 2 | 16     |
+| round 4 | 1    | 2    | 2     | 2        | 2             | 1           | 2        | 0        | 举手/处置各 2 | 16     |
+
+其余组为 meeting-start 1 条 created、convergence 4 条 manager plan（由 partial ended 关闭为 aborted）、other 3 条 lifecycle、closure 3 条 ended/archive.started/archive.completed（completed）。第二轮 event 31 的 `review_timeout` 与此前 claimId/同一 evidence version/round 显式关联，随后新 claim 在同一 version/round 成功提交；9 个 claim 各有且只有一个在后的成功或失败结果，计数为 8 成功 + 1 失败。没有为固定计数隐藏合法重试历史。
+
+默认视图为 32 个关键节点，审核失败可见；过程详情显示 claims、正常 delivery、formal messages 和 manager plans，关闭后空 convergence 组不渲染。详情开关与审核领取显式筛选不改变保留组的 key/occurrence/status/startedAt/completedAt；筛选恰显示 4 组/9 claims，空组隐藏，清除后恢复 32 个默认节点。轮次开启固定左侧，组内 `occurredAt → eventSeq` 顺序通过检查；一事件只进一组。刷新并重开后，全部 77 个节点的 key、时间、类型、side 与分组元数据完全一致。
+
+将 4 个 Meetings 摘要按 meetingId 字典序逐一读取，首个 `timelineEvents===undefined` 的既有 legacy fixture 为 `meeting-d05a0646a5a6a427ce6d4b0282a0ec3d`，仍为 archived/version 23；DOM 有 7 个原 DTO 节点、0 个 `event:` 节点。Ctrl-C 停止 Host并确认端口释放后，同一 start.sh 冷重启，再次打开新会议与 legacy：新会议 77 节点/8 组及 legacy 7 节点完全一致。重启前后全部四个会议公开投影的 SHA-256 相同，未出现旧会议改写；原 Captain Session 和 meetings-view 工作区仍可读。控制台只有主动停机期间的 connection lost/retry warning，未观察到组件 error。验收结束后 Host 已停止，31828 释放，固定 workspace、DSH_HOME、SQLite 和所有会议保留。
+
+T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/typecheck/build/environment/contract/agent definitions/package），文档本地链接在临时执行文档删除前 1130 项、删除后 1125 项均零错误，diff check 通过；无新增产品改动。Not Covered：独立 Browser automation smoke、跨 Host、长期/性能、移动视口/深色主题及真实外部研究质量；本次 Web 证据不提升这些边界。
+
 ### 2026-10-10：历史观点缺少摘要时显示原文
 
 缺少独立摘要的历史观点直接显示已持久化的 FormalMessage 正文，沿用三行折叠与展开/收起交互，证据对话框仍保留原文。相关 records/locales 测试 2 files/15 tests、Client typecheck 与 diff check 通过；人工安装刷新后，真实归档会议的两条历史观点显示原文及“...展开”，不再显示缺少摘要的占位文案。未修改历史持久数据。
