@@ -373,43 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T5：实现 event-first Client projection 与 milestone 分组
-
-前置状态：T4 PASS。
-
-允许修改：
-
-- `plugin/src/client/meeting/regions/workspace/timeline/projection.ts`
-- `plugin/src/client/meeting/regions/workspace/timeline/index.ts`
-- `plugin/src/client/meeting/regions/workspace/timeline/timeline.tsx`
-- `plugin/src/client/meeting/regions/workspace/timeline/timeline.module.css`
-- `plugin/src/client/meeting/shared/locales.ts`
-- `plugin/tests/client/meeting/meeting-timeline-fixtures.ts`
-- `plugin/tests/client/meeting/meeting-timeline-projection.client.spec.ts`
-- `plugin/tests/client/meeting/meeting-panel-timeline-focus.client.spec.tsx`
-
-禁止修改：overview、navigator、Remote、Host projection。
-
-执行：
-
-1. 将原 `buildTimelineNodes` 内容原样移动为 `buildTimelineNodesFromLegacyView`；不得改变 legacy fixtures 的节点集合和排序。
-2. 新增 `buildTimelineNodesFromEvents`，一条 event 生成一条 node，key=`event:${eventSeq}`，time=occurredAt；正文先使用 immutable event data，再从当前可见 subject 对象补充详情。
-3. `buildTimelineNodes` 以 `timelineEvents === undefined` 唯一选择 legacy，否则选择 event path。
-4. 新增 `TimelineMilestoneGroup` 和 `groupTimelineMilestones(nodes)`，先对完整 event nodes 按 eventSeq 单向扫描，严格实现 DSH Plugin Design 的固定 key、实例状态、边界 event 唯一归组、空组抑制、重复 occurrence 和分组表；group 仅含 Client 字段。event node 复制 `meetingVersion`，仅用于核对同一次提交；扫描 `round.published` 时暂存 publication subject ID、唯一 round relation ID 与 meetingVersion。已关闭 round 只允许接收 typed relations 唯一关联该 publication 和 round、且 meetingVersion 相同的 `formal_message.published`；不得改变其 occurrence/status/completedAt。不同提交、关联缺失或冲突时进入 other，不按时间或 seq 邻近猜测；group 不保存 meetingVersion。
-5. 分组完成后才应用过程详情与显式筛选；筛选不得重算 key/occurrence/status/time，筛选后无可见节点的组不渲染。UI 按 group，再按 `time → eventSeq` 渲染；关键事件默认显示，`round.opened` 固定左侧。补齐 zh/en 文案且 key 集合相同。
-6. 测试事件顺序、同时间 seq、每事件只进一组、同次 publication 的正式消息进入已完成 round 且状态和关闭时间不变、不同提交或 publication 关联缺失/冲突时进入 other、进入/重复进入/离开 converging、无 completion 时关闭、有 completion 时关闭、paused blocked、meeting.ended 按 outcome 关闭遗留活动阶段、空内部实例不渲染、筛选不改变组状态、round relation、other fallback、重复阶段实例、legacy 互斥、关键异常不隐藏、DOM/键盘顺序、focus key。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/client/meeting/meeting-timeline-projection.client.spec.ts tests/client/meeting/meeting-panel-timeline-focus.client.spec.tsx --project client
-pnpm --dir plugin typecheck:client
-```
-
-PASS：退出 0；测试证明 event fixture 中无 milestone 字段，group 结果中无持久化字段。
-
-STOP：渲染某 event 必须读取 caller-filtered view 中不存在的正文；显示中性类型/ID，不允许扩大 Host 可见性，若产品文案无法确定则 STOP。
-
 ### T6：全量静态与自动验证
 
 前置状态：T5 PASS。

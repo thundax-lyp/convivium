@@ -2,6 +2,21 @@
     max-width: 100%;
     overflow: auto;
 }
+.group {
+    margin-block: 16px;
+    padding: 12px;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
+}
+.group h3 {
+    margin-block: 0 8px;
+    font-size: 14px;
+}
+.group[data-group-status="blocked"],
+.group[data-group-status="aborted"] {
+    border-width: 2px;
+}
 .detailToggle,
 .roles {
     display: flex;

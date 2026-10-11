@@ -13,6 +13,9 @@ import {
     buildTimelineNodes,
     filterTimelineNodes,
     resolveTimelineNodeContent,
+    groupTimelineMilestones,
+    isPrimaryTimelineNode,
+    type TimelineMilestoneGroup,
     type TimelineNode
 } from "./projection.ts";
 import type {
@@ -49,10 +52,13 @@ export interface TimelineFiltersProps {
     nodes: readonly TimelineNode[];
     filters: TimelineFilterState;
     onChange(filters: TimelineFilterState): void;
+    eventKinds: readonly string[];
+    onEventKindsChange(kinds: string[]): void;
 }
 
 export interface TimelineViewportProps extends TimelineProps {
     nodes: readonly TimelineNode[];
+    groups?: readonly TimelineMilestoneGroup[];
 }
 
 const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
@@ -167,7 +173,9 @@ const filterGroup = (
 export const TimelineFilters = ({
     nodes,
     filters,
-    onChange
+    onChange,
+    eventKinds,
+    onEventKindsChange
 }: TimelineFiltersProps): ReactElement => {
     const t = useMeetingTranslate();
     const identities = [
@@ -185,6 +193,19 @@ export const TimelineFilters = ({
     const refKey = (ref: TimelineObjectRef) => `${ref.objectKind}:${ref.objectId}`;
     return (
         <div>
+            {filterGroup(
+                t("panel.timeline.filter.event"),
+                [
+                    ...new Set(
+                        nodes.flatMap((node) =>
+                            node.eventKind === undefined ? [] : [node.eventKind]
+                        )
+                    )
+                ],
+                eventKinds,
+                (kind) => label(`enum.timelineEvent.${kind}`, kind, t),
+                (kind) => onEventKindsChange(toggle(eventKinds, kind))
+            )}
             {filterGroup(
                 t("panel.timeline.filter.identity"),
                 identities,
@@ -236,15 +257,16 @@ export const TimelineFilters = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() =>
+                onClick={() => {
+                    onEventKindsChange([]);
                     onChange({
                         ...filters,
                         identityIds: [],
                         objectKinds: [],
                         statuses: [],
                         relatedObjects: []
-                    })
-                }
+                    });
+                }}
             >
                 {t("panel.timeline.filter.clear")}
             </Button>
@@ -253,6 +275,9 @@ export const TimelineFilters = ({
 };
 
 const isPrimaryNode = (node: TimelineNode): boolean => {
+    if (node.eventKind !== undefined) {
+        return isPrimaryTimelineNode(node);
+    }
     switch (node.objectKind) {
         case "opportunity_request":
         case "hand_raise":
@@ -281,7 +306,10 @@ const nodeEmphasis = (node: TimelineNode): string => {
     ) {
         return "milestone";
     }
-    return node.phase === "aborted" || node.status === "failed" || node.status === "blocked"
+    return node.phase === "aborted" ||
+        node.phase === "failed" ||
+        node.status === "failed" ||
+        node.status === "blocked"
         ? "warning"
         : "normal";
 };
@@ -290,20 +318,44 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     const { detail, filters, onFiltersChange } = props;
     const t = useMeetingTranslate();
     const [showDetails, setShowDetails] = useState(false);
-    useEffect(() => setShowDetails(false), [detail.meetingId]);
-    if (detail.lifecycle.status === "archived" && detail.archive?.status !== "complete") {
+    const [eventKinds, setEventKinds] = useState<string[]>([]);
+    useEffect(() => {
+        setShowDetails(false);
+        setEventKinds([]);
+    }, [detail.meetingId]);
+    if (
+        detail.timelineEvents === undefined &&
+        detail.lifecycle.status === "archived" &&
+        detail.archive?.status !== "complete"
+    ) {
         return <p>{t("panel.state.archiveUnavailable")}</p>;
     }
     const allNodes = buildTimelineNodes(detail);
-    const filtered = filterTimelineNodes(allNodes, filters);
-    const nodes =
+    const groups =
+        detail.timelineEvents === undefined ? undefined : groupTimelineMilestones(allNodes);
+    const filtered = filterTimelineNodes(allNodes, filters).filter(
+        (node) =>
+            eventKinds.length === 0 ||
+            (node.eventKind !== undefined && eventKinds.includes(node.eventKind))
+    );
+    const visible =
         showDetails ||
+        eventKinds.length > 0 ||
         filters.objectKinds.length > 0 ||
         filters.identityIds.length > 0 ||
         filters.statuses.length > 0 ||
         filters.relatedObjects.length > 0
             ? filtered
             : filtered.filter(isPrimaryNode);
+    const visibleKeys = new Set(visible.map((node) => node.key));
+    const nodes =
+        groups === undefined
+            ? visible
+            : groups.flatMap((group) =>
+                  allNodes.filter(
+                      (node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key)
+                  )
+              );
     return (
         <section aria-label={t("panel.timeline.title")}>
             <p>{t("panel.timeline.disclaimer")}</p>
@@ -315,9 +367,15 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
                 />
                 {t("panel.timeline.showDetails")}
             </label>
-            <TimelineFilters nodes={allNodes} filters={filters} onChange={onFiltersChange} />
+            <TimelineFilters
+                nodes={allNodes}
+                filters={filters}
+                onChange={onFiltersChange}
+                eventKinds={eventKinds}
+                onEventKindsChange={setEventKinds}
+            />
             {nodes.length === 0 ? <p>{t("panel.timeline.empty")}</p> : null}
-            <TimelineViewport {...props} nodes={nodes} />
+            <TimelineViewport {...props} nodes={nodes} groups={groups} />
         </section>
     );
 };
@@ -325,6 +383,7 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
 export const TimelineViewport = ({
     detail,
     nodes,
+    groups,
     filters,
     viewportRevision,
     locale = navigator.language,
@@ -347,6 +406,7 @@ export const TimelineViewport = ({
         nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key
     );
     const [focusMissing, setFocusMissing] = useState(false);
+    const consumedFocus = useRef<MeetingFocusTarget | undefined>(undefined);
     useEffect(() => {
         if (viewportRef.current) {
             viewportRef.current.scrollTop = 0;
@@ -365,6 +425,10 @@ export const TimelineViewport = ({
     }, [nodes, filters.collapsedLanes, activeKey]);
     useEffect(() => {
         if (!focusTarget) {
+            consumedFocus.current = undefined;
+            return;
+        }
+        if (consumedFocus.current === focusTarget) {
             return;
         }
         const matches =
@@ -375,9 +439,12 @@ export const TimelineViewport = ({
                           node.objectId === focusTarget.objectId
                   )
                 : [];
-        const target = matches.at(-1);
+        const target = matches
+            .sort((a, b) => a.time - b.time || (a.eventSeq ?? 0) - (b.eventSeq ?? 0))
+            .at(-1);
         if (!target) {
             setFocusMissing(true);
+            consumedFocus.current = focusTarget;
             onFocusConsumed?.();
             return;
         }
@@ -391,6 +458,7 @@ export const TimelineViewport = ({
         const element = nodeRefs.current.get(target.key);
         if (!element) {
             setFocusMissing(true);
+            consumedFocus.current = focusTarget;
             onFocusConsumed?.();
             return;
         }
@@ -398,12 +466,22 @@ export const TimelineViewport = ({
         setActiveKey(target.key);
         element.scrollIntoView?.({ block: "nearest", inline: "center" });
         element.focus();
+        consumedFocus.current = focusTarget;
         onFocusConsumed?.();
     }, [focusTarget, nodes, filters, detail.meetingId, onFocusConsumed, onFiltersChange]);
     const zoomIndex = zoomLevels.indexOf(filters.zoom);
     const changeZoom = (delta: number) =>
         onFiltersChange({ ...filters, zoom: zoomLevels[zoomIndex + delta]! });
     const collapsed = filters.collapsedLanes;
+    const blocks =
+        groups === undefined
+            ? [{ group: undefined, nodes }]
+            : groups
+                  .map((group) => ({
+                      group,
+                      nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
+                  }))
+                  .filter((block) => block.nodes.some((node) => !collapsed.includes(node.lane)));
     let alternatingIndex = 0;
     return (
         <div>
@@ -466,146 +544,180 @@ export const TimelineViewport = ({
                         </Button>
                     ))}
                 </div>
-                <div
-                    className={styles.grid}
-                    style={
-                        {
-                            "--meeting-timeline-gap": `${20 * filters.zoom}px`
-                        } as React.CSSProperties
-                    }
-                >
-                    {nodes
-                        .filter((node) => !collapsed.includes(node.lane))
-                        .map((node, index) => {
-                            const side =
-                                node.objectKind === "round" && node.phase === "opened"
-                                    ? "left"
-                                    : alternatingIndex++ % 2 === 0
-                                      ? "left"
-                                      : "right";
-                            const content = resolveTimelineNodeContent(detail, node);
-                            const laneLabel = t(
-                                `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
-                            );
-                            const identity = identityName(detail, node);
-                            return (
-                                <article
-                                    key={node.key}
-                                    ref={(element: HTMLElement | null) => {
-                                        if (element) {
-                                            nodeRefs.current.set(node.key, element);
-                                        } else {
-                                            nodeRefs.current.delete(node.key);
-                                        }
-                                    }}
-                                    data-testid="timeline-node"
-                                    data-node-key={node.key}
-                                    style={{ gridRow: index + 1 }}
-                                    data-side={side}
-                                    data-emphasis={nodeEmphasis(node)}
-                                    hidden={collapsed.includes(node.lane)}
-                                    tabIndex={activeKey === node.key ? 0 : -1}
-                                    onFocus={() => setActiveKey(node.key)}
-                                    onKeyDown={(event: React.KeyboardEvent) => {
-                                        const direction = {
-                                            ArrowUp: "up",
-                                            ArrowDown: "down",
-                                            ArrowLeft: "left",
-                                            ArrowRight: "right"
-                                        }[event.key] as TimelineDirection | undefined;
-                                        if (!direction) {
-                                            return;
-                                        }
-                                        event.preventDefault();
-                                        const next = findAdjacentTimelineKey({
-                                            nodes,
-                                            currentKey: node.key,
-                                            direction,
-                                            collapsedLanes: collapsed
-                                        });
-                                        if (next) {
-                                            nodeRefs.current.get(next)?.focus();
-                                        }
-                                    }}
-                                    aria-label={[
-                                        t("panel.timeline.aria.node"),
-                                        laneLabel,
-                                        identity,
-                                        label(
-                                            `enum.timelineKind.${node.objectKind}`,
-                                            node.objectKind,
-                                            t
-                                        ),
-                                        label(`enum.timelinePhase.${node.phase}`, node.phase, t),
-                                        dateFormatter.format(new Date(node.time)),
-                                        statusLabel(node, t)
-                                    ]
-                                        .filter(Boolean)
-                                        .join("; ")}
-                                    className={styles.node}
-                                >
-                                    <p>{identity ? `${laneLabel}: ${identity}` : laneLabel}</p>
-                                    <p>
-                                        {label(
-                                            `enum.timelineKind.${node.objectKind}`,
-                                            node.objectKind,
-                                            t
-                                        )}
-                                    </p>
-                                    <p>
-                                        {label(`enum.timelinePhase.${node.phase}`, node.phase, t)}
-                                    </p>
-                                    <time dateTime={new Date(node.time).toISOString()}>
-                                        {dateFormatter.format(new Date(node.time))}
-                                    </time>
-                                    {node.status === undefined ? null : (
-                                        <p>{statusLabel(node, t)}</p>
-                                    )}
-                                    {onLocateInOverview ? (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                onLocateInOverview({
-                                                    meetingId: detail.meetingId,
-                                                    objectKind: node.objectKind,
-                                                    objectId: node.objectId
-                                                })
-                                            }
+                {blocks.map(({ group, nodes: members }) => (
+                    <section
+                        key={group?.key ?? "legacy"}
+                        className={group === undefined ? undefined : styles.group}
+                        data-group-key={group?.key}
+                        data-group-status={group?.status}
+                        data-group-occurrence={group?.occurrence}
+                        data-started-at={group?.startedAt}
+                        data-completed-at={group?.completedAt}
+                    >
+                        {group === undefined ? null : (
+                            <h3>
+                                {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
+                                {t(`panel.timeline.groupStatus.${group.status}`)}
+                            </h3>
+                        )}
+                        <div
+                            className={styles.grid}
+                            style={
+                                {
+                                    "--meeting-timeline-gap": `${20 * filters.zoom}px`
+                                } as React.CSSProperties
+                            }
+                        >
+                            {members
+                                .filter((node) => !collapsed.includes(node.lane))
+                                .map((node, index) => {
+                                    const side =
+                                        node.objectKind === "round" && node.phase === "opened"
+                                            ? "left"
+                                            : alternatingIndex++ % 2 === 0
+                                              ? "left"
+                                              : "right";
+                                    const content = resolveTimelineNodeContent(detail, node);
+                                    const laneLabel = t(
+                                        `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
+                                    );
+                                    const identity = identityName(detail, node);
+                                    return (
+                                        <article
+                                            key={node.key}
+                                            ref={(element: HTMLElement | null) => {
+                                                if (element) {
+                                                    nodeRefs.current.set(node.key, element);
+                                                } else {
+                                                    nodeRefs.current.delete(node.key);
+                                                }
+                                            }}
+                                            data-testid="timeline-node"
+                                            data-node-key={node.key}
+                                            style={{ gridRow: index + 1 }}
+                                            data-side={side}
+                                            data-emphasis={nodeEmphasis(node)}
+                                            hidden={collapsed.includes(node.lane)}
+                                            tabIndex={activeKey === node.key ? 0 : -1}
+                                            onFocus={() => setActiveKey(node.key)}
+                                            onKeyDown={(event: React.KeyboardEvent) => {
+                                                const direction = {
+                                                    ArrowUp: "up",
+                                                    ArrowDown: "down",
+                                                    ArrowLeft: "left",
+                                                    ArrowRight: "right"
+                                                }[event.key] as TimelineDirection | undefined;
+                                                if (!direction) {
+                                                    return;
+                                                }
+                                                event.preventDefault();
+                                                const next = findAdjacentTimelineKey({
+                                                    nodes,
+                                                    currentKey: node.key,
+                                                    direction,
+                                                    collapsedLanes: collapsed
+                                                });
+                                                if (next) {
+                                                    nodeRefs.current.get(next)?.focus();
+                                                }
+                                            }}
+                                            aria-label={[
+                                                t("panel.timeline.aria.node"),
+                                                laneLabel,
+                                                identity,
+                                                label(
+                                                    `enum.timelineKind.${node.objectKind}`,
+                                                    node.objectKind,
+                                                    t
+                                                ),
+                                                label(
+                                                    node.eventKind === undefined
+                                                        ? `enum.timelinePhase.${node.phase}`
+                                                        : `enum.timelineEvent.${node.eventKind}`,
+                                                    node.eventKind ?? node.phase,
+                                                    t
+                                                ),
+                                                dateFormatter.format(new Date(node.time)),
+                                                statusLabel(node, t)
+                                            ]
+                                                .filter(Boolean)
+                                                .join("; ")}
+                                            className={styles.node}
                                         >
-                                            {t("panel.mode.overview")}
-                                        </Button>
-                                    ) : null}
-                                    {content === undefined ? (
-                                        <p>{t("panel.state.focusMissing")}</p>
-                                    ) : (
-                                        <div>
-                                            <Ellipsis
-                                                text={contentTitle(node, content.title, t)}
-                                                maxLines={3}
-                                            />
-                                            {content.detail === undefined ? null : (
-                                                <details>
-                                                    <summary>{t("panel.timeline.details")}</summary>
-                                                    <p>
-                                                        {node.objectKind ===
-                                                        "identity_recommendation"
-                                                            ? knownEnum(
-                                                                  "recommendation",
-                                                                  content.detail,
-                                                                  t
-                                                              )
-                                                            : content.detail}
-                                                    </p>
-                                                </details>
+                                            <p>
+                                                {identity ? `${laneLabel}: ${identity}` : laneLabel}
+                                            </p>
+                                            <p>
+                                                {label(
+                                                    `enum.timelineKind.${node.objectKind}`,
+                                                    node.objectKind,
+                                                    t
+                                                )}
+                                            </p>
+                                            <p>
+                                                {label(
+                                                    node.eventKind === undefined
+                                                        ? `enum.timelinePhase.${node.phase}`
+                                                        : `enum.timelineEvent.${node.eventKind}`,
+                                                    node.eventKind ?? node.phase,
+                                                    t
+                                                )}
+                                            </p>
+                                            <time dateTime={new Date(node.time).toISOString()}>
+                                                {dateFormatter.format(new Date(node.time))}
+                                            </time>
+                                            {node.status === undefined ? null : (
+                                                <p>{statusLabel(node, t)}</p>
                                             )}
-                                        </div>
-                                    )}
-                                </article>
-                            );
-                        })}
-                </div>
+                                            {onLocateInOverview ? (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        onLocateInOverview({
+                                                            meetingId: detail.meetingId,
+                                                            objectKind: node.objectKind,
+                                                            objectId: node.objectId
+                                                        })
+                                                    }
+                                                >
+                                                    {t("panel.mode.overview")}
+                                                </Button>
+                                            ) : null}
+                                            {content === undefined ? (
+                                                <p>{t("panel.state.focusMissing")}</p>
+                                            ) : (
+                                                <div>
+                                                    <Ellipsis
+                                                        text={contentTitle(node, content.title, t)}
+                                                        maxLines={3}
+                                                    />
+                                                    {content.detail === undefined ? null : (
+                                                        <details>
+                                                            <summary>
+                                                                {t("panel.timeline.details")}
+                                                            </summary>
+                                                            <p>
+                                                                {node.objectKind ===
+                                                                "identity_recommendation"
+                                                                    ? knownEnum(
+                                                                          "recommendation",
+                                                                          content.detail,
+                                                                          t
+                                                                      )
+                                                                    : content.detail}
+                                                            </p>
+                                                        </details>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                        </div>
+                    </section>
+                ))}
             </div>
         </div>
     );

@@ -6,10 +6,76 @@ import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overvie
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
 import { withMeetingTranslation } from "./meeting-panel-locale-fixtures.ts";
 import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
+import { eventTimelineFixture } from "./meeting-timeline-fixtures.ts";
 
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
+    it("renders groups before filtering and keeps metadata stable while toggling details and event filters", () => {
+        const { container } = render(
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={eventTimelineFixture()}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    locale="zh"
+                    onFiltersChange={() => undefined}
+                />,
+                "zh"
+            )
+        );
+        const keys = () =>
+            screen.getAllByTestId("timeline-node").map((node) => node.dataset.nodeKey);
+        const round = () => container.querySelector('[data-group-key="milestone:round:round-1"]')!;
+        const metadata = () => [
+            round().getAttribute("data-group-status"),
+            round().getAttribute("data-group-occurrence"),
+            round().getAttribute("data-started-at"),
+            round().getAttribute("data-completed-at")
+        ];
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+        expect(metadata()).toEqual(["completed", "1", "20", "23"]);
+        expect(screen.getByText("immutable evidence summary")).toBeTruthy();
+        expect(keys()).toContain("event:5");
+        const opening = screen.getAllByTestId("timeline-node")[1]!;
+        expect(opening.dataset.side).toBe("left");
+        opening.focus();
+        fireEvent.keyDown(opening, { key: "ArrowDown" });
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
+        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
+        expect(metadata()).toEqual(["completed", "1", "20", "23"]);
+        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
+        fireEvent.click(screen.getByRole("button", { name: "审核领取" }));
+        expect(keys()).toEqual(["event:4"]);
+        expect(container.querySelector('[data-group-key="milestone:meeting-start:1"]')).toBeNull();
+        expect(metadata()).toEqual(["completed", "1", "20", "23"]);
+        fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+    });
+
+    it("focuses the latest visible event key for an object without falling back to DTO keys", () => {
+        const consumed = vi.fn();
+        render(
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={eventTimelineFixture()}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    onFiltersChange={() => undefined}
+                    focusTarget={{
+                        meetingId: "meeting-v1",
+                        objectKind: "evidence_version",
+                        objectId: "version-1"
+                    }}
+                    onFocusConsumed={consumed}
+                />,
+                "zh"
+            )
+        );
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
+        expect(consumed).toHaveBeenCalledOnce();
+    });
     it("alternates event cards, keeps round openings on the left and hides coordination details by default", () => {
         const detail = activeTimelineFixture();
         detail.rounds.push({
