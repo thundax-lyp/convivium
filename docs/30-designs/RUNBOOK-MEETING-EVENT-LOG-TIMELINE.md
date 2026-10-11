@@ -373,31 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T0：确认 baseline 与热点未漂移
-
-前置状态：处于指定分支；允许存在本 RUNBOOK 作者已修改的四份正式文档和本文件。
-
-允许修改：无。
-
-禁止修改：全仓库。
-
-执行：
-
-1. 运行下列命令并保存输出。
-2. 确认 `events: []`、`meeting.created`、`buildTimelineNodes`、两个 `projectMeetingView` 调用点均存在。
-
-验证：
-
-```bash
-git status --short
-rg -n 'events: \[\]|meeting\.created|buildTimelineNodes|projectMeetingView\(' plugin/src
-pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository-facts.spec.ts tests/contract/meeting-identity-view.spec.ts tests/client/meeting/meeting-timeline-projection.client.spec.ts
-```
-
-PASS：rg 全部命中且 vitest 退出 0。
-
-STOP：任一 symbol 缺失、baseline test 失败或有与本任务热点重叠的未知用户代码改动；报告 diff，不自行覆盖。
-
 ### T1：收紧内部事件类型并增加公开 Schema
 
 前置状态：T0 PASS。
