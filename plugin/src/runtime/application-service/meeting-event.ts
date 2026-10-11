@@ -628,7 +628,7 @@ const converters: EventConverters = {
         return events;
     },
     change_decision: (action, mapping) => {
-        const { now, idAt, ref, refs, payload } = mapping;
+        const { after, now, unique, idAt, ref, refs, payload } = mapping;
         const events: MeetingEventInput[] = [];
         events.push({
             type: "decision.changed",
@@ -648,6 +648,20 @@ const converters: EventConverters = {
                         : { status: action.status, rationale: action.rationale }
             }
         });
+        if (action.status === "superseded") {
+            const replacement = unique(after.decisions, idAt(1), "replacement decision");
+            events.push({
+                type: "decision.recorded",
+                occurredAt: now,
+                payload: {
+                    ...payload(ref("decision", replacement.id), [
+                        ref("decision", action.decisionId),
+                        ...refs("evidence_version", replacement.evidenceIds)
+                    ]),
+                    data: { status: "accepted" }
+                }
+            });
+        }
         return events;
     },
     record_completion_fact: (action, mapping) => {
@@ -671,7 +685,7 @@ const converters: EventConverters = {
         return events;
     },
     change_completion_fact: (action, mapping) => {
-        const { now, required, idAt, ref, refs, payload } = mapping;
+        const { after, now, unique, required, idAt, ref, refs, payload } = mapping;
         const events: MeetingEventInput[] = [];
         const replacement =
             action.status === "superseded"
@@ -701,6 +715,25 @@ const converters: EventConverters = {
                         : { status: action.status, rationale: action.rationale }
             }
         });
+        if (replacement !== undefined) {
+            const fact = unique(after.completionFacts, idAt(1), "replacement fact");
+            events.push({
+                type: "completion_fact.recorded",
+                occurredAt: now,
+                payload: {
+                    ...payload(ref("completion_fact", fact.id), [
+                        ref("completion_fact", action.factId),
+                        ...refs("evidence_version", fact.evidenceIds),
+                        ...refs("decision", fact.decisionIds)
+                    ]),
+                    data: {
+                        outputId: fact.outputId,
+                        statement: fact.statement,
+                        rationale: fact.rationale
+                    }
+                }
+            });
+        }
         return events;
     },
     end_meeting: (action, mapping) => {

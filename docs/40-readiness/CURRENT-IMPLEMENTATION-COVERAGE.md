@@ -76,6 +76,14 @@
 
 ## Executed Validation
 
+### 2026-10-12：时间线结束、替代事实与最新定位回归
+
+基线为 `codex/meeting-event-timeline`、`f1df9527` 后本次工作树，Node `v24.19.0`、DSH `0.2.0-rc.2`。先增强既有回归并观察 7 项目标失败：生命周期先进入 terminal 时，四种非 completed outcome 把收敛/完成判定错误标成 completed；两类 supersede 漏记 replacement 的 recorded 事件；交错分组使“回到最新”选择较早的组尾节点。修复只在 Client 延后终止边界的阶段收口、按可见节点的时间与 eventSeq 选最新目标，并在既有原子提交中追加 replacement 的现有 recorded 类型；未新增 event kind、修改 Domain 结束规则或回填历史。
+
+聚焦 `meeting-timeline-projection.client.spec.ts`、`meeting-panel-timeline-focus.client.spec.tsx` 与 runtime `meeting-event.spec.ts`：3 文件、71 测试 PASS。覆盖五种结束 outcome 的 lifecycle/ended 同次顺序、supersede 的 changed→recorded 与不可变 statement、revoke 不产生 replacement、交错分组的同时间 seq 决胜及隐藏角色排除。最终 `pnpm --dir plugin verify` PASS：105 文件、1004 测试，format/lint/typecheck/build/environment/contract/agent definitions/package 全部通过；lint 保留两项既有 Repository 文件长度 warning，0 error，DSH UI primitives 的 source-map warning 非阻断。本地文档链接 1126 项零错误，diff check PASS。
+
+Not Covered：未执行真实 provider/LLM smoke 或 Browser 全流程，未部署或重启人工 Host；固定 SQLite、已关闭 Session 和聊天历史均未改写。设计规则已同步，修复不改变分组 DOM 与键盘顺序，也不引入额外 React state/effect。
+
 ### 2026-10-11：Runtime 收口 worker 审核提交
 
 基线为 `codex/meeting-event-timeline` 本次提交前工作树，Node `v24.19.0`、DSH `0.2.0-rc.2`。TDD 先复现 worker 返回合法结果却不调用 application，以及额外输出字段被忽略后提交；修复后 Runtime 校验完整 output schema 与 action，使用启动前捕获的 claimId/roundId、原 reviewer caller 和稳定 requestId 直接提交，移除 coordinator 提交模板、独立模型提交工具及角色授权。同时修复已观察 reviewer turn 完成而未形成 Review 时不立即释放原 claim 的问题。

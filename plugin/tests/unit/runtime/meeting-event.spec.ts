@@ -342,6 +342,20 @@ const mappingState = (): MeetingState => {
                 status: "accepted"
             }
         ],
+        completionFacts: [
+            {
+                id: "replacement",
+                outputId: "output-v1",
+                statement: "updated",
+                rationale: "verified",
+                evidenceIds: ["version"],
+                decisionIds: ["decision"],
+                actorId: "contributor-v1",
+                status: "active",
+                supersedesFactId: "fact",
+                createdAt: 20
+            }
+        ],
         termination: {
             id: "termination",
             outcome: "partial",
@@ -662,6 +676,29 @@ const cases: MappingCase[] = [
 ];
 
 describe("Action-specific occurrence data", () => {
+    it.each(["change_decision", "change_completion_fact"] as const)(
+        "records only the old object's change when %s revokes without replacement",
+        (kind) => {
+            const state = mappingState();
+            const action: MeetingAction =
+                kind === "change_decision"
+                    ? {
+                          kind,
+                          decisionId: "decision",
+                          status: "revoked",
+                          rationale: "revoke",
+                          evidenceIds: ["version"]
+                      }
+                    : { kind, factId: "fact", status: "revoked", rationale: "revoke" };
+            const events = buildMeetingEvents({
+                ...fixture(),
+                action,
+                transition: { kind: "accepted", state, relatedIds: ["old"], effectRequests: [] }
+            });
+            expect(events).toHaveLength(1);
+            expect(events[0]?.payload.data).toEqual({ status: "revoked", rationale: "revoke" });
+        }
+    );
     it("preserves submitted evidence summary rather than later mutable text", () => {
         const state = mappingState();
         const version = state.evidencePackages[0]!.versions[0]!;
@@ -808,6 +845,13 @@ describe("Action-specific occurrence data", () => {
         "maps $action.kind to $type",
         ({ action, ids = [], type, subject, data, relations }) => {
             const state = mappingState();
+            if (action.kind === "change_decision" && action.status === "superseded") {
+                state.decisions.push({
+                    ...state.decisions[0]!,
+                    id: "replacement",
+                    replacesDecisionId: "decision"
+                });
+            }
             const events = buildMeetingEvents({
                 action,
                 beforeState: structuredClone(state),
@@ -821,7 +865,10 @@ describe("Action-specific occurrence data", () => {
                 meetingId: state.id,
                 now: 20
             });
-            expect(events).toHaveLength(1);
+            const superseded =
+                (action.kind === "change_decision" || action.kind === "change_completion_fact") &&
+                action.status === "superseded";
+            expect(events).toHaveLength(superseded ? 2 : 1);
             expect(events[0]).toMatchObject({
                 type,
                 occurredAt: 20,
@@ -833,6 +880,38 @@ describe("Action-specific occurrence data", () => {
                 }
             });
             expect(events[0]!.payload.data).toEqual(data);
+            if (superseded) {
+                expect(events[1]).toMatchObject({
+                    type:
+                        action.kind === "change_decision"
+                            ? "decision.recorded"
+                            : "completion_fact.recorded",
+                    occurredAt: 20,
+                    payload: {
+                        subject: {
+                            kind:
+                                action.kind === "change_decision" ? "decision" : "completion_fact",
+                            id: "replacement"
+                        },
+                        data:
+                            action.kind === "change_decision"
+                                ? { status: "accepted" }
+                                : {
+                                      outputId: "output-v1",
+                                      statement: "updated",
+                                      rationale: "verified"
+                                  }
+                    }
+                });
+                expect(events[1]!.payload.relatedObjects).toContainEqual({
+                    kind: "evidence_version",
+                    id: "version"
+                });
+                if (action.kind === "change_completion_fact") {
+                    state.completionFacts[0]!.statement = "later mutation";
+                    expect(events[1]!.payload.data).toMatchObject({ statement: "updated" });
+                }
+            }
             if (relations) {
                 expect(events[0]!.payload.relatedObjects).toEqual(relations);
             }
