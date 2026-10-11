@@ -144,6 +144,7 @@ Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`�
 interface TimelineNode {
   key: string; // event:<eventSeq>
   eventSeq: number;
+  meetingVersion: number; // 仅用于核对同一次提交，不进入 milestone group
   eventKind: MeetingEventKind;
   objectKind: string;
   objectId: string;
@@ -190,7 +191,8 @@ interface TimelineMilestoneGroup {
 4. 扫描到 convergence 类事件且没有活动 convergence 时，occurrence 加一并建立 convergence；该事件归入当前 convergence。扫描到 completion 类事件时，若没有活动 convergence，则 occurrence 加一并建立无节点的内部 convergence，再建立同 occurrence 的 completion；该事件只归入 completion。没有事件节点的内部 convergence 不输出空 group。
 5. 扫描到 `meeting.lifecycle_changed` 且 `from="converging"`、`to!=="converging"` 时，它归入同 occurrence 已存在的 completion，否则归入 convergence；随后同时关闭活动 convergence 和 completion。`to="paused"` 时两个已有实例状态为 `blocked`，其它目标状态为 `completed`；`completedAt` 均取该 lifecycle event 的 `occurredAt`。关闭后清除活动实例，下一次进入重新递增 occurrence。
 6. `meeting.ended` 先关闭仍活动的 convergence/completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时进入 other。`archive.completed` 完成 closure。
-7. 未命中上述唯一规则的事件进入 other。已经关闭的里程碑保持不变，不把后续事件回填为其历史。
+7. 唯一的已关闭 round 归组例外：`formal_message.published` 的 typed relations 必须唯一指向一个已扫描的 `round.published` subject publication 和它所属的 round，且两条事件的 `meetingVersion` 相同；该正式消息仍归入原 round，但不得修改其 occurrence、status 或 completedAt。仅凭 round ID、时间相同或相邻 seq 不满足此例外；不同提交、publication 关联缺失或冲突时进入 other。
+8. 未命中上述唯一规则的事件进入 other。除第 7 条的同次 publication 正式消息外，已经关闭的里程碑保持不变，不把后续事件回填为其历史。
 
 状态只从上述明确事件派生：meeting-start 当场完成；round 为 active/completed/aborted；convergence 与 completion 为 active/completed/aborted/blocked；closure 为 active/completed；other 保持 active。`startedAt` 取该组首个实际成员的 `occurredAt`，`completedAt` 只取明确关闭事件。不得根据沉默、时间间隔、当前 DTO 状态或下一组已经出现推断本组完成。
 
