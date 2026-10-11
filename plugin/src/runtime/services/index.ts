@@ -1,4 +1,5 @@
 export { runDueContributionDeadline } from "./contribution-deadline.ts";
+export { meetingDeletionStatus, deleteMeeting } from "./meeting-deletion.ts";
 export {
     createEvidenceReviewDispatcher,
     createReviewDeliveryDispatcher,

@@ -1,6 +1,12 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import type { ClientRemote, RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
+import {
+    DeleteMeetingRequestSchema,
+    DeleteMeetingResultSchema,
+    type DeleteMeetingRequest,
+    type DeleteMeetingResult
+} from "@/protocol/index.ts";
 import type {} from "@convivium/dsh-plugin/remote";
 import {
     MeetingCommandResultSchema,
@@ -37,11 +43,33 @@ export interface MeetingRefreshCallbacks {
 }
 
 export interface MeetingClient {
+    deleteMeeting(
+        request: DeleteMeetingRequest,
+        signal?: AbortSignal
+    ): Promise<DeleteMeetingResult>;
     list(signal?: AbortSignal): Promise<MeetingListResult>;
     read(request: ReadMeetingRequest, signal?: AbortSignal): Promise<MeetingReadResult>;
     control(command: MeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
     subscribeRefresh(callbacks: MeetingRefreshCallbacks): RemoteStream<RefreshNotice>;
 }
+
+export const withMeetingWriteLock = async <T>(
+    lock: MutableRefObject<boolean>,
+    setPending: (pending: boolean) => void,
+    execute: () => Promise<T>
+): Promise<T> => {
+    if (lock.current) {
+        throw new Error("A user command is already in flight.");
+    }
+    lock.current = true;
+    setPending(true);
+    try {
+        return await execute();
+    } finally {
+        lock.current = false;
+        setPending(false);
+    }
+};
 
 const protocolFailure = (value: unknown): ProtocolFailure => {
     const error = value as ProtocolError;
@@ -108,6 +136,16 @@ const unwrap = async <T>(
 export const createMeetingClient = (remote: ClientRemote): MeetingClient => {
     const service = remote.conviviumMeetings;
     return {
+        deleteMeeting: async (request, signal) => {
+            const validated = DeleteMeetingRequestSchema.parse(request);
+            const result = await unwrap(service.deleteMeeting(validated, signal), (value) =>
+                DeleteMeetingResultSchema.parse(value)
+            );
+            if (result.kind === "deleted" && result.meetingId !== validated.meetingId) {
+                throw new Error("Deletion target mismatch");
+            }
+            return result;
+        },
         list: (signal) =>
             unwrap(service.list(signal), (value) => MeetingListResultSchema.parse(value)),
         read: (request, signal) => {

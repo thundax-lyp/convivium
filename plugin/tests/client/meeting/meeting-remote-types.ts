@@ -6,6 +6,7 @@ import type {
     MeetingReadResult,
     RefreshNotice
 } from "@/protocol/index.ts";
+import type { DeleteMeetingResult } from "@/protocol/index.ts";
 import type { loadRemoteClientModule } from "../../fixtures/remote-client.ts";
 import type { RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
@@ -32,6 +33,12 @@ const controlCall: Promise<RemoteResult<MeetingCommandResult>> = remote.conviviu
 void listCall;
 void readCall;
 void controlCall;
+const deleteCall: Promise<RemoteResult<DeleteMeetingResult>> =
+    remote.conviviumMeetings.deleteMeeting({ ...input, expectedMeetingVersion: 2 });
+void deleteCall;
+
+// @ts-expect-error deleteMeeting requires an explicit expected version
+remote.conviviumMeetings.deleteMeeting(input);
 declare const stream: RemoteStream<RefreshNotice>;
 const adapterStream: ReturnType<MeetingClient["subscribeRefresh"]> = stream;
 void adapterStream;

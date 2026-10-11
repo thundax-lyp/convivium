@@ -18,17 +18,27 @@ export const MeetingTreeItem = ({
     meeting,
     now,
     selected,
-    selectMeeting
+    selectMeeting,
+    deleteDisabled = true,
+    requestDelete
 }: {
     meeting: MeetingSummary;
     now: number;
     selected: boolean;
     selectMeeting(meetingId: string): void;
+    deleteDisabled?: boolean;
+    requestDelete?(meeting: MeetingSummary): void;
 }): ReactElement => {
     const t = useMeetingTranslate();
     const [menuOpen, setMenuOpen] = useState(false);
     const status = lifecycleLabel(meeting.lifecycle, t);
     const time = relativeTime(meeting.updatedAt, now);
+    const deleteReason =
+        deleteDisabled || !requestDelete || !meeting.deletionStatus
+            ? t("panel.delete.unavailable")
+            : meeting.deletionStatus === "allowed" || meeting.deletionStatus === "deleting"
+              ? undefined
+              : t(`panel.delete.${meeting.deletionStatus}`);
 
     const activate = () => {
         setMenuOpen(false);
@@ -97,11 +107,34 @@ export const MeetingTreeItem = ({
                             id: "open",
                             label: t("panel.navigator.openMeeting"),
                             icon: <IconBrowseOutlineMedium />
+                        },
+                        { type: "separator", id: "delete-separator" },
+                        ...(meeting.deletionStatus === "deleting"
+                            ? [
+                                  {
+                                      type: "label" as const,
+                                      id: "deletion-pending",
+                                      text: t("panel.delete.deleting")
+                                  }
+                              ]
+                            : []),
+                        ...(deleteReason
+                            ? [{ type: "label" as const, id: "delete-reason", text: deleteReason }]
+                            : []),
+                        {
+                            id: "delete",
+                            label: t("panel.delete.action"),
+                            danger: true,
+                            disabled: deleteReason !== undefined
                         }
                     ]}
                     onSelect={(id) => {
                         if (id === "open") {
                             activate();
+                        }
+                        if (id === "delete" && deleteReason === undefined) {
+                            setMenuOpen(false);
+                            requestDelete?.(meeting);
                         }
                     }}
                     onClose={() => setMenuOpen(false)}

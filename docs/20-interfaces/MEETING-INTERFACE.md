@@ -767,6 +767,24 @@ interface MeetingError {
 
 本接口的 `MeetingRole` 与 `RoleError["code"]` 引用 [DSH Role Interface](./DSH-ROLE-INTERFACE.md) 的同名定义；Protocol 仅公开该 code union 和角色枚举，不导入 Host adapter 类型。错误优先级固定为：协议结构 → Meeting 可见性 → caller ownership/authorization → requestId binding → terminal/archive → expected version → 对象存在性 → action state/precondition → Domain invariant/limit → storage/recovery。拒绝结果不含 effects、隐藏事实或其他 caller 的版本。
 
+## Meeting Deletion Boundary
+
+删除完成后原 Meeting ID 不得重新创建；原 `create_meeting` requestId 重放在写入新的 creating/bootstrap 或 provisioning 前返回 `INVALID_STATE`。Catalog 的 `deleted` 表只保留以 catalogKey 为键的布尔删除标记，不保存目标、事实、Session ID 或请求内容；该非业务标记在意图提交后、领域清理前写入，并跨冷重启阻止 ID 复用。关闭的 Session 和历史仍保留，不为解决 ID 冲突删除或覆盖它们。
+
+清理未完成的 catalog 意图保留最小 `deletionSummary: { objective, version, lifecycle }`，仅用于显示目标与显式重试；不作为可恢复业务 snapshot。列表将其映射为 `deletionStatus: "deleting"`，Client 显示未完成提示并允许可信用户再次确认同一删除；不开放业务修改、详情恢复或 Session 权限。成功清理后删除该摘要与 catalog 登记，仅保留上述布尔标记。旧意图缺少摘要时不解析残缺 projection，仍由冷启动清理。
+
+MO-FR-19 的删除入口只接受可信本地用户的显式确认，不向 Meeting Agent 或用户 Skill 授予删除权限。服务端重新检查指定会议已终止、无待处理后台工作，且关联 Session 已关闭和撤权；运行中、暂停中和归档清理中的会议拒绝删除。
+
+删除范围为该会议的业务持久记录：catalog 登记、creation、正式事实与状态、证据与审核、归档、receipt、outbox、Session ownership 与 checkpoint。Host 所有的已关闭 Agent/worker Session 及其聊天历史必须保留，不调用 Session 物理删除接口；删除 ownership 后，这些历史 Session 不再取得会议身份权限。普通用户聊天、其它会议和共享配置不受影响。
+
+清理未完成不得返回成功；失败反馈和确认文案必须明确区分会议业务数据与保留的 Session 历史。删除完成后列表和详情不可恢复该会议，包括 Host 冷启动和迟到的 Client 请求结果。
+
+`conviviumMeetings.deleteMeeting(request, signal)` 是独立于 `MeetingAction` 的本地资源删除操作，不追加随后就会被删除的业务 receipt 或 event。输入为严格对象 `{ protocolVersion: 1, meetingId, expectedMeetingVersion }`，不接受 actor、Session ID 或权限字段。服务端在目标 Repository 的写队列内重验版本和删除条件；版本不匹配返回 `rejected / VERSION_CONFLICT`，条件不满足返回 `rejected / PRECONDITION_FAILED`。清理全部完成后返回 `{ kind: "deleted", meetingId }`；目标已不存在时返回同样结果，使网络结果未知后的显式重试幂等。结构错误及存储失败仍按 Remote 错误契约报告，不伪装为成功。
+
+Runtime 为摘要提供可选 `deletionStatus: "allowed" | "active" | "pending_work" | "sessions_open" | "deleting"`：已提交的删除意图仅显示为 deleting 并允许显式重试；普通可恢复会议的终态之外（包括 archiving）为 active；仍有 pending/leased outbox、review claim 或 provisioning intent 为 pending_work；任何 ownership 未 closed/revoked，或任何 identity 缺少匹配的 ownership，为 sessions_open；其余为 allowed。旧摘要缺少此字段时 Client 禁用删除，不能仅从生命周期推断许可。此字段不暴露 Session 标识或私有运行内容。
+
+Catalog 的 `deleting` 是持久删除意图，不是 Meeting lifecycle 或业务 event。写入意图后禁止该会议的新业务读写，先停止其投递和期限扫描，再按公开 Storage Domain 表 API 清理 commits、checkpoint pages/roots/pointer 和 creation，关闭领域句柄，最后删除 catalog 登记。清理失败保留意图；同一删除重试或冷启动仅依据已确认的意图继续清理，不解析不完整的业务 projection，也不重新启动该会议或重验已清除的事实。未写入意图的失败不改变可读数据。目录与业务领域不具备跨域事务，因此不能先移除登记后丢失清理目标。
+
 ## Read, Remote And Projection
 
 ```ts
@@ -789,6 +807,7 @@ interface MeetingSummary {
   activeAgenda?: { id: OpaqueId; title: string };
   updatedAt: EpochMs;
   unavailableReason?: string;
+  deletionStatus?: "allowed" | "active" | "pending_work" | "sessions_open" | "deleting";
 }
 interface ReadMeetingRequest {
   protocolVersion: 1;

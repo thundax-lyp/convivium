@@ -35,6 +35,8 @@ import { provisionMeetingIdentity } from "./services/index.ts";
 import type { MeetingIdentityProvisionDependencies } from "./services/index.ts";
 import type { OutboxItem } from "@/repository/index.ts";
 import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import { meetingDeletionStatus, deleteMeeting } from "./services/index.ts";
+import type { DeleteMeetingRequest } from "@/protocol/index.ts";
 
 export const createTargetMeetingEffectDispatcher = (dependencies: {
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
@@ -111,6 +113,9 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
         return definition;
     };
     for (const record of dependencies.registry.listMeetings()) {
+        if (record.status === "deleting") {
+            continue;
+        }
         if (dependencies.meetingId !== undefined && dependencies.meetingId !== record.meetingId) {
             continue;
         }
@@ -726,16 +731,40 @@ export const activateTargetMeetingApplication = async (
             }
         });
     const runtime = {
+        async deleteMeeting(request: DeleteMeetingRequest, signal: AbortSignal) {
+            const result = await deleteMeeting(registry, request, signal, () =>
+                stopDelivery(request.meetingId)
+            );
+            if (result.kind === "deleted") {
+                for (const listener of refreshListeners) {
+                    listener(request.meetingId, request.expectedMeetingVersion);
+                }
+            }
+            return result;
+        },
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
             const meetings = [];
             for (const record of registry.listMeetings()) {
+                if (record.status === "deleting" && record.deletionSummary) {
+                    meetings.push({
+                        meetingId: record.meetingId,
+                        ...record.deletionSummary,
+                        updatedAt: record.updatedAt,
+                        deletionStatus: "deleting" as const
+                    });
+                    continue;
+                }
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
-                const snapshot = (await repository.recover()).snapshot;
+                const recovery = await repository.recover();
+                const snapshot = recovery.snapshot;
                 if (!snapshot) {
                     throw new Error("Meeting is not ready.");
                 }
-                meetings.push(projectMeetingSummary(snapshot));
+                meetings.push({
+                    ...projectMeetingSummary(snapshot),
+                    deletionStatus: meetingDeletionStatus(recovery)
+                });
             }
             return { meetings };
         },
@@ -852,6 +881,9 @@ export const activateTargetMeetingApplication = async (
         async findBySessionId(sessionId: string, signal: AbortSignal) {
             signal.throwIfAborted();
             for (const record of registry.listMeetings()) {
+                if (record.status === "deleting") {
+                    continue;
+                }
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const ownership = (await repository.recover()).sessionOwnership.find(
                     (item) => item.sessionId === sessionId

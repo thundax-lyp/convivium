@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RoleErrorCodeSchema } from "./meeting-identity.ts";
+import { MeetingDeletionStatusSchema } from "./meeting-deletion.ts";
 
 const id = z.string().trim().min(1);
 const text = z.string().trim().min(1);
@@ -676,7 +677,8 @@ export const MeetingSummarySchema = z.object({
     lifecycle,
     activeAgenda: z.object({ id, title: text }).optional(),
     updatedAt: epoch,
-    unavailableReason: text.optional()
+    unavailableReason: text.optional(),
+    deletionStatus: MeetingDeletionStatusSchema.optional()
 });
 export const MeetingViewSchema = z.object({
     agendaCandidates: z.array(AgendaCandidateViewSchema),

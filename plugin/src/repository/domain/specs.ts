@@ -23,7 +23,8 @@ export const catalogDomainSpec = defineDomain({
     name: "convivium_catalog",
     version: 1,
     tables: {
-        meetings: domainTable<CatalogKey, CatalogMeetingRecord>(CatalogMeetingRecordSchema)
+        meetings: domainTable<CatalogKey, CatalogMeetingRecord>(CatalogMeetingRecordSchema),
+        deleted: domainTable<CatalogKey, true>(z.literal(true))
     }
 });
 export const createMeetingDomainSpec = (name: string) => {

@@ -21,7 +21,7 @@ describe("generated Remote contract", () => {
             const second = await generateTypert(root);
             expect(second.js).toBe(first.js);
             expect(second.remote?.dts).toBe(first.remote?.dts);
-            for (const method of ["list", "read", "control", "subscribeRefresh"]) {
+            for (const method of ["list", "read", "control", "deleteMeeting", "subscribeRefresh"]) {
                 expect(firstClient).toContain(method);
             }
             for (const method of ["getStatus", "pause", "resume", "watchUpdates"]) {

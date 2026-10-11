@@ -3,7 +3,7 @@ import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
 import { createMeetingClient, ProtocolFailure } from "@/client/meeting/client.ts";
 
 describe("MeetingClient target transport", () => {
-    it("exposes the four target transport methods", async () => {
+    it("exposes the local meeting transport methods", async () => {
         const refreshSource = {
             async *[Symbol.asyncIterator]() {
                 yield { kind: "refresh", meetingId: "meeting-1", committedVersion: 2 };
@@ -32,7 +32,13 @@ describe("MeetingClient target transport", () => {
             $host: { home: undefined, isLoopback: true }
         } as unknown as ClientRemote;
         const client = createMeetingClient(remote);
-        expect(Object.keys(client)).toEqual(["list", "read", "control", "subscribeRefresh"]);
+        expect(Object.keys(client)).toEqual([
+            "deleteMeeting",
+            "list",
+            "read",
+            "control",
+            "subscribeRefresh"
+        ]);
         await expect(client.list()).resolves.toEqual({ meetings: [] });
         await expect(
             client.control({

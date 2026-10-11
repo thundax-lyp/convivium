@@ -13,6 +13,10 @@ import { tmpdir } from "node:os";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
 import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
+import SessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
+import { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from "@deepseek-ai/dsh-session";
+import { MessageId } from "@deepseek-ai/dsh-llm";
+import { createMeetingDomainSpec } from "@/repository/domain/specs.ts";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -38,6 +42,7 @@ async function open(path: string, target: boolean) {
               authorizationValidator: allow
           });
     return {
+        context,
         registry,
         async close() {
             await registry.close();
@@ -59,6 +64,135 @@ afterEach(async () => {
 });
 
 describe("target Meeting persistence on SQLite", () => {
+    it.each([false, true])(
+        "keeps closed Session history after deletion and cold reopen (interrupted=%s)",
+        async (interrupted) => {
+            const path = await databasePath();
+            const first = await open(path, false);
+            const sessionRoot = join(path, "..", "sessions");
+            await first.context.plugin(SessionPersistence, {
+                root: sessionRoot,
+                compression: "none"
+            });
+            const identities = [
+                { id: "manager", roles: ["manager"] },
+                { id: "reviewer", roles: ["evidence_reviewer"] },
+                { id: "contributor", roles: ["contributor"] }
+            ];
+            const create = {
+                requestId: "delete-create",
+                requestHash: "delete-hash",
+                authorization,
+                initialState: { identities, count: 0 },
+                ...peerBindings("meeting-delete", identities),
+                createdAt: 1
+            };
+            const repository = await first.registry.openMeeting({
+                meetingId: "meeting-delete",
+                create
+            });
+            for (const item of create.initialOwnership) {
+                await repository.recordSessionOwnership({ ...item, lifecycleStatus: "active" }, 2);
+            }
+            await repository.completeCreate(create);
+            const otherIdentities = identities.map((i) => ({ ...i, id: `other-${i.id}` }));
+            const otherCreate = {
+                ...create,
+                requestId: "other-create",
+                requestHash: "other-hash",
+                initialState: { identities: otherIdentities, count: 73 },
+                ...peerBindings("meeting-other", otherIdentities)
+            };
+            const otherRepository = await first.registry.openMeeting({
+                meetingId: "meeting-other",
+                create: otherCreate
+            });
+            for (const item of otherCreate.initialOwnership) {
+                await otherRepository.recordSessionOwnership(
+                    { ...item, lifecycleStatus: "active" },
+                    2
+                );
+            }
+            await otherRepository.completeCreate(otherCreate);
+            const sessionId = SessionId(create.initialOwnership[0]!.sessionId);
+            const writer = await first.context.sessionPersistence.create({
+                version: SESSION_FORMAT_VERSION,
+                id: sessionId,
+                createdAt: 1,
+                isSeeded: false
+            });
+            const events = [
+                {
+                    type: "user/message" as const,
+                    seq: SessionSeq(0),
+                    time: 1,
+                    surfaceOp: "append" as const,
+                    data: {
+                        role: "user" as const,
+                        id: MessageId("retained-message"),
+                        source: { kind: "user" as const },
+                        content: [{ type: "text" as const, text: "Retain this chat history" }]
+                    }
+                }
+            ];
+            await writer.append(events);
+            await writer.close();
+            if (interrupted) {
+                await repository.beginDeletion(0, () => {});
+            } else {
+                await first.registry.deleteMeeting("meeting-delete", 0, () => {});
+            }
+            await first.close();
+
+            const second = await open(path, false);
+            try {
+                await second.context.plugin(SessionPersistence, {
+                    root: sessionRoot,
+                    compression: "none"
+                });
+                expect(second.registry.listMeetings().map((item) => item.meetingId)).toEqual([
+                    "meeting-other"
+                ]);
+                const otherRecovered = await (
+                    await second.registry.openMeeting({ meetingId: "meeting-other" })
+                ).recover();
+                expect(otherRecovered.snapshot?.state.count).toBe(73);
+                await expect(
+                    second.registry.openMeeting({ meetingId: "meeting-delete" })
+                ).rejects.toMatchObject({ code: "MEETING_NOT_FOUND" });
+                await expect(
+                    second.registry.openMeeting({ meetingId: "meeting-delete", create })
+                ).rejects.toMatchObject({ code: "INVALID_STATE" });
+                expect(second.registry.listMeetings().map((item) => item.meetingId)).toEqual([
+                    "meeting-other"
+                ]);
+                const deletedDomain = await second.context.storageDomain.open(
+                    createMeetingDomainSpec(meetingDomainName("meeting-delete"))
+                );
+                try {
+                    for (const table of [
+                        "creation",
+                        "commits",
+                        "checkpoint_pages",
+                        "checkpoint_roots",
+                        "checkpoint_pointer"
+                    ] as const) {
+                        expect(deletedDomain.table(table).size).toBe(0);
+                    }
+                } finally {
+                    await deletedDomain.close();
+                }
+                const reader = await second.context.sessionPersistence.open(sessionId, "read");
+                try {
+                    expect((await reader.read()).events).toEqual(events);
+                } finally {
+                    await reader.close();
+                }
+            } finally {
+                await second.close();
+            }
+        }
+    );
     it("reopens target state, facts and atomic Session closure", async () => {
         const path = await databasePath();
         const first = await open(path, true);

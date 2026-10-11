@@ -26,9 +26,8 @@ export const useMeetingWorkspace = () => {
     }, []);
     const clearSelection = useCallback(() => {
         setWorkspace((current) => ({
-            ...current,
-            selectedMeetingId: undefined,
-            focusTarget: undefined
+            ...INITIAL_WORKSPACE,
+            viewportRevision: current.viewportRevision + 1
         }));
     }, []);
     const setMode = (activeMode: MeetingMode) => {
