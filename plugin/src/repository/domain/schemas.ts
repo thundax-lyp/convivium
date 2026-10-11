@@ -468,7 +468,23 @@ export const CatalogMeetingRecordSchema = z
         formatVersion: z.literal(1),
         meetingId: z.string(),
         domainName: z.string(),
-        status: z.enum(["creating", "ready", "creation_failed"]),
+        status: z.enum(["creating", "ready", "creation_failed", "deleting"]),
+        deletionSummary: z
+            .object({
+                objective: z.string(),
+                version: z.number().int().nonnegative(),
+                lifecycle: z.enum([
+                    "preparing",
+                    "running",
+                    "paused",
+                    "converging",
+                    "ending",
+                    "terminal",
+                    "archiving",
+                    "archived"
+                ])
+            })
+            .optional(),
         createRequestId: z.string(),
         requestHash: z.string(),
         createdAt: z.number().int(),

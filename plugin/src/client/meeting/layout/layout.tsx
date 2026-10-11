@@ -152,6 +152,8 @@ export const MeetingPanelLayout = (props: MeetingPanelLayoutProps): ReactElement
             listCached={props.listCached}
             listError={props.listError}
             selectMeeting={selectMeeting}
+            deleteMeeting={props.deleteMeeting}
+            deleteDisabled={props.deleteDisabled}
         />
     );
     let wideNavigation: ReactElement | null = null;

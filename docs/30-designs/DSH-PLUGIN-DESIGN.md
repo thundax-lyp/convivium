@@ -60,6 +60,10 @@ Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依�
 
 ### Meetings View 组成
 
+删除清理失败后，Navigator 继续展示 catalog 意图的最小摘要与“删除未完成，可重试”状态；刷新、取消确认和重新打开菜单不会丢失显式重试入口。该状态只能再次删除，不能恢复详情或业务写权限。删除成功后以不含业务内容的持久标记阻止原创建请求重新登记，不删除或复用历史 Session。
+
+会议删除遵循 MO-FR-19 和 [Meeting Deletion Boundary](../20-interfaces/MEETING-INTERFACE.md#meeting-deletion-boundary)：Navigator 的打开动作后增加分隔线与危险删除动作，并在确认框明确“永久删除会议业务数据，保留已关闭的 Session 和聊天历史”。删除执行前由 Runtime 重验终止、待处理工作和 Session 关闭/撤权条件；业务 Repository 只清理精确会议的数据，不调用 Host 的 Session 删除服务。成功后清除被删除会议的选择和展示状态，不自动选择其它会议；失败或清理未完成不报告成功。
+
 Client 只注册一个 `conversation.view: convivium-meetings`，不注册独立 Timeline View：
 
 ```text
@@ -88,7 +92,7 @@ DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的
 
 取得非空列表后，Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；搜索无匹配使用搜索图标与 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
-会议标题悬停时使用 DSH `Tooltip` 显示完整目标。会议行在悬停或键盘聚焦时以省略号替代尾部时间，点击后使用 DSH `Menu` 显示生命周期和已有的“查看会议”导航动作；信息浮层与操作菜单独立，菜单打开本身不选择会议，也不新增 Meeting command。
+会议标题悬停时使用 DSH `Tooltip` 显示完整目标。会议行在悬停或键盘聚焦时以省略号替代尾部时间，点击后使用 DSH `Menu` 显示生命周期、“查看会议”、分隔线和危险“删除会议”；删除不可用时菜单显示原因。信息浮层与操作菜单独立，打开菜单或取消删除确认均不选择会议。删除使用 DSH `RiskConfirmation`，要求用户勾选不可撤销后果；删除与用户 command 共用一个提交锁，失败不清除选择、不报告成功。
 
 非空列表首次可用时，Workspace 以 180ms ease-out 的 opacity 与小幅水平位移动画进入；`prefers-reduced-motion: reduce` 时禁用动画。动画依赖 Workspace 从页面级列表状态进入布局时的挂载，不在普通刷新、详情更新或保留 last-good 数据时重新播放。宽屏时，Navigator 与 Workspace 之间的分隔条可通过指针拖动或方向键、Home、End 调整 Navigator 宽度；当前实现以 280px 为初始值，在 220–480px 与容器可用宽度内约束，尽量给 Workspace 保留 320px。该宽度只是可丢弃的本地展示状态，不进入 URL 或持久事实。浏览器进入窄屏断点，或 Host 实际内容列不足以容纳 220px Navigator、320px Workspace 和 16px 分隔区域时，沿用导航抽屉，不显示分隔条；内容列恢复后继续使用先前设定的宽度。
 
@@ -116,7 +120,7 @@ interface MeetingsWorkspaceState {
 
 这些字段不进入 Meeting、Remote、URL 或持久事实。初次挂载只调用 `list()`；用户选择后才 `read()`。选择不同 Meeting 时设置新 ID、切回概览并清除旧 Meeting 的 focus 与 timeline 状态；重复选择当前 ID 是 UI no-op。每次详情读取携带请求时的 Meeting ID，只有该 ID 仍等于当前 `selectedMeetingId` 时才可提交结果，旧选择的迟到成功或失败都被丢弃。完整摘要补读后 ID 仍存在则保持选择和模式，不存在则清除选择；详情失败保留 ID，retry 只读取该 ID。不得把失败返回的残缺列表与 last-good 列表合并成新的选择来源。
 
-`MeetingClient.list/read/control/subscribeRefresh` 仍是唯一 Client 数据入口。概览与时间线共享一份已选 `MeetingView` 和刷新订阅；refresh notice 只触发补读，不携带事实。Client 可以保留 last-good 摘要与详情用于断线展示，但必须标记陈旧并禁写，完整补读成功后才解除。
+`MeetingClient.list/read/control/deleteMeeting/subscribeRefresh` 仍是唯一 Client 数据入口。概览与时间线共享一份已选 `MeetingView` 和刷新订阅；refresh notice 只触发补读，不携带事实。Client 可以保留 last-good 摘要与详情用于断线展示，但必须标记陈旧并禁写，完整补读成功后才解除。删除成功使刷新 generation 失效并清除目标条目；只有删除当前选中会议才清空选择、详情、focus 和时间线状态，不自动选中其它会议。
 
 ### 概览
 

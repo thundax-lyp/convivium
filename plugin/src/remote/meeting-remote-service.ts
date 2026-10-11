@@ -11,6 +11,8 @@ import {
     type MeetingCommand
 } from "@/protocol/index.ts";
 import type { LocalMeetingWebRuntime } from "@/runtime/index.ts";
+import { DeleteMeetingRequestSchema, DeleteMeetingResultSchema } from "@/protocol/index.ts";
+import type { RemoteDeleteMeetingRequest, RemoteDeleteMeetingResult } from "./types.ts";
 import type {
     RemoteMeetingCommand,
     RemoteMeetingCommandResult,
@@ -83,6 +85,27 @@ export class ConviviumRemoteService extends TypertRemoteService {
         }
         try {
             return MeetingReadResultSchema.parse(await this.runtime.read(parsed, signal));
+        } catch (cause) {
+            return mapFailure(signal, cause);
+        }
+    }
+
+    @Remote("deleteMeeting")
+    async deleteMeeting(
+        request: RemoteDeleteMeetingRequest,
+        signal: AbortSignal
+    ): Promise<RemoteDeleteMeetingResult> {
+        signal.throwIfAborted();
+        let parsed;
+        try {
+            parsed = DeleteMeetingRequestSchema.parse(request);
+        } catch (cause) {
+            throw invalidRequest(cause);
+        }
+        try {
+            return DeleteMeetingResultSchema.parse(
+                await this.runtime.deleteMeeting(parsed, signal)
+            );
         } catch (cause) {
             return mapFailure(signal, cause);
         }

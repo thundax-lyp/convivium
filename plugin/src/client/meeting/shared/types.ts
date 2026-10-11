@@ -46,6 +46,8 @@ export interface MeetingsFreshnessState {
 }
 
 export interface MeetingPanelLayoutProps {
+    deleteMeeting?(meeting: MeetingSummary): Promise<void>;
+    deleteDisabled?: boolean;
     localFeedback?: React.ReactNode;
     locale?: string;
     meetings: readonly MeetingSummary[];

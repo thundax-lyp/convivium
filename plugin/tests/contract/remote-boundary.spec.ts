@@ -10,6 +10,9 @@ function runtimeFixture() {
         control: 0
     };
     const runtime = {
+        async deleteMeeting(request: { meetingId: string }) {
+            return { kind: "deleted" as const, meetingId: request.meetingId };
+        },
         async list() {
             calls.list += 1;
             return { meetings: [] };
@@ -36,11 +39,21 @@ function runtimeFixture() {
 }
 
 describe("target Remote boundary", () => {
-    it("exposes only list/read/control and the refresh stream", async () => {
+    it("exposes local meeting methods and validates deletion input", async () => {
         const fixture = runtimeFixture();
         const gateway = await createRemoteGateway(fixture.runtime);
         await expect(gateway.invoke("list", {})).resolves.toEqual({ meetings: [] });
         expect(fixture.calls.list).toBe(1);
+        await expect(
+            gateway.invoke("deleteMeeting", {
+                request: { protocolVersion: 1, meetingId: "meeting-1", expectedMeetingVersion: 3 }
+            })
+        ).resolves.toEqual({ kind: "deleted", meetingId: "meeting-1" });
+        await expect(
+            gateway.invoke("deleteMeeting", {
+                request: { protocolVersion: 1, meetingId: "", expectedMeetingVersion: 3 }
+            })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
 
         await expect(
             gateway.invoke("control", {

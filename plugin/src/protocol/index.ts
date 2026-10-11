@@ -46,3 +46,11 @@ export {
     type RefreshNotice
 } from "./meeting-view.ts";
 export { ReviewWorkerOutputSchema } from "./review-worker.ts";
+export {
+    DeleteMeetingRequestSchema,
+    DeleteMeetingResultSchema,
+    MeetingDeletionStatusSchema,
+    type DeleteMeetingRequest,
+    type DeleteMeetingResult,
+    type MeetingDeletionStatus
+} from "./meeting-deletion.ts";
