@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
     objective: "TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？",
@@ -191,7 +191,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         protocolVersion: 1,
         meetingId: "new",
         expectedMeetingVersion: 0,
-        requestId: "meeting-business-loop-create",
+        requestId: `meeting-business-loop-create-${randomUUID()}`,
         action: {
             kind: "create_meeting",
             objective: {

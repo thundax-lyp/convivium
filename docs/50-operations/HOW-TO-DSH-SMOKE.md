@@ -111,6 +111,10 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 该场景的 Manager 与两位 Contributor 命令由 probe 通过真实工具边界驱动。probe 仅在 `meeting-business-loop` 中对这三个 Preset 使用 `agent/pre-step` 拒绝自主模型步骤，避免模型提前开轮或写入额外数据；不能只靠提示词要求等待。通知仍真实投递，Reviewer coordinator 与 one-shot worker 的模型步骤不拦截。其他 smoke 场景和正式安装不应用此钩子。
 
+每次场景运行使用独立的创建 requestId，避免在复用 SQLite 时命中先前运行的创建幂等记录；同一次运行内的后续命令与 cold reopen 仍引用原 meetingId。失败会议原样保留，不通过清库或回写复用它。
+
+cold reopen probe 通过 Cordis 依赖注入等待 Meeting Runtime 发布，再读取原 meetingId；不把插件的并发装载顺序当作 Runtime 已就绪。等待仍受 smoke 的 Host 启动超时约束。
+
 同一已授权 Agenda 依次完成四个 Manager `roundGoal`：
 
 1. Jev 的具体身份、来源和版本；
