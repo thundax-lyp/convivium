@@ -59,10 +59,8 @@ describe("risk disposition gates", () => {
         now: 1,
         ...overrides
     });
-    it.each([
-        ["captain", { kind: "captain_user", id: captainActorIdFor("m") }],
-        ["local", { kind: "captain_user", id: captainActorIdFor("m") }]
-    ] as const)("accept succeeds with %s", (_name, actor) => {
+    it("accept succeeds with the trusted Captain actor", () => {
+        const actor = { kind: "captain_user" as const, id: captainActorIdFor("m") };
         const state = riskState();
         const before = structuredClone(state);
         const result = disposeRisk(state, input(actor));
@@ -120,11 +118,11 @@ describe("risk disposition gates", () => {
             kind: "accepted"
         });
     });
-    it("rejects excessive accept and unsatisfied affected constraints", () => {
+    it("rejects excessive accept even with satisfied affected constraints", () => {
         const state = riskState();
         state.objective.acceptableRiskLevel = "low";
         state.issues[0].riskLevel = "high";
-        state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];
+        state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "satisfied" }];
         state.issues[0].affectedConstraintIds = ["c"];
         expect(
             disposeRisk(state, input({ kind: "captain_user", id: captainActorIdFor("m") }))
