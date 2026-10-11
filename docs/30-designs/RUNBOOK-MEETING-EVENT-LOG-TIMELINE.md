@@ -373,38 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T3：为 accepted command 生成基础事件
-
-前置状态：T2 PASS。
-
-允许修改：
-
-- `plugin/src/runtime/application-service/meeting-event.ts`（新增）
-- `plugin/src/runtime/application-service/meeting-command.ts`
-- `plugin/src/runtime/application-service/index.ts`
-- `plugin/tests/unit/runtime/meeting-event.spec.ts`（新增）
-- `plugin/tests/unit/runtime/meeting-command-application.spec.ts`（新增）
-
-禁止修改：Domain transition、action schema、authorization、fact payload、outbox planning。
-
-执行：
-
-1. 新增 `buildMeetingEvents(input): readonly MeetingEventInput[]`；输入固定为 action、scope、beforeState、transition、meetingId、now，按第 5 节和 Meeting Interface data 契约映射。
-2. `createRepositoryCommand` 在 transition accepted 后调用一次，用返回数组替换固定 `events: []`；同一次 commit 的 lifecycle event 排在对象 occurrence 前，publication 后按 message seq 排列。
-3. 单测逐个覆盖第 5 节所有 action；至少断言 captain/identity/system actor、typed relation、immutable data、publish 多事件、lifecycle + occurrence 同时存在、archive no-op、无 milestone key。
-4. application contract 断言 accepted commit 为 `0..n` events、全部 event 与 fact 共用 now/version，replay/reject/version conflict 零新增事件。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-event.spec.ts tests/unit/runtime/meeting-command-application.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin lint
-```
-
-PASS：退出 0；action union 的 `never` exhaustive check 编译通过，新增 action 未映射会使 typecheck 失败；所有 Meeting event 都显式传 occurredAt。
-
-STOP：表中 action 无法从现有 action/transition/state 唯一取得 subject；报告该 action 和实际 transition，不猜测。
 
 ### T4：只向 local controller 投影完整事件
 

@@ -8,3 +8,4 @@ export {
     type MeetingCreationCoordinator
 } from "./meeting-command.ts";
 export { createMeetingIdentityEffectHandler } from "./meeting-identity.ts";
+export { buildMeetingEvents } from "./meeting-event.ts";
