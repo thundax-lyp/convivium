@@ -373,38 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T2：实现事件持久读取与完整性判别
-
-前置状态：T1 PASS。
-
-允许修改：
-
-- `plugin/src/repository/meeting-repository-port.ts`
-- `plugin/src/repository/domain/domain-meeting-repository.ts`
-- `plugin/src/repository/domain/domain-meeting-repository-core.ts`
-- `plugin/src/repository/domain/schemas.ts`
-- `plugin/tests/contract/domain-meeting-repository-events.spec.ts`（新增）
-- `plugin/tests/fixtures/domain-meeting-repository.ts`
-
-禁止修改：commit/checkpoint 算法、outbox、facts、storage key、SQLite schema。
-
-执行：
-
-1. 新增 `readCommittedEvents(): Promise<{kind:"legacy"}|{kind:"complete";events:readonly PersistedMeetingEvent[]}>`。
-2. 按 4.3 实现 marker、连续性、strict payload/type 验证；complete 结果按 eventSeq 升序 deep clone。
-3. 修改创建事件为 4.3 的完整 payload，不改变 seq=1、receipt.eventSeqs=[1] 或原子 commit。
-4. 新测试覆盖 create、同一 command 的多个 event 共享 version 并保持 seq 顺序、不同 command 的 version 递增、receipt replay 不追加、reject 不追加、cold reopen 保持、legacy 返回、complete gap/corruption 返回 `RECOVERY_UNAVAILABLE`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository-events.spec.ts tests/contract/domain-meeting-repository-facts.spec.ts --project contract
-```
-
-PASS：退出 0；create/multi-event/reopen 场景检查 eventSeq、meetingVersion、createdAt、receipt.eventSeqs 和重开内容；replay/reject 场景检查序号与记录数不变；legacy/corruption 场景分别检查缺席结果或不可重试的 `RECOVERY_UNAVAILABLE`。
-
-STOP：测试要求更改 storage schema/key 或回写 legacy record。
-
 ### T3：为 accepted command 生成基础事件
 
 前置状态：T2 PASS。

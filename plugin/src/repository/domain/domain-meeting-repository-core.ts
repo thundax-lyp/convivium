@@ -7,7 +7,7 @@ import {
     isOwnershipUpdateAllowed
 } from "./session-ownership-validation.ts";
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
-import { DomainError } from "@/domain/index.ts";
+import { DomainError, captainActorIdFor, type MeetingEventInput } from "@/domain/index.ts";
 import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/index.ts";
 import type { CatalogDomain, MeetingDomain } from "./specs.ts";
 import {
@@ -643,15 +643,26 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 sessionOwnership: creation.sessionOwnership,
                 preparedDescriptors: creation.preparedDescriptors
             });
+            const createdEvent: MeetingEventInput = {
+                type: "meeting.created",
+                occurredAt: now,
+                payload: {
+                    logVersion: 1,
+                    actor: { kind: "captain", actorId: captainActorIdFor(this.meetingId) },
+                    subject: { kind: "meeting", id: this.meetingId },
+                    relatedObjects: [],
+                    data: {}
+                }
+            };
             next.events[seqKey(1)] = PersistedEventSchema.parse({
                 formatVersion: 1,
                 eventSeq: 1,
                 meetingVersion: initialVersion,
-                type: "meeting.created",
-                payload: { meetingId: this.meetingId },
+                type: createdEvent.type,
+                payload: createdEvent.payload,
                 turnId: null,
                 attemptId: null,
-                createdAt: now
+                createdAt: createdEvent.occurredAt
             });
             next.receipts[createReceiptKey] = PersistedReceiptSchema.parse({
                 formatVersion: 1,

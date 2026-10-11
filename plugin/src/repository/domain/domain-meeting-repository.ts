@@ -1,4 +1,5 @@
 import { DomainMeetingRepositoryMail } from "./domain-meeting-repository-mail.ts";
+import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
 import type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
 export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
 import type { MeetingRepositoryPort } from "@/repository/index.ts";
@@ -17,6 +18,7 @@ import type {
 } from "@/repository/index.ts";
 import {
     CommittedFactRecordSchema,
+    CommittedMeetingEventSchema,
     PersistedEventSchema,
     PersistedOutboxSchema,
     PersistedReceiptSchema,
@@ -381,7 +383,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                 payload: jsonValue(event.payload),
                 turnId: event.turnId ?? null,
                 attemptId: event.attemptId ?? null,
-                createdAt: now
+                createdAt: event.occurredAt ?? now
             });
             if (!persisted.success) {
                 throw new RepositoryError(
@@ -589,6 +591,58 @@ export class DomainMeetingRepository<TState = JsonObject>
                 ...structuredClone(fact),
                 resultingState: this.decodeState(fact.resultingState)
             }));
+    }
+    async readCommittedEvents(): Promise<
+        { kind: "legacy" } | { kind: "complete"; events: readonly PersistedMeetingEvent[] }
+    > {
+        this.ensureOpen();
+        const projection = this.projection;
+        const first = projection?.events[seqKey(1)];
+        if (first?.payload.logVersion !== 1) {
+            return { kind: "legacy" };
+        }
+        const unavailable = () =>
+            new RepositoryError(
+                "RECOVERY_UNAVAILABLE",
+                false,
+                this.meetingId,
+                "Complete event log is invalid"
+            );
+        if (
+            !projection ||
+            !Number.isSafeInteger(projection.nextEventSeq) ||
+            projection.nextEventSeq < 2 ||
+            Object.keys(projection.events).length !== projection.nextEventSeq - 1
+        ) {
+            throw unavailable();
+        }
+        const events: PersistedMeetingEvent[] = [];
+        for (let seq = 1; seq < projection.nextEventSeq; seq += 1) {
+            const parsed = CommittedMeetingEventSchema.safeParse(projection.events[seqKey(seq)]);
+            if (!parsed.success || parsed.data.eventSeq !== seq) {
+                throw unavailable();
+            }
+            const { type, payload } = parsed.data;
+            if (
+                seq === 1 &&
+                (type !== "meeting.created" ||
+                    payload.actor.kind !== "captain" ||
+                    payload.actor.actorId !== captainActorIdFor(this.meetingId) ||
+                    payload.subject.kind !== "meeting" ||
+                    payload.subject.id !== this.meetingId ||
+                    payload.relatedObjects.length !== 0)
+            ) {
+                throw unavailable();
+            }
+            const {
+                formatVersion: _format,
+                turnId: _turn,
+                attemptId: _attempt,
+                ...event
+            } = parsed.data;
+            events.push(structuredClone(event));
+        }
+        return { kind: "complete", events };
     }
     async claimOutbox(_input: ClaimOutboxInput): Promise<OutboxItem[]> {
         const input = _input;
