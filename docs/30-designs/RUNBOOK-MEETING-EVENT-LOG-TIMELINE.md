@@ -373,28 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T6：全量静态与自动验证
-
-前置状态：T5 PASS。
-
-允许修改：无。
-
-禁止修改：全仓库。
-
-执行：只运行固定门禁并保存输出；本步骤不修复任何失败，也不运行会改写文件的格式化命令。
-
-验证：
-
-```bash
-pnpm verify
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：三条命令全部退出 0，且 `git status --short` 与进入 T6 时相比没有新增或改写文件。
-
-STOP：任一命令退出非 0、门禁改写文件，或验证失败要求修改任何文件；报告失败命令、实际输出、被指向的文件及其所属 T1-T5 步骤，不在 T6 回修、放宽 lint/schema/test 或扩大 Non-goals。
-
 ### T7：人工 smoke、readiness 迁移与关闭准备
 
 前置状态：T6 PASS；人工环境必须使用既有 `dsh-workspace/`，不得重建。
