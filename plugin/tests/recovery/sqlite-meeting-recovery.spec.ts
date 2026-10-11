@@ -160,6 +160,12 @@ describe("target Meeting persistence on SQLite", () => {
                 await expect(
                     second.registry.openMeeting({ meetingId: "meeting-delete" })
                 ).rejects.toMatchObject({ code: "MEETING_NOT_FOUND" });
+                await expect(
+                    second.registry.openMeeting({ meetingId: "meeting-delete", create })
+                ).rejects.toMatchObject({ code: "INVALID_STATE" });
+                expect(second.registry.listMeetings().map((item) => item.meetingId)).toEqual([
+                    "meeting-other"
+                ]);
                 const deletedDomain = await second.context.storageDomain.open(
                     createMeetingDomainSpec(meetingDomainName("meeting-delete"))
                 );

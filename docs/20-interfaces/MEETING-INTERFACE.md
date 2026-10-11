@@ -769,6 +769,8 @@ interface MeetingError {
 
 ## Meeting Deletion Boundary
 
+删除完成后原 Meeting ID 不得重新创建；原 `create_meeting` requestId 重放在写入新的 creating/bootstrap 或 provisioning 前返回 `INVALID_STATE`。Catalog 的 `deleted` 表只保留以 catalogKey 为键的布尔删除标记，不保存目标、事实、Session ID 或请求内容；该非业务标记在意图提交后、领域清理前写入，并跨冷重启阻止 ID 复用。关闭的 Session 和历史仍保留，不为解决 ID 冲突删除或覆盖它们。
+
 MO-FR-19 的删除入口只接受可信本地用户的显式确认，不向 Meeting Agent 或用户 Skill 授予删除权限。服务端重新检查指定会议已终止、无待处理后台工作，且关联 Session 已关闭和撤权；运行中、暂停中和归档清理中的会议拒绝删除。
 
 删除范围为该会议的业务持久记录：catalog 登记、creation、正式事实与状态、证据与审核、归档、receipt、outbox、Session ownership 与 checkpoint。Host 所有的已关闭 Agent/worker Session 及其聊天历史必须保留，不调用 Session 物理删除接口；删除 ownership 后，这些历史 Session 不再取得会议身份权限。普通用户聊天、其它会议和共享配置不受影响。

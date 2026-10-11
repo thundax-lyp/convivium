@@ -171,6 +171,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
 
     private async finishDeletion(record: CatalogMeetingRecord): Promise<void> {
         const key = catalogKey(record.meetingId);
+        await this.catalog.table("deleted").put(key, true);
         const repository = this.opened.get(record.domainName);
         if (repository) {
             try {
@@ -201,6 +202,14 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     ): Promise<DomainMeetingRepository<TState>> {
         this.ensureOpen();
         const key = catalogKey(input.meetingId);
+        if (input.create && this.catalog.table("deleted").get(key)) {
+            throw new RepositoryError(
+                "INVALID_STATE",
+                false,
+                input.meetingId,
+                "Deleted Meeting ID cannot be reused"
+            );
+        }
         if (this.catalog.table("meetings").get(key)?.status === "deleting") {
             throw new RepositoryError(
                 "MEETING_NOT_FOUND",

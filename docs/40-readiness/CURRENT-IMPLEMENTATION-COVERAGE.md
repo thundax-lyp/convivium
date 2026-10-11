@@ -76,6 +76,10 @@
 
 ## Executed Validation
 
+### 2026-10-11：删除后的创建重放保护
+
+删除意图提交后，以 catalogKey 的布尔标记阻止原 Meeting ID 再创建；不保留业务内容或 Session 标识。新增 Repository 创建→删除→原创建重放回归，冷重开 SQLite 的完成/中断两条路径也拒绝旧创建，仍可读取原 Session 聊天事件且其它会议不变。回归先观察到旧实现重新登记，再验证拒绝；相关 3 files/23 tests 与 Host typecheck PASS。未改写人工环境，未验证新的完整 Host/Browser 链路。
+
 ### 2026-10-11：删除会议并保留 Session 历史
 
 `codex/delete-meeting` 从 `main` 独立实现 MO-FR-19：Navigator 打开动作后增加分隔线与危险删除动作；Runtime 重新检查版本、终止状态、待处理工作，以及全部 ownership 的关闭/撤权状态。删除与普通控制共用提交锁；确认框明确永久删除业务数据、保留已关闭 Session 历史。持久 `deleting` 意图阻断新读写，停止目标投递/期限扫描后清除会议领域各表与 catalog 登记；失败重试和冷恢复不从残缺 projection 重建会议。

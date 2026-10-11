@@ -38,10 +38,20 @@ const fixture = async () => {
         await repository.recordSessionOwnership({ ...ownership, lifecycleStatus: "active" }, 2);
     }
     await repository.completeCreate(create);
-    return { registry, catalog, meeting, repository };
+    return { registry, catalog, meeting, repository, create };
 };
 
 describe("Meeting business data deletion", () => {
+    it("rejects the original create after deletion without registering a new bootstrap", async () => {
+        const { registry, catalog, meeting, create } = await fixture();
+        await registry.deleteMeeting("meeting-delete", 0, () => {});
+        await expect(
+            registry.openMeeting({ meetingId: "meeting-delete", create })
+        ).rejects.toMatchObject({ code: "INVALID_STATE" });
+        expect(catalog.table("meetings").size).toBe(0);
+        expect(meeting.table("creation").size).toBe(0);
+        await registry.close();
+    });
     it("rejects a queued writer after durable deletion intent so it cannot resurrect records", async () => {
         const { registry, catalog, meeting, repository } = await fixture();
         const block = catalog.blockNextPut("meetings");
