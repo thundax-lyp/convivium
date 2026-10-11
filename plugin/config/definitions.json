@@ -42,7 +42,6 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_submit_evidence_review",
                     "convivium_recommend_identity"
                 ]
             },
@@ -68,7 +67,6 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_submit_evidence_review",
                     "convivium_recommend_identity"
                 ]
             },
@@ -94,7 +92,6 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_submit_evidence_review",
                     "convivium_recommend_identity"
                 ]
             },
@@ -113,18 +110,13 @@
             "dshPresetId": "convivium-verification-reviewer",
             "requiredSkillNames": ["arxiv", "evidence-review", "github", "repository-analysis"],
             "toolFilter": {
-                "allow": [
-                    "skill",
-                    "convivium_read_meeting",
-                    "convivium_run_review_worker",
-                    "convivium_submit_evidence_review"
-                ]
+                "allow": ["skill", "convivium_read_meeting", "convivium_run_review_worker"]
             },
             "expertiseTags": ["verification", "regression", "readiness"],
             "evidenceScopes": ["repository"],
             "agentInstructions": {
                 "roleDefinitionId": "verification_reviewer",
-                "sha256": "cce2d1ca042a5fd5e8856005c80cd9f3fef6d5ebc1898fee45f79fe1e6788b16"
+                "sha256": "2cbced4624fe539f10d351b969dd4a0284dc9014f505dd962edaaba665e7b1e0"
             }
         },
         {
@@ -142,7 +134,6 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_submit_evidence_review",
                     "convivium_recommend_identity"
                 ]
             },
@@ -168,7 +159,6 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_submit_evidence_review",
                     "convivium_recommend_identity"
                 ]
             },

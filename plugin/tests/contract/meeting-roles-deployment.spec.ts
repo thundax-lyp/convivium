@@ -47,12 +47,7 @@ it("publishes only the current contribution tools for Manager", () => {
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
     ).toMatchObject({
         toolFilter: {
-            allow: [
-                "skill",
-                "convivium_read_meeting",
-                "convivium_run_review_worker",
-                "convivium_submit_evidence_review"
-            ].sort()
+            allow: ["skill", "convivium_read_meeting", "convivium_run_review_worker"].sort()
         }
     });
     const contributorDeniedTools = [
@@ -62,7 +57,6 @@ it("publishes only the current contribution tools for Manager", () => {
         "convivium_publish_round",
         "convivium_end_meeting",
         "convivium_run_review_worker",
-        "convivium_submit_evidence_review",
         "convivium_recommend_identity"
     ];
     expect(
@@ -104,8 +98,8 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
     expect(currentGuidance[1]).toContain("convivium_run_review_worker");
     expect(currentGuidance[1]).toContain("第一轮无 baseline 时必须明确为 `[]`");
-    expect(currentGuidance[1]).toContain("convivium_submit_evidence_review");
-    expect(currentGuidance[1]).toContain("arguments 根对象");
+    expect(currentGuidance[1]).not.toContain("convivium_submit_evidence_review");
+    expect(currentGuidance[1]).toContain("Coordinator 不转抄结果，也不另行提交");
     expect(currentGuidance[1]).toContain("convivium_run_review_worker` 仍使用顶层 `input`");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");

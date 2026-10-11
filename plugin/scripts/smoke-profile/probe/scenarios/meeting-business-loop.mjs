@@ -99,26 +99,7 @@ function reviewerToolSummary(agent) {
             name: call.name,
             isError: block.isError === true || event.data.error !== undefined,
             outcome,
-            errorCode,
-            ...(call.name === "convivium_submit_evidence_review"
-                ? {
-                      arguments: {
-                          rootType: Array.isArray(call.args) ? "array" : typeof call.args,
-                          shape: {
-                              root: Object.keys(call.args ?? {}),
-                              action:
-                                  call.args?.action && typeof call.args.action === "object"
-                                      ? Object.keys(call.args.action)
-                                      : []
-                          },
-                          expectedMeetingVersion: call.args?.expectedMeetingVersion,
-                          review: {
-                              versionId: call.args?.action?.versionId,
-                              dimensionKeys: Object.keys(call.args?.action?.dimensions ?? {})
-                          }
-                      }
-                  }
-                : {})
+            errorCode
         });
     }
     return records;

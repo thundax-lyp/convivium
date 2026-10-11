@@ -76,7 +76,8 @@ it("builds worker input from the active claim, immutable version, and fixed base
 
     const prompt = await resolve(request);
     expect(prompt).toBeDefined();
-    expect(JSON.parse(prompt!)).toMatchObject({
+    expect(prompt).toMatchObject({ claimId: "review-claim-v1", roundId: "round-current" });
+    expect(JSON.parse(prompt!.prompt)).toMatchObject({
         pending: {
             version: { id: "version-pending", observation: "observation:version-pending" },
             baseline: [
@@ -421,21 +422,16 @@ describe("evidence review request dispatcher v1", () => {
                 ]
             }
         });
-        expect(envelope.instructions).toContain("convivium_submit_evidence_review");
+        expect(envelope.instructions).toContain("Runtime 校验 worker 结果并直接提交 Review");
         expect(envelope.instructions).toContain("只调用一次 convivium_run_review_worker");
         expect(envelope.instructions).toContain("不调用通用 subagent");
-        expect(envelope.instructions).toContain("未得到 completed 结果时直接结束");
+        expect(envelope.instructions).toContain("工具返回后直接结束");
         expect(envelope.instructions).not.toContain("只保留 completed 且可规范化");
         expect(envelope.instructions).toContain(
             "convivium_run_review_worker 的 arguments 只有顶层 input"
         );
         expect(envelope.instructions).toContain("不传 prompt");
-        expect(envelope.instructions).toContain(
-            "工具 arguments 根对象直接使用 MeetingCommand 字段"
-        );
-        expect(envelope.instructions).toContain("提交工具都只允许调用一次");
-        expect(envelope.instructions).toContain("与 reviewConstraint 取交集");
-        expect(envelope.instructions).toContain("首轮没有 baseline 时必须保留 []");
+        expect(envelope.instructions).not.toContain("convivium_submit_evidence_review");
         expect(envelope.instructions).not.toContain("fallback");
         expect(envelope.reviewConstraint).toEqual({
             versionId: "version-pending",
@@ -500,28 +496,14 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope.instructions).toContain("机器校验的 workerOutputSchema");
         expect(envelope.instructions).toContain("工具参数直接使用结构化 object");
         expect(envelope.instructions).not.toContain("replacement one-shot worker");
-        expect(envelope.submit).toEqual({
-            tool: "convivium_submit_evidence_review",
-            toolArguments: {
-                protocolVersion: 1,
-                meetingId: "meeting-v1",
-                requestId: "evidence-review:review-claim-v1",
-                action: {
-                    kind: "submit_evidence_review",
-                    roundId: "round-current",
-                    claimId: "review-claim-v1",
-                    versionId: "version-pending",
-                    dimensions: {},
-                    scope: ""
-                }
-            }
-        });
+        expect(envelope).not.toHaveProperty("submit");
+        expect(envelope.instructions).toContain("不要转抄结果或另行提交");
         expect(envelope).not.toHaveProperty("sessionId");
     });
 });
 
 describe("evidence review request dispatcher claim lifecycle", () => {
-    it("preserves the claim until expiry when inbox acceptance does not prove turn completion", async () => {
+    it("releases the claim when the observed reviewer turn completes without a Review", async () => {
         const { state, ownership } = stateWithPendingReview();
         const application = claimApplication(state);
         const dispatcher = createEvidenceReviewDispatcher({
@@ -559,19 +541,31 @@ describe("evidence review request dispatcher claim lifecycle", () => {
                 signal: new AbortController().signal
             })
         ).rejects.toMatchObject({
-            code: "REVIEW_CLAIM_IN_PROGRESS",
+            code: "REVIEW_VALIDATION_RETRY",
             retryable: true,
-            terminalOnAttemptLimit: false,
-            retryAt: 100
+            terminalOnAttemptLimit: false
         });
-        expect(state.reviewClaims).toEqual([
-            expect.objectContaining({
-                id: "review-claim-v1",
-                sourceEffectId: "effect-review-1",
-                expiresAt: 100
-            })
-        ]);
-        expect(application.execute).toHaveBeenCalledOnce();
+        expect(state.reviewClaims).toEqual([]);
+        expect(application.execute).toHaveBeenCalledTimes(2);
+        expect(application.execute.mock.calls[1]?.[0]).toMatchObject({
+            requestId: "review-claim-release:review-claim-v1:dispatch_failed",
+            action: {
+                kind: "fail_evidence_validation",
+                roundId: "round-current",
+                claimId: "review-claim-v1",
+                reason: "dispatch_failed"
+            }
+        });
+        expect(state.evidencePackages[1]!.versions[0]).toMatchObject({
+            status: "validation_failed",
+            failureCount: 1,
+            lastFailureReason: "dispatch_failed"
+        });
+        expect(state.evidencePackages[0]!.versions[0]).toMatchObject({
+            status: "validated",
+            failureCount: 0
+        });
+        expect(state.reviews.map((review) => review.versionId)).toEqual(["version-baseline"]);
     });
 
     it("releases the claim when the reviewer turn times out", async () => {

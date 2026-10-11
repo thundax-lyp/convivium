@@ -35,7 +35,7 @@
 | MO-FR-14                              | Meeting Agent Definition                      | 部分实现 | PR #99；`ddd57953` | 七个 Definition 2.0.0、七份角色 AGENTS、七个 convivium-* Preset 和五项能力 Skills 已装配，真实 Loader 的列表/按名称加载逐角色隔离；组合测试核对角色身份指令与工具集合。Captain 为可信本地用户，创建、十控制及 pause/resume/end 共十四 action；输入 Session 关闭不影响投递和用户权限。旧共享 Preset、七角色型 Skill、Captain child 创建和旧 adapter 已删除。Manager 角色资源禁止把贡献产出分配给专职 Reviewer；真实来源读取、Reviewer worker、Agent 创建拒绝和冷恢复均有专项 PASS。                                                                                                                                                                                                              | 专项 smoke 未直接核对冷恢复后 Agent 的有效模型、角色身份指令与 toolFilter，也未验证 Reviewer 并发审核；MO-FR-14.11 的完整 Host 验收尚未闭合。模型可见能力隔离不承诺静态文件系统保密；人工 Browser、跨 Host 和长期模型质量未覆盖。                                         |
 | MO-FR-15                              | Developer Markdown Projection                 | 未覆盖   | PR #46、#88        | PR #46 的旧实现已随 target cutover 移除，无当前 target 实现。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `current.md`、`archive.md` 的 best-effort projection 尚未实现；旧 legacy projection 不构成该需求的当前覆盖。                                                                                                                                                              |
 
-生产 Agent tool surface 当前包括只读 `convivium_read_meeting`，reviewer 专用内部能力 `convivium_run_review_worker`，以及 command tools：`convivium_submit_manager_plan`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_raise_hand`、`convivium_submit_evidence`、`convivium_submit_evidence_review`、`convivium_recommend_identity`。loopback local controller 是独立入口，不得据此推断 Agent 已获得同等 tool surface。
+生产 Agent tool surface 当前包括只读 `convivium_read_meeting`，reviewer 专用内部能力 `convivium_run_review_worker`，以及 command tools：`convivium_submit_manager_plan`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_raise_hand`、`convivium_submit_evidence`、`convivium_recommend_identity`。review worker 工具由 Runtime 校验结构化结果并使用捕获的 claim 与原 reviewer 权限直接提交，返回 accepted/rejected；不再注册独立的 `convivium_submit_evidence_review` 模型工具，不由 coordinator 转抄审核字段。loopback local controller 是独立入口，不得据此推断 Agent 已获得同等 tool surface。
 
 ## Validated Contract
 
@@ -75,6 +75,14 @@
 本次未覆盖：人工 Web/Browser、跨 Host、MeetingTask/session_mail 的完整生产链、任意来源/第三方工具的普遍可用性和长期研究质量。隔离仅承诺模型可见能力，不是静态文件系统保密；旧 v1 明确拒读，无迁移。人工 `dsh-workspace/` 未部署、未启动、未清理。
 
 ## Executed Validation
+
+### 2026-10-11：Runtime 收口 worker 审核提交
+
+基线为 `codex/meeting-event-timeline` 本次提交前工作树，Node `v24.19.0`、DSH `0.2.0-rc.2`。TDD 先复现 worker 返回合法结果却不调用 application，以及额外输出字段被忽略后提交；修复后 Runtime 校验完整 output schema 与 action，使用启动前捕获的 claimId/roundId、原 reviewer caller 和稳定 requestId 直接提交，移除 coordinator 提交模板、独立模型提交工具及角色授权。同时修复已观察 reviewer turn 完成而未形成 Review 时不立即释放原 claim 的问题。
+
+聚焦执行 `pnpm --dir plugin exec vitest run tests/unit/runtime tests/unit/domain/evidence-review.spec.ts tests/contract/meeting-command.spec.ts tests/contract/meeting-review-worker-tool.spec.ts tests/contract/meeting-command-tool-registration.spec.ts tests/contract/meeting-roles-deployment.spec.ts tests/integration/dsh/evidence-review-dispatch.spec.ts tests/integration/dsh/review-worker-submission.spec.ts`：18 个文件、162 个测试 PASS。真实 application + DomainRepository（内存 storage facility，worker provider 替身）组合验证审核落库、幂等回执重放、非法 baseline、启动后 claim 过期、claim 失败后重领以及 ownership 撤销；旧 worker 不借用新 claim，拒绝不写 Review。Host typecheck、plugin lint、相关文件 Prettier、build（含 Host/Client 编译）、verify:contract、verify:package 和本地文档链接检查 PASS。
+
+Not Covered：未执行此次变更的真实 DSH provider/LLM `smoke:profile` 或人工 Browser 全流程；未部署、重启固定人工 Host，也未改写人工会议 SQLite。此前真实会议的 worker `MALFORMED_RESPONSE` 是诊断证据，不代表本次修复已在该环境生效。
 
 ### 2026-10-11：基础事件日志与里程碑时间线
 

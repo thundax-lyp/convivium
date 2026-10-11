@@ -266,7 +266,7 @@ export const createReviewWorkerPromptResolver = (dependencies: {
         versionId: string;
         caller: ResolvedMeetingCaller;
         signal: AbortSignal;
-    }): Promise<string | undefined>;
+    }): Promise<{ prompt: string; claimId: string; roundId: string } | undefined>;
 } => ({
     async resolve({ meetingId, versionId, caller, signal }) {
         signal.throwIfAborted();
@@ -339,13 +339,17 @@ export const createReviewWorkerPromptResolver = (dependencies: {
                 )
             )
         ];
-        return JSON.stringify({
-            pending: { version, baseline, roundId: round.id },
-            reviewConstraint: { versionId, allowedBaselineEvidenceIds },
-            reviewItemRules,
-            instructions:
-                "只审核 pending.version 与所列固定 baseline。核对 pending.version.summary 与完整证据的一致性及重要限制，将摘要支撑度纳入 support、遗漏纳入 completeness；历史版本无 summary 时按完整证据审核，不补写摘要。返回符合 workerOutputSchema 的 object；versionId 必须等于 reviewConstraint.versionId；各维 baselineEvidenceIds 只能取 allowedBaselineEvidenceIds，首轮无 baseline 时使用 []。"
-        });
+        return {
+            claimId: claim.id,
+            roundId: round.id,
+            prompt: JSON.stringify({
+                pending: { version, baseline, roundId: round.id },
+                reviewConstraint: { versionId, allowedBaselineEvidenceIds },
+                reviewItemRules,
+                instructions:
+                    "只审核 pending.version 与所列固定 baseline。核对 pending.version.summary 与完整证据的一致性及重要限制，将摘要支撑度纳入 support、遗漏纳入 completeness；历史版本无 summary 时按完整证据审核，不补写摘要。返回符合 workerOutputSchema 的 object；versionId 必须等于 reviewConstraint.versionId；各维 baselineEvidenceIds 只能取 allowedBaselineEvidenceIds，首轮无 baseline 时使用 []。"
+            })
+        };
     }
 });
 
@@ -584,24 +588,8 @@ export const createEvidenceReviewDispatcher = (
                                     allowedBaselineEvidenceIds
                                 },
                                 reviewItemRules,
-                                submit: {
-                                    tool: "convivium_submit_evidence_review",
-                                    toolArguments: {
-                                        protocolVersion: 1,
-                                        meetingId: recovered.snapshot.meetingId,
-                                        requestId: `evidence-review:${claimId}`,
-                                        action: {
-                                            kind: "submit_evidence_review",
-                                            roundId: requested.roundId,
-                                            claimId,
-                                            versionId: requestedVersionId,
-                                            dimensions: {},
-                                            scope: ""
-                                        }
-                                    }
-                                },
                                 instructions:
-                                    "按顺序执行，不要解释。第一步：只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 只有顶层 input，input 只含当前 request 的 meetingId 和 versionId，不传 prompt；工具从当前 claim、immutable version 和固定 baseline 构造 worker 输入，并返回机器校验的 workerOutputSchema。第二步：只接受 kind=completed 的 review；dimensions 只能是 source、credibility、completeness、support 四个键；baselineEvidenceIds 与 reviewConstraint 取交集，首轮没有 baseline 时必须保留 []。未得到 completed 结果时直接结束，不调用提交工具。第三步：得到结果时复制 submit.toolArguments，把 worker 结果的 dimensions 和 scope 写入 action，然后调用 convivium_submit_evidence_review。工具参数直接使用结构化 object，不要生成 JSON 文本；工具 arguments 根对象直接使用 MeetingCommand 字段，不得添加 input、arguments、submit 或其他包装层。worker 工具和提交工具都只允许调用一次。"
+                                    "只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 只有顶层 input，input 只含当前 request 的 meetingId 和 versionId，不传 prompt。工具从当前 claim、immutable version 和固定 baseline 构造 worker 输入，使用机器校验的 workerOutputSchema；dimensions 只能是 source、credibility、completeness、support 四个键。Runtime 校验 worker 结果并直接提交 Review，返回 accepted 回执、rejected 或 failed；不要转抄结果或另行提交。工具参数直接使用结构化 object，不要生成 JSON 文本。工具返回后直接结束；失败时不创建 replacement worker。"
                             })
                         }
                     ],
@@ -637,7 +625,14 @@ export const createEvidenceReviewDispatcher = (
             if (!retainedClaim) {
                 retry("REVIEW_CLAIM_UNAVAILABLE");
             }
-            retry("REVIEW_CLAIM_IN_PROGRESS", false, retainedClaim.expiresAt);
+            // The owning turn has ended; a retained claim cannot represent live validation.
+            await failValidation(
+                recovered.snapshot.meetingId,
+                requested.roundId,
+                retainedClaim.id,
+                "dispatch_failed"
+            );
+            retry("REVIEW_VALIDATION_RETRY", false);
         }
     };
 };
