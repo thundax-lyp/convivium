@@ -15,6 +15,247 @@ const lifecycle = z.enum([
     "archiving",
     "archived"
 ]);
+const MEETING_EVENT_KINDS = [
+    "meeting.created",
+    "meeting.lifecycle_changed",
+    "agenda.activated",
+    "agenda_candidate.disposed",
+    "manager_plan.recorded",
+    "round.opened",
+    "round.participation_recorded",
+    "hand_raise.recorded",
+    "hand_raise.disposed",
+    "evidence.submitted",
+    "contribution.closed",
+    "contribution.failed",
+    "evidence_review.claimed",
+    "evidence_validation.failed",
+    "evidence_review.submitted",
+    "review_delivery.recorded",
+    "round.published",
+    "formal_message.published",
+    "round.aborted",
+    "identity.recommended",
+    "identity.admission_recorded",
+    "question.disposed",
+    "issue.disposed",
+    "risk.disposed",
+    "decision.recorded",
+    "decision.changed",
+    "completion_fact.recorded",
+    "completion_fact.changed",
+    "meeting.ended",
+    "archive.started",
+    "archive.completed"
+] as const;
+export const MeetingEventKindSchema = z.enum(MEETING_EVENT_KINDS);
+export const MeetingEventObjectRefSchema = z.strictObject({
+    kind: z.enum([
+        "meeting",
+        "agenda",
+        "agenda_candidate",
+        "manager_plan",
+        "round",
+        "contribution",
+        "evidence_version",
+        "evidence_review",
+        "review_delivery",
+        "publication",
+        "formal_message",
+        "identity_recommendation",
+        "identity",
+        "question",
+        "issue",
+        "decision",
+        "completion_fact",
+        "risk_disposition",
+        "termination",
+        "archive"
+    ]),
+    id
+});
+export const MeetingEventActorSchema = z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("captain"), actorId: id }),
+    z.strictObject({ kind: z.literal("identity"), actorId: id }),
+    z.strictObject({ kind: z.literal("system") })
+]);
+const eventEpoch = z.number().int().nonnegative().safe();
+const MeetingEventDataSchemaByKind = {
+    "meeting.created": z.strictObject({}),
+    "meeting.lifecycle_changed": z
+        .strictObject({ from: lifecycle, to: lifecycle, reason: text.optional() })
+        .refine((value) => value.from !== value.to, {
+            path: ["to"],
+            message: "Lifecycle must change"
+        }),
+    "agenda.activated": z.strictObject({
+        previousDisposition: z.enum(["completed", "deferred", "closed"]),
+        reason: text
+    }),
+    "agenda_candidate.disposed": z.strictObject({
+        disposition: z.enum(["promoted", "parked", "rejected"]),
+        reason: text
+    }),
+    "manager_plan.recorded": z.strictObject({
+        planKind: z.enum([
+            "open_round",
+            "continue_agenda",
+            "stop_agenda",
+            "raise_agenda_candidate",
+            "wait_for_required_identity"
+        ]),
+        rationale: text,
+        blockingReason: text.optional()
+    }),
+    "round.opened": z.strictObject({ deadlineAt: eventEpoch.optional() }),
+    "round.participation_recorded": z.discriminatedUnion("status", [
+        z.strictObject({ contributorId: id, status: z.literal("declined"), reason: text }),
+        z.strictObject({ contributorId: id, status: z.literal("no_response") })
+    ]),
+    "hand_raise.recorded": z.strictObject({ contributorId: id, purpose: text }),
+    "hand_raise.disposed": z.discriminatedUnion("disposition", [
+        z.strictObject({
+            contributorId: id,
+            disposition: z.literal("accepted"),
+            reason: text,
+            contributionId: id
+        }),
+        z.strictObject({
+            contributorId: id,
+            disposition: z.enum(["rejected", "deferred"]),
+            reason: text
+        })
+    ]),
+    "evidence.submitted": z.strictObject({ summary: text }),
+    "contribution.closed": z.strictObject({
+        exit: z.enum(["withdrawn", "timed_out", "submission_missing"]),
+        reason: text
+    }),
+    "contribution.failed": z.strictObject({
+        sourceEffectId: id,
+        stage: text,
+        failureCode: text,
+        failureSummary: text,
+        attemptCount: z.number().int().positive().safe(),
+        retryable: z.boolean()
+    }),
+    "evidence_review.claimed": z.strictObject({ claimId: id, sourceEffectId: id }),
+    "evidence_validation.failed": z.strictObject({
+        claimId: id,
+        reason: z.enum(["review_timeout", "review_interrupted", "dispatch_failed"])
+    }),
+    "evidence_review.submitted": z.strictObject({ claimId: id, scope: text }),
+    "review_delivery.recorded": z.discriminatedUnion("status", [
+        z.strictObject({ status: z.literal("sent") }),
+        z.strictObject({ status: z.literal("failed"), failureReason: text })
+    ]),
+    "round.published": z.strictObject({}),
+    "formal_message.published": z.strictObject({ messageKind: text }),
+    "round.aborted": z.strictObject({ reason: text }),
+    "identity.recommended": z.discriminatedUnion("decision", [
+        z.strictObject({
+            decision: z.literal("reject"),
+            status: z.literal("rejected"),
+            rationale: text
+        }),
+        z.strictObject({
+            decision: z.literal("admit"),
+            status: z.enum(["provisioning", "active"]),
+            rationale: text
+        })
+    ]),
+    "identity.admission_recorded": z.discriminatedUnion("status", [
+        z.strictObject({ status: z.literal("active") }),
+        z.strictObject({ status: z.literal("failed"), failureCode: text })
+    ]),
+    "question.disposed": z.strictObject({
+        status: z.enum(["answered", "withdrawn", "deferred"]),
+        rationale: text
+    }),
+    "issue.disposed": z.strictObject({
+        status: z.enum(["resolved", "deferred", "out_of_scope"]),
+        rationale: text
+    }),
+    "risk.disposed": z.strictObject({
+        action: z.enum(["accept", "reject"]),
+        scope: text,
+        rationale: text
+    }),
+    "decision.recorded": z.strictObject({ status: z.literal("accepted") }),
+    "decision.changed": z.discriminatedUnion("status", [
+        z.strictObject({
+            status: z.literal("superseded"),
+            rationale: text,
+            replacementDecisionId: id
+        }),
+        z.strictObject({ status: z.literal("revoked"), rationale: text })
+    ]),
+    "completion_fact.recorded": z.strictObject({ outputId: id, statement: text, rationale: text }),
+    "completion_fact.changed": z.discriminatedUnion("status", [
+        z.strictObject({ status: z.literal("superseded"), rationale: text, replacementFactId: id }),
+        z.strictObject({ status: z.literal("revoked"), rationale: text })
+    ]),
+    "meeting.ended": z.strictObject({
+        outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
+        reason: text
+    }),
+    "archive.started": z.strictObject({ status: z.literal("complete") }),
+    "archive.completed": z.strictObject({ status: z.literal("complete") })
+};
+const meetingEvent = <
+    K extends keyof typeof MeetingEventDataSchemaByKind,
+    S extends z.infer<typeof MeetingEventObjectRefSchema>["kind"]
+>(
+    kind: K,
+    subjectKind: S
+) =>
+    z.strictObject({
+        eventSeq: z.number().int().positive().safe(),
+        meetingVersion: z.number().int().positive().safe(),
+        kind: z.literal(kind),
+        occurredAt: eventEpoch,
+        actor: MeetingEventActorSchema,
+        subject: z.strictObject({ kind: z.literal(subjectKind), id }),
+        relatedObjects: z.array(MeetingEventObjectRefSchema),
+        data: MeetingEventDataSchemaByKind[kind]
+    });
+export const MeetingEventViewSchema = z.discriminatedUnion("kind", [
+    meetingEvent("meeting.created", "meeting"),
+    meetingEvent("meeting.lifecycle_changed", "meeting"),
+    meetingEvent("agenda.activated", "agenda"),
+    meetingEvent("agenda_candidate.disposed", "agenda_candidate"),
+    meetingEvent("manager_plan.recorded", "manager_plan"),
+    meetingEvent("round.opened", "round"),
+    meetingEvent("round.participation_recorded", "round"),
+    meetingEvent("hand_raise.recorded", "round"),
+    meetingEvent("hand_raise.disposed", "round"),
+    meetingEvent("evidence.submitted", "evidence_version"),
+    meetingEvent("contribution.closed", "contribution"),
+    meetingEvent("contribution.failed", "contribution"),
+    meetingEvent("evidence_review.claimed", "evidence_version"),
+    meetingEvent("evidence_validation.failed", "evidence_version"),
+    meetingEvent("evidence_review.submitted", "evidence_review"),
+    meetingEvent("review_delivery.recorded", "review_delivery"),
+    meetingEvent("round.published", "publication"),
+    meetingEvent("formal_message.published", "formal_message"),
+    meetingEvent("round.aborted", "round"),
+    meetingEvent("identity.recommended", "identity_recommendation"),
+    meetingEvent("identity.admission_recorded", "identity_recommendation"),
+    meetingEvent("question.disposed", "question"),
+    meetingEvent("issue.disposed", "issue"),
+    meetingEvent("risk.disposed", "risk_disposition"),
+    meetingEvent("decision.recorded", "decision"),
+    meetingEvent("decision.changed", "decision"),
+    meetingEvent("completion_fact.recorded", "completion_fact"),
+    meetingEvent("completion_fact.changed", "completion_fact"),
+    meetingEvent("meeting.ended", "termination"),
+    meetingEvent("archive.started", "archive"),
+    meetingEvent("archive.completed", "archive")
+]);
+export type MeetingEventKind = z.infer<typeof MeetingEventKindSchema>;
+export type MeetingEventObjectRef = z.infer<typeof MeetingEventObjectRefSchema>;
+export type MeetingEventActor = z.infer<typeof MeetingEventActorSchema>;
+export type MeetingEventView = z.infer<typeof MeetingEventViewSchema>;
 const risk = z.enum(["low", "medium", "high"]);
 const target = z.object({
     id,
@@ -679,6 +920,7 @@ export const MeetingSummarySchema = z.object({
     unavailableReason: text.optional()
 });
 export const MeetingViewSchema = z.object({
+    timelineEvents: z.array(MeetingEventViewSchema).optional(),
     agendaCandidates: z.array(AgendaCandidateViewSchema),
     meetingId: id,
     version: z.number().int().nonnegative(),

@@ -373,40 +373,6 @@ MeetingAction + trusted scope + Clock.now
 
 ## 7. 机械执行步骤
 
-### T1：收紧内部事件类型并增加公开 Schema
-
-前置状态：T0 PASS。
-
-允许修改：
-
-- `plugin/src/repository/types.ts`
-- `plugin/src/domain/meeting-event.ts`（新增）
-- `plugin/src/domain/index.ts`
-- `plugin/src/protocol/meeting-view.ts`
-- `plugin/src/protocol/index.ts`
-- `plugin/tests/unit/domain/meeting-event.spec.ts`（新增）
-- `plugin/tests/unit/repository/domain/specs.spec.ts`
-- `plugin/tests/contract/meeting-identity-view.spec.ts`
-
-禁止修改：Domain state、command schema、Runtime、Client。
-
-执行：
-
-1. 精确实现 4.1 与 4.2 的类型和 strict schemas；Domain 与 Protocol 各自声明 31 个 kind，不互相 import。
-2. `domain/index.ts` 导出 `MEETING_EVENT_LOG_VERSION`、`MEETING_EVENT_KINDS` 以及 `MeetingEventKind`、`MeetingEventActor`、`MeetingEventObjectKind`、`MeetingEventObjectRef`、`MeetingEventDataByKind`、`MeetingEventPayload`、`MeetingEventInput`、`PersistedMeetingEvent`；`protocol/index.ts` 导出 `MeetingEventKindSchema`、`MeetingEventObjectRefSchema`、`MeetingEventActorSchema`、`MeetingEventViewSchema` 与对应 inferred types。`repository/types.ts` 只为既有 `DomainEventInput` 增加字段，不修改 repository index，不新增 barrel 转发层或 shared/contracts 模块。
-3. Schema tests 断言两侧 kind 集合完全相等且无重复；每个 kind 的合法 event 被接受，未知 kind、错误 subject kind、错误 data shape、违反条件 union、递归 milestone 字段、null actorId、无类型 relation 被拒绝；identity MeetingView 缺席 `timelineEvents` 仍合法。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/module-boundaries.spec.ts tests/unit/domain/meeting-event.spec.ts tests/unit/repository/domain/specs.spec.ts tests/contract/meeting-identity-view.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：两条命令退出 0；module boundary 保持通过，parity test 证明两侧 31 个 kind 相等，且测试显式覆盖上述拒绝条件。
-
-STOP：实现出现 Domain↔Protocol、Domain→Repository import，必须新增顶层模块，或必须把 UI 字段加入 repository 类型；不得通过放宽 boundary lint 继续。
-
 ### T2：实现事件持久读取与完整性判别
 
 前置状态：T1 PASS。

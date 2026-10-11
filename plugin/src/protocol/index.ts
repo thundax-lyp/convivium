@@ -22,6 +22,14 @@ export { RoleErrorCodeSchema, RecommendIdentityActionSchema } from "./meeting-id
 export { serializeValidatedRequest } from "./request-idempotency.ts";
 export {
     ArchiveViewSchema,
+    MeetingEventKindSchema,
+    MeetingEventObjectRefSchema,
+    MeetingEventActorSchema,
+    MeetingEventViewSchema,
+    type MeetingEventKind,
+    type MeetingEventObjectRef,
+    type MeetingEventActor,
+    type MeetingEventView,
     IdentityViewSchema,
     IdentityRecommendationViewSchema,
     MeetingSummarySchema,
