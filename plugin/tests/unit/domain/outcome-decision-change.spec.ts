@@ -193,21 +193,17 @@ describe("decision change corrective gates", () => {
             effectRequests: []
         })
     );
-    it("keeps Captain and local revoke independent and immutable", () => {
-        for (const actor of [
-            { kind: "captain_user", id: captainActorIdFor("m") },
-            { kind: "captain_user", id: captainActorIdFor("m") }
-        ] as const) {
-            const state = decidedState();
-            const before = structuredClone(state);
-            const result = change(state, { actor });
-            expect(result).toMatchObject({
-                kind: "accepted",
-                relatedIds: ["old-decision", "v"],
-                effectRequests: []
-            });
-            expect(state).toEqual(before);
-        }
+    it("keeps trusted Captain revoke immutable", () => {
+        const actor = { kind: "captain_user" as const, id: captainActorIdFor("m") };
+        const state = decidedState();
+        const before = structuredClone(state);
+        const result = change(state, { actor });
+        expect(result).toMatchObject({
+            kind: "accepted",
+            relatedIds: ["old-decision", "v"],
+            effectRequests: []
+        });
+        expect(state).toEqual(before);
     });
     it.each(["paused"] as const)("change lifecycle %s", (status) => {
         const state = decidedState();

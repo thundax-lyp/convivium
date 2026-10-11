@@ -4,41 +4,37 @@ import { pendingDecisionCandidates, decide, changeDecision } from "@/domain/tran
 import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
 import { validState, decisionReadyState } from "./outcome-fixtures.ts";
 
-it("decides with captain and local controller while copying candidate fields", () => {
-    for (const actor of [
-        { kind: "captain_user", id: captainActorIdFor("m") },
-        { kind: "captain_user", id: captainActorIdFor("m") }
-    ] as const) {
-        const state = decisionReadyState();
-        const before = structuredClone(state);
-        const result = decide(state, {
-            decisionId: "dec",
-            candidateId: "cand",
-            actor,
-            now: 1
-        });
-        expect(result).toMatchObject({
-            kind: "accepted",
-            relatedIds: ["dec", "cand"],
-            effectRequests: []
-        });
-        if (result.kind !== "accepted") {
-            continue;
-        }
-        const decision = result.state.decisions[0];
-        const candidate = state.decisionCandidates[0];
-        expect(decision).toMatchObject({
-            ...candidate,
-            id: "dec",
-            candidateId: "cand",
-            status: "accepted",
-            actorId: candidate.actorId
-        });
-        expect(result.state.version).toBe(2);
-        expect(result.state.updatedAt).toBe(1);
-        expect(pendingDecisionCandidates(result.state)).toEqual([]);
-        expect(state).toEqual(before);
+it("decides with the trusted Captain actor while copying candidate fields", () => {
+    const actor = { kind: "captain_user" as const, id: captainActorIdFor("m") };
+    const state = decisionReadyState();
+    const before = structuredClone(state);
+    const result = decide(state, {
+        decisionId: "dec",
+        candidateId: "cand",
+        actor,
+        now: 1
+    });
+    expect(result).toMatchObject({
+        kind: "accepted",
+        relatedIds: ["dec", "cand"],
+        effectRequests: []
+    });
+    if (result.kind !== "accepted") {
+        return;
     }
+    const decision = result.state.decisions[0];
+    const candidate = state.decisionCandidates[0];
+    expect(decision).toMatchObject({
+        ...candidate,
+        id: "dec",
+        candidateId: "cand",
+        status: "accepted",
+        actorId: candidate.actorId
+    });
+    expect(result.state.version).toBe(2);
+    expect(result.state.updatedAt).toBe(1);
+    expect(pendingDecisionCandidates(result.state)).toEqual([]);
+    expect(state).toEqual(before);
 });
 const decidedState = () => {
     const state = decisionReadyState();
@@ -58,10 +54,8 @@ const decidedState = () => {
     }
     return result.state;
 };
-it.each([
-    ["captain", { kind: "captain_user", id: captainActorIdFor("m") }],
-    ["local", { kind: "captain_user", id: captainActorIdFor("m") }]
-] as const)("supersedes atomically with %s", (_name, actor) => {
+it("supersedes atomically with the trusted Captain actor", () => {
+    const actor = { kind: "captain_user" as const, id: captainActorIdFor("m") };
     const state = decidedState();
     const before = structuredClone(state);
     const result = changeDecision(state, {

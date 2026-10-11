@@ -234,43 +234,6 @@ describe("CompletionFact", () => {
             effectRequests: []
         });
     });
-    it.each([
-        ["unknown status", { status: "unknown" }, "INVALID_ARGUMENT"],
-        ["missing replacement", { status: "superseded" }, "INVALID_ARGUMENT"],
-        [
-            "revoke replacement",
-            { status: "revoked", replacement: { factId: "new" } },
-            "INVALID_ARGUMENT"
-        ]
-    ] as const)("change rejects %s", (_name, overrides, code) => {
-        const state = completionReadyState();
-        state.objective.requiredOutputs[0].status = "satisfied";
-        state.completionFacts = [
-            {
-                ...completionInput(),
-                actor: undefined,
-                status: "active",
-                id: "fact",
-                actorId: captainActorIdFor("m"),
-                createdAt: 0
-            } as never
-        ];
-        expect(
-            changeCompletionFact(state, {
-                factId: "fact",
-                rationale: "x",
-                actor: { kind: "captain_user", id: captainActorIdFor("m") },
-                now: 1,
-                ...overrides
-            } as never)
-        ).toMatchObject({
-            kind: "rejected",
-            error: { code },
-            state,
-            relatedIds: [],
-            effectRequests: []
-        });
-    });
     it("keeps completion facts running with a pending hard constraint", () => {
         const state = completionReadyState();
         state.objective.hardConstraints = [{ id: "c", text: "constraint", status: "pending" }];

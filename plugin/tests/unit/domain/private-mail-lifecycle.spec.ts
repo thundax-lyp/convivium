@@ -16,24 +16,6 @@ import {
 } from "./private-mail-fixtures.ts";
 
 describe("private mail completion and cancellation", () => {
-    function startedState() {
-        const sent = sendPrivateMail(privateMailState(), input);
-        expect(sent.kind).toBe("accepted");
-        if (sent.kind !== "accepted") {
-            throw new Error("send failed");
-        }
-        const started = startPrivateMail(sent.state, {
-            mailId: "mail-1",
-            actorKind: "effect_dispatcher",
-            now: 20
-        });
-        expect(started.kind).toBe("accepted");
-        if (started.kind !== "accepted") {
-            throw new Error("start failed");
-        }
-        return started.state;
-    }
-
     it("completes processing mail before deadline and preserves fields", () => {
         const before = startedState();
         const result = completePrivateMail(before, {
@@ -533,27 +515,6 @@ describe("private mail expiry authorization", () => {
             "INVALID_ARGUMENT"
         );
     });
-
-    const input = {
-        mailId: "mail-1",
-        senderId: "sender",
-        recipientId: "recipient",
-        body: "hello",
-        relatedIds: ["pub-1"],
-        now: 10
-    } as const;
-
-    function rejected(result: ReturnType<typeof sendPrivateMail>, code: string, targetId?: string) {
-        expect(result.kind).toBe("rejected");
-        if (result.kind === "rejected") {
-            expect(result.error.code).toBe(code);
-            if (targetId === undefined) {
-                expect(result.error.targetId).toBeUndefined();
-            } else {
-                expect(result.error.targetId).toBe(targetId);
-            }
-        }
-    }
 
     it.each([
         ["empty relatedIds", { relatedIds: [] }, "INVALID_ARGUMENT"],
