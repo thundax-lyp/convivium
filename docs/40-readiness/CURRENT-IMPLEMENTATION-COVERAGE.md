@@ -76,6 +76,14 @@
 
 ## Executed Validation
 
+### 2026-10-11：删除会议并保留 Session 历史
+
+`codex/delete-meeting` 从 `main` 独立实现 MO-FR-19：Navigator 打开动作后增加分隔线与危险删除动作；Runtime 重新检查版本、终止状态、待处理工作，以及全部 ownership 的关闭/撤权状态。删除与普通控制共用提交锁；确认框明确永久删除业务数据、保留已关闭 Session 历史。持久 `deleting` 意图阻断新读写，停止目标投递/期限扫描后清除会议领域各表与 catalog 登记；失败重试和冷恢复不从残缺 projection 重建会议。
+
+`pnpm --dir plugin verify` PASS：99 个测试文件、877 项测试，format、lint（无警告）、Host/Client/Remote typecheck、build、environment、contract、Definition 和 package 检查通过。新增保护包含删除前版本/条件拒绝、意图写失败保留可读数据、部分清理重试、排队 writer 拒绝、取消确认/双击锁、禁用原因、删除失败保留选择、删除非选中会议不改变选择，以及迟到列表刷新隔离。真实 DSH SQLite + JSONL Session persistence 冷重开验证删除完成和意图提交后中断两种路径：目标领域各表为空，目标不再列出且无法读取，其它会议完整保留，已关闭 Session 的原始用户消息仍可读取。真实 Typert Gateway 验证删除 endpoint 调用及非法参数拒绝；其 Runtime 使用受控替身，不代替完整 Host 删除链路证据。
+
+冷恢复错误识别复验：临时移除 Registry 的 intent 清理调用后，中断路径在“目标业务表必须为空”断言失败，恢复生产代码后通过；此复验不属于测试先行。未部署人工 Host、未运行新删除功能的人工 Browser/真实模型会议或跨进程崩溃注入；本次验证不删除或改写固定人工环境数据。
+
 ### 2026-10-10：历史观点缺少摘要时显示原文
 
 缺少独立摘要的历史观点直接显示已持久化的 FormalMessage 正文，沿用三行折叠与展开/收起交互，证据对话框仍保留原文。相关 records/locales 测试 2 files/15 tests、Client typecheck 与 diff check 通过；人工安装刷新后，真实归档会议的两条历史观点显示原文及“...展开”，不再显示缺少摘要的占位文案。未修改历史持久数据。

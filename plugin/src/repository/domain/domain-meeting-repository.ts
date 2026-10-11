@@ -27,6 +27,8 @@ import { decodeProjection, encodeProjection } from "./projection.ts";
 import { receiptKey, seqKey } from "./keys.ts";
 import { encodeCanonicalJson, type JsonValue } from "./canonical-json.ts";
 import { RepositoryError } from "@/repository/index.ts";
+import { catalogKey } from "./keys.ts";
+import { purgeMeetingData } from "./meeting-data-deletion.ts";
 
 const jsonValue = (value: unknown): JsonValue => {
     if (
@@ -884,6 +886,73 @@ export class DomainMeetingRepository<TState = JsonObject>
                 pendingOutbox
             };
         });
+    }
+
+    async beginDeletion(
+        expectedVersion: number,
+        validate: (recovery: RecoveryResult<TState>) => void
+    ): Promise<void> {
+        return this.enqueueMutation(async () => {
+            const projection = this.projection;
+            if (!projection?.snapshot) {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Meeting is not ready"
+                );
+            }
+            if (projection.snapshot.version !== expectedVersion) {
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    false,
+                    this.meetingId,
+                    "Meeting has changed"
+                );
+            }
+            validate({
+                snapshot: this.decodeSnapshot(structuredClone(projection.snapshot)),
+                bootstrap: structuredClone(projection.bootstrap),
+                sessionOwnership: structuredClone(Object.values(projection.sessionOwnership)),
+                preparedDescriptors: structuredClone(projection.preparedDescriptors),
+                reclaimedOutbox: 0,
+                pendingOutbox: Object.values(projection.outbox).filter(
+                    (item) => item.status === "pending" || item.status === "leased"
+                ).length
+            });
+            const key = catalogKey(this.meetingId);
+            const record = this.catalogDomain.table("meetings").get(key);
+            if (!record) {
+                throw new RepositoryError(
+                    "MEETING_NOT_FOUND",
+                    false,
+                    this.meetingId,
+                    "Meeting is not registered"
+                );
+            }
+            await this.catalogDomain.table("meetings").put(key, { ...record, status: "deleting" });
+            this.closed = true;
+            this.deletionCommitted = true;
+            this.maintenanceRequested = false;
+        });
+    }
+
+    async purgeDeletedData(): Promise<void> {
+        if (
+            !this.closed ||
+            this.catalogDomain.table("meetings").get(catalogKey(this.meetingId))?.status !==
+                "deleting"
+        ) {
+            throw new RepositoryError(
+                "INVALID_STATE",
+                false,
+                this.meetingId,
+                "Deletion is not committed"
+            );
+        }
+        await this.mutationChain;
+        await purgeMeetingData(this.meetingDomain);
+        this.projection = undefined;
     }
 
     async close(): Promise<void> {

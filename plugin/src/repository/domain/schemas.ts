@@ -237,7 +237,7 @@ export const CatalogMeetingRecordSchema = z
         formatVersion: z.literal(1),
         meetingId: z.string(),
         domainName: z.string(),
-        status: z.enum(["creating", "ready", "creation_failed"]),
+        status: z.enum(["creating", "ready", "creation_failed", "deleting"]),
         createRequestId: z.string(),
         requestHash: z.string(),
         createdAt: z.number().int(),

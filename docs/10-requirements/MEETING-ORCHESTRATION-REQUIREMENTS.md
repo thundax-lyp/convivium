@@ -167,7 +167,7 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 
 1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 用户 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 用户 专属数组。
 2. 当前面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
-3. 当前插件面板作为可信本地用户控制入口，只显示当前状态允许的暂停、恢复、异常取消；正常结束由 Manager 的受控命令执行；会议创建由 MO-FR-18 的聊天 Skill 提供。两者运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
+3. 当前插件面板作为可信本地用户控制入口，显示当前状态允许的暂停、恢复、异常取消及 MO-FR-19 的会议删除入口；正常结束由 Manager 的受控命令执行；会议创建由 MO-FR-18 的聊天 Skill 提供。两者运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
@@ -256,7 +256,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表，按 `updatedAt` 倒序排列。导航区采用 DSH 会话导航的标题、搜索和树列表结构；行首以图标表示生命周期，中间目标单行省略，右侧显示本地化相对更新时间。搜索只筛选当前已加载摘要的目标，空列表和无匹配结果展示空态，不触发详情读取或改变当前选择。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和泳道折叠；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
-5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权。
+5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表除 MO-FR-19 的删除入口外只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权；已归档会议的整体删除仅按 MO-FR-19 执行，不授予修改归档事实的权限。
 6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review、MeetingTask 和技术标识。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以 Captain、Manager、Contributor、Reviewer 和系统五类泳道展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线只能使用 Meeting Interface 已有时间和身份字段。活动 Meeting 只从顶层 caller-filtered projection 建立节点；归档 Meeting 只从完整 `ArchiveView` 建立历史节点，并必须纳入其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态。
@@ -279,6 +279,18 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 4. 该授权只允许创建一场与本次用户目标绑定的 Meeting，不授予 Agent 其他 Captain 控制、代用户决定风险或跨 Meeting 访问权。创建后的初始 Meeting Agent 按平级 Session 与授权投递运行，用户输入 Session 可以关闭。
 5. Meetings View 用于导航和控制已创建会议，不展示另一个创建入口；既有结构化 `create_meeting` Remote 契约可供可信本地用户集成调用。
 6. Captain 在聊天中取消指定会议时，必须显式调用 `/convivium cancel <meetingId> <非空原因>`，由该次直接用户输入授予一次性 `cancelled` 终止权限。普通对话、Agent 文本和会议身份消息不得触发取消；此入口不授予 `completed|partial|no_consensus` 正常结束权限。缺少 Meeting ID 或原因时不得猜测目标。
+
+### MO-FR-19：删除已终止会议
+
+确认日期：2026-10-11。实现范围与验证证据以 Current Implementation Coverage 为准。
+
+1. Meeting Navigator 每个会议条目的弹出菜单在“打开会议”之后增加分隔线和危险操作“删除会议”。删除指真正删除该会议的持久记录，不是隐藏列表项，也不等同于结束、取消或归档；当前范围不增加批量删除、自动清理或 Agent 删除权限。
+2. 只有可信本地用户可以显式删除指定会议。仅已终止且无待处理后台工作的会议可删除；运行中、暂停中、尚未终止及正在归档清理的会议不能删除。菜单在不满足条件时禁用删除并说明原因；状态陈旧、断线及请求提交期间也禁用。服务端必须重新验证当前条件，不能只信任菜单或确认框打开时的状态。
+3. 用户选择删除后必须二次确认，明确目标会议和不可撤销后果：只删除会议业务数据，包括摘要登记、创建记录、正式事实、证据、审核、归档、receipt、outbox、ownership 和 checkpoint；保留已关闭的会议 Agent/worker Session 及其聊天历史，不调用 Session 物理删除接口。取消确认不产生删除请求，也不改变会议选择或数据。
+4. 删除范围仅限用户明确选中的会议及已确认归属该会议的关联资源，不得清空共享数据库、其它会议、用于发起会议的普通用户聊天或 Host 共享配置、角色资源和凭据。接口和实现必须区分会议数据清理与 Host 所有的 Session 持久数据清理，不得直接猜测物理存储位置。
+5. 成功后该会议不再出现在摘要列表，详情读取和 Host 冷重启不得使其恢复。删除失败或清理未完成不能报告成功，界面必须给出明确失败或未完成反馈；在成功确认前不得仅靠本地移除条目冒充删除完成。
+6. 删除当前选中会议成功后清空当前选择、详情及该会议的展示状态，不自动选择另一场会议，与 MO-FR-17.4 一致；删除未选中会议不改变当前选择。旧详情请求和刷新结果不得重新显示已删除会议。
+7. 菜单、禁用原因、确认、失败和可访问性文案遵守 MO-FR-16 的 zh/en 本地化要求；会议目标等用户内容保持原文。危险操作必须可通过键盘操作，不能只以颜色表达风险。
 
 ## Collaborative Problem Solving
 
@@ -419,6 +431,10 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
 64. 首次列表 loading、error 和 empty result 分别只呈现 `Empty` 品牌图形与对应本地化文本，没有搜索、Workspace、分隔条或 retry；非空列表首次可用后 Workspace 轻量入场，reduced-motion 环境无动画。已有非空 last-good 列表的 refresh loading/failure 仍保留 Navigator、Workspace、选择和陈旧标记。
 65. 已接纳但尚未提交证据的贡献者在记录中可见准备状态；已提交且正在审核的版本在没有 FormalMessage 时可见审核状态。点击当前 caller 可见版本的证据入口，模态对话框显示其观察、解释、方法、反证条件、不确定性、限制、主张和参考资料全部字段；关闭后焦点回到入口。无可见 EvidenceVersion 的失败贡献没有证据入口。
+
+66. 每个会议条目菜单均按“打开会议 → 分隔线 → 删除会议”排列；未终止、运行中、暂停中、归档清理中、有待处理工作及陈旧/断线/提交中状态不能执行删除。绕过界面直接调用时，服务端仍拒绝不符合条件或非可信用户的请求。
+67. 对可删除会议打开确认框时显示确切目标、不可撤销提示和已确认的数据/Session 清理范围；取消后持久数据、列表和选择不变。确认成功删除后，刷新及 Host 冷重启均无法重新列出或读取该会议，其它会议、普通用户聊天和 Host 共享资源不受影响。
+68. 删除选中会议成功后 Workspace 回到未选择状态；删除其他会议保留当前 Workspace。失败或未完成不显示成功，旧请求和刷新结果不能使已删除会议重新出现。上述菜单、确认和状态文案在 zh/en 下均可访问且完整本地化。
 
 ## Related Documents
 

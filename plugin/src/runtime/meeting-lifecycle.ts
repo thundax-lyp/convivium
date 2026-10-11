@@ -35,6 +35,8 @@ import { provisionMeetingIdentity } from "./services/index.ts";
 import type { MeetingIdentityProvisionDependencies } from "./services/index.ts";
 import type { OutboxItem } from "@/repository/index.ts";
 import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import { meetingDeletionStatus, deleteMeeting } from "./services/index.ts";
+import type { DeleteMeetingRequest } from "@/protocol/index.ts";
 
 export const createTargetMeetingEffectDispatcher = (dependencies: {
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
@@ -726,16 +728,31 @@ export const activateTargetMeetingApplication = async (
             }
         });
     const runtime = {
+        async deleteMeeting(request: DeleteMeetingRequest, signal: AbortSignal) {
+            const result = await deleteMeeting(registry, request, signal, () =>
+                stopDelivery(request.meetingId)
+            );
+            if (result.kind === "deleted") {
+                for (const listener of refreshListeners) {
+                    listener(request.meetingId, request.expectedMeetingVersion);
+                }
+            }
+            return result;
+        },
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
             const meetings = [];
             for (const record of registry.listMeetings()) {
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
-                const snapshot = (await repository.recover()).snapshot;
+                const recovery = await repository.recover();
+                const snapshot = recovery.snapshot;
                 if (!snapshot) {
                     throw new Error("Meeting is not ready.");
                 }
-                meetings.push(projectMeetingSummary(snapshot));
+                meetings.push({
+                    ...projectMeetingSummary(snapshot),
+                    deletionStatus: meetingDeletionStatus(recovery)
+                });
             }
             return { meetings };
         },

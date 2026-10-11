@@ -2,11 +2,17 @@ import * as React from "react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingSummary, MeetingView } from "@/protocol/index.ts";
 import type { MeetingTranslate } from "./shared/index.ts";
-import { ProtocolFailure, useMeetingSubmission, type MeetingClient } from "./client.ts";
+import {
+    ProtocolFailure,
+    useMeetingSubmission,
+    withMeetingWriteLock,
+    type MeetingClient
+} from "./client.ts";
 import { SubmissionFeedback } from "./submission-feedback.tsx";
 import { MeetingPanelLayout } from "./layout/index.ts";
 import type { MeetingPanelLayoutProps, MeetingsFreshnessState } from "./shared/index.ts";
 import { useMeetingTranslate, useMeetingWorkspace } from "./hooks/index.ts";
+import { submitMeetingDeletion } from "./meeting-deletion.ts";
 
 const INITIAL_FRESHNESS: MeetingsFreshnessState = {
     connection: "connecting",
@@ -61,19 +67,8 @@ export const ConviviumMeetingPanel = ({
     const writeLock = useRef(false);
     const controlClient: MeetingClient = {
         ...api,
-        control: async (command, signal) => {
-            if (writeLock.current) {
-                throw new Error("A user command is already in flight.");
-            }
-            writeLock.current = true;
-            setWritePending(true);
-            try {
-                return await api.control(command, signal);
-            } finally {
-                writeLock.current = false;
-                setWritePending(false);
-            }
-        }
+        control: (command, signal) =>
+            withMeetingWriteLock(writeLock, setWritePending, () => api.control(command, signal))
     };
     const selectedRef = useRef<string>();
     const refreshGenerationRef = useRef(0);
@@ -267,11 +262,37 @@ export const ConviviumMeetingPanel = ({
         [loadDetail, localSubmission.edit, meetingWorkspace.selectMeeting]
     );
     const endMeeting = async () => {
-        if (!detail) {
-            return;
+        if (detail) {
+            await localSubmission.submit(
+                detail.meetingId,
+                detail.version,
+                endMeetingAction(detail)
+            );
         }
-        await localSubmission.submit(detail.meetingId, detail.version, endMeetingAction(detail));
     };
+    const deleteMeeting = (meeting: MeetingSummary) =>
+        submitMeetingDeletion({
+            api,
+            meeting,
+            writeLock,
+            setPending: setWritePending,
+            disabled: freshness.connection !== "connected" || freshness.list !== "fresh",
+            onDeleted: () => {
+                refreshGenerationRef.current += 1;
+                setMeetings((current) =>
+                    current.filter((item) => item.meetingId !== meeting.meetingId)
+                );
+                if (selectedRef.current === meeting.meetingId) {
+                    selectedRef.current = undefined;
+                    localSubmission.edit();
+                    meetingWorkspace.clearSelection();
+                    setDetail(undefined);
+                    setDetailFailure(undefined);
+                    setFreshness((current) => ({ ...current, detail: "idle" }));
+                }
+                void refreshAll({ recovery: false });
+            }
+        });
     const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
         if (!detail) {
             return;
@@ -285,6 +306,9 @@ export const ConviviumMeetingPanel = ({
         });
     };
     const layoutProps: MeetingPanelLayoutProps = {
+        deleteMeeting,
+        deleteDisabled:
+            freshness.connection !== "connected" || freshness.list !== "fresh" || writePending,
         localFeedback: (
             <SubmissionFeedback
                 submission={localSubmission}

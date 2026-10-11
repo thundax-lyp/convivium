@@ -5,6 +5,9 @@ import type {
     MeetingReadResult,
     RefreshNotice
 } from "@/protocol/index.ts";
+import type { DeleteMeetingRequest, DeleteMeetingResult } from "@/protocol/index.ts";
+export type RemoteDeleteMeetingRequest = DeleteMeetingRequest & Record<string, RemoteJsonValue>;
+export type RemoteDeleteMeetingResult = DeleteMeetingResult & Record<string, RemoteJsonValue>;
 
 export type RemoteJsonValue =
     | null

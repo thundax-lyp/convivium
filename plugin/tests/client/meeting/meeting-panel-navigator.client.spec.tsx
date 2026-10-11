@@ -63,6 +63,74 @@ function layoutProps() {
 describe("Meeting navigator", () => {
     beforeEach(() => vi.unstubAllGlobals());
 
+    it.each(["active", "pending_work", "sessions_open"] as const)(
+        "disables deletion when the server reports %s",
+        (status) => {
+            const { props, summary } = layoutProps();
+            const remove = vi.fn(async () => {});
+            render(
+                translatedLayout(
+                    {
+                        ...props,
+                        meetings: [{ ...summary, deletionStatus: status }],
+                        deleteMeeting: remove,
+                        deleteDisabled: false
+                    },
+                    "en"
+                )
+            );
+            fireEvent.click(
+                screen.getByRole("button", { name: `Actions for meeting ${summary.objective}` })
+            );
+            expect(
+                screen.getByRole("menuitem", { name: "Delete meeting" }).getAttribute("disabled")
+            ).not.toBeNull();
+            fireEvent.click(screen.getByRole("menuitem", { name: "Delete meeting" }));
+            expect(remove).not.toHaveBeenCalled();
+            expect(screen.queryByRole("checkbox")).toBeNull();
+        }
+    );
+
+    it("requires confirmation before deleting and preserves selection on cancel", async () => {
+        const { props, summary } = layoutProps();
+        const remove = vi.fn(async () => {});
+        render(
+            translatedLayout(
+                {
+                    ...props,
+                    meetings: [{ ...summary, deletionStatus: "allowed" }],
+                    deleteMeeting: remove,
+                    deleteDisabled: false
+                },
+                "en"
+            )
+        );
+        fireEvent.click(
+            screen.getByRole("button", { name: `Actions for meeting ${summary.objective}` })
+        );
+        expect(within(screen.getByRole("menu")).getByRole("separator")).toBeTruthy();
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete meeting" }));
+        expect(screen.getByText(/Closed Sessions and chat history are retained/)).toBeTruthy();
+        fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[1]!);
+        expect(remove).not.toHaveBeenCalled();
+        expect(props.selectMeeting).not.toHaveBeenCalled();
+        fireEvent.click(
+            screen.getByRole("button", { name: `Actions for meeting ${summary.objective}` })
+        );
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete meeting" }));
+        expect(
+            screen.getByRole("button", { name: "Delete meeting" }).getAttribute("disabled")
+        ).not.toBeNull();
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.click(screen.getByRole("button", { name: "Delete meeting" }));
+        fireEvent.click(screen.getByRole("button", { name: "Delete meeting" }));
+        await act(async () => {});
+        expect(remove).toHaveBeenCalledOnce();
+        expect(remove).toHaveBeenCalledWith(
+            expect.objectContaining({ meetingId: summary.meetingId, version: summary.version })
+        );
+    });
+
     it("does not offer meeting creation in the Web panel", () => {
         const media = mediaFixture(false);
         vi.stubGlobal(

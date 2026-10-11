@@ -87,6 +87,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         ((snapshot: MeetingSnapshot<TState>) => void) | undefined;
     protected readonly onDiagnostic: DiagnosticSink | undefined;
     protected closed = false;
+    protected deletionCommitted = false;
     protected domainClosed = false;
     protected mutationChain: Promise<void> = Promise.resolve();
     protected projection: PersistenceProjection | undefined;
@@ -160,8 +161,8 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
         }
     }
 
-    protected ensureOpen(): void {
-        if (this.closed) {
+    protected ensureOpen(queued = false): void {
+        if (this.closed && (!queued || this.deletionCommitted)) {
             throw new RepositoryError("CLOSED", false, this.meetingId, "Repository is closed");
         }
     }
@@ -198,24 +199,32 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
 
     protected enqueueMutation<T>(operation: () => Promise<T>, commandKind?: string): Promise<T> {
         this.ensureOpen();
-        const committed = this.mutationChain.then(operation).catch((error) => {
-            const state = this.projection?.snapshot?.state;
-            const code =
-                error instanceof RepositoryError || error instanceof DomainError
-                    ? error.code
-                    : "INTERNAL_ERROR";
-            emitDiagnostic(this.onDiagnostic, {
-                meetingId: this.meetingId,
-                meetingVersion: this.projection?.snapshot?.version ?? 0,
-                eventSeq: typeof state?.eventSeq === "number" ? state.eventSeq : 0,
-                eventType: "repository.failed",
-                ...(commandKind === undefined ? {} : { commandKind }),
-                timestamp: this.now(),
-                errorCode: code,
-                metrics: { failures: 1, ...(code === "STALE_ATTEMPT" ? { staleSubmits: 1 } : {}) }
+        const committed = this.mutationChain
+            .then(() => {
+                this.ensureOpen(true);
+                return operation();
+            })
+            .catch((error) => {
+                const state = this.projection?.snapshot?.state;
+                const code =
+                    error instanceof RepositoryError || error instanceof DomainError
+                        ? error.code
+                        : "INTERNAL_ERROR";
+                emitDiagnostic(this.onDiagnostic, {
+                    meetingId: this.meetingId,
+                    meetingVersion: this.projection?.snapshot?.version ?? 0,
+                    eventSeq: typeof state?.eventSeq === "number" ? state.eventSeq : 0,
+                    eventType: "repository.failed",
+                    ...(commandKind === undefined ? {} : { commandKind }),
+                    timestamp: this.now(),
+                    errorCode: code,
+                    metrics: {
+                        failures: 1,
+                        ...(code === "STALE_ATTEMPT" ? { staleSubmits: 1 } : {})
+                    }
+                });
+                throw error;
             });
-            throw error;
-        });
         const maintenance = committed.then(
             () => this.runMaintenance(),
             () => undefined

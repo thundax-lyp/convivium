@@ -5,8 +5,10 @@ import type {
     MeetingReadResult,
     RefreshNotice
 } from "@/protocol/index.ts";
+import type { DeleteMeetingRequest, DeleteMeetingResult } from "@/protocol/index.ts";
 
 export interface LocalMeetingWebRuntime {
+    deleteMeeting(request: DeleteMeetingRequest, signal: AbortSignal): Promise<DeleteMeetingResult>;
     list(signal: AbortSignal): Promise<MeetingListResult>;
     read(
         request: { readonly protocolVersion: 1; readonly meetingId: string },

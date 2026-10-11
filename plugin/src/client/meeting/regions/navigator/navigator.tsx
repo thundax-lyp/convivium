@@ -9,6 +9,7 @@ import {
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { ConviviumMark, Empty } from "@/client/meeting/components/index.ts";
 import { MeetingTreeItem } from "./meeting-tree-item.tsx";
+import { MeetingDeleteConfirmation } from "./meeting-delete-confirmation.tsx";
 import styles from "./navigator.module.css";
 
 export const MeetingNavigator = ({
@@ -17,7 +18,9 @@ export const MeetingNavigator = ({
     listLoading,
     listCached,
     listError,
-    selectMeeting
+    selectMeeting,
+    deleteMeeting,
+    deleteDisabled = true
 }: {
     meetings: readonly MeetingSummary[];
     selectedId?: string;
@@ -25,9 +28,12 @@ export const MeetingNavigator = ({
     listCached: boolean;
     listError?: string;
     selectMeeting(meetingId: string): void;
+    deleteMeeting?(meeting: MeetingSummary): Promise<void>;
+    deleteDisabled?: boolean;
 }): ReactElement => {
     const t = useMeetingTranslate();
     const [searchOpen, setSearchOpen] = React.useState(false);
+    const [deleteTarget, setDeleteTarget] = React.useState<MeetingSummary>();
     const [query, setQuery] = React.useState("");
     const [now, setNow] = React.useState(() => Date.now());
     const inputRef = React.useRef<HTMLInputElement>(null);
@@ -188,11 +194,32 @@ export const MeetingNavigator = ({
                                 now={now}
                                 selected={meeting.meetingId === selectedId}
                                 selectMeeting={selectMeeting}
+                                deleteDisabled={deleteDisabled || listLoading || listCached}
+                                requestDelete={deleteMeeting ? setDeleteTarget : undefined}
                             />
                         ))}
                     </div>
                 ) : null}
             </div>
+            {deleteTarget && deleteMeeting ? (
+                <MeetingDeleteConfirmation
+                    key={deleteTarget.meetingId}
+                    meeting={deleteTarget}
+                    disabled={
+                        deleteDisabled ||
+                        listLoading ||
+                        listCached ||
+                        !meetings.some(
+                            (m) =>
+                                m.meetingId === deleteTarget.meetingId &&
+                                m.version === deleteTarget.version &&
+                                m.deletionStatus === "allowed"
+                        )
+                    }
+                    remove={deleteMeeting}
+                    onClose={() => setDeleteTarget(undefined)}
+                />
+            ) : null}
         </nav>
     );
 };

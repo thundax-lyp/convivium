@@ -20,6 +20,8 @@ import {
     type MeetingDomain
 } from "./specs.ts";
 import type { CatalogMeetingRecord, CreationRecord } from "./schemas.ts";
+import { purgeMeetingData } from "./meeting-data-deletion.ts";
+import type { RecoveryResult } from "@/repository/index.ts";
 
 export interface DomainFacilityPort {
     open<S extends DomainSpec>(spec: S): Promise<Domain<S>>;
@@ -75,6 +77,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     private readonly opened = new Map<string, DomainMeetingRepository<TState>>();
     private closePromise: Promise<void> | undefined;
     private closed = false;
+    private readonly deletions = new Map<string, Promise<void>>();
 
     private constructor(
         private readonly storageDomain: DomainFacilityPort,
@@ -91,7 +94,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         options: DomainRepositoryRegistryOptions<TState>
     ): Promise<DomainRepositoryRegistry<TState>> {
         const catalog = await options.storageDomain.open(catalogDomainSpec);
-        return new DomainRepositoryRegistry(
+        const registry = new DomainRepositoryRegistry(
             options.storageDomain,
             catalog,
             options.authorizationValidator,
@@ -100,6 +103,18 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
             options.onDiagnostic,
             options.onProjectionCommitted
         );
+        try {
+            for (const [key, record] of catalog.table("meetings").entries()) {
+                validateCatalogIdentity(key, record, record.meetingId);
+                if (record.status === "deleting") {
+                    await registry.finishDeletion(record);
+                }
+            }
+            return registry;
+        } catch (error) {
+            await catalog.close();
+            throw error;
+        }
     }
 
     listMeetings(): CatalogMeetingRecord[] {
@@ -107,9 +122,78 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         const records: CatalogMeetingRecord[] = [];
         for (const [key, record] of this.catalog.table("meetings").entries()) {
             validateCatalogIdentity(key, record, record.meetingId);
-            records.push(structuredClone(record));
+            if (record.status !== "deleting") {
+                records.push(structuredClone(record));
+            }
         }
         return records.sort((left, right) => left.meetingId.localeCompare(right.meetingId));
+    }
+
+    async deleteMeeting(
+        meetingId: string,
+        expectedVersion: number,
+        validate: (recovery: RecoveryResult<TState>) => void,
+        quiesce?: () => void | Promise<void>
+    ): Promise<void> {
+        this.ensureOpen();
+        const existing = this.deletions.get(meetingId);
+        if (existing) {
+            return existing;
+        }
+        const pending = this.deleteMeetingOnce(meetingId, expectedVersion, validate, quiesce);
+        this.deletions.set(meetingId, pending);
+        try {
+            await pending;
+        } finally {
+            this.deletions.delete(meetingId);
+        }
+    }
+
+    private async deleteMeetingOnce(
+        meetingId: string,
+        expectedVersion: number,
+        validate: (recovery: RecoveryResult<TState>) => void,
+        quiesce?: () => void | Promise<void>
+    ): Promise<void> {
+        const key = catalogKey(meetingId);
+        const record = this.catalog.table("meetings").get(key);
+        if (!record) {
+            return;
+        }
+        validateCatalogIdentity(key, record, meetingId);
+        if (record.status !== "deleting") {
+            const repository = await this.openMeeting({ meetingId });
+            await repository.beginDeletion(expectedVersion, validate);
+        }
+        await quiesce?.();
+        await this.finishDeletion(record);
+    }
+
+    private async finishDeletion(record: CatalogMeetingRecord): Promise<void> {
+        const key = catalogKey(record.meetingId);
+        const repository = this.opened.get(record.domainName);
+        if (repository) {
+            try {
+                await repository.purgeDeletedData();
+            } finally {
+                try {
+                    await repository.close();
+                } finally {
+                    this.opened.delete(record.domainName);
+                    this.repositories.delete(key);
+                }
+            }
+        } else {
+            const domain = await this.storageDomain.open(
+                createMeetingDomainSpec(record.domainName)
+            );
+            try {
+                await purgeMeetingData(domain);
+            } finally {
+                await domain.close();
+            }
+        }
+        await this.catalog.table("meetings").delete(key);
     }
 
     async openMeeting(
@@ -117,6 +201,14 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     ): Promise<DomainMeetingRepository<TState>> {
         this.ensureOpen();
         const key = catalogKey(input.meetingId);
+        if (this.catalog.table("meetings").get(key)?.status === "deleting") {
+            throw new RepositoryError(
+                "MEETING_NOT_FOUND",
+                false,
+                input.meetingId,
+                "Meeting deletion is in progress"
+            );
+        }
         let pending = this.repositories.get(key);
         if (!pending) {
             pending = this.openMeetingOnce(key, input);
@@ -130,7 +222,12 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         const repository = await pending;
         const catalog = this.catalog.table("meetings").get(key);
         if (!catalog) {
-            throw corrupt(input.meetingId, "Cached catalog record is missing");
+            throw new RepositoryError(
+                "MEETING_NOT_FOUND",
+                false,
+                input.meetingId,
+                "Meeting is not registered"
+            );
         }
         validateCatalogIdentity(key, catalog, input.meetingId);
         if (repository.meetingId !== input.meetingId) {
@@ -341,6 +438,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         }
         this.closed = true;
         this.closePromise = (async () => {
+            await Promise.allSettled(this.deletions.values());
             let failure: unknown;
             for (const [, repository] of [...this.opened.entries()].sort(([left], [right]) =>
                 left.localeCompare(right)
