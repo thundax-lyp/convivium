@@ -130,6 +130,8 @@ application 只从 `Clock.now()` 取得时间，向 Domain command 传入具体 
 
 ### 基础事件日志
 
+`buildMeetingEvents` 使用静态强类型 converter 表按 `MeetingAction.kind` 分派；mapped type 要求每个 action kind 都有处理器，并将处理器的 action 参数收窄到对应类型，不采用动态注册、类型断言或缺省跳过。公共转换上下文统一构造 actor、typed relations 与 payload；各 converter 只生成对应 action 的 occurrence。生命周期变化事件由入口统一生成并放在 action 事件之前；发布保持 Publication 先于按 `seq` 排序的新 FormalMessage。无 occurrence 的 action 显式返回空数组，`create_meeting` 仍拒绝进入此入口并由 creation coordinator 负责。
+
 Repository 现有 `events` map 与 `nextEventSeq` 是 Meeting 基础事件日志的 canonical owner，不是 outbox queue。application 在 `createRepositoryCommand` 构造提交包时，使用唯一的 `buildMeetingEvents` 比较提交前后的 `MeetingState`，把 accepted action、可信 `ResolvedCallerScope`、`CommandTransition` 和本次 `now` 映射成 `0..n` 条 `MeetingEventInput`；创建由 creation coordinator 写入同结构的 `meeting.created`。一个 event 只表达一个 occurrence；同一 command 物化多个公开对象或同时改变 lifecycle 时分别产生事件。mapper 只能输出 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#read-remote-and-projection) 的 actor、subject、typed relations 与该 occurrence 的最小不可变 `data`，不复制私信或隐藏运行数据，也不生成 milestone 字段。Domain 与 Protocol 按 Architecture 保持相互独立：两侧分别声明同一组 event kind 和 data shape，Repository/Runtime 组合测试逐项比较两侧可接受集合并阻止漂移；不得为共享 literal 新增跨越 Domain/Protocol 的 import 或无职责 contracts 模块。
 
 事件与 snapshot、receipt、`CommittedFactRecord` 和 outbox 在同一 Repository compare-and-swap commit 中追加；application 为本次 command 只读取一次 `Clock.now()`，event 的 `occurredAt` 与 fact 的 `occurredAt` 使用该值，Repository 仅分配 `eventSeq` 并记录该提交的新 Meeting version，不为 event 再取时钟。receipt 保存本次全部 `eventSeqs`，重放直接返回 receipt，不再次运行 mapper。拒绝、冲突和 commit 失败均不留下事件；恢复只接受连续的事件序号，不消费或删除历史。fact 仍保存审计所需的 resulting state，outbox 仍保存待投递效果，不能把任一职责迁入 event payload。
