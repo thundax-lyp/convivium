@@ -69,13 +69,21 @@ describe("Meeting business data deletion", () => {
     it("fails closed during partial cleanup and retries only the committed deletion", async () => {
         const { registry, catalog, meeting, repository } = await fixture();
         meeting.failNextDelete("creation", "current");
-        await expect(registry.deleteMeeting("meeting-delete", 0, () => {})).rejects.toThrow(
+        const summary = {
+            objective: "Delete this meeting",
+            version: 0,
+            lifecycle: "terminal" as const
+        };
+        await expect(registry.deleteMeeting("meeting-delete", 0, () => summary)).rejects.toThrow(
             "fake delete failure"
         );
         expect(catalog.table("meetings").get(catalogKey("meeting-delete"))?.status).toBe(
             "deleting"
         );
         await expect(repository.recover()).rejects.toMatchObject({ code: "CLOSED" });
+        expect(registry.listMeetings()).toEqual([
+            expect.objectContaining({ status: "deleting", deletionSummary: summary })
+        ]);
         await registry.deleteMeeting("meeting-delete", 0, () => {
             throw new Error("must not read a partial projection");
         });

@@ -76,6 +76,12 @@
 
 ## Executed Validation
 
+### 2026-10-11：未完成删除的展示与显式重试
+
+删除意图同步保存目标、原版本和 lifecycle 的最小摘要；部分清理失败后列表只读该摘要，不恢复业务 projection，也不开放业务写权限。Navigator 展示未完成原因，刷新或重新打开菜单后仍可再次确认同一删除。新增 Client 失败→刷新→重试成功组合回归及 deleting 状态重新确认用例，增强 Repository 部分失败摘要可见性断言。回归在旧实现的重试按钮禁用处失败，修复后通过。
+
+两项删除修复的最终工作树 `pnpm --dir plugin verify` PASS：99 files/880 tests，format、lint（无警告）、Host/Client/Remote typecheck、build、environment、contract、Definition、package 全通过。未运行新功能的人工 Browser/完整 Host 链路或跨进程崩溃注入；测试仅使用隔离数据，已关闭 Session 与聊天历史保留，固定人工环境未改动。
+
 ### 2026-10-11：删除后的创建重放保护
 
 删除意图提交后，以 catalogKey 的布尔标记阻止原 Meeting ID 再创建；不保留业务内容或 Session 标识。新增 Repository 创建→删除→原创建重放回归，冷重开 SQLite 的完成/中断两条路径也拒绝旧创建，仍可读取原 Session 聊天事件且其它会议不变。回归先观察到旧实现重新登记，再验证拒绝；相关 3 files/23 tests 与 Host typecheck PASS。未改写人工环境，未验证新的完整 Host/Browser 链路。

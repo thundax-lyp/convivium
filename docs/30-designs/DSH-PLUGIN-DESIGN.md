@@ -60,6 +60,8 @@ Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依�
 
 ### Meetings View 组成
 
+删除清理失败后，Navigator 继续展示 catalog 意图的最小摘要与“删除未完成，可重试”状态；刷新、取消确认和重新打开菜单不会丢失显式重试入口。该状态只能再次删除，不能恢复详情或业务写权限。删除成功后以不含业务内容的持久标记阻止原创建请求重新登记，不删除或复用历史 Session。
+
 会议删除遵循 MO-FR-19 和 [Meeting Deletion Boundary](../20-interfaces/MEETING-INTERFACE.md#meeting-deletion-boundary)：Navigator 的打开动作后增加分隔线与危险删除动作，并在确认框明确“永久删除会议业务数据，保留已关闭的 Session 和聊天历史”。删除执行前由 Runtime 重验终止、待处理工作和 Session 关闭/撤权条件；业务 Repository 只清理精确会议的数据，不调用 Host 的 Session 删除服务。成功后清除被删除会议的选择和展示状态，不自动选择其它会议；失败或清理未完成不报告成功。
 
 Client 只注册一个 `conversation.view: convivium-meetings`，不注册独立 Timeline View：

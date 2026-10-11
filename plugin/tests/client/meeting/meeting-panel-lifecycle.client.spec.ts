@@ -31,6 +31,51 @@ function clientFixture() {
 }
 
 describe("Meeting panel lifecycle", () => {
+    it("keeps a failed deletion available after refresh and retries the committed intent", async () => {
+        const { api, summary } = clientFixture();
+        let failed = false;
+        let deleted = false;
+        api.list = vi.fn(async () => ({
+            meetings: deleted
+                ? []
+                : [
+                      {
+                          ...summary,
+                          lifecycle: "terminal" as const,
+                          deletionStatus: failed ? ("deleting" as const) : ("allowed" as const)
+                      }
+                  ]
+        }));
+        api.deleteMeeting = vi.fn(async (request) => {
+            if (!failed) {
+                failed = true;
+                throw new Error("partial cleanup");
+            }
+            deleted = true;
+            return { kind: "deleted", meetingId: request.meetingId };
+        });
+        render(translatedPanel({ api }, "en"));
+        fireEvent.click(await screen.findByRole("treeitem", { name: /核对议题 A/ }));
+        await screen.findByRole("region", { name: "Objective" });
+        fireEvent.click(
+            screen.getByRole("button", { name: `Actions for meeting ${summary.objective}` })
+        );
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete meeting" }));
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.click(screen.getByRole("button", { name: "Delete meeting" }));
+        await screen.findByRole("alert");
+        fireEvent.focus(window);
+        await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: "Delete meeting" }).getAttribute("disabled")
+            ).toBeNull()
+        );
+        expect(screen.getByRole("treeitem").getAttribute("aria-selected")).toBe("true");
+        fireEvent.click(screen.getByRole("button", { name: "Delete meeting" }));
+        await waitFor(() => expect(screen.queryByRole("treeitem")).toBeNull());
+        expect(api.deleteMeeting).toHaveBeenCalledTimes(2);
+    });
     it("discards a list refresh started during deletion when it resolves after success", async () => {
         const { api, summary, releaseNotice } = clientFixture();
         const target = {

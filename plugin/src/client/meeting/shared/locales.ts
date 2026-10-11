@@ -95,6 +95,7 @@ export const zh = {
     "panel.navigator.actions": "会议“{objective}”的操作",
     "panel.navigator.openMeeting": "查看会议",
     "panel.delete.action": "删除会议",
+    "panel.delete.deleting": "删除清理未完成，可重试删除",
     "panel.delete.title": "删除会议：{objective}？",
     "panel.delete.description":
         "永久删除该会议的业务数据，包括正式记录、证据、审核和归档，且无法撤销。保留已关闭的 Session 和聊天历史。",
@@ -457,6 +458,7 @@ export const en: Record<MeetingLocaleKey, string> = {
     "panel.navigator.actions": "Actions for meeting {objective}",
     "panel.navigator.openMeeting": "Open meeting",
     "panel.delete.action": "Delete meeting",
+    "panel.delete.deleting": "Deletion cleanup is incomplete; retry deletion",
     "panel.delete.title": "Delete meeting: {objective}?",
     "panel.delete.description":
         "Permanently delete this meeting's business data, including formal records, evidence, reviews and archive. This cannot be undone. Closed Sessions and chat history are retained.",

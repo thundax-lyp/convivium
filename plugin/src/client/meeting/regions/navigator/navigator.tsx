@@ -213,7 +213,7 @@ export const MeetingNavigator = ({
                             (m) =>
                                 m.meetingId === deleteTarget.meetingId &&
                                 m.version === deleteTarget.version &&
-                                m.deletionStatus === "allowed"
+                                (m.deletionStatus === "allowed" || m.deletionStatus === "deleting")
                         )
                     }
                     remove={deleteMeeting}

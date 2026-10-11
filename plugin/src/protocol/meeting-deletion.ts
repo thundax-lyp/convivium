@@ -4,7 +4,8 @@ export const MeetingDeletionStatusSchema = z.enum([
     "allowed",
     "active",
     "pending_work",
-    "sessions_open"
+    "sessions_open",
+    "deleting"
 ]);
 export type MeetingDeletionStatus = z.infer<typeof MeetingDeletionStatusSchema>;
 export const DeleteMeetingRequestSchema = z.strictObject({

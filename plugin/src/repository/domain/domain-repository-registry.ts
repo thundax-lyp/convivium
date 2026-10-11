@@ -122,7 +122,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
         const records: CatalogMeetingRecord[] = [];
         for (const [key, record] of this.catalog.table("meetings").entries()) {
             validateCatalogIdentity(key, record, record.meetingId);
-            if (record.status !== "deleting") {
+            if (record.status !== "deleting" || record.deletionSummary) {
                 records.push(structuredClone(record));
             }
         }
@@ -132,7 +132,9 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     async deleteMeeting(
         meetingId: string,
         expectedVersion: number,
-        validate: (recovery: RecoveryResult<TState>) => void,
+        validate: (
+            recovery: RecoveryResult<TState>
+        ) => CatalogMeetingRecord["deletionSummary"] | void,
         quiesce?: () => void | Promise<void>
     ): Promise<void> {
         this.ensureOpen();
@@ -152,7 +154,9 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     private async deleteMeetingOnce(
         meetingId: string,
         expectedVersion: number,
-        validate: (recovery: RecoveryResult<TState>) => void,
+        validate: (
+            recovery: RecoveryResult<TState>
+        ) => CatalogMeetingRecord["deletionSummary"] | void,
         quiesce?: () => void | Promise<void>
     ): Promise<void> {
         const key = catalogKey(meetingId);

@@ -113,6 +113,9 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
         return definition;
     };
     for (const record of dependencies.registry.listMeetings()) {
+        if (record.status === "deleting") {
+            continue;
+        }
         if (dependencies.meetingId !== undefined && dependencies.meetingId !== record.meetingId) {
             continue;
         }
@@ -743,6 +746,15 @@ export const activateTargetMeetingApplication = async (
             signal.throwIfAborted();
             const meetings = [];
             for (const record of registry.listMeetings()) {
+                if (record.status === "deleting" && record.deletionSummary) {
+                    meetings.push({
+                        meetingId: record.meetingId,
+                        ...record.deletionSummary,
+                        updatedAt: record.updatedAt,
+                        deletionStatus: "deleting" as const
+                    });
+                    continue;
+                }
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const recovery = await repository.recover();
                 const snapshot = recovery.snapshot;
@@ -869,6 +881,9 @@ export const activateTargetMeetingApplication = async (
         async findBySessionId(sessionId: string, signal: AbortSignal) {
             signal.throwIfAborted();
             for (const record of registry.listMeetings()) {
+                if (record.status === "deleting") {
+                    continue;
+                }
                 const repository = await registry.openMeeting({ meetingId: record.meetingId });
                 const ownership = (await repository.recover()).sessionOwnership.find(
                     (item) => item.sessionId === sessionId

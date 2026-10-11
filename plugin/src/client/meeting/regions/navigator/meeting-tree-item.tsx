@@ -36,7 +36,7 @@ export const MeetingTreeItem = ({
     const deleteReason =
         deleteDisabled || !requestDelete || !meeting.deletionStatus
             ? t("panel.delete.unavailable")
-            : meeting.deletionStatus === "allowed"
+            : meeting.deletionStatus === "allowed" || meeting.deletionStatus === "deleting"
               ? undefined
               : t(`panel.delete.${meeting.deletionStatus}`);
 
@@ -109,6 +109,15 @@ export const MeetingTreeItem = ({
                             icon: <IconBrowseOutlineMedium />
                         },
                         { type: "separator", id: "delete-separator" },
+                        ...(meeting.deletionStatus === "deleting"
+                            ? [
+                                  {
+                                      type: "label" as const,
+                                      id: "deletion-pending",
+                                      text: t("panel.delete.deleting")
+                                  }
+                              ]
+                            : []),
                         ...(deleteReason
                             ? [{ type: "label" as const, id: "delete-reason", text: deleteReason }]
                             : []),

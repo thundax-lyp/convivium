@@ -29,6 +29,7 @@ import { encodeCanonicalJson, type JsonValue } from "./canonical-json.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import { catalogKey } from "./keys.ts";
 import { purgeMeetingData } from "./meeting-data-deletion.ts";
+import { CatalogMeetingRecordSchema, type CatalogMeetingRecord } from "./schemas.ts";
 
 const jsonValue = (value: unknown): JsonValue => {
     if (
@@ -890,7 +891,9 @@ export class DomainMeetingRepository<TState = JsonObject>
 
     async beginDeletion(
         expectedVersion: number,
-        validate: (recovery: RecoveryResult<TState>) => void
+        validate: (
+            recovery: RecoveryResult<TState>
+        ) => CatalogMeetingRecord["deletionSummary"] | void
     ): Promise<void> {
         return this.enqueueMutation(async () => {
             const projection = this.projection;
@@ -910,7 +913,7 @@ export class DomainMeetingRepository<TState = JsonObject>
                     "Meeting has changed"
                 );
             }
-            validate({
+            const summary = validate({
                 snapshot: this.decodeSnapshot(structuredClone(projection.snapshot)),
                 bootstrap: structuredClone(projection.bootstrap),
                 sessionOwnership: structuredClone(Object.values(projection.sessionOwnership)),
@@ -930,7 +933,14 @@ export class DomainMeetingRepository<TState = JsonObject>
                     "Meeting is not registered"
                 );
             }
-            await this.catalogDomain.table("meetings").put(key, { ...record, status: "deleting" });
+            await this.catalogDomain.table("meetings").put(
+                key,
+                CatalogMeetingRecordSchema.parse({
+                    ...record,
+                    status: "deleting",
+                    ...(summary ? { deletionSummary: summary } : {})
+                })
+            );
             this.closed = true;
             this.deletionCommitted = true;
             this.maintenanceRequested = false;

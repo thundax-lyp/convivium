@@ -63,6 +63,12 @@ export const deleteMeeting = async (
                         "Meeting cleanup is not complete"
                     );
                 }
+                const snapshot = recovery.snapshot!;
+                return {
+                    objective: snapshot.state.objective.statement,
+                    version: snapshot.version,
+                    lifecycle: snapshot.state.lifecycle.status
+                };
             },
             quiesce
         );
