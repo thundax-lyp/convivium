@@ -81,6 +81,14 @@ describe("meeting role definitions", () => {
                 first.participants.__proto__.agentDefinition.definitionHash
             )
         ).toEqual({ kind: "rejected", code: "DEFINITION_HASH_MISMATCH" });
+        expect(resolveDynamicMeetingDefinition(definitions, { id: "participant" }, "")).toEqual({
+            kind: "rejected",
+            code: "DEFINITION_HASH_MISMATCH"
+        });
+        expect(resolveDynamicMeetingDefinition(definitions, { id: "missing" }, "")).toEqual({
+            kind: "rejected",
+            code: "DEFINITION_NOT_FOUND"
+        });
     });
     it.each([
         { roleDescription: "legacy" },
