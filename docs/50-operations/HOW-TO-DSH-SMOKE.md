@@ -109,6 +109,8 @@ CONVIVIUM_SMOKE_STORAGE_PATH="$PWD/dsh-workspace/convivium-user/convivium-storag
 
 场景议题为“TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？”。外部材料使用确定性 fixture，不执行真实论文、代码仓库或 Web 检索，因此运行结果不是 Jev 效果的研究结论。
 
+该场景的 Manager 与两位 Contributor 命令由 probe 通过真实工具边界驱动。probe 仅在 `meeting-business-loop` 中对这三个 Preset 使用 `agent/pre-step` 拒绝自主模型步骤，避免模型提前开轮或写入额外数据；不能只靠提示词要求等待。通知仍真实投递，Reviewer coordinator 与 one-shot worker 的模型步骤不拦截。其他 smoke 场景和正式安装不应用此钩子。
+
 同一已授权 Agenda 依次完成四个 Manager `roundGoal`：
 
 1. Jev 的具体身份、来源和版本；

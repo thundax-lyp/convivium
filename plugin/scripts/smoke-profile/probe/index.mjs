@@ -283,6 +283,21 @@ async function run(ctx) {
 }
 
 export function apply(ctx) {
+    // The probe drives these fixture roles through real tools. Do not let their
+    // model turns race the fixed four-round sequence; reviewers remain live.
+    ctx.on("agent/pre-step", async ({ agent }, next) => {
+        if (
+            scenario === "meeting-business-loop" &&
+            [
+                "convivium-manager",
+                "convivium-github-research-analyst",
+                "convivium-arxiv-research-analyst"
+            ].includes(agent.session.header.agentPreset)
+        ) {
+            return { kind: "reject" };
+        }
+        return next();
+    });
     ctx.on("agent/created", ({ agent }) => {
         observedAgents.set(String(agent.id), agent);
         {
