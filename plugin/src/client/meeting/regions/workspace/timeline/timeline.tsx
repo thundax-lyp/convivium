@@ -467,7 +467,15 @@ export const TimelineViewport = ({
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const latestVisibleKey = nodes
         .filter((node) => !filters.collapsedLanes.includes(node.lane))
-        .at(-1)?.key;
+        .reduce<TimelineNode | undefined>(
+            (latest, node) =>
+                latest === undefined ||
+                node.time > latest.time ||
+                (node.time === latest.time && (node.eventSeq ?? 0) >= (latest.eventSeq ?? 0))
+                    ? node
+                    : latest,
+            undefined
+        )?.key;
     const dateFormatter = new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
         timeStyle: "medium"

@@ -159,15 +159,16 @@ describe("Timeline event milestone grouping", () => {
             const groups = groupsFor([
                 plan(1),
                 completion(2),
-                ended(3, outcome),
+                lifecycle(3, "converging", "terminal"),
+                { ...ended(4, outcome), meetingVersion: 3, occurredAt: 30 },
                 {
-                    ...envelope(4),
+                    ...envelope(5),
                     kind: "archive.started",
                     subject: { kind: "archive", id: "archive" },
                     data: { status: "complete" }
                 },
                 {
-                    ...envelope(5),
+                    ...envelope(6),
                     kind: "archive.completed",
                     subject: { kind: "archive", id: "archive" },
                     data: { status: "complete" }
@@ -179,10 +180,12 @@ describe("Timeline event milestone grouping", () => {
             expect(groups[2]).toMatchObject({
                 key: "milestone:closure:1",
                 status: "completed",
-                completedAt: 50,
-                eventKeys: ["event:3", "event:4", "event:5"]
+                completedAt: 60,
+                eventKeys: ["event:4", "event:5", "event:6"]
             });
-            expect(new Set(groups.flatMap((group) => group.eventKeys)).size).toBe(5);
+            expect(groups[1]?.eventKeys).toEqual(["event:2", "event:3"]);
+            expect(groups.slice(0, 2).map((group) => group.completedAt)).toEqual([30, 30]);
+            expect(new Set(groups.flatMap((group) => group.eventKeys)).size).toBe(6);
         }
     );
 

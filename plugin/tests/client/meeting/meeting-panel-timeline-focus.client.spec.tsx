@@ -11,6 +11,63 @@ import { eventTimelineFixture } from "./meeting-timeline-fixtures.ts";
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
+    it.each([false, true])(
+        "scrolls to the newest occurrence across groups, with captain hidden=%s",
+        (hidden) => {
+            const detail = eventTimelineFixture();
+            detail.timelineEvents = [
+                detail.timelineEvents![0]!,
+                {
+                    eventSeq: 2,
+                    meetingVersion: 2,
+                    occurredAt: 15,
+                    kind: "manager_plan.recorded",
+                    actor: { kind: "identity", actorId: "manager-v1" },
+                    subject: { kind: "manager_plan", id: "plan" },
+                    relatedObjects: [],
+                    data: { planKind: "open_round", rationale: "plan" }
+                },
+                { ...detail.timelineEvents![1]!, eventSeq: 3 },
+                { ...detail.timelineEvents![5]!, eventSeq: 4 },
+                {
+                    eventSeq: 5,
+                    meetingVersion: 7,
+                    occurredAt: 23,
+                    kind: "question.disposed",
+                    actor: { kind: "captain", actorId: "captain" },
+                    subject: { kind: "question", id: "question" },
+                    relatedObjects: [],
+                    data: { status: "answered", rationale: "answer" }
+                }
+            ];
+            render(
+                withMeetingTranslation(
+                    <MeetingPanelTimeline
+                        detail={detail}
+                        filters={{
+                            ...INITIAL_TIMELINE_FILTERS,
+                            collapsedLanes: hidden ? ["captain"] : []
+                        }}
+                        viewportRevision={0}
+                        onFiltersChange={() => undefined}
+                    />,
+                    "zh"
+                )
+            );
+            const cards = screen.getAllByTestId("timeline-node");
+            for (const card of cards) {
+                card.scrollIntoView = vi.fn();
+            }
+            expect(cards.at(-1)?.dataset.nodeKey).toBe("event:4");
+            fireEvent.click(screen.getByRole("button", { name: "回到最新" }));
+            for (const card of cards) {
+                expect(card.scrollIntoView).toHaveBeenCalledTimes(
+                    card.dataset.nodeKey === (hidden ? "event:4" : "event:5") ? 1 : 0
+                );
+            }
+        }
+    );
+
     it("renders groups before filtering and keeps metadata stable while toggling details and event filters", () => {
         const { container } = render(
             withMeetingTranslation(

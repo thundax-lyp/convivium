@@ -638,11 +638,13 @@ export const groupTimelineMilestones = (
             data.to !== "converging"
         ) {
             group = completion ?? convergence;
-            const status = data.to === "paused" ? "blocked" : "completed";
-            close(convergence, status, node.time);
-            close(completion, status, node.time);
-            convergence = undefined;
-            completion = undefined;
+            if (data.to !== "terminal") {
+                const status = data.to === "paused" ? "blocked" : "completed";
+                close(convergence, status, node.time);
+                close(completion, status, node.time);
+                convergence = undefined;
+                completion = undefined;
+            }
         } else if (convergenceEvents.has(kind)) {
             group = enterConvergence(node.time);
         } else if (kind === "completion_fact.recorded" || kind === "completion_fact.changed") {

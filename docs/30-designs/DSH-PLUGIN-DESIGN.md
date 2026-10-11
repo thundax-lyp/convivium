@@ -193,7 +193,7 @@ interface TimelineMilestoneGroup {
 2. `round.opened` 建立对应 round group；后续只有 subject 或 relation 明确指向该 round ID 的 round 类事件才能进入。`round.published` 将其完成，`round.aborted` 将其中止；找不到已建立 round group 时进入 other，不补建或回填历史 round。
 3. 扫描到 `meeting.lifecycle_changed` 且 `to="converging"` 时，若当前没有活动 convergence，则 occurrence 加一并建立该 convergence；该 lifecycle event 归入 convergence。已经存在活动 convergence 时不递增 occurrence。
 4. 扫描到 convergence 类事件且没有活动 convergence 时，occurrence 加一并建立 convergence；该事件归入当前 convergence。扫描到 completion 类事件时，若没有活动 convergence，则 occurrence 加一并建立无节点的内部 convergence，再建立同 occurrence 的 completion；该事件只归入 completion。没有事件节点的内部 convergence 不输出空 group。
-5. 扫描到 `meeting.lifecycle_changed` 且 `from="converging"`、`to!=="converging"` 时，它归入同 occurrence 已存在的 completion，否则归入 convergence；随后同时关闭活动 convergence 和 completion。`to="paused"` 时两个已有实例状态为 `blocked`，其它目标状态为 `completed`；`completedAt` 均取该 lifecycle event 的 `occurredAt`。关闭后清除活动实例，下一次进入重新递增 occurrence。
+5. 扫描到 `meeting.lifecycle_changed` 且 `from="converging"`、`to!=="converging"` 时，它归入同 occurrence 已存在的 completion，否则归入 convergence。`to="terminal"` 时保留活动实例，由同次提交后续的 `meeting.ended` 按 outcome 关闭，不提前推断阶段完成；其它目标同时关闭活动 convergence 和 completion，`to="paused"` 时状态为 `blocked`，其余为 `completed`，`completedAt` 取 lifecycle event 的 `occurredAt`。关闭后清除活动实例，下一次进入重新递增 occurrence。
 6. `meeting.ended` 先关闭仍活动的 convergence/completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时进入 other。`archive.completed` 完成 closure。
 7. 唯一的已关闭 round 归组例外：`formal_message.published` 的 typed relations 必须唯一指向一个已扫描的 `round.published` subject publication 和它所属的 round，且两条事件的 `meetingVersion` 相同；该正式消息仍归入原 round，但不得修改其 occurrence、status 或 completedAt。仅凭 round ID、时间相同或相邻 seq 不满足此例外；不同提交、publication 关联缺失或冲突时进入 other。
 8. 未命中上述唯一规则的事件进入 other。除第 7 条的同次 publication 正式消息外，已经关闭的里程碑保持不变，不把后续事件回填为其历史。
@@ -213,7 +213,7 @@ interface TimelineMilestoneGroup {
 
 关键事件默认展开，过程细节由“显示过程细节”或显式筛选显示。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
 
-事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。
+事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。“回到最新”独立按当前可见节点的 `time → eventSeq` 选择最新目标，排除已隐藏角色，不以分组后的尾节点代替最新 occurrence。
 
 | 事件 kind                                                                                                                                                                            | 主分组                                                   | 默认可见性                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------- |
