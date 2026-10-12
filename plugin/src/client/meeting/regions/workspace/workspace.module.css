@@ -45,7 +45,7 @@
     border-radius: 50%;
 }
 
-.backToTopSlot {
+.scrollNavigationSlot {
     position: sticky;
     bottom: 8px;
     z-index: 2;
@@ -55,12 +55,14 @@
     padding-inline-end: 8px;
 }
 
-.backToTopButton {
+.scrollNavigation {
+    align-self: flex-start;
+    flex-shrink: 0;
     transform: translateY(-100%);
 }
 
 .refreshButton,
-.backToTopButton {
+.scrollNavigation {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease;
@@ -68,8 +70,8 @@
 
 .main:hover .refreshButton,
 .main:focus-within .refreshButton,
-.main:hover .backToTopButton,
-.main:focus-within .backToTopButton,
+.main:hover .scrollNavigation,
+.main:focus-within .scrollNavigation,
 .content[data-refresh-visible="true"] .refreshButton {
     opacity: 1;
     pointer-events: auto;
@@ -108,7 +110,7 @@
 
 @media (hover: none) {
     .refreshButton,
-    .backToTopButton {
+    .scrollNavigation {
         opacity: 1;
         pointer-events: auto;
     }

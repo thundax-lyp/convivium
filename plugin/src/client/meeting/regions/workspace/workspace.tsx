@@ -1,10 +1,11 @@
 import * as React from "react";
-import { useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
     IconBrowseOutlineMedium,
     IconChevronUpOutlineMedium,
+    IconChevronDownOutlineMedium,
     IconRefreshOutlineMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
@@ -172,32 +173,76 @@ const MeetingContent = ({
 export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement => {
     const t = useMeetingTranslate();
     const viewport = useRef<HTMLElement>(null);
-    const [scrolled, setScrolled] = useState(false);
+    const [scrollLimits, setScrollLimits] = useState({ atTop: true, atBottom: true });
+    const measureScroll = () => {
+        const element = viewport.current;
+        if (element) {
+            setScrollLimits({
+                atTop: element.scrollTop <= 0,
+                atBottom: element.scrollTop + element.clientHeight >= element.scrollHeight - 1
+            });
+        }
+    };
+    useEffect(() => {
+        measureScroll();
+        const element = viewport.current;
+        if (!element || typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measureScroll);
+        observer.observe(element);
+        if (element.firstElementChild) {
+            observer.observe(element.firstElementChild);
+        }
+        return () => observer.disconnect();
+    }, [props.selectedId, props.detail, props.activeMode]);
     const meeting = props.meetings.find((item) => item.meetingId === props.selectedId);
     return (
-        <main
-            ref={viewport}
-            className={styles.main}
-            onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
-        >
+        <main ref={viewport} className={styles.main} onScroll={measureScroll}>
             {meeting === undefined ? (
                 <EmptyMeeting />
             ) : (
                 <MeetingContent {...props} meeting={meeting} />
             )}
-            {scrolled && meeting && props.detail ? (
-                <div className={styles.backToTopSlot}>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className={`${styles.floatingButton} ${styles.backToTopButton}`}
-                        aria-label={t("panel.actions.backToTop")}
-                        title={t("panel.actions.backToTop")}
-                        onClick={() => viewport.current?.scrollTo({ top: 0, behavior: "instant" })}
+            {meeting && props.detail ? (
+                <div className={styles.scrollNavigationSlot}>
+                    <ButtonGroup
+                        role="group"
+                        orientation="vertical"
+                        className={styles.scrollNavigation}
                     >
-                        <IconChevronUpOutlineMedium size={16} aria-hidden="true" />
-                    </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={styles.floatingButton}
+                            disabled={scrollLimits.atTop}
+                            aria-label={t("panel.actions.backToTop")}
+                            title={t("panel.actions.backToTop")}
+                            onClick={() =>
+                                viewport.current?.scrollTo({ top: 0, behavior: "instant" })
+                            }
+                        >
+                            <IconChevronUpOutlineMedium size={16} aria-hidden="true" />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={styles.floatingButton}
+                            disabled={scrollLimits.atBottom}
+                            aria-label={t("panel.actions.goToBottom")}
+                            title={t("panel.actions.goToBottom")}
+                            onClick={() =>
+                                viewport.current?.scrollTo({
+                                    top: viewport.current.scrollHeight,
+                                    behavior: "instant"
+                                })
+                            }
+                        >
+                            <IconChevronDownOutlineMedium size={16} aria-hidden="true" />
+                        </Button>
+                    </ButtonGroup>
                 </div>
             ) : null}
         </main>
