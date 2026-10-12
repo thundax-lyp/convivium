@@ -185,10 +185,7 @@ export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement =
             ) : (
                 <MeetingContent {...props} meeting={meeting} />
             )}
-            {scrolled &&
-            meeting &&
-            props.detail &&
-            (props.activeMode ?? "overview") === "overview" ? (
+            {scrolled && meeting && props.detail ? (
                 <div className={styles.backToTopSlot}>
                     <Button
                         type="button"
