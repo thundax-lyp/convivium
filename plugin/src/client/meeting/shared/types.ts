@@ -5,8 +5,6 @@ export type MeetingMode = "overview" | "timeline";
 
 export type TimelineLane = "captain" | "manager" | "contributor" | "reviewer" | "system";
 
-export type TimelineZoom = 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
-
 export type DataFreshness = "idle" | "loading" | "fresh" | "stale";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
@@ -23,12 +21,8 @@ export interface MeetingFocusTarget {
 }
 
 export interface TimelineFilterState {
-    identityIds: readonly string[];
+    participantIds: readonly string[];
     objectKinds: readonly string[];
-    statuses: readonly string[];
-    relatedObjects: readonly TimelineObjectRef[];
-    zoom: TimelineZoom;
-    collapsedLanes: readonly TimelineLane[];
 }
 
 export interface MeetingsWorkspaceState {

@@ -14,3 +14,12 @@
     border: 0;
     border-radius: 0;
 }
+
+.group[data-orientation="vertical"] {
+    flex-direction: column;
+}
+
+.group[data-orientation="vertical"] > :not(:first-child) {
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--dsw-alias-border-l2);
+}

@@ -37,6 +37,41 @@ function TabsHarness({ initial }: { initial: MeetingPanelLayoutProps }) {
 }
 
 describe("Meeting Header and mode tabs", () => {
+    it.each(["overview", "timeline"] as const)(
+        "enables scroll directions at the boundaries in %s",
+        (activeMode) => {
+            render(translatedLayout({ ...propsFixture(), activeMode }, "en"));
+            const viewport = screen.getByRole("main");
+            Object.defineProperties(viewport, {
+                scrollHeight: { configurable: true, value: 1000 },
+                clientHeight: { configurable: true, value: 200 },
+                scrollTop: { configurable: true, writable: true, value: 0 }
+            });
+            const scrollTo = vi.fn();
+            viewport.scrollTo = scrollTo;
+            fireEvent.scroll(viewport);
+            const top = screen.getByRole("button", { name: "Back to top" }) as HTMLButtonElement;
+            const bottom = screen.getByRole("button", {
+                name: "Go to bottom"
+            }) as HTMLButtonElement;
+            expect(top.disabled).toBe(true);
+            expect(bottom.disabled).toBe(false);
+            fireEvent.click(bottom);
+            expect(scrollTo).toHaveBeenLastCalledWith({ top: 1000, behavior: "instant" });
+            viewport.scrollTop = 800;
+            fireEvent.scroll(viewport);
+            expect(top.disabled).toBe(false);
+            expect(bottom.disabled).toBe(true);
+            fireEvent.click(top);
+            expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "instant" });
+            Object.defineProperty(viewport, "scrollHeight", { value: 200 });
+            viewport.scrollTop = 0;
+            fireEvent.scroll(viewport);
+            expect(top.disabled).toBe(true);
+            expect(bottom.disabled).toBe(true);
+        }
+    );
+
     it("keeps an accessible refresh action available and exposes it on read failure", () => {
         const props = propsFixture();
         const { rerender } = render(translatedLayout(props, "en"));

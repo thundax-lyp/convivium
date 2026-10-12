@@ -14,17 +14,10 @@ import {
     filterTimelineNodes,
     resolveTimelineNodeContent,
     groupTimelineMilestones,
-    isPrimaryTimelineNode,
     type TimelineMilestoneGroup,
     type TimelineNode
 } from "./projection.ts";
-import type {
-    MeetingFocusTarget,
-    TimelineFilterState,
-    TimelineLane,
-    TimelineObjectRef,
-    TimelineZoom
-} from "@/client/meeting/shared/index.ts";
+import type { MeetingFocusTarget, TimelineFilterState } from "@/client/meeting/shared/index.ts";
 import { Ellipsis } from "@/client/meeting/components/index.ts";
 import styles from "./timeline.module.css";
 
@@ -34,7 +27,6 @@ export interface AdjacentTimelineInput {
     nodes: readonly TimelineNode[];
     currentKey: string;
     direction: TimelineDirection;
-    collapsedLanes: readonly TimelineLane[];
 }
 
 export interface TimelineProps {
@@ -49,6 +41,7 @@ export interface TimelineProps {
 }
 
 export interface TimelineFiltersProps {
+    detail: MeetingView;
     nodes: readonly TimelineNode[];
     filters: TimelineFilterState;
     onChange(filters: TimelineFilterState): void;
@@ -61,17 +54,12 @@ export interface TimelineViewportProps extends TimelineProps {
     groups: readonly TimelineMilestoneGroup[];
 }
 
-const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
-
-const zoomLevels: readonly TimelineZoom[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
-
 export const findAdjacentTimelineKey = ({
     nodes,
     currentKey,
-    direction,
-    collapsedLanes
+    direction
 }: AdjacentTimelineInput): string | undefined => {
-    const visible = nodes.filter((node) => !collapsedLanes.includes(node.lane));
+    const visible = nodes;
     const index = visible.findIndex((node) => node.key === currentKey);
     if (index < 0) {
         return undefined;
@@ -139,7 +127,7 @@ const identityName = (detail: MeetingView, node: TimelineNode): string => {
         detail.lifecycle.status === "archived"
             ? detail.archive?.identityProvenance.find((item) => item.identityId === node.identityId)
             : detail.identities.find((item) => item.id === node.identityId);
-    return identity?.displayName ?? node.identityId;
+    return identity?.displayName ?? "";
 };
 
 const toggle = (values: readonly string[], value: string): string[] => {
@@ -171,6 +159,7 @@ const filterGroup = (
 };
 
 export const TimelineFilters = ({
+    detail,
     nodes,
     filters,
     onChange,
@@ -178,21 +167,56 @@ export const TimelineFilters = ({
     onEventKindsChange
 }: TimelineFiltersProps): ReactElement => {
     const t = useMeetingTranslate();
-    const identities = [
-        ...new Set(nodes.flatMap((node) => (node.identityId ? [node.identityId] : [])))
+    const participants = [
+        ...new Set(
+            [...nodes]
+                .sort(
+                    (a, b) =>
+                        ["captain", "manager", "contributor", "reviewer", "system"].indexOf(
+                            a.lane
+                        ) -
+                        ["captain", "manager", "contributor", "reviewer", "system"].indexOf(b.lane)
+                )
+                .map((node) =>
+                    node.identityId ? `identity:${node.identityId}` : `role:${node.lane}`
+                )
+        )
     ];
     const kinds = [...new Set(nodes.map((node) => node.objectKind))];
-    const statuses = [...new Set(nodes.flatMap((node) => (node.status ? [node.status] : [])))];
-    const refs = [
-        ...new Map(
-            nodes
-                .flatMap((node) => node.relatedObjects)
-                .map((ref) => [`${ref.objectKind}:${ref.objectId}`, ref] as const)
-        ).values()
-    ];
-    const refKey = (ref: TimelineObjectRef) => `${ref.objectKind}:${ref.objectId}`;
     return (
         <div>
+            {filterGroup(
+                t("panel.timeline.filter.identity"),
+                participants,
+                filters.participantIds,
+                (key) => {
+                    const node = nodes.find(
+                        (item) =>
+                            (item.identityId
+                                ? `identity:${item.identityId}`
+                                : `role:${item.lane}`) === key
+                    )!;
+                    const role = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
+                    if (node.lane === "captain" || node.lane === "manager" || !node.identityId) {
+                        return role;
+                    }
+                    const name = identityName(detail, node);
+                    return name
+                        ? node.lane === "contributor" || node.lane === "reviewer"
+                            ? name
+                            : `${role}: ${name}`
+                        : `${role} ${participants.indexOf(key) + 1}`;
+                },
+                (key) =>
+                    onChange({ ...filters, participantIds: toggle(filters.participantIds, key) })
+            )}
+            {filterGroup(
+                t("panel.timeline.filter.type"),
+                kinds,
+                filters.objectKinds,
+                (kind) => label(`enum.timelineKind.${kind}`, kind, t),
+                (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
+            )}
             {filterGroup(
                 t("panel.timeline.filter.event"),
                 [
@@ -206,53 +230,6 @@ export const TimelineFilters = ({
                 (kind) => label(`enum.timelineEvent.${kind}`, kind, t),
                 (kind) => onEventKindsChange(toggle(eventKinds, kind))
             )}
-            {filterGroup(
-                t("panel.timeline.filter.identity"),
-                identities,
-                filters.identityIds,
-                (id) => {
-                    const lane = nodes.find((node) => node.identityId === id)?.lane ?? "system";
-                    return `${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}: ${id}`;
-                },
-                (id) => onChange({ ...filters, identityIds: toggle(filters.identityIds, id) })
-            )}
-            {filterGroup(
-                t("panel.timeline.filter.type"),
-                kinds,
-                filters.objectKinds,
-                (kind) => label(`enum.timelineKind.${kind}`, kind, t),
-                (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
-            )}
-            {filterGroup(
-                t("panel.timeline.filter.status"),
-                statuses,
-                filters.statuses,
-                (status) =>
-                    [
-                        ...new Set(
-                            nodes
-                                .filter((node) => node.status === status)
-                                .map((node) => statusLabel(node, t))
-                        )
-                    ].join(" / "),
-                (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
-            )}
-            {filterGroup(
-                t("panel.timeline.filter.related"),
-                refs.map(refKey),
-                filters.relatedObjects.map(refKey),
-                (key) => {
-                    const ref = refs.find((item) => refKey(item) === key)!;
-                    return `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)}: ${ref.objectId}`;
-                },
-                (key) => {
-                    const keys = toggle(filters.relatedObjects.map(refKey), key);
-                    onChange({
-                        ...filters,
-                        relatedObjects: refs.filter((ref) => keys.includes(refKey(ref)))
-                    });
-                }
-            )}
             <Button
                 type="button"
                 variant="outline"
@@ -261,10 +238,8 @@ export const TimelineFilters = ({
                     onEventKindsChange([]);
                     onChange({
                         ...filters,
-                        identityIds: [],
-                        objectKinds: [],
-                        statuses: [],
-                        relatedObjects: []
+                        participantIds: [],
+                        objectKinds: []
                     });
                 }}
             >
@@ -272,29 +247,6 @@ export const TimelineFilters = ({
             </Button>
         </div>
     );
-};
-
-const isPrimaryNode = (node: TimelineNode): boolean => {
-    if (node.eventKind !== undefined) {
-        return isPrimaryTimelineNode(node);
-    }
-    switch (node.objectKind) {
-        case "opportunity_request":
-        case "hand_raise":
-        case "formal_message":
-        case "identity_recommendation":
-        case "proposal_revision":
-        case "position":
-        case "decision_candidate":
-        case "manager_plan":
-            return false;
-        case "review_delivery":
-            return node.status === "failed";
-        case "task":
-            return false;
-        default:
-            return true;
-    }
 };
 
 const nodeEmphasis = (node: TimelineNode): string => {
@@ -317,10 +269,8 @@ const nodeEmphasis = (node: TimelineNode): string => {
 export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     const { detail, filters, onFiltersChange } = props;
     const t = useMeetingTranslate();
-    const [showDetails, setShowDetails] = useState(false);
     const [eventKinds, setEventKinds] = useState<string[]>([]);
     useEffect(() => {
-        setShowDetails(false);
         setEventKinds([]);
     }, [detail.meetingId]);
     const allNodes = buildTimelineNodes(detail);
@@ -330,31 +280,14 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
             eventKinds.length === 0 ||
             (node.eventKind !== undefined && eventKinds.includes(node.eventKind))
     );
-    const visible =
-        showDetails ||
-        eventKinds.length > 0 ||
-        filters.objectKinds.length > 0 ||
-        filters.identityIds.length > 0 ||
-        filters.statuses.length > 0 ||
-        filters.relatedObjects.length > 0
-            ? filtered
-            : filtered.filter(isPrimaryNode);
-    const visibleKeys = new Set(visible.map((node) => node.key));
+    const visibleKeys = new Set(filtered.map((node) => node.key));
     const nodes = groups.flatMap((group) =>
         allNodes.filter((node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key))
     );
     return (
         <section aria-label={t("panel.timeline.title")}>
-            <p>{t("panel.timeline.disclaimer")}</p>
-            <label className={styles.detailToggle}>
-                <input
-                    type="checkbox"
-                    checked={showDetails}
-                    onChange={(event) => setShowDetails(event.target.checked)}
-                />
-                {t("panel.timeline.showDetails")}
-            </label>
             <TimelineFilters
+                detail={props.detail}
                 nodes={allNodes}
                 filters={filters}
                 onChange={onFiltersChange}
@@ -421,8 +354,15 @@ const TimelineNodeContent = ({
                 <p>{t("panel.state.focusMissing")}</p>
             ) : (
                 <div>
-                    <Ellipsis text={contentTitle(node, content.title, t)} maxLines={3} />
-                    {content.detail === undefined ? null : (
+                    <Ellipsis
+                        text={
+                            content.title === node.objectId
+                                ? label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)
+                                : contentTitle(node, content.title, t)
+                        }
+                        maxLines={3}
+                    />
+                    {content.detail === undefined || content.detail === node.objectId ? null : (
                         <details>
                             <summary>{t("panel.timeline.details")}</summary>
                             <p>
@@ -452,25 +392,12 @@ export const TimelineViewport = ({
 }: TimelineViewportProps): ReactElement => {
     const t = useMeetingTranslate();
     const viewportRef = useRef<HTMLDivElement | null>(null);
-    const latestVisibleKey = nodes
-        .filter((node) => !filters.collapsedLanes.includes(node.lane))
-        .reduce<TimelineNode | undefined>(
-            (latest, node) =>
-                latest === undefined ||
-                node.time > latest.time ||
-                (node.time === latest.time && (node.eventSeq ?? 0) >= (latest.eventSeq ?? 0))
-                    ? node
-                    : latest,
-            undefined
-        )?.key;
     const dateFormatter = new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
         timeStyle: "medium"
     });
     const nodeRefs = useRef(new Map<string, HTMLElement>());
-    const [activeKey, setActiveKey] = useState(
-        nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key
-    );
+    const [activeKey, setActiveKey] = useState(nodes[0]?.key);
     const [focusMissing, setFocusMissing] = useState(false);
     const consumedFocus = useRef<MeetingFocusTarget | undefined>(undefined);
     useEffect(() => {
@@ -479,16 +406,11 @@ export const TimelineViewport = ({
         }
     }, [viewportRevision]);
     useEffect(() => {
-        if (
-            activeKey &&
-            nodes.some(
-                (node) => node.key === activeKey && !filters.collapsedLanes.includes(node.lane)
-            )
-        ) {
+        if (activeKey && nodes.some((node) => node.key === activeKey)) {
             return;
         }
-        setActiveKey(nodes.find((node) => !filters.collapsedLanes.includes(node.lane))?.key);
-    }, [nodes, filters.collapsedLanes, activeKey]);
+        setActiveKey(nodes[0]?.key);
+    }, [nodes, activeKey]);
     useEffect(() => {
         if (!focusTarget) {
             consumedFocus.current = undefined;
@@ -514,13 +436,6 @@ export const TimelineViewport = ({
             onFocusConsumed?.();
             return;
         }
-        if (filters.collapsedLanes.includes(target.lane)) {
-            onFiltersChange({
-                ...filters,
-                collapsedLanes: filters.collapsedLanes.filter((lane) => lane !== target.lane)
-            });
-            return;
-        }
         const element = nodeRefs.current.get(target.key);
         if (!element) {
             setFocusMissing(true);
@@ -535,78 +450,21 @@ export const TimelineViewport = ({
         consumedFocus.current = focusTarget;
         onFocusConsumed?.();
     }, [focusTarget, nodes, filters, detail.meetingId, onFocusConsumed, onFiltersChange]);
-    const zoomIndex = zoomLevels.indexOf(filters.zoom);
-    const changeZoom = (delta: number) =>
-        onFiltersChange({ ...filters, zoom: zoomLevels[zoomIndex + delta]! });
-    const collapsed = filters.collapsedLanes;
     const blocks = groups
         .map((group) => ({
             group,
             nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
         }))
-        .filter((block) => block.nodes.some((node) => !collapsed.includes(node.lane)));
+        .filter((block) => block.nodes.length > 0);
     let alternatingIndex = 0;
     return (
         <div>
             {focusMissing ? <p role="status">{t("panel.state.focusMissing")}</p> : null}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={zoomIndex === zoomLevels.length - 1}
-                onClick={() => changeZoom(1)}
-            >
-                {t("panel.timeline.zoomIn")}
-            </Button>
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={zoomIndex === 0}
-                onClick={() => changeZoom(-1)}
-            >
-                {t("panel.timeline.zoomOut")}
-            </Button>
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                    (latestVisibleKey === undefined
-                        ? undefined
-                        : nodeRefs.current.get(latestVisibleKey)
-                    )?.scrollIntoView?.({ block: "nearest", inline: "end" })
-                }
-            >
-                {t("panel.timeline.latest")}
-            </Button>
             <div
                 ref={viewportRef}
                 aria-label={t("panel.timeline.aria.viewport")}
                 className={styles.viewport}
             >
-                <div className={styles.roles}>
-                    {lanes.map((lane) => (
-                        <Button
-                            key={lane}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`${t(collapsed.includes(lane) ? "panel.timeline.expand" : "panel.timeline.collapse")} ${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}`}
-                            onClick={() =>
-                                onFiltersChange({
-                                    ...filters,
-                                    collapsedLanes: collapsed.includes(lane)
-                                        ? collapsed.filter((value) => value !== lane)
-                                        : [...collapsed, lane]
-                                })
-                            }
-                            aria-pressed={collapsed.includes(lane)}
-                        >
-                            {t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}
-                        </Button>
-                    ))}
-                </div>
                 {blocks.map(({ group, nodes: members }) => (
                     <section
                         key={group.key}
@@ -621,98 +479,87 @@ export const TimelineViewport = ({
                             {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
                             {t(`panel.timeline.groupStatus.${group.status}`)}
                         </h3>
-                        <div
-                            className={styles.grid}
-                            style={
-                                {
-                                    "--meeting-timeline-gap": `${20 * filters.zoom}px`
-                                } as React.CSSProperties
-                            }
-                        >
-                            {members
-                                .filter((node) => !collapsed.includes(node.lane))
-                                .map((node, index) => {
-                                    const side =
-                                        node.objectKind === "round" && node.phase === "opened"
-                                            ? "left"
-                                            : alternatingIndex++ % 2 === 0
-                                              ? "left"
-                                              : "right";
-                                    const laneLabel = t(
-                                        `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
-                                    );
-                                    const identity = identityName(detail, node);
-                                    return (
-                                        <article
-                                            key={node.key}
-                                            ref={(element: HTMLElement | null) => {
-                                                if (element) {
-                                                    nodeRefs.current.set(node.key, element);
-                                                } else {
-                                                    nodeRefs.current.delete(node.key);
-                                                }
-                                            }}
-                                            data-testid="timeline-node"
-                                            data-node-key={node.key}
-                                            style={{ gridRow: index + 1 }}
-                                            data-side={side}
-                                            data-emphasis={nodeEmphasis(node)}
-                                            hidden={collapsed.includes(node.lane)}
-                                            tabIndex={activeKey === node.key ? 0 : -1}
-                                            onFocus={() => setActiveKey(node.key)}
-                                            onKeyDown={(event: React.KeyboardEvent) => {
-                                                const direction = {
-                                                    ArrowUp: "up",
-                                                    ArrowDown: "down",
-                                                    ArrowLeft: "left",
-                                                    ArrowRight: "right"
-                                                }[event.key] as TimelineDirection | undefined;
-                                                if (!direction) {
-                                                    return;
-                                                }
-                                                event.preventDefault();
-                                                const next = findAdjacentTimelineKey({
-                                                    nodes,
-                                                    currentKey: node.key,
-                                                    direction,
-                                                    collapsedLanes: collapsed
-                                                });
-                                                if (next) {
-                                                    nodeRefs.current.get(next)?.focus();
-                                                }
-                                            }}
-                                            aria-label={[
-                                                t("panel.timeline.aria.node"),
-                                                laneLabel,
-                                                identity,
-                                                label(
-                                                    `enum.timelineKind.${node.objectKind}`,
-                                                    node.objectKind,
-                                                    t
-                                                ),
-                                                label(
-                                                    node.eventKind === undefined
-                                                        ? `enum.timelinePhase.${node.phase}`
-                                                        : `enum.timelineEvent.${node.eventKind}`,
-                                                    node.eventKind ?? node.phase,
-                                                    t
-                                                ),
-                                                dateFormatter.format(new Date(node.time)),
-                                                statusLabel(node, t)
-                                            ]
-                                                .filter(Boolean)
-                                                .join("; ")}
-                                            className={styles.node}
-                                        >
-                                            <TimelineNodeContent
-                                                detail={detail}
-                                                node={node}
-                                                dateFormatter={dateFormatter}
-                                                onLocateInOverview={onLocateInOverview}
-                                            />
-                                        </article>
-                                    );
-                                })}
+                        <div className={styles.grid}>
+                            {members.map((node, index) => {
+                                const side =
+                                    node.objectKind === "round" && node.phase === "opened"
+                                        ? "left"
+                                        : alternatingIndex++ % 2 === 0
+                                          ? "left"
+                                          : "right";
+                                const laneLabel = t(
+                                    `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
+                                );
+                                const identity = identityName(detail, node);
+                                return (
+                                    <article
+                                        key={node.key}
+                                        ref={(element: HTMLElement | null) => {
+                                            if (element) {
+                                                nodeRefs.current.set(node.key, element);
+                                            } else {
+                                                nodeRefs.current.delete(node.key);
+                                            }
+                                        }}
+                                        data-testid="timeline-node"
+                                        data-node-key={node.key}
+                                        style={{ gridRow: index + 1 }}
+                                        data-side={side}
+                                        data-emphasis={nodeEmphasis(node)}
+                                        tabIndex={activeKey === node.key ? 0 : -1}
+                                        onFocus={() => setActiveKey(node.key)}
+                                        onKeyDown={(event: React.KeyboardEvent) => {
+                                            const direction = {
+                                                ArrowUp: "up",
+                                                ArrowDown: "down",
+                                                ArrowLeft: "left",
+                                                ArrowRight: "right"
+                                            }[event.key] as TimelineDirection | undefined;
+                                            if (!direction) {
+                                                return;
+                                            }
+                                            event.preventDefault();
+                                            const next = findAdjacentTimelineKey({
+                                                nodes,
+                                                currentKey: node.key,
+                                                direction
+                                            });
+                                            if (next) {
+                                                nodeRefs.current.get(next)?.focus();
+                                            }
+                                        }}
+                                        aria-label={[
+                                            t("panel.timeline.aria.node"),
+                                            laneLabel,
+                                            identity,
+                                            label(
+                                                `enum.timelineKind.${node.objectKind}`,
+                                                node.objectKind,
+                                                t
+                                            ),
+                                            label(
+                                                node.eventKind === undefined
+                                                    ? `enum.timelinePhase.${node.phase}`
+                                                    : `enum.timelineEvent.${node.eventKind}`,
+                                                node.eventKind ?? node.phase,
+                                                t
+                                            ),
+                                            dateFormatter.format(new Date(node.time)),
+                                            statusLabel(node, t)
+                                        ]
+                                            .filter(Boolean)
+                                            .join("; ")}
+                                        className={styles.node}
+                                    >
+                                        <TimelineNodeContent
+                                            detail={detail}
+                                            node={node}
+                                            dateFormatter={dateFormatter}
+                                            onLocateInOverview={onLocateInOverview}
+                                        />
+                                    </article>
+                                );
+                            })}
                         </div>
                     </section>
                 ))}

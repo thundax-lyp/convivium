@@ -8,12 +8,8 @@ afterEach(cleanup);
 describe("Meetings workspace state", () => {
     it("starts without a selection and with neutral timeline controls", () => {
         expect(INITIAL_TIMELINE_FILTERS).toEqual({
-            identityIds: [],
-            objectKinds: [],
-            statuses: [],
-            relatedObjects: [],
-            zoom: 1,
-            collapsedLanes: []
+            participantIds: [],
+            objectKinds: []
         });
         const { result } = renderHook(useMeetingWorkspace);
         expect(result.current.workspace).toEqual({
@@ -29,7 +25,7 @@ describe("Meetings workspace state", () => {
         act(() => {
             result.current.setTimelineFilters({
                 ...INITIAL_TIMELINE_FILTERS,
-                identityIds: ["contributor-1"]
+                participantIds: ["identity:contributor-1"]
             });
             result.current.locateInOverview({
                 meetingId: "meeting-1",

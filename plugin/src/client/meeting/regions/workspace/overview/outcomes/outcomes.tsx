@@ -82,7 +82,7 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
                             kind="decision_candidate"
                             id={item.id}
                             sign={decisionOutcomeIcon[item.outcome]}
-                            text={`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`}
+                            text={`${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`}
                         />
                     )),
                     ...decisions.map((item) => (
@@ -91,7 +91,7 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
                             kind="decision"
                             id={item.id}
                             sign={decisionStatusIcon[item.status]}
-                            text={`${item.id}: ${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`}
+                            text={`${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`}
                         />
                     )),
                     ...facts.map((item) => (

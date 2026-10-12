@@ -1,18 +1,51 @@
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { MeetingSummary, MeetingView } from "@/protocol/index.ts";
-import type { MeetingTranslate } from "./shared/index.ts";
+import { en, type MeetingLocaleKey, type MeetingTranslate } from "./shared/index.ts";
 import {
     ProtocolFailure,
     useMeetingSubmission,
     withMeetingWriteLock,
     type MeetingClient
 } from "./client.ts";
-import { SubmissionFeedback } from "./submission-feedback.tsx";
 import { MeetingPanelLayout } from "./layout/index.ts";
 import type { MeetingPanelLayoutProps, MeetingsFreshnessState } from "./shared/index.ts";
 import { useMeetingTranslate, useMeetingWorkspace } from "./hooks/index.ts";
-import { submitMeetingDeletion } from "./meeting-deletion.ts";
+
+const formText = (name: string, t: MeetingTranslate): string => {
+    const key = `form.${name}` as MeetingLocaleKey;
+    if (Object.hasOwn(en, key)) {
+        return t(key);
+    }
+    return t("form.command_rejected", { code: name });
+};
+
+const SubmissionFeedback = ({
+    submission,
+    disabled
+}: {
+    submission: ReturnType<typeof useMeetingSubmission>;
+    disabled: boolean;
+}): ReactElement => {
+    const t = useMeetingTranslate();
+    return (
+        <>
+            {submission.message && <p role="status">{formText(submission.message, t)}</p>}
+            {submission.uncertain && (
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || submission.pending}
+                    onClick={() => void submission.retry()}
+                >
+                    {formText("retry", t)}
+                </Button>
+            )}
+        </>
+    );
+};
 
 const INITIAL_FRESHNESS: MeetingsFreshnessState = {
     connection: "connecting",
@@ -270,29 +303,34 @@ export const ConviviumMeetingPanel = ({
             );
         }
     };
-    const deleteMeeting = (meeting: MeetingSummary) =>
-        submitMeetingDeletion({
-            api,
-            meeting,
-            writeLock,
-            setPending: setWritePending,
-            disabled: freshness.connection !== "connected" || freshness.list !== "fresh",
-            onDeleted: () => {
-                refreshGenerationRef.current += 1;
-                setMeetings((current) =>
-                    current.filter((item) => item.meetingId !== meeting.meetingId)
-                );
-                if (selectedRef.current === meeting.meetingId) {
-                    selectedRef.current = undefined;
-                    localSubmission.edit();
-                    meetingWorkspace.clearSelection();
-                    setDetail(undefined);
-                    setDetailFailure(undefined);
-                    setFreshness((current) => ({ ...current, detail: "idle" }));
-                }
-                void refreshAll({ recovery: false });
+    const deleteMeeting = async (meeting: MeetingSummary): Promise<void> => {
+        if (freshness.connection !== "connected" || freshness.list !== "fresh") {
+            throw new Error("Deletion is unavailable");
+        }
+        await withMeetingWriteLock(writeLock, setWritePending, async () => {
+            const result = await api.deleteMeeting({
+                protocolVersion: 1,
+                meetingId: meeting.meetingId,
+                expectedMeetingVersion: meeting.version
+            });
+            if (result.kind !== "deleted" || result.meetingId !== meeting.meetingId) {
+                throw new Error("Deletion was not confirmed");
             }
+            refreshGenerationRef.current += 1;
+            setMeetings((current) =>
+                current.filter((item) => item.meetingId !== meeting.meetingId)
+            );
+            if (selectedRef.current === meeting.meetingId) {
+                selectedRef.current = undefined;
+                localSubmission.edit();
+                meetingWorkspace.clearSelection();
+                setDetail(undefined);
+                setDetailFailure(undefined);
+                setFreshness((current) => ({ ...current, detail: "idle" }));
+            }
+            void refreshAll({ recovery: false });
         });
+    };
     const changePause = async (kind: "pause_meeting" | "resume_meeting") => {
         if (!detail) {
             return;

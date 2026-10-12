@@ -12,65 +12,43 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
-    it.each([false, true])(
-        "scrolls to the newest occurrence across groups, with captain hidden=%s",
-        (hidden) => {
-            const detail = eventTimelineFixture();
-            detail.timelineEvents = [
-                detail.timelineEvents![0]!,
-                {
-                    eventSeq: 2,
-                    meetingVersion: 2,
-                    occurredAt: 15,
-                    kind: "manager_plan.recorded",
-                    actor: { kind: "identity", actorId: "manager-v1" },
-                    subject: { kind: "manager_plan", id: "plan" },
-                    relatedObjects: [],
-                    data: { planKind: "open_round", rationale: "plan" }
-                },
-                { ...detail.timelineEvents![1]!, eventSeq: 3 },
-                { ...detail.timelineEvents![5]!, eventSeq: 4 },
-                {
-                    eventSeq: 5,
-                    meetingVersion: 7,
-                    occurredAt: 23,
-                    kind: "question.disposed",
-                    actor: { kind: "captain", actorId: "captain" },
-                    subject: { kind: "question", id: "question" },
-                    relatedObjects: [],
-                    data: { status: "answered", rationale: "answer" }
-                }
-            ];
-            detail.timelineEvents = MeetingViewSchema.parse(detail).timelineEvents;
-            render(
-                withMeetingTranslation(
-                    <MeetingPanelTimeline
-                        detail={detail}
-                        filters={{
-                            ...INITIAL_TIMELINE_FILTERS,
-                            collapsedLanes: hidden ? ["captain"] : []
-                        }}
-                        viewportRevision={0}
-                        onFiltersChange={() => undefined}
-                    />,
-                    "zh"
-                )
-            );
-            const cards = screen.getAllByTestId("timeline-node");
-            for (const card of cards) {
-                card.scrollIntoView = vi.fn();
-            }
-            expect(cards.at(-1)?.dataset.nodeKey).toBe("event:4");
-            fireEvent.click(screen.getByRole("button", { name: "回到最新" }));
-            for (const card of cards) {
-                expect(card.scrollIntoView).toHaveBeenCalledTimes(
-                    card.dataset.nodeKey === (hidden ? "event:4" : "event:5") ? 1 : 0
-                );
-            }
-        }
-    );
-
-    it("renders groups before filtering and keeps metadata stable while toggling details and event filters", () => {
+    it("labels identities without exposing IDs and retains filter bindings", () => {
+        const detail = eventTimelineFixture();
+        detail.identities = detail.identities.map((identity) => ({
+            ...identity,
+            displayName: identity.id === "manager-v1" ? "Research Manager" : "Research Contributor"
+        }));
+        const onFiltersChange = vi.fn();
+        render(
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={detail}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    onFiltersChange={onFiltersChange}
+                />,
+                "zh"
+            )
+        );
+        const identities = screen.getByRole("group", { name: "参与者" });
+        expect(identities.textContent).toContain("主持人");
+        expect(
+            within(identities).getByRole("button", { name: "Research Contributor", exact: true })
+        ).toBeTruthy();
+        expect(identities.textContent).not.toContain("manager-v1");
+        fireEvent.click(within(identities).getByRole("button", { name: "主持人" }));
+        expect(onFiltersChange).toHaveBeenCalledWith({
+            ...INITIAL_TIMELINE_FILTERS,
+            participantIds: ["identity:manager-v1"]
+        });
+        const contentTypes = screen.getByRole("group", { name: "内容类型" });
+        fireEvent.click(within(contentTypes).getByRole("button", { name: "证据", exact: true }));
+        expect(onFiltersChange).toHaveBeenLastCalledWith({
+            ...INITIAL_TIMELINE_FILTERS,
+            objectKinds: ["evidence_version"]
+        });
+    });
+    it("renders groups before filtering and keeps metadata stable while filtering all events", () => {
         const { container } = render(
             withMeetingTranslation(
                 <MeetingPanelTimeline
@@ -92,7 +70,7 @@ describe("Meeting timeline presentation", () => {
             round().getAttribute("data-started-at"),
             round().getAttribute("data-completed-at")
         ];
-        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
         expect(screen.getByText("immutable evidence summary")).toBeTruthy();
         expect(keys()).toContain("event:5");
@@ -101,16 +79,14 @@ describe("Meeting timeline presentation", () => {
         opening.focus();
         fireEvent.keyDown(opening, { key: "ArrowDown" });
         expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         fireEvent.click(screen.getByRole("button", { name: "审核领取" }));
         expect(keys()).toEqual(["event:4"]);
         expect(container.querySelector('[data-group-key="milestone:meeting-start:1"]')).toBeNull();
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
         fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
-        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
     });
 
     it("focuses the latest visible event key for an object without falling back to DTO keys", () => {
@@ -132,10 +108,10 @@ describe("Meeting timeline presentation", () => {
                 "zh"
             )
         );
-        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:4");
         expect(consumed).toHaveBeenCalledOnce();
     });
-    it("alternates event cards, keeps round openings on the left and hides coordination details by default", () => {
+    it("alternates event cards, keeps round openings on the left and shows coordination events by default", () => {
         const detail = eventTimelineFixture();
         detail.rounds.push({
             ...detail.rounds[0]!,
@@ -207,8 +183,6 @@ describe("Meeting timeline presentation", () => {
         expect(cards.find((node) => node.dataset.nodeKey === "event:5")?.dataset.side).toBe(
             "right"
         );
-        expect(cards.some((node) => node.dataset.nodeKey === "event:7")).toBe(false);
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         expect(
             screen
                 .getAllByTestId("timeline-node")
@@ -290,7 +264,6 @@ describe("Meeting timeline presentation", () => {
             )
         );
 
-        expect(screen.getByRole("button", { name: "回到最新" })).toBeTruthy();
         const decision = screen
             .getAllByTestId("timeline-node")
             .find((node) => node.dataset.nodeKey === "event:1");
@@ -344,7 +317,10 @@ describe("Meeting overview location", () => {
             )
         );
         expect(document.activeElement?.tagName).toBe("LI");
-        expect(document.activeElement?.textContent).toContain("decision-1");
+        expect(document.activeElement?.getAttribute("data-overview-key")).toBe(
+            "decision:decision-1"
+        );
+        expect(document.activeElement?.textContent).not.toContain("decision-1");
         expect(screen.queryByRole("navigation", { name: "Timeline" })).toBeNull();
 
         rerender(

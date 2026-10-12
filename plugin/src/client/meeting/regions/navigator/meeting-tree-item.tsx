@@ -5,6 +5,7 @@ import {
     Button,
     IconBrowseOutlineMedium,
     IconEllipsisOutlineMedium,
+    IconTrashOutlineMedium,
     Menu,
     Tooltip,
     relativeTime
@@ -124,6 +125,7 @@ export const MeetingTreeItem = ({
                         {
                             id: "delete",
                             label: t("panel.delete.action"),
+                            icon: <IconTrashOutlineMedium />,
                             danger: true,
                             disabled: deleteReason !== undefined
                         }

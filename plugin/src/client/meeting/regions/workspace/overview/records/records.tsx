@@ -62,7 +62,7 @@ const DeliveryItem = ({
             kind="review_delivery"
             id={item.id}
             sign="•"
-            text={`${t("panel.overview.delivery")}: ${item.id}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`}
+            text={`${t("panel.overview.delivery")}: ${known("reviewDelivery", item.status, t)}${item.failureReason ? `: ${item.failureReason}` : ""}`}
         />
     );
 };
@@ -174,11 +174,21 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
           }));
     const selectedPair = pairs.find((pair) => pair.version.id === selectedVersionId);
     const selectedVersion = selectedPair?.version;
+    const participantIds = [
+        ...new Set(
+            rounds.flatMap((round) => [
+                ...(round.invitedContributorIds ?? []),
+                ...(round.participationResponses ?? []).map((response) => response.contributorId),
+                ...round.contributions.map((contribution) => contribution.contributorId)
+            ])
+        )
+    ];
     const nameFor = (identityId: string): string =>
         (archive?.identityProvenance ?? detail.identities).find(
             (identity) =>
                 ("identityId" in identity ? identity.identityId : identity.id) === identityId
-        )?.displayName ?? identityId;
+        )?.displayName ??
+        `${t("panel.timeline.lane.contributor")} ${participantIds.indexOf(identityId) + 1}`;
     const visibleReviewIds = new Set(
         pairs.flatMap((pair) => (pair.review ? [pair.review.id] : []))
     );
@@ -311,7 +321,7 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                                                       <button
                                                           type="button"
                                                           className={styles.evidenceButton}
-                                                          aria-label={`${t("panel.overview.viewEvidence")}: ${nameFor(record.contributorId)} (${record.pair.version.id})`}
+                                                          aria-label={`${t("panel.overview.viewEvidence")}: ${nameFor(record.contributorId)}`}
                                                           onClick={() =>
                                                               setSelectedVersionId(
                                                                   record.pair.version.id
@@ -384,7 +394,7 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                                             kind="publication"
                                             id={publication.id}
                                             sign="•"
-                                            text={`${t("panel.overview.publication")}: ${publication.id}`}
+                                            text={`${t("panel.overview.publication")}: ${label}`}
                                             maxLines={3}
                                         />
                                     ]}

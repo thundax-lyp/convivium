@@ -17,19 +17,11 @@
 .group[data-group-status="aborted"] {
     border-width: 2px;
 }
-.detailToggle,
-.roles {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-block: 12px;
-}
 .grid {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-    row-gap: var(--meeting-timeline-gap);
+    row-gap: 20px;
     padding-block: 12px;
 }
 .grid::before {

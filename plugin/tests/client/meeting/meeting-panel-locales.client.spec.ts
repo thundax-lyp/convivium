@@ -111,13 +111,11 @@ describe("Meeting panel localized presentation", () => {
         expect(within(conclusion).getByLabelText("会议结果: 部分完成")).toBeTruthy();
         expect(within(conclusion).getByText("termination reason")).toBeTruthy();
         expect(
-            within(conclusion).getByText("candidate-1: 采纳: candidate rationale").closest("li")
-                ?.textContent
+            within(conclusion).getByText("采纳: candidate rationale").closest("li")?.textContent
         ).toContain("✅");
         expect(
-            within(conclusion)
-                .getByText("decision-1: 采纳: 已接受: candidate rationale")
-                .closest("li")?.textContent
+            within(conclusion).getByText("采纳: 已接受: candidate rationale").closest("li")
+                ?.textContent
         ).toContain("✅");
         expect(
             within(conclusion)
@@ -187,9 +185,8 @@ describe("Meeting panel localized presentation", () => {
         const conclusion = screen.getByRole("region", { name: "结论" });
         const openItems = screen.getByRole("region", { name: "开放项" });
         expect(
-            within(conclusion)
-                .getByText("decision-1: 采纳: 已撤销: candidate rationale")
-                .closest("li")?.textContent
+            within(conclusion).getByText("采纳: 已撤销: candidate rationale").closest("li")
+                ?.textContent
         ).toContain("🚫");
         expect(
             within(conclusion)

@@ -84,11 +84,23 @@ DSH Conversation
             └─ TimelineContent
 ```
 
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。参与者筛选、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+
+筛选区域按“参与者 → 内容类型 → 事件”排列。“参与者”统一筛选实际事件行为者，按用户、主持人、各嘉宾与审核者的可见姓名、系统展示；嘉宾和审核者选项直接显示姓名，不加角色前缀，缺少姓名时使用角色与序号；多选取并集，未选择时显示全部。用户和系统分别匹配 captain 与无身份的 system 事件，具体 Agent 绑定原身份 ID；不以关联身份推断行为者。不再提供独立角色隐藏按钮。
+
+“内容类型”按 Event.subject.kind 筛选，显示业务内容名称，例如讨论轮次、证据、证据审核、审核反馈、轮次成果、主持安排、会议结果和会议归档；“事件”按 Event.kind 筛选，描述具体发生的行为。两者不改变事件字段和内部标识。
+
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 
 没有非空 last-good 摘要时，初始 list loading、list failure 和确认的 empty list 都由占满主区域的 Navigator 使用同一个 `Empty` 品牌图形与对应本地化文本呈现，不显示搜索、Workspace、分隔条或手动 retry。取得非空列表后才建立双栏；未选择 Meeting 时，Workspace 渲染居中的 `Empty` 品牌图形和本地化选择提示，图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。
 
 选中 Meeting 后，Content 右上角提供带无障碍名称的圆形刷新图标，用于手动补读列表和已选会议详情。正常状态在 Content 悬停或键盘焦点进入时显示；列表或详情读取失败、缓存陈旧时持续显示；无悬停能力的设备上持续显示。图标不遮挡会议标题。
+
+Overview 和 Timeline 详情可用时，右下通过 sticky slot 放置竖向 ButtonGroup，组内两个 30px 图标按钮分别回到顶端和去底端，与刷新按钮右侧对齐、距右侧 8px。悬停 Workspace 或键盘焦点进入时显示整个按钮组，无悬停能力设备上保持可见。滚动、内容或视口尺寸变化时测量当前 Workspace：顶端禁用向上，底端禁用向下，无需滚动时均禁用。点击仅滚动 Workspace 到对应边界；未选择会议或详情尚不可用时不展示。
+
+时间线事件卡片纵向间距固定为 20px，不提供缩放控件。
+
+身份筛选使用 caller-visible 的 displayName 与角色；缺少名称时使用角色与序号，不回退到内部 ID。概览中的发布入口使用轮次目标，审核送达与决策展示状态及理由；时间线内容仅有原始对象 ID 时使用对象类型替代，不展示作为归档详情的原始 ID。key、筛选值及定位关联保留内部 ID，正文和证据引用编号保持原文。
 
 取得非空列表后，Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；搜索无匹配使用搜索图标与 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
@@ -108,12 +120,8 @@ interface MeetingsWorkspaceState {
   activeMode: "overview" | "timeline";
   focusTarget?: { meetingId: string; objectKind: string; objectId: string };
   timeline: {
-    identityFilter: string[];
+    participantFilter: string[];
     typeFilter: string[];
-    statusFilter: string[];
-    relatedObjectFilter: Array<{ objectKind: string; objectId: string }>;
-    zoom: number;
-    collapsedLanes: string[];
   };
 }
 ```
@@ -211,19 +219,19 @@ interface TimelineMilestoneGroup {
 | 结束与归档     | Termination、异常取消、Archive 完成                                     | 正常关闭过程和可复用材料关联                                         |
 | 其他已发生事件 | 无法可靠归属但默认必须可见的关键事件                                    | 无法可靠归属的普通过程事件                                           |
 
-关键事件默认展开，过程细节由“显示过程细节”或显式筛选显示。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
+所有 caller-visible 事件默认展示，不提供“显示过程细节”开关；正文详情可展开，显式筛选可缩小范围。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
 
-事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。“回到最新”独立按当前可见节点的 `time → eventSeq` 选择最新目标，排除已隐藏角色，不以分组后的尾节点代替最新 occurrence。
+事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。
 
 | 事件 kind                                                                                                                                                                            | 主分组                                                   | 默认可见性                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------- |
-| `meeting.created`                                                                                                                                                                    | `meeting_start`                                          | 关键                                  |
-| `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                       | 关键；正式消息和成功送达按过程细节    |
-| `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                       | 过程细节；失败事件保持关键可见        |
-| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 当前 `convergence`；没有活动实例时新建                   | Decision 与处置为关键；计划为过程细节 |
+| `meeting.created`                                                                                                                                                                    | `meeting_start`                                          | 默认展示 |
+| `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                       | 默认展示 |
+| `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                       | 默认展示 |
+| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 当前 `convergence`；没有活动实例时新建                   | 默认展示 |
 | `completion_fact.recorded`、`completion_fact.changed`                                                                                                                                | 当前 `completion`；没有活动实例时随当前 convergence 建立 | 关键                                  |
-| `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                                | 关键                                  |
-| `identity.recommended`、`identity.admission_recorded`                                                                                                                                | `other`                                                  | 过程细节；失败保持关键可见            |
+| `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                                | 默认展示 |
+| `identity.recommended`、`identity.admission_recorded`                                                                                                                                | `other`                                                  | 默认展示 |
 | `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | `other`                                                  | 关键状态变化                          |
 
 活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
@@ -232,7 +240,7 @@ Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromL
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 
-时间线提供 identity、object type、事件 kind、事件发生时状态和 typed relation 筛选，以及卡片间距 zoom、滚动、角色隐藏和回到最新。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
+时间线提供 参与者、object type 和事件 kind 筛选，以及滚动。全部事件默认展示遵循 MO-FR-17.19；显式筛选显示匹配的事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
 
 ### 模式定位、响应式与失败
 

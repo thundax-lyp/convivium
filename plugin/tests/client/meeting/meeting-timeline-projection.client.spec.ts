@@ -259,24 +259,11 @@ describe("Timeline event milestone grouping", () => {
         expect(filtered.map((node) => node.key)).toEqual(["event:3", "event:4"]);
         expect(groups[1]).toMatchObject({ status: "completed", completedAt: 23 });
     });
-    it("moves chronologically and skips hidden roles", () => {
+    it("moves chronologically", () => {
         const nodes = buildTimelineNodes(eventTimelineFixture());
-        expect(
-            findAdjacentTimelineKey({
-                nodes,
-                currentKey: "event:3",
-                direction: "up",
-                collapsedLanes: []
-            })
-        ).toBe("event:2");
-        expect(
-            findAdjacentTimelineKey({
-                nodes,
-                currentKey: "event:3",
-                direction: "up",
-                collapsedLanes: ["reviewer"]
-            })
-        ).toBe("event:2");
+        expect(findAdjacentTimelineKey({ nodes, currentKey: "event:3", direction: "up" })).toBe(
+            "event:2"
+        );
     });
 });
 
@@ -377,7 +364,7 @@ describe("Timeline object details", () => {
     });
 });
 
-it("intersects identity, object, status and relation filters on committed events", () => {
+it("intersects participant and object filters on committed events", () => {
     const decision: MeetingEventView = {
         ...envelope(7),
         kind: "decision.recorded",
@@ -390,16 +377,42 @@ it("intersects identity, object, status and relation filters on committed events
         eventTimelineFixture([
             decision,
             { ...decision, eventSeq: 8, actor: { kind: "identity", actorId: "contributor-v1" } },
-            { ...decision, eventSeq: 9, relatedObjects: [] }
+            {
+                ...decision,
+                eventSeq: 9,
+                subject: { kind: "completion_fact", id: "completion-1" },
+                data: { status: "active" }
+            }
         ])
     );
     expect(
         filterTimelineNodes(nodes, {
             ...INITIAL_TIMELINE_FILTERS,
-            identityIds: ["manager-v1"],
-            objectKinds: ["decision"],
-            statuses: ["accepted"],
-            relatedObjects: [{ objectKind: "evidence_version", objectId: "version-1" }]
+            participantIds: ["identity:manager-v1"],
+            objectKinds: ["decision"]
         }).map(({ key }) => key)
     ).toEqual(["event:7"]);
+});
+
+it("unions user, system and individual participants without matching related identities", () => {
+    const base = buildTimelineNodes(eventTimelineFixture())[0]!;
+    const nodes = [
+        { ...base, key: "user", lane: "captain" as const, identityId: undefined },
+        { ...base, key: "system", lane: "system" as const, identityId: undefined },
+        { ...base, key: "guest", lane: "contributor" as const, identityId: "guest-1" },
+        {
+            ...base,
+            key: "other",
+            lane: "contributor" as const,
+            identityId: "guest-2",
+            relatedObjects: [{ objectKind: "identity", objectId: "guest-1" }]
+        }
+    ];
+    expect(
+        filterTimelineNodes(nodes, {
+            ...INITIAL_TIMELINE_FILTERS,
+            participantIds: ["role:captain", "role:system", "identity:guest-1"]
+        }).map((node) => node.key)
+    ).toEqual(["user", "system", "guest"]);
+    expect(filterTimelineNodes(nodes, INITIAL_TIMELINE_FILTERS)).toHaveLength(4);
 });
