@@ -84,6 +84,8 @@ DSH Conversation
             └─ TimelineContent
 ```
 
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 显示为“主持人计划”。
+
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 
 没有非空 last-good 摘要时，初始 list loading、list failure 和确认的 empty list 都由占满主区域的 Navigator 使用同一个 `Empty` 品牌图形与对应本地化文本呈现，不显示搜索、Workspace、分隔条或手动 retry。取得非空列表后才建立双栏；未选择 Meeting 时，Workspace 渲染居中的 `Empty` 品牌图形和本地化选择提示，图形尺寸固定为 112px，不展示刷新按钮、详情 Header 或模式选项卡。详情加载与缺失状态沿用较小的状态图标。

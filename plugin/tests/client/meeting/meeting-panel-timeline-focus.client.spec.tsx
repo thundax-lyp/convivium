@@ -33,7 +33,7 @@ describe("Meeting timeline presentation", () => {
         const identities = screen.getByRole("group", { name: "身份" });
         expect(identities.textContent).toContain("Research Manager");
         expect(identities.textContent).not.toContain("manager-v1");
-        fireEvent.click(within(identities).getByRole("button", { name: "经理: Research Manager" }));
+        fireEvent.click(within(identities).getByRole("button", { name: "主持人: Research Manager" }));
         expect(onFiltersChange).toHaveBeenCalledWith({
             ...INITIAL_TIMELINE_FILTERS,
             identityIds: ["manager-v1"]

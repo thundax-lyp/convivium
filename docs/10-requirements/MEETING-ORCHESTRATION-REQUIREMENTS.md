@@ -254,6 +254,8 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 
 ### MO-FR-17：Meetings View 概览与时间线
 
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 显示为“主持人计划”。
+
 1. Convivium 在 DSH Conversation 中只提供一个 `Meetings` 功能级 View；Meeting Navigator、当前 Meeting 的概览和时间线都位于该 View 内，不提供独立 Timeline View。
 2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表，按 `updatedAt` 倒序排列。导航区采用 DSH 会话导航的标题、搜索和树列表结构；行首以图标表示生命周期，中间目标单行省略，右侧显示本地化相对更新时间。搜索只筛选当前已加载摘要的目标，空列表和无匹配结果展示空态，不触发详情读取或改变当前选择。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。

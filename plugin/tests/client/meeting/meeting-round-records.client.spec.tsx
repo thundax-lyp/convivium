@@ -295,8 +295,8 @@ describe("Meeting overview contributor participation records", () => {
 
         const records = screen.getByRole("region", { name: "记录" });
         const firstRound = within(records).getByRole("region", { name: /round question/ });
-        expect(within(firstRound).getByText("贡献者 2")).toBeTruthy();
-        expect(within(firstRound).getByText("贡献者 3")).toBeTruthy();
+        expect(within(firstRound).getByText("嘉宾 2")).toBeTruthy();
+        expect(within(firstRound).getByText("嘉宾 3")).toBeTruthy();
         expect(
             within(firstRound)
                 .getAllByRole("listitem")
@@ -359,7 +359,7 @@ describe("Meeting overview contributor participation records", () => {
             within(round)
                 .getAllByRole("heading", { level: 6 })
                 .map((item) => item.textContent)
-        ).toEqual(["贡献者 1", "甲失败贡献者", "contributor-v1", "manager-v1"]);
+        ).toEqual(["嘉宾 1", "甲失败贡献者", "contributor-v1", "manager-v1"]);
         expect(text.indexOf("取证失败")).toBeLessThan(text.indexOf("查看证据"));
         expect(within(round).getAllByRole("button", { name: /查看证据/ })).toHaveLength(1);
         expect(
