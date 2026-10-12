@@ -5,8 +5,9 @@ import { MeetingPanelTimeline } from "@/client/meeting/regions/workspace/timelin
 import { MeetingPanelOverview } from "@/client/meeting/regions/workspace/overview/index.ts";
 import { INITIAL_TIMELINE_FILTERS } from "@/client/meeting/shared/index.ts";
 import { withMeetingTranslation } from "./meeting-panel-locale-fixtures.ts";
-import { activeTimelineFixture, archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
+import { archiveTimelineFixture } from "./meeting-timeline-fixtures.ts";
 import { eventTimelineFixture } from "./meeting-timeline-fixtures.ts";
+import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 
 afterEach(cleanup);
 
@@ -40,6 +41,7 @@ describe("Meeting timeline presentation", () => {
                     data: { status: "answered", rationale: "answer" }
                 }
             ];
+            detail.timelineEvents = MeetingViewSchema.parse(detail).timelineEvents;
             render(
                 withMeetingTranslation(
                     <MeetingPanelTimeline
@@ -134,7 +136,7 @@ describe("Meeting timeline presentation", () => {
         expect(consumed).toHaveBeenCalledOnce();
     });
     it("alternates event cards, keeps round openings on the left and hides coordination details by default", () => {
-        const detail = activeTimelineFixture();
+        const detail = eventTimelineFixture();
         detail.rounds.push({
             ...detail.rounds[0]!,
             id: "round-2",
@@ -143,6 +145,42 @@ describe("Meeting timeline presentation", () => {
             status: "open",
             pendingHandRaises: []
         });
+        detail.timelineEvents = [
+            detail.timelineEvents![0]!,
+            detail.timelineEvents![1]!,
+            {
+                ...detail.timelineEvents![1]!,
+                eventSeq: 3,
+                kind: "round.aborted",
+                occurredAt: 21,
+                data: { reason: "abort reason" }
+            },
+            { ...detail.timelineEvents![2]!, eventSeq: 4, occurredAt: 24 },
+            {
+                ...detail.timelineEvents![2]!,
+                eventSeq: 5,
+                kind: "evidence_review.submitted",
+                occurredAt: 25,
+                actor: { kind: "identity", actorId: "reviewer-v1" },
+                subject: { kind: "evidence_review", id: "review-1" },
+                data: { claimId: "claim-1", scope: "review scope" }
+            },
+            {
+                ...detail.timelineEvents![1]!,
+                eventSeq: 6,
+                occurredAt: 28,
+                subject: { kind: "round", id: "round-2" }
+            },
+            {
+                ...detail.timelineEvents![2]!,
+                eventSeq: 7,
+                kind: "hand_raise.recorded",
+                occurredAt: 29,
+                subject: { kind: "round", id: "round-1" },
+                data: { contributorId: "contributor-v1", purpose: "raise purpose" }
+            }
+        ];
+        detail.timelineEvents = MeetingViewSchema.parse(detail).timelineEvents;
         render(
             withMeetingTranslation(
                 <MeetingPanelTimeline
@@ -156,31 +194,25 @@ describe("Meeting timeline presentation", () => {
             )
         );
         const cards = screen.getAllByTestId("timeline-node");
-        expect(
-            cards.find((node) => node.dataset.nodeKey === "round:round-1:aborted")?.dataset.emphasis
-        ).toBe("warning");
-        const round = cards.find((node) => node.dataset.nodeKey === "round:round-1:opened")!;
+        expect(cards.find((node) => node.dataset.nodeKey === "event:3")?.dataset.emphasis).toBe(
+            "warning"
+        );
+        const round = cards.find((node) => node.dataset.nodeKey === "event:2")!;
         expect(round.dataset.side).toBe("left");
         expect(round.dataset.emphasis).toBe("milestone");
-        expect(
-            cards.find((node) => node.dataset.nodeKey === "round:round-2:opened")?.dataset.side
-        ).toBe("left");
+        expect(cards.find((node) => node.dataset.nodeKey === "event:6")?.dataset.side).toBe("left");
         fireEvent.keyDown(round, { key: "ArrowDown" });
-        expect(document.activeElement?.getAttribute("data-node-key")).toBe("round:round-1:aborted");
-        expect(
-            cards.find((node) => node.dataset.nodeKey === "evidence_version:version-1:submitted")
-                ?.dataset.side
-        ).toBe("left");
-        expect(
-            cards.find((node) => node.dataset.nodeKey === "evidence_review:review-1:created")
-                ?.dataset.side
-        ).toBe("right");
-        expect(cards.some((node) => node.dataset.nodeKey?.startsWith("hand_raise:"))).toBe(false);
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
+        expect(cards.find((node) => node.dataset.nodeKey === "event:4")?.dataset.side).toBe("left");
+        expect(cards.find((node) => node.dataset.nodeKey === "event:5")?.dataset.side).toBe(
+            "right"
+        );
+        expect(cards.some((node) => node.dataset.nodeKey === "event:7")).toBe(false);
         fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         expect(
             screen
                 .getAllByTestId("timeline-node")
-                .some((node) => node.dataset.nodeKey?.startsWith("hand_raise:"))
+                .some((node) => node.dataset.nodeKey === "event:7")
         ).toBe(true);
     });
 
@@ -189,6 +221,29 @@ describe("Meeting timeline presentation", () => {
         (outcome) => {
             const detail = archiveTimelineFixture();
             detail.archive!.termination!.outcome = outcome;
+            detail.timelineEvents = [
+                {
+                    eventSeq: 1,
+                    meetingVersion: 1,
+                    occurredAt: 37,
+                    kind: "meeting.ended",
+                    actor: { kind: "system" },
+                    subject: { kind: "termination", id: "termination-1" },
+                    relatedObjects: [],
+                    data: { outcome, reason: "termination reason" }
+                },
+                {
+                    eventSeq: 2,
+                    meetingVersion: 2,
+                    occurredAt: 38,
+                    kind: "archive.completed",
+                    actor: { kind: "system" },
+                    subject: { kind: "archive", id: "archive-1" },
+                    relatedObjects: [],
+                    data: { status: "complete" }
+                }
+            ];
+            detail.timelineEvents = MeetingViewSchema.parse(detail).timelineEvents;
             render(
                 withMeetingTranslation(
                     <MeetingPanelTimeline
@@ -202,7 +257,7 @@ describe("Meeting timeline presentation", () => {
             );
             const milestones = screen
                 .getAllByTestId("timeline-node")
-                .filter((node) => /^(termination|archive):/.test(node.dataset.nodeKey ?? ""));
+                .filter((node) => ["event:1", "event:2"].includes(node.dataset.nodeKey ?? ""));
             expect(milestones).toHaveLength(2);
             for (const node of milestones) {
                 expect(node.dataset.emphasis).toBe("milestone");
@@ -214,7 +269,18 @@ describe("Meeting timeline presentation", () => {
         render(
             withMeetingTranslation(
                 <MeetingPanelTimeline
-                    detail={activeTimelineFixture()}
+                    detail={eventTimelineFixture([
+                        {
+                            eventSeq: 1,
+                            meetingVersion: 1,
+                            occurredAt: 31,
+                            kind: "decision.recorded",
+                            actor: { kind: "system" },
+                            subject: { kind: "decision", id: "decision-1" },
+                            relatedObjects: [],
+                            data: { status: "accepted" }
+                        }
+                    ])}
                     filters={INITIAL_TIMELINE_FILTERS}
                     viewportRevision={0}
                     locale="zh"
@@ -227,7 +293,7 @@ describe("Meeting timeline presentation", () => {
         expect(screen.getByRole("button", { name: "回到最新" })).toBeTruthy();
         const decision = screen
             .getAllByTestId("timeline-node")
-            .find((node) => node.dataset.nodeKey === "decision:decision-1:created");
+            .find((node) => node.dataset.nodeKey === "event:1");
         expect(decision).toBeDefined();
         expect(within(decision!).getByText("已接受")).toBeTruthy();
         expect(decision!.querySelector("time")?.textContent).toBeTruthy();
