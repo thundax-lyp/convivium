@@ -27,7 +27,7 @@
 - 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用平级、独立且可持续的 AgentSession，不跨会议、身份或授权范围共享上下文。Captain 是本地用户的控制身份，不是 MeetingIdentity、Participant 或这些 Session 的 DSH parent；Reviewer 的一次性审核 worker 仍可作为其 Subagent 运行。
 - Captain 是当前本地用户的会议控制身份，可信用户入口提交控制操作；Session 仅可记录输入来源，不承载 Captain 权限。会议 Agent 和投递独立运行，关闭或更换输入 Session、重开面板不影响用户控制。Agent 正式交流仍经 Meeting Runtime，不开放绕过记录的直接互发。
 - Manager 只读取 Catalog 安全投影，并通过结构化会议操作对当前 candidate 明确作出 `admit` 或 `reject` 决定；自然语言或目录可用性不构成决定。`admit` 形成不可调度的 provisioning 意图；只有 Runtime 完成独立 Session provisioning 与 durable ownership 后，candidate 才可调度。Manager 不能接纳自己、取得 capability secret、任意创建角色或扩大权限。
-- Convivium 拥有 Definition、每角色版本化 AGENTS 身份资源、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。AGENTS 声明身份和能力范围，任务方法由可复用 Skill 提供；Definition 绑定精确 AGENTS 资源和 DSH 公开能力。身份指令不能用来假装安装能力，创建前必须验证宿主组合，缺能力时 fail closed。
+- Convivium 拥有 Definition、每角色按指纹固化的 AGENTS 身份资源、Catalog snapshot、Manager 决定与 provenance；后续 Catalog 更新不得改变已固化会议事实。AGENTS 声明身份和能力范围，任务方法由可复用 Skill 提供；Definition 绑定精确 AGENTS 资源和 DSH 公开能力。身份指令不能用来假装安装能力，创建前必须验证宿主组合，缺能力时 fail closed。
 - DSH 拥有实际 Session 执行与 Host 能力；Convivium 持久绑定会议身份与 Session 所需的资源和模型选择，创建与冷恢复不得擅自改变该绑定。具体字段和失败语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
 - Convivium 只提供会议身份的授权上限，不扩大用户或 DSH 已授予的权限。代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
 - Session 创建、继续投递、interrupt、恢复与 resident Activation 释放只通过受控 DSH adapter。归档后的持久不可继续语义由 capability revoke 保证，不要求删除 DSH 持久 Session 数据；调用边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。

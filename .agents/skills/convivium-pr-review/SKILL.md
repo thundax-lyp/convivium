@@ -34,20 +34,27 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 
 ## 2. 路由上下文
 
-先读取：
+以根 `AGENTS.md` 的 Read Order 为任务路由，按 [Document Rules](../../../docs/00-governance/DOCUMENT-RULES.md) 区分文档职责、权威和冲突。已读取且未变化的依据复用上下文；只加载能解释当前 diff 的最小上下文。
 
-- `AGENTS.md`
-- `docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`
-- `docs/00-governance/PR-RULES.md`
-- `.github/pull_request_template.md`
-- `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
-- `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
+先读取 [PR Rules](../../../docs/00-governance/PR-RULES.md) 与 `.github/pull_request_template.md`；再按 changed surfaces 补读：
 
-再按 changed files 读取相关 `docs/30-designs/`、`docs/40-readiness/`、`TODO.md` 和 `plugin/package.json`。只加载能解释当前 diff 的最小上下文。
+| 改动范围 | 当前依据 |
+| --- | --- |
+| 产品代码或设计 | [Architecture](../../../docs/00-governance/ARCHITECTURE.md)、[Engineering Rules](../../../docs/00-governance/ENGINEERING-RULES.md) 与相关需求；会议编排见 [Meeting Orchestration Requirements](../../../docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)，证据轮次与审核见 [Meeting Evidence Round Requirements](../../../docs/10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md) |
+| 协议、事件、Remote、投影、持久化 | [Meeting Interface](../../../docs/20-interfaces/MEETING-INTERFACE.md) 的相关章节 |
+| Definition、角色资源、Catalog、预检、Session ownership | [DSH Role Interface](../../../docs/20-interfaces/DSH-ROLE-INTERFACE.md) |
+| 源码目录、导入和入口边界 | [Architecture Rules](../../../docs/00-governance/ARCHITECTURE-RULES.md) |
+| 测试 | [Test Rules](../../../docs/00-governance/TEST-RULES.md)；退役行为按其 Retired Behavior And Compatibility 判断，不自行新增旧格式专用拒绝契约 |
+| 文档、治理规则 | Document Rules、被修改规则及直接引用；只有涉及产品行为或工程取舍时补读对应需求、架构和工程依据 |
+| 已登记 TODO、RUNBOOK | 分别读取 [TODO Rules](../../../docs/00-governance/TODO-RULES.md) 或 [RUNBOOK Rules](../../../docs/00-governance/RUNBOOK-RULES.md)，及本次涉及的任务正文 |
+| 安装、运行、诊断、恢复或发布 | 相关 `docs/50-operations/`；按需核对实际脚本与 `plugin/package.json` |
+| 实现覆盖、验证或交付声明 | [Current Implementation Coverage](../../../docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 与相关工程验证要求 |
+
+具体实现链路再按需读取 `docs/30-designs/`；设计不能代替需求，readiness 只证明其记录的实现与验证范围，`docs/60-human/` 不作为正式工程依据。路径不存在或依据冲突时查找当前真相源；无法确认则记录缺口，不套用退役文档或凭当前代码补出产品规则。
 
 ## 3. 建立文档驱动的审查模型
 
-1. 从当前 PR 相关的需求、接口、设计、架构和 readiness 文档中提取 1–5 条系统承诺。每条承诺必须记录文档路径和章节；本 Skill 不自行定义业务结论。
+1. 从当前 PR 相关的有效治理、需求、接口、设计或操作文档中提取 1–5 条适用承诺，readiness 用于核对实现与验证证据。每条承诺必须记录文档路径和章节，并遵守 Document Rules 的职责与权威；本 Skill 不自行定义业务结论。
 2. 根据 changed surfaces 选择相关的通用审查维度。主维度用于安排重点，但不能跳过其他实际触发的维度。读取 [`references/review-dimensions.md`](./references/review-dimensions.md)。
 3. 读取 [`references/evidence-matrix.md`](./references/evidence-matrix.md)，为每条系统承诺建立 source → producer → adapter → validator → consumer/sink 证据链，并补充负向场景、历史数据和验证证据。
 4. 读取 [`references/review-checks.md`](./references/review-checks.md)，对全部 changed hunks 执行基础检查，再执行证据矩阵实际触发的专项检查。

@@ -43,6 +43,8 @@ description: Use when planning, implementing, or refactoring code that risks spe
 
 额外工作只有在阻塞当前目标时才能纳入，并限制到解除阻塞所需的最小范围。若会改变产品范围、公共契约或用户选择，先请求确认。
 
+退役功能或兼容路径时，按 [退役行为与兼容性](../../../docs/00-governance/TEST-RULES.md#retired-behavior-and-compatibility) 检查清理范围：移除只服务旧行为的识别机制、专用错误和测试资产，不把删除改造成新的兼容拒绝层。保留机制和测试须指出当前契约或不变量，不能只以“过去支持过”为依据。
+
 ## 保留真实保护
 
 不得以 YAGNI 或 KISS 弱化：

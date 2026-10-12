@@ -4,7 +4,7 @@
 
 ## 建立步骤
 
-1. 只从当前 PR 相关的 `docs/10-requirements/`、`docs/20-interfaces/`、`docs/30-designs/`、`docs/00-governance/` 和 `docs/40-readiness/` 提取已确认条款。
+1. 按 [Document Rules](../../../../docs/00-governance/DOCUMENT-RULES.md) 从当前 PR 相关的治理、需求、接口、设计和操作文档提取有效条款；设计不替代需求，readiness 作为实现覆盖、验证事实和未覆盖边界的证据，不由其历史 PASS 推导新的行为要求。当前入口由 SKILL.md 的路由表维护，不另存一份文档清单。
 2. 为每条条款记录精确来源、适用对象和变更涉及的文件。
 3. 沿调用链填写 `source → producer → adapter → validator → consumer/sink`。
 4. 增加至少一个相关负向场景；若条款涉及持久化、异步或生命周期，再增加重复、重启、部分失败或交错时序场景。

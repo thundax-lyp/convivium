@@ -122,7 +122,7 @@ cold reopen probe 通过 Cordis 依赖注入等待 Meeting Runtime 发布，再�
 3. 与长效 Agent 的记忆、上下文和决策过程的关联；
 4. 判断系统提升所需的对照、指标和长期任务结果。
 
-新会议仅配置 GitHub 与 arXiv 两位 Contributor，每轮分别登记一份 Evidence。Reviewer coordinator 为每份当前 version 独立领取 claim、启动一个 one-shot worker，并在得到 completed 结果后携带对应 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两位 Contributor 在每轮明确举手；两份 Evidence 都完成 Review 且成功送达后，Contribution 立即结算并可发布 Round。最终结果必须满足：
+新会议仅配置 GitHub 与 arXiv 两位 Contributor，每轮分别登记一份 Evidence。Runtime 为每份当前 version 独立领取 claim；Reviewer coordinator 调用一个 one-shot worker，Runtime 校验 completed 结果后使用捕获的 `claimId` 单独提交该 version 的 Review；同轮另一份 Evidence 的成功或失败不进入本次提交边界。两位 Contributor 在每轮明确举手；两份 Evidence 都完成 Review 且成功送达后，Contribution 立即结算并可发布 Round。最终结果必须满足：
 
 - 4 个 Round、8 个 EvidenceVersion、8 份逐版本 Review 和 4 个 Publication；
 - 8 个不同 worker Session，且 worker 没有 Meeting command authority；

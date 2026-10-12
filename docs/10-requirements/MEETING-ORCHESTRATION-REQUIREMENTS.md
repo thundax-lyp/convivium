@@ -257,7 +257,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、缩放、滚动和角色隐藏；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
 5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表除 MO-FR-19 的删除入口外只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权；已归档会议的整体删除仅按 MO-FR-19 执行，不授予修改归档事实的权限。
-6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review、MeetingTask 和技术标识。UI 不得生成当前投影不存在的综合结论、行动项或事实。
+6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review 和 MeetingTask。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以按时间顺序左右交错的纵向卡片展示，保留 Captain、Manager、Contributor、Reviewer 和系统五类角色标识，展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线事件必须来自 Meeting 成功提交时原子追加的基础事件日志；一个 accepted command 按实际发生结果追加零条、一条或多条事件，每条事件只表达一个已经发生的事实，使用 Repository 分配的连续 `eventSeq`、该次 `meetingVersion` 和 Runtime 注入的同一个已发生时间，并携带明确 actor、主对象、带类型关联对象及重放该次发生所需的最小不可变数据。最小不可变数据可以包含正式 event contract 明确列出的发生时摘要、陈述、理由、范围和失败摘要，但不得复制完整领域对象、私信、Session、capability、凭据或隐藏推理。事件日志不包含 milestone、阶段实例、展示标题、lane、折叠状态或 Client 排序字段。读取、拒绝、receipt 重放、effect/outbox 重试、只更新内部 Session ownership 的提交和纯展示操作不得追加事件。
 9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源使用对应角色标识；没有明确行为者字段的对象使用系统角色标识。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
@@ -426,13 +426,13 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 52. DSH Conversation 只注册一个 Convivium `Meetings` View；进入后先显示完整 Meeting Navigator，未选择 Meeting 时不调用详情读取，也不显示当前 Meeting Header、模式切换器或内容。
 53. 选择 Meeting 后默认显示概览；切换到时间线时继续使用同一个 ID 和同一详情投影。选择另一个 Meeting 后回到概览且旧时间线本地状态被清除；旧 Meeting 的迟到读取结果不能覆盖新选择。详情失败、断线或选中项从新摘要列表消失时分别遵守 MO-FR-17.4，均不自动改选其他 Meeting。
 54. 活动、暂停、终态和归档 Meeting 的共享 Header 只显示各自 `controls` 允许的暂停、继续和异常取消 control；陈旧或提交中状态全部禁写。概览只读展示 Contribution 授权、Decision 和 Risk，时间线不产生任何写操作。
-55. 给定包含多个带时间对象的 caller-filtered `MeetingView`，时间线按确定性时间顺序和角色标识展示左右交错节点；展开过程细节后，同一 Task 的 start/complete 等多个已发生时间形成不同 phase，缺 actor 的 Round、Publication、Termination 和 Archive 使用系统角色标识，assignee 不被当作行为者。
-56. 给定完整 `ArchiveView`，时间线从 Archive 单一来源展示其中具有时间的 ProposalRevision、Position、DecisionCandidate、Decision、CompletionFact、RiskDisposition、Question/Issue disposition fact、Publication、Message、EvidenceVersion、Review、Termination 和 Archive 状态；不得从顶层运行对象回填归档过程，也不得重复节点。
-57. 普通 Participant、用户、Manager 和 Reviewer 分别只能在概览、时间线、筛选数量和定位结果中观察其 caller-filtered projection；筛选为空或目标不可见时不泄露其他对象是否存在。
+55. 给定可信 local controller 返回的 `timelineEvents`，时间线按连续 `eventSeq` 展示左右交错节点，角色与行为者来自事件契约；同一 Task 的不同已发生事件形成独立节点，不从当前 DTO 时间字段推导历史。
+56. 给定归档会议的 `timelineEvents`，时间线仍以基础事件日志为唯一来源，展示归档前过程及终止、归档事实；不得从 `ArchiveView` 或顶层运行对象回填节点，也不得重复节点。
+57. 普通 Participant、用户、Manager 和 Reviewer 的身份投影只暴露 caller-filtered 事实；完整事件时间线仅由可信 local controller 读取。概览、筛选数量和定位结果不得泄露当前入口不可见的对象。
 58. 在窄屏下 Navigator 通过按钮与抽屉操作同一个选择状态，Workspace 占满抽屉外内容区，时间线保持必要时可水平滚动的左右交错布局；键盘可以按时间访问节点，定位后焦点与可访问文本落在目标卡片。
 59. `zh`、`en` 下新增 View Switcher、Navigator、Timeline、筛选、失败状态和 ARIA 文案均完整本地化，用户或 Agent 内容保持原文；真实 DSH Web profile 中切换 locale 无需重新注册 View 或刷新页面。
 60. 用户输入 Session 关闭后，已创建的平级 Agent 仍接收授权投递并推进会议；用户重开面板或 Host 重启后仍能控制，不要求恢复原 Session。任一 Agent 冒充用户控制都被拒绝；Agent 间绕过 Runtime 的内容不形成正式会议事实。
-61. 被选入初始会议的角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 的精确版本与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议；三个暂不参与角色的资源保留在发行包。
+61. 被选入初始会议的角色各自的 AGENTS 身份资源在首个 Session 创建前按 Definition 绑定的精确资源与指纹验证并显式装载；一个角色的模型上下文不含另一角色的身份指令，其 Skill 目录和按名称加载不暴露未分配 Skill。已建立 Session 经冷恢复仍使用原身份指令与能力集合，角色资源更新不改变历史会议；三个暂不参与角色的资源保留在发行包。
 62. 在真实本地 DSH Web Conversation 中输入 `/convivium 调查TypeSafe JEV的最新进展`，不操作 Meetings View 表单即可得到已提交的 `meetingId`，其 objective 保留用户目标，Manager、Reviewer、Host 配置选中的 Contributor 与一个 pending active 议题齐全；当前部署配置下两个研究角色参会、三个工程角色未进入会议，且会议启动后的投递不依赖输入 Session 常驻。
 63. 普通用户消息、Agent 生成的 `/convivium` 文本、会议身份 Session 以及未取得本次用户调用授权的工具调用都不能创建 Meeting；同一调用最多创建一场，创建失败不返回成功 ID。仅输入 `/convivium` 时提示补充目标，不创建空目标会议。
 64. 首次列表 loading、error 和 empty result 分别只呈现 `Empty` 品牌图形与对应本地化文本，没有搜索、Workspace、分隔条或 retry；非空列表首次可用后 Workspace 轻量入场，reduced-motion 环境无动画。已有非空 last-good 列表的 refresh loading/failure 仍保留 Navigator、Workspace、选择和陈旧标记。

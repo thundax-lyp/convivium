@@ -206,14 +206,11 @@ describe("target Meeting business-loop protocol", () => {
         ).toBe(true);
     });
 
-    it("sorts object keys without reordering arrays and rejects legacy state", () => {
+    it("sorts object keys without reordering arrays and round-trips current state", () => {
         const first = { z: [{ b: 2, a: 1 }], a: { d: 4, c: 3 } };
         const second = { a: { c: 3, d: 4 }, z: [{ a: 1, b: 2 }] };
         expect(serializeValidatedRequest(first)).toBe(serializeValidatedRequest(second));
         const state = makeRunningMeetingStateV1();
         expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);
-        expect(() => encodeMeetingState({ ...state, formatApprovals: [] })).toThrow(
-            "INCOMPATIBLE_VERSION"
-        );
     });
 });

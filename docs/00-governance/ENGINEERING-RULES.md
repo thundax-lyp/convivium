@@ -30,6 +30,7 @@
 - 同一 command commit 内、外部不可观察且对恢复无价值的中间状态保持为局部值；新增持久状态必须影响跨 command 行为、恢复、授权或公开 projection。
 - 接口只约束输入、输出、授权、幂等和失败语义；没有跨边界依据时，不强制内部 Error 子类、结果包装、同义类型或日志 schema。
 - 范围收窄不得弱化 caller binding、capability、ownership、stale attempt、幂等和数据完整性；无法安全处理的失败必须 fail closed，不以隐式降级或自动跳过替代正式失败边界。
+- 删除已确认退役的功能或兼容路径时，不为“不兼容”另建旧输入识别和专用拒绝机制；仍需保留的拒绝与测试必须有当前契约或不变量依据，按 [Retired Behavior And Compatibility](./TEST-RULES.md#retired-behavior-and-compatibility) 同步清理实现、测试与文档。
 
 ## Engineering Checks
 
