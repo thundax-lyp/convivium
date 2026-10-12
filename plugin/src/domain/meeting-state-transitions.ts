@@ -363,7 +363,10 @@ const validateActionRequest = (
         ) {
             return "INVALID_ARGUMENT";
         }
-        return actor.kind === "captain_user" ? undefined : "UNAUTHORIZED";
+        return actor.kind === "captain_user" ||
+            (actor.kind === "identity" && hasRole(state, actor.id, "manager"))
+            ? undefined
+            : "UNAUTHORIZED";
     }
     const requiresGeneratedId = [
         "raise_agenda_candidate",

@@ -13,6 +13,7 @@ import {
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
     ReadMeetingRequestSchema,
+    ActivateAgendaActionSchema,
     OpenRoundActionSchema,
     SubmitManagerPlanActionSchema,
     PublishRoundActionSchema,
@@ -86,6 +87,22 @@ const evidenceTextSchema = {
     reason: optionalString("Optional qualification or reason.")
 };
 const actionSchemas = {
+    activate_agenda: exactObject({
+        kind: { type: "string", const: "activate_agenda", required: true },
+        agendaId: requiredString(
+            "Existing pending agenda identifier returned by read_meeting; never a candidate."
+        ),
+        previousDisposition: {
+            type: "string",
+            enum: ["completed", "deferred", "closed"],
+            required: true,
+            description:
+                "Disposition of the old active agenda. Use deferred for unresolved local blockers; completed requires completion evidence."
+        },
+        reason: requiredString(
+            "Why the current agenda is closing or deferred and this authorized agenda can proceed. Wait for any preceding plan command to succeed, then use its committed version; never batch both writes with the same version."
+        )
+    }),
     open_round: exactObject({
         kind: { type: "string", const: "open_round", required: true },
         agendaId: requiredString("Active agenda identifier returned by read_meeting."),
@@ -528,6 +545,11 @@ export function registerMeetingTools(
     dependencies: MeetingCommandToolDependencies
 ): readonly (() => void)[] {
     const definitions: readonly ToolDefinition[] = [
+        {
+            name: "convivium_activate_agenda",
+            kind: "activate_agenda",
+            schema: ActivateAgendaActionSchema
+        },
         { name: "convivium_open_round", kind: "open_round", schema: OpenRoundActionSchema },
         {
             name: "convivium_submit_manager_plan",

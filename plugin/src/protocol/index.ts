@@ -1,5 +1,6 @@
 export {
     MeetingActionSchema,
+    ActivateAgendaActionSchema,
     OpenRoundActionSchema,
     SubmitManagerPlanActionSchema,
     RaiseHandActionSchema,

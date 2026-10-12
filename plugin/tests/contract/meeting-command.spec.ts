@@ -11,6 +11,135 @@ import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port
 import type { RepositoryCommand } from "@/repository/types.ts";
 
 describe("target Meeting command core", () => {
+    it.each(["manager", "participant", "evidence_reviewer"] as const)(
+        "authorizes pending agenda activation for %s without impersonating Captain",
+        async (role) => {
+            const state = makeRunningMeetingStateV1();
+            state.agenda = [
+                ...state.agenda,
+                {
+                    id: "agenda-next",
+                    title: "Next",
+                    question: "Next question",
+                    status: "pending",
+                    requiredOutputIds: ["output-v1"]
+                }
+            ];
+            const identityId =
+                role === "manager"
+                    ? "manager-v1"
+                    : role === "participant"
+                      ? "contributor-v1"
+                      : "reviewer-v1";
+            let committed:
+                ReturnType<RepositoryCommand<unknown, MeetingState>["transition"]> | undefined;
+            const repository = {
+                execute: vi.fn(async (command: RepositoryCommand<unknown, MeetingState>) => {
+                    committed = command.transition({
+                        meetingId: state.id,
+                        version: state.version,
+                        state,
+                        createdAt: state.createdAt,
+                        updatedAt: state.updatedAt
+                    });
+                    expect(command.facts).toMatchObject([
+                        { kind: "activate_agenda", actorId: identityId }
+                    ]);
+                    return {
+                        requestId: command.requestId,
+                        meetingId: state.id,
+                        meetingVersion: state.version + 1,
+                        result: committed.result,
+                        eventSeqs: []
+                    };
+                })
+            } as unknown as MeetingRepositoryPort<MeetingState>;
+            const caller = {
+                channel: "dsh_tool" as const,
+                principalId: identityId,
+                sessionBindingId: "ownership-1"
+            };
+            const app = createMeetingCommandApplication({
+                creation: { create: vi.fn() },
+                registry: {
+                    openMeeting: vi.fn(async () => repository)
+                } as unknown as DomainRepositoryRegistry<MeetingState>,
+                ids: { nextId: (kind) => `${kind}-1` },
+                clock: { now: () => 10 },
+                resolveCallerScope: async () => ({
+                    caller,
+                    meetingId: state.id,
+                    identityId,
+                    role,
+                    ownership: {
+                        id: "ownership-1",
+                        role,
+                        meetingId: state.id,
+                        identityId,
+                        sessionId: "session-1",
+                        lifecycleStatus: "active",
+                        capabilityStatus: "active"
+                    }
+                })
+            });
+            const result = await app.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: state.id,
+                    expectedMeetingVersion: state.version,
+                    requestId: "next-agenda",
+                    action: {
+                        kind: "activate_agenda",
+                        agendaId: "agenda-next",
+                        previousDisposition: "deferred",
+                        reason: "Keep blocked replication unresolved; proceed with independent work."
+                    }
+                },
+                { caller },
+                new AbortController().signal
+            );
+            if (role !== "manager") {
+                expect(result).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
+                expect(repository.execute).not.toHaveBeenCalled();
+                return;
+            }
+            expect(result.kind).toBe("accepted");
+            expect(committed?.state.agenda.map(({ id, status }) => ({ id, status }))).toEqual([
+                { id: "agenda-v1", status: "deferred" },
+                { id: "agenda-next", status: "active" }
+            ]);
+            expect(committed?.state.objective).toEqual(state.objective);
+            await expect(
+                app.execute(
+                    {
+                        protocolVersion: 1,
+                        meetingId: state.id,
+                        expectedMeetingVersion: state.version,
+                        requestId: "promote-candidate",
+                        action: {
+                            kind: "dispose_agenda_candidate",
+                            candidateId: "candidate-1",
+                            disposition: "parked",
+                            reason: "later"
+                        }
+                    },
+                    { caller },
+                    new AbortController().signal
+                )
+            ).resolves.toMatchObject({
+                kind: "rejected",
+                error: { code: "UNAUTHORIZED" }
+            });
+            expect(repository.execute).toHaveBeenCalledOnce();
+            expect(committed?.events).toMatchObject([
+                {
+                    type: "agenda.activated",
+                    payload: { actor: { kind: "identity", actorId: identityId } }
+                }
+            ]);
+        }
+    );
+
     it("round-trips a complete target state without loss", () => {
         const state = makeRunningMeetingStateV1();
         expect(decodeMeetingState(encodeMeetingState(state))).toEqual(state);

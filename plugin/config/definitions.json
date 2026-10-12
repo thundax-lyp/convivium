@@ -13,6 +13,7 @@
                     "skill",
                     "convivium_read_meeting",
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -24,7 +25,7 @@
             "evidenceScopes": [],
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
-                "sha256": "7e85e95c91317ad69044f6e1ff0a528bc71489cc406279552f0421f521a664a2"
+                "sha256": "e09d55c29153c5153f34654359d9bf079d7ffb963c5acf27fb7cc9179c47974d"
             }
         },
         {
@@ -37,6 +38,7 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -62,6 +64,7 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -87,6 +90,7 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -129,6 +133,7 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
@@ -154,6 +159,7 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",

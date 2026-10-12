@@ -123,9 +123,11 @@ const authorizedRole = (action: MeetingAction, scope: ResolvedCallerScope): bool
             ? ["completed", "partial", "no_consensus"].includes(action.outcome)
             : scope.role === "captain" && ["cancelled", "failed"].includes(action.outcome);
     }
+    if (action.kind === "activate_agenda") {
+        return scope.role === "captain" || scope.role === "manager";
+    }
     if (
         [
-            "activate_agenda",
             "dispose_agenda_candidate",
             "resolve_question",
             "dispose_issue",
