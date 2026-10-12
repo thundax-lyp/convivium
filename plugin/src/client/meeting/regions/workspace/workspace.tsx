@@ -1,9 +1,10 @@
 import * as React from "react";
-import type { ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import type { MeetingSummary } from "@/protocol/index.ts";
 import {
     Button,
     IconBrowseOutlineMedium,
+    IconChevronUpOutlineMedium,
     IconRefreshOutlineMedium
 } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
@@ -64,7 +65,7 @@ const MeetingContent = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className={styles.refreshButton}
+                    className={`${styles.floatingButton} ${styles.refreshButton}`}
                     aria-label={t("panel.actions.refresh")}
                     onClick={props.requestRefresh}
                 >
@@ -169,14 +170,39 @@ const MeetingContent = ({
 };
 
 export const MeetingWorkspace = (props: MeetingPanelLayoutProps): ReactElement => {
+    const t = useMeetingTranslate();
+    const viewport = useRef<HTMLElement>(null);
+    const [scrolled, setScrolled] = useState(false);
     const meeting = props.meetings.find((item) => item.meetingId === props.selectedId);
     return (
-        <main className={styles.main}>
+        <main
+            ref={viewport}
+            className={styles.main}
+            onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+        >
             {meeting === undefined ? (
                 <EmptyMeeting />
             ) : (
                 <MeetingContent {...props} meeting={meeting} />
             )}
+            {scrolled &&
+            meeting &&
+            props.detail &&
+            (props.activeMode ?? "overview") === "overview" ? (
+                <div className={styles.backToTopSlot}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={`${styles.floatingButton} ${styles.backToTopButton}`}
+                        aria-label={t("panel.actions.backToTop")}
+                        title={t("panel.actions.backToTop")}
+                        onClick={() => viewport.current?.scrollTo({ top: 0, behavior: "instant" })}
+                    >
+                        <IconChevronUpOutlineMedium size={16} aria-hidden="true" />
+                    </Button>
+                </div>
+            ) : null}
         </main>
     );
 };
