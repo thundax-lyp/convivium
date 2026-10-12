@@ -12,38 +12,7 @@ const fail = (path: string): MeetingStateValidationResult => {
     return { kind: "invalid", code: "INVALID_ARGUMENT", path };
 };
 
-const legacyCompatibilityFieldPath = (value: unknown, path = "$"): string | undefined => {
-    if (Array.isArray(value)) {
-        for (let i = 0; i < value.length; i++) {
-            const result = legacyCompatibilityFieldPath(value[i], path + "[" + i + "]");
-            if (result) {
-                return result;
-            }
-        }
-        return undefined;
-    }
-    if (!record(value)) {
-        return undefined;
-    }
-    for (const key of ["reviewResponsibilityIds", "requiredReviewerIds", "formatApprovals"]) {
-        if (own(value, key)) {
-            return path + "." + key;
-        }
-    }
-    for (const [key, child] of Object.entries(value)) {
-        const result = legacyCompatibilityFieldPath(child, path + "." + key);
-        if (result) {
-            return result;
-        }
-    }
-    return undefined;
-};
-
 const validateRawMeetingState = (value: RecordValue): string | undefined => {
-    const legacyPath = legacyCompatibilityFieldPath(value);
-    if (legacyPath) {
-        return legacyPath;
-    }
     if (!Array.isArray(value.rounds)) {
         return undefined;
     }

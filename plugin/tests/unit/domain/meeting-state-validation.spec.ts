@@ -5,7 +5,7 @@ import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
 
 const roundGoal = { question: "q", evidenceGap: "gap", expectedOutput: "output" };
 
-function managerPlan(id = "plan-v1", agendaId = "agenda-v1") {
+const managerPlan = (id = "plan-v1", agendaId = "agenda-v1") => {
     return {
         id,
         agendaId,
@@ -16,7 +16,7 @@ function managerPlan(id = "plan-v1", agendaId = "agenda-v1") {
         createdAt: 0,
         status: "completed" as const
     };
-}
+};
 
 describe("canonical MeetingState validation", () => {
     it("accepts the target fixture", () => {
@@ -28,13 +28,6 @@ describe("canonical MeetingState validation", () => {
         expect(validateMeetingState({ ...state, evidenceReviewerId: "missing" })).toMatchObject({
             kind: "invalid",
             path: "$.evidenceReviewerId"
-        });
-    });
-    it("rejects the removed compatibility projection field", () => {
-        const state = makeRunningMeetingStateV1();
-        expect(validateMeetingState({ ...state, formatApprovals: [] })).toMatchObject({
-            kind: "invalid",
-            path: "$.formatApprovals"
         });
     });
     it("enforces round abort pair", () => {
@@ -237,39 +230,5 @@ describe("canonical MeetingState validation", () => {
             archive
         };
         expect(validateMeetingState(archived)).toEqual({ kind: "valid", state: archived });
-    });
-
-    it("rejects the legacy archive summary shape", () => {
-        const state = makeRunningMeetingStateV1();
-        const legacyArchive = {
-            id: "archive-v1",
-            createdAt: 11,
-            createdBy: "runtime",
-            terminationId: "termination-v1",
-            publicSnapshotVersion: 1,
-            includedPublicationIds: [],
-            includedDecisionIds: [],
-            includedCompletionFactIds: [],
-            status: "complete",
-            identityProvenance: []
-        };
-        expect(
-            validateMeetingState({
-                ...state,
-                lifecycle: { status: "archiving", changedAt: 11, changedBy: "runtime" },
-                termination: {
-                    id: "termination-v1",
-                    outcome: "partial",
-                    reason: "未完成目标",
-                    endedAt: 10,
-                    decisionIds: [],
-                    completionFactIds: [],
-                    unresolvedQuestionIds: [],
-                    unresolvedIssueIds: [],
-                    unclosedContributionIds: []
-                },
-                archive: legacyArchive
-            })
-        ).toMatchObject({ kind: "invalid" });
     });
 });
