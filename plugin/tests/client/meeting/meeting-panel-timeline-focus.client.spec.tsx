@@ -30,15 +30,16 @@ describe("Meeting timeline presentation", () => {
                 "zh"
             )
         );
-        const identities = screen.getByRole("group", { name: "身份" });
-        expect(identities.textContent).toContain("Research Manager");
+        const identities = screen.getByRole("group", { name: "参与者" });
+        expect(identities.textContent).toContain("主持人");
+        expect(
+            within(identities).getByRole("button", { name: "Research Contributor", exact: true })
+        ).toBeTruthy();
         expect(identities.textContent).not.toContain("manager-v1");
-        fireEvent.click(
-            within(identities).getByRole("button", { name: "主持人: Research Manager" })
-        );
+        fireEvent.click(within(identities).getByRole("button", { name: "主持人" }));
         expect(onFiltersChange).toHaveBeenCalledWith({
             ...INITIAL_TIMELINE_FILTERS,
-            identityIds: ["manager-v1"]
+            participantIds: ["identity:manager-v1"]
         });
         const contentTypes = screen.getByRole("group", { name: "内容类型" });
         fireEvent.click(within(contentTypes).getByRole("button", { name: "证据", exact: true }));

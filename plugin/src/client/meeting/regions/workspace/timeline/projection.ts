@@ -366,8 +366,10 @@ export const filterTimelineNodes = (
 ): readonly TimelineNode[] => {
     return nodes.filter(
         (node) =>
-            (filters.identityIds.length === 0 ||
-                (node.identityId !== undefined && filters.identityIds.includes(node.identityId))) &&
+            (filters.participantIds.length === 0 ||
+                filters.participantIds.includes(
+                    node.identityId ? `identity:${node.identityId}` : `role:${node.lane}`
+                )) &&
             (filters.objectKinds.length === 0 || filters.objectKinds.includes(node.objectKind))
     );
 };

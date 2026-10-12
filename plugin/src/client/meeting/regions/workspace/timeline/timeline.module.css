@@ -17,8 +17,7 @@
 .group[data-group-status="aborted"] {
     border-width: 2px;
 }
-.detailToggle,
-.roles {
+.detailToggle {
     display: flex;
     align-items: center;
     gap: 8px;

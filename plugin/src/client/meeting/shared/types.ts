@@ -21,9 +21,8 @@ export interface MeetingFocusTarget {
 }
 
 export interface TimelineFilterState {
-    identityIds: readonly string[];
+    participantIds: readonly string[];
     objectKinds: readonly string[];
-    collapsedLanes: readonly TimelineLane[];
 }
 
 export interface MeetingsWorkspaceState {

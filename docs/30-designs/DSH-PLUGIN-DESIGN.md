@@ -84,7 +84,9 @@ DSH Conversation
             └─ TimelineContent
 ```
 
-UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。参与者筛选、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+
+筛选区域按“参与者 → 内容类型 → 事件”排列。“参与者”统一筛选实际事件行为者，按用户、主持人、各嘉宾与审核者的可见姓名、系统展示；嘉宾和审核者选项直接显示姓名，不加角色前缀，缺少姓名时使用角色与序号；多选取并集，未选择时显示全部。用户和系统分别匹配 captain 与无身份的 system 事件，具体 Agent 绑定原身份 ID；不以关联身份推断行为者。不再提供独立角色隐藏按钮。
 
 “内容类型”按 Event.subject.kind 筛选，显示业务内容名称，例如讨论轮次、证据、证据审核、审核反馈、轮次成果、主持安排、会议结果和会议归档；“事件”按 Event.kind 筛选，描述具体发生的行为。两者不改变事件字段和内部标识。
 
@@ -118,9 +120,8 @@ interface MeetingsWorkspaceState {
   activeMode: "overview" | "timeline";
   focusTarget?: { meetingId: string; objectKind: string; objectId: string };
   timeline: {
-    identityFilter: string[];
+    participantFilter: string[];
     typeFilter: string[];
-    collapsedLanes: string[];
   };
 }
 ```
@@ -239,7 +240,7 @@ Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromL
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 
-时间线提供 identity、object type 和事件 kind 筛选，以及滚动和角色隐藏。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
+时间线提供 参与者、object type 和事件 kind 筛选，以及滚动。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
 
 ### 模式定位、响应式与失败
 

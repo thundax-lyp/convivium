@@ -254,7 +254,9 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 
 ### MO-FR-17：Meetings View 概览与时间线
 
-UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。参与者筛选、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+
+“参与者”统一筛选实际事件行为者，按用户、主持人、各嘉宾与审核者的可见姓名、系统展示；多选取并集，未选择时显示全部。用户和系统分别匹配 captain 与无身份的 system 事件，具体 Agent 绑定原身份 ID；不以关联身份推断行为者。不再提供独立角色隐藏按钮。
 
 “内容类型”按 Event.subject.kind 筛选，显示业务内容名称，例如讨论轮次、证据、证据审核、审核反馈、轮次成果、主持安排、会议结果和会议归档；“事件”按 Event.kind 筛选，描述具体发生的行为。两者不改变事件字段和内部标识。
 
@@ -262,14 +264,14 @@ UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（
 2. Meeting Navigator 必须展示 MO-FR-11.2 规定的完整摘要列表，按 `updatedAt` 倒序排列。导航区采用 DSH 会话导航的标题、搜索和树列表结构；行首以图标表示生命周期，中间目标单行省略，右侧显示本地化相对更新时间。搜索只筛选当前已加载摘要的目标，空列表和无匹配结果展示空态，不触发详情读取或改变当前选择。View 初次挂载时不得自动选择或读取任一 Meeting；用户选择后才读取该 Meeting 的完整 caller-filtered 状态。
 3. 当前 Meeting Workspace 必须显示标题、状态和版本，并以视觉层级低于 DSH View 标签的“概览 / 时间线”次级选项卡切换内容。两个模式必须共享同一个 `selectedMeetingId`、完整详情和刷新订阅，时间线不得再提供独立 Meeting 选择器。
    Overview 和 Timeline 详情可用时，右下提供竖向 ButtonGroup，上方为“回到顶端”、下方为“去底端”图标按钮，与右上刷新按钮右侧对齐、按钮尺寸相同。悬停或键盘焦点进入 Workspace 时整个按钮组显示；无悬停能力的设备上保持可见。处于顶端时禁用向上按钮，处于底端时禁用向下按钮，内容无需滚动时两者均禁用；内容或视口尺寸变化后更新状态。点击只将当前 Workspace 滚动到对应边界，不改变会议选择或数据。按钮支持键盘操作及 zh/en 可访问名称。
-4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选、滚动和角色隐藏；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
+4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选和滚动；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
 5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表除 MO-FR-19 的删除入口外只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权；已归档会议的整体删除仅按 MO-FR-19 执行，不授予修改归档事实的权限。
 6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review 和 MeetingTask。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以按时间顺序左右交错的纵向卡片展示，保留 Captain、Manager、Contributor、Reviewer 和系统五类角色标识，展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线事件必须来自 Meeting 成功提交时原子追加的基础事件日志；一个 accepted command 按实际发生结果追加零条、一条或多条事件，每条事件只表达一个已经发生的事实，使用 Repository 分配的连续 `eventSeq`、该次 `meetingVersion` 和 Runtime 注入的同一个已发生时间，并携带明确 actor、主对象、带类型关联对象及重放该次发生所需的最小不可变数据。最小不可变数据可以包含正式 event contract 明确列出的发生时摘要、陈述、理由、范围和失败摘要，但不得复制完整领域对象、私信、Session、capability、凭据或隐藏推理。事件日志不包含 milestone、阶段实例、展示标题、lane、折叠状态或 Client 排序字段。读取、拒绝、receipt 重放、effect/outbox 重试、只更新内部 Session ownership 的提交和纯展示操作不得追加事件。
 9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源使用对应角色标识；没有明确行为者字段的对象使用系统角色标识。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
 10. 对 Meeting，Client 只能从 `timelineEvents` 建立时间节点，先使用 occurrence event 自带的不可变数据，再使用同一 `MeetingView` 中可见对象补充当前详情；不得重新扫描 DTO 时间字段制造事件，也不得用当前对象覆盖历史值。稳定排序、分组、筛选、高亮和对象定位只用于展示，不得据此构造领域提交顺序、因果关系或新的基础事件；首版不绘制推断性的事件间因果箭头。既有测试数据的清理见第 22 条。
-11. 时间线必须提供基于现有可见字段的身份和数据类型筛选，以及滚动和按角色隐藏；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
+11. 时间线必须提供基于现有可见字段的参与者和数据类型筛选，以及滚动；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
 12. 概览不显示时间线内容或对象定位按钮，时间线通过 Workspace 的独立 Tab 访问；时间线到概览的定位只在同一 Selected Meeting Workspace 内切换模式并定位稳定对象。定位目标不存在、不可见或目标模式不展示时使用中性失败提示，不得区分不存在与无权查看，也不得改变 Meeting 状态、筛选或权限。
 13. 宽屏中 Navigator 作为左侧栏；窄屏中同一 Navigator 折叠为显示当前 Meeting 的按钮和摘要列表抽屉，关闭后 Workspace 占满可用宽度。时间线在窄屏仍保留左右交错布局，必要时使用水平滚动，不产生第二份选择状态。
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘方向键按时间顺序遍历可见节点；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
