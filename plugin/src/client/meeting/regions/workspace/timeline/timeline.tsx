@@ -286,7 +286,6 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     );
     return (
         <section aria-label={t("panel.timeline.title")}>
-            <p>{t("panel.timeline.disclaimer")}</p>
             <TimelineFilters
                 detail={props.detail}
                 nodes={allNodes}
