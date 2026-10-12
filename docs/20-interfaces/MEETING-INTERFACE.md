@@ -1394,6 +1394,8 @@ type AgentNoticePayload =
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
 
+Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` 说明受影响结论、解除条件及仍可推进的路径；它随 plan 原子提交并进入 `manager_plan.recorded` 事件，不新增异常实体或改变 Issue/Agenda/lifecycle。`blockingReason` 可与 `open_round` 或 `continue_agenda` 同时存在，不隐式触发 `stop_agenda`、结束或议题激活。记录只表示阻塞判断，不自动满足目标、处置 Issue 或解除依赖。局部阻塞后的继续与正常停止条件见 [ER-FR-7](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划)。
+
 `agenda_stopped` 由接受 `stop_agenda` 的同一事务为当前 Manager 生成一次 durable outbox effect；payload 仅含 `planId`、`agendaId` 和接收方 ID。dispatcher 只在该计划仍是当前 active `stop_agenda` 且接收方仍为负责该 Agenda 的 Manager 时投递；失效通知不得驱动后续动作。Manager 收到后另行读取会议、扫描后续工作并决定继续或正常结束；通知本身不改变议题或会议状态。
 
 `round_opened` 由 `open_round` 提交为负责该 Agenda 的每位 Contributor 分别生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方仍是负责该 Agenda 的 active Contributor、Round 仍 open，才投递到其独立 Session。通知只提示重新读取 caller-visible Meeting，不自动举手或授予 Contribution。
