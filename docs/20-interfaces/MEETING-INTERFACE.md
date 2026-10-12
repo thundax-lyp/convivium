@@ -1089,7 +1089,7 @@ interface RefreshNotice {
 
 Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input:ReadMeetingRequest}`；adapter 必须从 exec.agent 解析 active meeting-owned ownership，并核对 meetingId、identityId、角色与 sessionOwnershipId。Agent 无绑定或跨 Meeting 一律 UNAUTHORIZED，不再有 Captain Session 回退。用户侧通过可信 loopback `conviviumMeetings.read` 获取用户投影；无需 Session。两条路径均不提交 command、不改变 version、不产生 receipt/fact/event/outbox。解析错误 INVALID_ARGUMENT，恢复失败不得返回不完整事实。
 
-`timelineEvents` 只向可信 loopback local controller 返回，Agent identity projection 必须缺席；它按 `eventSeq` 升序复制下述安全字段。基础事件排除 private content、Session 和 capability，因此当前唯一接收者可以读取完整事件序列；未来若向普通 identity 开放，必须另行定义 event-level caller filtering，不得复用本契约扩大可见性。`eventSeq` 是 Meeting 内单调递增的 Repository 序号，`(meetingId,eventSeq)` 是唯一身份，不新增 event ID。`occurredAt` 由 application 的一次 `Clock.now()` 注入，同一 command 产生的全部 event 与 fact 使用该值；Repository 不为事件另取发生时间。`meetingVersion` 是该提交的新版本；actor、subject、typed relations 和 `data` 由 Runtime 从可信 caller scope、action、transition result 与提交前后状态生成，caller 不能提交。
+`timelineEvents` 对可信 loopback local controller 必须返回，Agent identity projection 必须缺席（因此共享 DTO 字段为 optional，不表示旧数据兼容）；它按 `eventSeq` 升序复制下述安全字段。基础事件排除 private content、Session 和 capability，因此当前唯一接收者可以读取完整事件序列；未来若向普通 identity 开放，必须另行定义 event-level caller filtering，不得复用本契约扩大可见性。`eventSeq` 是 Meeting 内单调递增的 Repository 序号，`(meetingId,eventSeq)` 是唯一身份，不新增 event ID。`occurredAt` 由 application 的一次 `Clock.now()` 注入，同一 command 产生的全部 event 与 fact 使用该值；Repository 不为事件另取发生时间。`meetingVersion` 是该提交的新版本；actor、subject、typed relations 和 `data` 由 Runtime 从可信 caller scope、action、transition result 与提交前后状态生成，caller 不能提交。
 
 一个形成公开 Meeting 事实的成功 command 追加 `0..n` 条基础事件；事件 kind 描述实际发生结果而不是复用 command 名称，一条事件只表达一个 occurrence。一次发布若物化一个 Publication 和多个 FormalMessage，必须分别追加一条 `round.published` 和每个消息各一条 `formal_message.published`；同一次提交发生 lifecycle 变化时另追加 `meeting.lifecycle_changed`。无公开结果的内部 Session ownership 更新可以产生零事件。读取、协议或领域拒绝、version conflict、receipt 重放、outbox claim/lease/delivery、refresh、Session notice 和 Client 交互不追加事件。
 
@@ -1131,7 +1131,7 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 | `archive.started`              | archive                 | `MeetingEventDataByKind["archive.started"]`              |
 | `archive.completed`            | archive                 | `MeetingEventDataByKind["archive.completed"]`            |
 
-新 Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。旧 Meeting 的首条事件没有 `logVersion:1` 时，`timelineEvents` 整体缺席；后续命令可以沿用通用 Repository event append，但这些尾部记录不构成完整历史且不得公开，读取时不回填或改写旧 Meeting。
+Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。缺少完整事件日志的既有测试会议应删除，不提供旧数据识别、兼容或迁移路径。
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 

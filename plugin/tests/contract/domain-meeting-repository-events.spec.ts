@@ -157,14 +157,6 @@ describe("Meeting committed event log", () => {
         await repository.close();
     });
 
-    it("returns legacy without interpreting a log that has no complete marker", async () => {
-        const { repository } = await fixture();
-        const projection = Reflect.get(repository, "projection");
-        projection.events[seqKey(1)].payload = { meetingId: repository.meetingId };
-        expect(await repository.readCommittedEvents()).toEqual({ kind: "legacy" });
-        await repository.close();
-    });
-
     it.each([
         "gap",
         "unknown-kind",

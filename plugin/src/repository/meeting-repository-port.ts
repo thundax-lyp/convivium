@@ -42,9 +42,7 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     ): Promise<SessionOwnership>;
     read(): Promise<MeetingSnapshot<TState>>;
     readCommittedFacts(): Promise<readonly CommittedFactRecord<TState>[]>;
-    readCommittedEvents(): Promise<
-        { kind: "legacy" } | { kind: "complete"; events: readonly PersistedMeetingEvent[] }
-    >;
+    readCommittedEvents(): Promise<{ kind: "complete"; events: readonly PersistedMeetingEvent[] }>;
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
     hasUnfinishedPrivateMeetingMail(): Promise<boolean>;

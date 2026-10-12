@@ -595,15 +595,12 @@ export class DomainMeetingRepository<TState = JsonObject>
                 resultingState: this.decodeState(fact.resultingState)
             }));
     }
-    async readCommittedEvents(): Promise<
-        { kind: "legacy" } | { kind: "complete"; events: readonly PersistedMeetingEvent[] }
-    > {
+    async readCommittedEvents(): Promise<{
+        kind: "complete";
+        events: readonly PersistedMeetingEvent[];
+    }> {
         this.ensureOpen();
         const projection = this.projection;
-        const first = projection?.events[seqKey(1)];
-        if (first?.payload.logVersion !== 1) {
-            return { kind: "legacy" };
-        }
         const unavailable = () =>
             new RepositoryError(
                 "RECOVERY_UNAVAILABLE",

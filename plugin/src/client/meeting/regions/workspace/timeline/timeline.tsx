@@ -58,7 +58,7 @@ export interface TimelineFiltersProps {
 
 export interface TimelineViewportProps extends TimelineProps {
     nodes: readonly TimelineNode[];
-    groups?: readonly TimelineMilestoneGroup[];
+    groups: readonly TimelineMilestoneGroup[];
 }
 
 const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
@@ -323,16 +323,8 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
         setShowDetails(false);
         setEventKinds([]);
     }, [detail.meetingId]);
-    if (
-        detail.timelineEvents === undefined &&
-        detail.lifecycle.status === "archived" &&
-        detail.archive?.status !== "complete"
-    ) {
-        return <p>{t("panel.state.archiveUnavailable")}</p>;
-    }
     const allNodes = buildTimelineNodes(detail);
-    const groups =
-        detail.timelineEvents === undefined ? undefined : groupTimelineMilestones(allNodes);
+    const groups = groupTimelineMilestones(allNodes);
     const filtered = filterTimelineNodes(allNodes, filters).filter(
         (node) =>
             eventKinds.length === 0 ||
@@ -348,14 +340,9 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
             ? filtered
             : filtered.filter(isPrimaryNode);
     const visibleKeys = new Set(visible.map((node) => node.key));
-    const nodes =
-        groups === undefined
-            ? visible
-            : groups.flatMap((group) =>
-                  allNodes.filter(
-                      (node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key)
-                  )
-              );
+    const nodes = groups.flatMap((group) =>
+        allNodes.filter((node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key))
+    );
     return (
         <section aria-label={t("panel.timeline.title")}>
             <p>{t("panel.timeline.disclaimer")}</p>
@@ -552,15 +539,12 @@ export const TimelineViewport = ({
     const changeZoom = (delta: number) =>
         onFiltersChange({ ...filters, zoom: zoomLevels[zoomIndex + delta]! });
     const collapsed = filters.collapsedLanes;
-    const blocks =
-        groups === undefined
-            ? [{ group: undefined, nodes }]
-            : groups
-                  .map((group) => ({
-                      group,
-                      nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
-                  }))
-                  .filter((block) => block.nodes.some((node) => !collapsed.includes(node.lane)));
+    const blocks = groups
+        .map((group) => ({
+            group,
+            nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
+        }))
+        .filter((block) => block.nodes.some((node) => !collapsed.includes(node.lane)));
     let alternatingIndex = 0;
     return (
         <div>
@@ -625,20 +609,18 @@ export const TimelineViewport = ({
                 </div>
                 {blocks.map(({ group, nodes: members }) => (
                     <section
-                        key={group?.key ?? "legacy"}
-                        className={group === undefined ? undefined : styles.group}
-                        data-group-key={group?.key}
-                        data-group-status={group?.status}
-                        data-group-occurrence={group?.occurrence}
-                        data-started-at={group?.startedAt}
-                        data-completed-at={group?.completedAt}
+                        key={group.key}
+                        className={styles.group}
+                        data-group-key={group.key}
+                        data-group-status={group.status}
+                        data-group-occurrence={group.occurrence}
+                        data-started-at={group.startedAt}
+                        data-completed-at={group.completedAt}
                     >
-                        {group === undefined ? null : (
-                            <h3>
-                                {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
-                                {t(`panel.timeline.groupStatus.${group.status}`)}
-                            </h3>
-                        )}
+                        <h3>
+                            {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
+                            {t(`panel.timeline.groupStatus.${group.status}`)}
+                        </h3>
                         <div
                             className={styles.grid}
                             style={

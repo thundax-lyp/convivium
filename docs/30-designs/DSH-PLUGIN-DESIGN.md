@@ -226,9 +226,9 @@ interface TimelineMilestoneGroup {
 | `identity.recommended`、`identity.admission_recorded`                                                                                                                                | `other`                                                  | 过程细节；失败保持关键可见            |
 | `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | `other`                                                  | 关键状态变化                          |
 
-有 `timelineEvents` 时，活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
+活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
 
-为保留固定人工 Web 工作区中的旧 Meeting，`timelineEvents` 缺席时继续调用现有 `buildTimelineNodesFromLegacyView`：它保持变更前按 DTO 明确时间建立节点的行为，但不与事件节点混合，也不写回事件日志。`timelineEvents` 即使为空数组也表示完整事件模式，不得降级到 legacy；新 Meeting 的数组至少包含 `meeting.created`。
+Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromLegacyView` 或 DTO 时间字段 fallback。缺少完整事件日志的既有测试数据按确认范围删除；不增加旧数据识别或拒绝机制，不回填历史。共享 `MeetingView` 中事件字段为 optional 仅服务 identity 的事件可见性隔离，不代表 Captain 读取可以缺少日志。
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 

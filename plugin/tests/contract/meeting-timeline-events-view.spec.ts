@@ -68,8 +68,7 @@ it("projects every complete event for captain even if its subject no longer appe
     ).toBe("historical-version");
 });
 
-it("omits events for legacy and all identity roles, but does not turn complete empty logs into legacy", () => {
-    expect(projectMeetingView(snapshot, { kind: "captain" })).not.toHaveProperty("timelineEvents");
+it("omits events for identity roles and preserves explicitly supplied event arrays", () => {
     expect(projectMeetingView(snapshot, { kind: "captain" }, undefined, []).timelineEvents).toEqual(
         []
     );
