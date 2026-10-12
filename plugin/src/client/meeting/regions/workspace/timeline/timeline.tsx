@@ -435,17 +435,6 @@ export const TimelineViewport = ({
 }: TimelineViewportProps): ReactElement => {
     const t = useMeetingTranslate();
     const viewportRef = useRef<HTMLDivElement | null>(null);
-    const latestVisibleKey = nodes
-        .filter((node) => !filters.collapsedLanes.includes(node.lane))
-        .reduce<TimelineNode | undefined>(
-            (latest, node) =>
-                latest === undefined ||
-                node.time > latest.time ||
-                (node.time === latest.time && (node.eventSeq ?? 0) >= (latest.eventSeq ?? 0))
-                    ? node
-                    : latest,
-            undefined
-        )?.key;
     const dateFormatter = new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
         timeStyle: "medium"
@@ -529,19 +518,6 @@ export const TimelineViewport = ({
     return (
         <div>
             {focusMissing ? <p role="status">{t("panel.state.focusMissing")}</p> : null}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                    (latestVisibleKey === undefined
-                        ? undefined
-                        : nodeRefs.current.get(latestVisibleKey)
-                    )?.scrollIntoView?.({ block: "nearest", inline: "end" })
-                }
-            >
-                {t("panel.timeline.latest")}
-            </Button>
             <div
                 ref={viewportRef}
                 aria-label={t("panel.timeline.aria.viewport")}

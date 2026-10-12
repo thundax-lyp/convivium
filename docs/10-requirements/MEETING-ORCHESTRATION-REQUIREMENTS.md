@@ -265,7 +265,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 8. 时间线事件必须来自 Meeting 成功提交时原子追加的基础事件日志；一个 accepted command 按实际发生结果追加零条、一条或多条事件，每条事件只表达一个已经发生的事实，使用 Repository 分配的连续 `eventSeq`、该次 `meetingVersion` 和 Runtime 注入的同一个已发生时间，并携带明确 actor、主对象、带类型关联对象及重放该次发生所需的最小不可变数据。最小不可变数据可以包含正式 event contract 明确列出的发生时摘要、陈述、理由、范围和失败摘要，但不得复制完整领域对象、私信、Session、capability、凭据或隐藏推理。事件日志不包含 milestone、阶段实例、展示标题、lane、折叠状态或 Client 排序字段。读取、拒绝、receipt 重放、effect/outbox 重试、只更新内部 Session ownership 的提交和纯展示操作不得追加事件。
 9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源使用对应角色标识；没有明确行为者字段的对象使用系统角色标识。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
 10. 对 Meeting，Client 只能从 `timelineEvents` 建立时间节点，先使用 occurrence event 自带的不可变数据，再使用同一 `MeetingView` 中可见对象补充当前详情；不得重新扫描 DTO 时间字段制造事件，也不得用当前对象覆盖历史值。稳定排序、分组、筛选、高亮和对象定位只用于展示，不得据此构造领域提交顺序、因果关系或新的基础事件；首版不绘制推断性的事件间因果箭头。既有测试数据的清理见第 22 条。
-11. 时间线必须提供基于现有可见字段的身份、数据类型和状态筛选，以及滚动、按角色隐藏和回到最新；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
+11. 时间线必须提供基于现有可见字段的身份、数据类型和状态筛选，以及滚动和按角色隐藏；当前范围不提供全文搜索。筛选不得泄露被 caller filtering 删除的对象是否存在。
 12. 概览不显示时间线内容或对象定位按钮，时间线通过 Workspace 的独立 Tab 访问；时间线到概览的定位只在同一 Selected Meeting Workspace 内切换模式并定位稳定对象。定位目标不存在、不可见或目标模式不展示时使用中性失败提示，不得区分不存在与无权查看，也不得改变 Meeting 状态、筛选或权限。
 13. 宽屏中 Navigator 作为左侧栏；窄屏中同一 Navigator 折叠为显示当前 Meeting 的按钮和摘要列表抽屉，关闭后 Workspace 占满可用宽度。时间线在窄屏仍保留左右交错布局，必要时使用水平滚动，不产生第二份选择状态。
 14. 时间线的 DOM 阅读顺序必须与时间顺序一致，键盘方向键按时间顺序遍历可见节点；定位后焦点移到目标并报告时间、身份、类型与状态。颜色不能成为角色、状态或关联的唯一表达。
