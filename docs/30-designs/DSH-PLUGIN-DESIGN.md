@@ -92,7 +92,9 @@ DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的
 
 Overview 和 Timeline 详情可用且 Workspace 已向下滚动时，右下提供同为 30px 的圆形回到顶端按钮，与刷新按钮共用尺寸样式和 8px 右侧间距；两种模式共用 Workspace 纵向滚动区域及同一个按钮，通过 sticky slot 保持浮动，悬停 Workspace 或键盘焦点进入时显示，无悬停能力的设备上保持可见。点击直接将当前模式的 Workspace 滚动到顶部，不滚动 Host 页面或 Navigator。滚动位置在顶部（包括无需滚动的短内容）、未选择会议及详情尚不可用时不展示。
 
-身份筛选使用 caller-visible 的 displayName 与角色，关联对象筛选使用本地化类型、同类展示序号，身份关联补充可见名称；缺少名称时使用角色与序号，不回退到内部 ID。概览中的发布入口使用轮次目标，审核送达与决策展示状态及理由；时间线内容仅有原始对象 ID 时使用对象类型替代，不展示作为归档详情的原始 ID。key、筛选值及定位关联保留内部 ID，正文和证据引用编号保持原文。
+时间线事件卡片纵向间距固定为 20px，不提供缩放控件。
+
+身份筛选使用 caller-visible 的 displayName 与角色；缺少名称时使用角色与序号，不回退到内部 ID。概览中的发布入口使用轮次目标，审核送达与决策展示状态及理由；时间线内容仅有原始对象 ID 时使用对象类型替代，不展示作为归档详情的原始 ID。key、筛选值及定位关联保留内部 ID，正文和证据引用编号保持原文。
 
 取得非空列表后，Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；搜索无匹配使用搜索图标与 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
@@ -115,8 +117,6 @@ interface MeetingsWorkspaceState {
     identityFilter: string[];
     typeFilter: string[];
     statusFilter: string[];
-    relatedObjectFilter: Array<{ objectKind: string; objectId: string }>;
-    zoom: number;
     collapsedLanes: string[];
   };
 }

@@ -12,7 +12,7 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
-    it("labels identities and related objects without exposing IDs and retains filter bindings", () => {
+    it("labels identities without exposing IDs and retains filter bindings", () => {
         const detail = eventTimelineFixture();
         detail.identities = detail.identities.map((identity) => ({
             ...identity,
@@ -33,12 +33,10 @@ describe("Meeting timeline presentation", () => {
         const identities = screen.getByRole("group", { name: "身份" });
         expect(identities.textContent).toContain("Research Manager");
         expect(identities.textContent).not.toContain("manager-v1");
-        const related = screen.getByRole("group", { name: "关联对象" });
-        expect(related.textContent).not.toContain("round-1");
-        fireEvent.click(within(related).getByRole("button"));
+        fireEvent.click(within(identities).getByRole("button", { name: "经理: Research Manager" }));
         expect(onFiltersChange).toHaveBeenCalledWith({
             ...INITIAL_TIMELINE_FILTERS,
-            relatedObjects: [{ objectKind: "round", objectId: "round-1" }]
+            identityIds: ["manager-v1"]
         });
     });
     it.each([false, true])(

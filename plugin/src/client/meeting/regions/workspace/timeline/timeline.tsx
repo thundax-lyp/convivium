@@ -21,9 +21,7 @@ import {
 import type {
     MeetingFocusTarget,
     TimelineFilterState,
-    TimelineLane,
-    TimelineObjectRef,
-    TimelineZoom
+    TimelineLane
 } from "@/client/meeting/shared/index.ts";
 import { Ellipsis } from "@/client/meeting/components/index.ts";
 import styles from "./timeline.module.css";
@@ -63,8 +61,6 @@ export interface TimelineViewportProps extends TimelineProps {
 }
 
 const lanes: readonly TimelineLane[] = ["captain", "manager", "contributor", "reviewer", "system"];
-
-const zoomLevels: readonly TimelineZoom[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
 export const findAdjacentTimelineKey = ({
     nodes,
@@ -185,14 +181,6 @@ export const TimelineFilters = ({
     ];
     const kinds = [...new Set(nodes.map((node) => node.objectKind))];
     const statuses = [...new Set(nodes.flatMap((node) => (node.status ? [node.status] : [])))];
-    const refs = [
-        ...new Map(
-            nodes
-                .flatMap((node) => node.relatedObjects)
-                .map((ref) => [`${ref.objectKind}:${ref.objectId}`, ref] as const)
-        ).values()
-    ];
-    const refKey = (ref: TimelineObjectRef) => `${ref.objectKind}:${ref.objectId}`;
     return (
         <div>
             {filterGroup(
@@ -242,32 +230,6 @@ export const TimelineFilters = ({
                     ].join(" / "),
                 (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
             )}
-            {filterGroup(
-                t("panel.timeline.filter.related"),
-                refs.map(refKey),
-                filters.relatedObjects.map(refKey),
-                (key) => {
-                    const ref = refs.find((item) => refKey(item) === key)!;
-                    const ordinal =
-                        refs
-                            .filter((item) => item.objectKind === ref.objectKind)
-                            .findIndex((item) => refKey(item) === key) + 1;
-                    const heading = `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)} ${ordinal}`;
-                    if (ref.objectKind === "identity") {
-                        const node = nodes.find((item) => item.identityId === ref.objectId);
-                        const name = node && identityName(detail, node);
-                        return name ? `${heading}: ${name}` : heading;
-                    }
-                    return heading;
-                },
-                (key) => {
-                    const keys = toggle(filters.relatedObjects.map(refKey), key);
-                    onChange({
-                        ...filters,
-                        relatedObjects: refs.filter((ref) => keys.includes(refKey(ref)))
-                    });
-                }
-            )}
             <Button
                 type="button"
                 variant="outline"
@@ -278,8 +240,7 @@ export const TimelineFilters = ({
                         ...filters,
                         identityIds: [],
                         objectKinds: [],
-                        statuses: [],
-                        relatedObjects: []
+                        statuses: []
                     });
                 }}
             >
@@ -350,8 +311,7 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
         eventKinds.length > 0 ||
         filters.objectKinds.length > 0 ||
         filters.identityIds.length > 0 ||
-        filters.statuses.length > 0 ||
-        filters.relatedObjects.length > 0
+        filters.statuses.length > 0
             ? filtered
             : filtered.filter(isPrimaryNode);
     const visibleKeys = new Set(visible.map((node) => node.key));
@@ -558,9 +518,6 @@ export const TimelineViewport = ({
         consumedFocus.current = focusTarget;
         onFocusConsumed?.();
     }, [focusTarget, nodes, filters, detail.meetingId, onFocusConsumed, onFiltersChange]);
-    const zoomIndex = zoomLevels.indexOf(filters.zoom);
-    const changeZoom = (delta: number) =>
-        onFiltersChange({ ...filters, zoom: zoomLevels[zoomIndex + delta]! });
     const collapsed = filters.collapsedLanes;
     const blocks = groups
         .map((group) => ({
@@ -572,24 +529,6 @@ export const TimelineViewport = ({
     return (
         <div>
             {focusMissing ? <p role="status">{t("panel.state.focusMissing")}</p> : null}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={zoomIndex === zoomLevels.length - 1}
-                onClick={() => changeZoom(1)}
-            >
-                {t("panel.timeline.zoomIn")}
-            </Button>
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={zoomIndex === 0}
-                onClick={() => changeZoom(-1)}
-            >
-                {t("panel.timeline.zoomOut")}
-            </Button>
             <Button
                 type="button"
                 variant="outline"
@@ -644,14 +583,7 @@ export const TimelineViewport = ({
                             {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
                             {t(`panel.timeline.groupStatus.${group.status}`)}
                         </h3>
-                        <div
-                            className={styles.grid}
-                            style={
-                                {
-                                    "--meeting-timeline-gap": `${20 * filters.zoom}px`
-                                } as React.CSSProperties
-                            }
-                        >
+                        <div className={styles.grid}>
                             {members
                                 .filter((node) => !collapsed.includes(node.lane))
                                 .map((node, index) => {

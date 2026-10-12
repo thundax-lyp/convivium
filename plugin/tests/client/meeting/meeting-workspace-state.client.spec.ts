@@ -11,8 +11,6 @@ describe("Meetings workspace state", () => {
             identityIds: [],
             objectKinds: [],
             statuses: [],
-            relatedObjects: [],
-            zoom: 1,
             collapsedLanes: []
         });
         const { result } = renderHook(useMeetingWorkspace);

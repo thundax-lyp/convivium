@@ -11,7 +11,6 @@ export { INITIAL_TIMELINE_FILTERS } from "./model.ts";
 export {
     type MeetingMode,
     type TimelineLane,
-    type TimelineZoom,
     type TimelineObjectRef,
     type MeetingFocusTarget,
     type TimelineFilterState,

@@ -370,15 +370,7 @@ export const filterTimelineNodes = (
                 (node.identityId !== undefined && filters.identityIds.includes(node.identityId))) &&
             (filters.objectKinds.length === 0 || filters.objectKinds.includes(node.objectKind)) &&
             (filters.statuses.length === 0 ||
-                (node.status !== undefined && filters.statuses.includes(node.status))) &&
-            (filters.relatedObjects.length === 0 ||
-                filters.relatedObjects.some((ref) =>
-                    node.relatedObjects.some(
-                        (related) =>
-                            related.objectKind === ref.objectKind &&
-                            related.objectId === ref.objectId
-                    )
-                ))
+                (node.status !== undefined && filters.statuses.includes(node.status)))
     );
 };
 
