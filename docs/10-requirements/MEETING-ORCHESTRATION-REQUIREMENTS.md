@@ -99,7 +99,8 @@
 9. `promote` 必须在一个原子提交中把仍为 `pending` 的 candidate 标为 `promoted` 并创建一个完整的 pending AgendaItem，但不得改变当前 active agenda；`park` 和 `reject` 只改变 candidate 状态。
 10. 同一 candidate 只能处置一次。处置失败不得写入 Meeting state、event、receipt、outbox 或增加 Meeting version；成功处置不产生 outbox。
 11. 当前状态必须以稳定顺序公开 `parkingLot` 的 `id`、`title`、`reason` 和 `status`；归档保留相同事实。未处置的 candidate 不阻塞会议结束，并以 `pending` 原样进入归档。
-12. 任一已授权 MeetingIdentity 可结构化记录 Question 或 Issue；Captain（本地用户）通过可信用户入口 resolve Question 或 dispose Issue，不冒充 MeetingIdentity 提交记录。来源或权限不符必须拒绝，自然语言、Agent 输出或 Manager 计划不能替代结构化处置及用户入口授权。
+12. 已授权议题指可信用户创建会议时提供、或由 Captain 将 candidate 正式 promoted 后形成的 AgendaItem。当前议题收口且无 open Round、后续 pending Agenda 有可执行工作时，Manager 无需用户再次确认即可调用 activate_agenda；默认按已有 Agenda 顺序选择首个可推进项，跳过项必须说明阻塞原因。切换显式记录旧议题 completed/deferred/closed 与理由，局部阻塞优先 deferred；completed 必须有议题已完成的事实，议题切换不改变目标完成状态或解决阻塞。暂停、终态、未收口轮次、未知或非 pending 目标均拒绝；Contributor、Reviewer 不获得激活权限。激活时同事务把目标议题加入有显式责任列表的专职 Manager，使其能主持该议题的轮次；空责任列表仍表示会议内全部议题，不扩张 Contributor 的责任、角色、Session 或工具能力。Captain 保留手工激活与 candidate 处置权限。
+13. 任一已授权 MeetingIdentity 可结构化记录 Question 或 Issue；Captain（本地用户）通过可信用户入口 resolve Question 或 dispose Issue，不冒充 MeetingIdentity 提交记录。来源或权限不符必须拒绝，自然语言、Agent 输出或 Manager 计划不能替代结构化处置及用户入口授权。
 
 ### MO-FR-7：提案、立场与决策
 
@@ -128,7 +129,7 @@
 10. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
 11. `dispose_risk`、`submit_completion_declaration`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，当前范围不撤销或替代 CompletionFact，也不隐式回到 `running`。
 
-Manager 在轮次收口后根据当前正式事实判断是否停止当前议题。`stop_agenda` 只记录停止判断，不指定后续任务，也不自动结束会议；成功提交后必须独立通知 Manager 重新读取会议，扫描待处理议题、候选议题、未完成任务及可执行的取证路径。若有路径，Manager 继续推进；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
+Manager 在轮次收口后根据当前正式事实判断是否停止当前议题。先判断现有证据是否足以形成对原目标的有界答案，再按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 的实质新增信息价值门槛决定是否继续；不要求修复所有次要缺陷。`stop_agenda` 只记录停止判断，不指定后续任务，也不自动结束会议；成功提交后必须独立通知 Manager 重新读取会议，扫描待处理议题、候选议题、未完成任务及可执行的取证路径。若有路径，Manager 继续推进；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
 
 ### MO-FR-9：暂停、恢复与故障隔离
 
@@ -217,6 +218,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 4. `toolFilter` 使用 DSH 原生 ToolRestriction，只能收窄从 global 与祖先 scope 继承的工具；当前 Agent scope 自己注册的工具不受此 filter 屏蔽，不能据此授予工具或扩大 DSH/用户权限。Skill 的角色可见性由其 Preset/Skill 组合保证，不能靠 `toolFilter` 或 persona 声称隔离；文件、网络和执行权限仍由 Host policy 管理。
 5. 每个角色的 AGENTS 身份资源声明“我是谁、职责、可用能力与边界”；可复用的任务工作方法放在按能力命名的原生 DSH `SKILL.md` 中。插件在每个平级 Agent 创建的 scoped setup 中读取所选 Definition 引用的角色 AGENTS 资源，并将其显式注册为该 Agent 的身份指令；DSH 按工作目录读取 AGENTS 的原生规则仍由 Host 管理，不能代替这次角色装载。该 Agent 只获分配自己的 Skills。隔离边界是 Agent 的模型上下文、Skill 目录和按名称加载：其中不得出现其他角色的 AGENTS 身份指令或未分配 Skill；发行包中的静态文件不另承诺文件系统保密。AGENTS 中的能力声明、Skill 名称或正文均不授予 Meeting authority 或实际 DSH Tool/Skill 权限；实际能力由该 Agent 的 Preset、Skill 分配与 Host policy 落实。仓库根 AGENTS.md 不是产品角色资源。
 6. Captain 就是本地用户，不是 Agent、MeetingIdentity、Participant 或 Session parent；创建与控制通过可信用户入口执行并以独立 actor 审计。Host 配置 `initialContributorRoleIds` 从五个已打包 Contributor 角色中选择至少一个，确定新会议的初始参会贡献者；Manager、专职 Reviewer 与所选 Contributor 持有平级、独立、meeting-owned 的持续 AgentSession。当前部署配置选择 GitHub Research Analyst 和 arXiv Research Analyst，三个工程角色的资源仍保留在发行包中，但不进入按该配置新建的会议，也不接收其初始通知；既有会议保持原绑定。只有 provisioning 成功后才能调度，动态准入遵循 MO-FR-13。
+   每个 meeting-owned Agent 使用按 Meeting、Identity 分开的独立工作目录；不同会议或身份不共享工作目录，同一 Session 恢复仍使用原目录。创建必须持久化非空绝对 `cwd`，使 DSH 能读取其历史；目录不能自动扩大文件访问权限，不构成同轮证据隔离。创建、暂停、结束及归档不自动删除工作文件；缺失或不匹配的 Session 工作目录不得被改写为另一个目录继续运行。
 7. 所有选定角色在第一个会议身份 Session 创建前完成 Definition、各自 AGENTS 身份资源、Preset、required Skill 及角色可见 Skill 集合的预检。缺失资源或内容指纹不匹配、可见集合超出该角色分配时 fail closed，不允许 persona-only、假 Skill、隐藏 Schema 或自建 installer 降级。
 8. 模型默认值直接使用 DSH 配置。Host 可通过独立 `agentModelOverrides` 按 Definition ID 提供必要的 provider/model/reasoningEffort 原生覆盖；Definition 本身不保存这些值。Captain/Manager/HTTP 不可提交任意模型配置。模型覆盖不改变 Definition 内容指纹，实际有效值由 Runtime 的私有 PreparedDescriptor 与 Session ownership 固化，创建和恢复时传给 DSH Agent。
 9. Captain 创建请求必须为 Manager、Reviewer 和配置选中的每个初始 Contributor 分别选择精确的 Definition ID；当前范围不提供无 Definition 的初始身份路径。未知定义、内容指纹或角色不匹配、Definition 引用的 Preset/Skill 不可用、角色能力集合不匹配或非法 Host 绑定不得静默回退。
@@ -441,6 +443,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 66. 每个会议条目菜单均按“打开会议 → 分隔线 → 删除会议”排列；未终止、运行中、暂停中、归档清理中、有待处理工作及陈旧/断线/提交中状态不能执行删除。绕过界面直接调用时，服务端仍拒绝不符合条件或非可信用户的请求。
 67. 对可删除会议打开确认框时显示确切目标、不可撤销提示和已确认的数据/Session 清理范围；取消后持久数据、列表和选择不变。确认成功删除后，刷新及 Host 冷重启均无法重新列出或读取该会议，其它会议、普通用户聊天和 Host 共享资源不受影响。
 68. 删除选中会议成功后 Workspace 回到未选择状态；删除其他会议保留当前 Workspace。失败或未完成不显示成功，旧请求和刷新结果不能使已删除会议重新出现。上述菜单、确认和状态文案在 zh/en 下均可访问且完整本地化。
+
+69. 新会议每个身份具有不同的绝对 cwd，两个身份写入同名工作文件互不覆盖；DSH 持久 Session header 保留该 cwd，暂停后恢复同一 Session 时目录和文件不变。未知/穿越 ID、受管路径符号链接、缺失目录或 header.cwd 不符时拒绝创建或恢复，不在其他目录继续、不删除工作文件。
 
 ## Related Documents
 

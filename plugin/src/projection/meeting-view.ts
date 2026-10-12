@@ -80,6 +80,12 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
     if (!["running", "paused", "converging"].includes(state.lifecycle.status)) {
         return [];
     }
+    const activeAgenda = state.agenda.find((item) => item.status === "active");
+    const canActivateAgenda =
+        state.lifecycle.status === "running" &&
+        activeAgenda !== undefined &&
+        state.agenda.some((item) => item.status === "pending") &&
+        !state.rounds.some((item) => item.agendaId === activeAgenda.id && item.status === "open");
     if (caller.kind === "captain") {
         const controls: AllowedControl[] = [];
         if (state.lifecycle.status === "running") {
@@ -103,12 +109,7 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
         if (state.lifecycle.status !== "running") {
             return controls;
         }
-        const active = state.agenda.find((item) => item.status === "active");
-        if (
-            active &&
-            state.agenda.some((item) => item.status === "pending") &&
-            !state.rounds.some((item) => item.agendaId === active.id && item.status === "open")
-        ) {
+        if (canActivateAgenda) {
             controls.push("activate_agenda");
         }
         if (state.rounds.some((item) => item.status === "open")) {
@@ -144,6 +145,7 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
     }
     if (hasRole(caller, "manager")) {
         return [
+            ...(canActivateAgenda ? ["activate_agenda" as const] : []),
             "submit_manager_plan",
             "open_round",
             "dispose_hand_raise",

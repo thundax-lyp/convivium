@@ -605,7 +605,7 @@ interface RecordArchiveSessionResult {
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate 与 task result；Captain 不提交 Contributor 贡献或 CompletionDeclaration。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate 与 task result；Captain 不提交 Contributor 贡献或 CompletionDeclaration。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -616,7 +616,7 @@ Captain 是当前单 Host 的本地用户，负责创建、议题处置/激活�
 | 用户操作          | action schema                     | 来源              |
 | ----------------- | --------------------------------- | ----------------- |
 | 创建会议          | CreateMeeting                     | loopback 本地用户 |
-| 激活议题          | ActivateAgenda                    | loopback 本地用户 |
+| 手工激活议题      | ActivateAgenda                    | loopback 本地用户 |
 | 处置议题候选      | DisposeAgendaCandidate            | loopback 本地用户 |
 | 解决问题          | ResolveQuestion                   | loopback 本地用户 |
 | 处置 Issue        | DisposeIssue                      | loopback 本地用户 |
@@ -1393,6 +1393,10 @@ type AgentNoticePayload =
 `meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
+
+`activate_agenda` 允许 Captain 或当前 Meeting Manager 提交；Agent 入口为 `convivium_activate_agenda`，沿用相同命令字段、版本、幂等与事务。只接受本会议已有 pending Agenda，拒绝非 running、旧议题有 open Round、未知或非 pending 目标；Manager 的 fact/event actor 保留真实 identity，不冒充 Captain。切换同事务将目标加入有显式责任列表的专职 Manager，不改变其角色、Session、Definition 或工具能力，不扩张 Contributor 责任；空列表仍表示全部议题。切换不提升 candidate、不完成目标或解除阻塞，保留旧议题 plan 与记录。
+
+Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` 说明受影响结论、解除条件及仍可推进的路径；它随 plan 原子提交并进入 `manager_plan.recorded` 事件，不新增异常实体或改变 Issue/Agenda/lifecycle。`blockingReason` 可与 `open_round` 或 `continue_agenda` 同时存在，不隐式触发 `stop_agenda`、结束或议题激活。记录只表示阻塞判断，不自动满足目标、处置 Issue 或解除依赖。局部阻塞后的继续与正常停止条件见 [ER-FR-7](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划)。
 
 `agenda_stopped` 由接受 `stop_agenda` 的同一事务为当前 Manager 生成一次 durable outbox effect；payload 仅含 `planId`、`agendaId` 和接收方 ID。dispatcher 只在该计划仍是当前 active `stop_agenda` 且接收方仍为负责该 Agenda 的 Manager 时投递；失效通知不得驱动后续动作。Manager 收到后另行读取会议、扫描后续工作并决定继续或正常结束；通知本身不改变议题或会议状态。
 

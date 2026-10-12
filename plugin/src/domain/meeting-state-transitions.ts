@@ -268,6 +268,7 @@ const planNextStepSchema = z
     });
 
 type TransitionChanges = {
+    identities?: MeetingState["identities"];
     agenda?: MeetingState["agenda"];
     agendaCandidates?: MeetingState["agendaCandidates"];
     questions?: MeetingState["questions"];
@@ -298,6 +299,7 @@ const completeTransition = (
         ...state,
         version: state.version + 1,
         updatedAt: now,
+        ...(changes.identities === undefined ? {} : { identities: changes.identities }),
         ...(changes.agenda === undefined ? {} : { agenda: changes.agenda }),
         ...(changes.agendaCandidates === undefined
             ? {}
@@ -363,7 +365,10 @@ const validateActionRequest = (
         ) {
             return "INVALID_ARGUMENT";
         }
-        return actor.kind === "captain_user" ? undefined : "UNAUTHORIZED";
+        return actor.kind === "captain_user" ||
+            (actor.kind === "identity" && hasRole(state, actor.id, "manager"))
+            ? undefined
+            : "UNAUTHORIZED";
     }
     const requiresGeneratedId = [
         "raise_agenda_candidate",
@@ -468,7 +473,25 @@ const transitionMeetingControl = (
     if (state.rounds.some((round) => round.agendaId === old.id && round.status === "open")) {
         return invalid(state, "PRECONDITION_FAILED");
     }
+    const manager = state.identities.find((identity) => identity.roles.includes("manager"));
+    const assignManager =
+        manager !== undefined &&
+        manager.agendaResponsibilityIds.length > 0 &&
+        !manager.agendaResponsibilityIds.includes(target.id);
     return completeTransition(context, action, {
+        identities: assignManager
+            ? state.identities.map((identity) =>
+                  identity.id === manager.id
+                      ? {
+                            ...identity,
+                            agendaResponsibilityIds: [
+                                ...identity.agendaResponsibilityIds,
+                                target.id
+                            ]
+                        }
+                      : identity
+              )
+            : state.identities,
         agenda: state.agenda.map((agenda) =>
             agenda.id === old.id
                 ? { ...agenda, status: action.previousDisposition }
@@ -476,7 +499,7 @@ const transitionMeetingControl = (
                   ? { ...agenda, status: "active" }
                   : agenda
         ),
-        relatedIds: [state.id, old.id, target.id]
+        relatedIds: [state.id, old.id, target.id, ...(assignManager ? [manager.id] : [])]
     });
 };
 

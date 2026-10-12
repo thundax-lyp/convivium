@@ -53,6 +53,46 @@ const expectSubmitManagerPlanExecution = async (
     );
 };
 
+const expectActivateAgendaExecution = async (
+    definition: ToolDefinition,
+    execute: ReturnType<typeof vi.fn>
+) => {
+    await definition.execute(
+        {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 1,
+            requestId: "activate-next",
+            action: {
+                kind: "activate_agenda",
+                agendaId: "agenda-next",
+                previousDisposition: "deferred",
+                reason: "Proceed with independent work."
+            }
+        },
+        {
+            agent: { id: "agent-1" } as Agent,
+            signal: new AbortController().signal
+        } as ToolRunContext
+    );
+    expect(execute).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            action: expect.objectContaining({
+                kind: "activate_agenda",
+                agendaId: "agenda-next"
+            })
+        }),
+        {
+            caller: {
+                channel: "dsh_tool",
+                principalId: "identity-1",
+                sessionBindingId: "ownership-1"
+            }
+        },
+        expect.any(AbortSignal)
+    );
+};
+
 describe("target Meeting tool registration", () => {
     it("registers only target commands and binds the resolved identity", async () => {
         const definitions: ToolDefinition[] = [];
@@ -130,6 +170,7 @@ describe("target Meeting tool registration", () => {
         expect(definitions.map(({ name }) => name)).toEqual([
             "convivium_read_meeting",
             "convivium_run_review_worker",
+            "convivium_activate_agenda",
             "convivium_open_round",
             "convivium_submit_manager_plan",
             "convivium_dispose_hand_raise",
@@ -176,6 +217,11 @@ describe("target Meeting tool registration", () => {
                 }
             });
         }
+
+        await expectActivateAgendaExecution(
+            definitions.find(({ name }) => name === "convivium_activate_agenda")!,
+            execute
+        );
 
         const submitManagerPlan = definitions.find(
             ({ name }) => name === "convivium_submit_manager_plan"

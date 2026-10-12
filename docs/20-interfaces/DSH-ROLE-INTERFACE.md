@@ -94,7 +94,7 @@ interface ResourceBinding {
 
 发行的 `plugin/config/cordis.patch.yml` 将 `agent-preset-registry` 的 default 设为 `standard`，并为七个角色显式插入 `@deepseek-ai/dsh-agent-preset` 行；每行通过 `@deepseek-ai/cordis-plugin-include` 以 Profile 根为基准的 `./node_modules/@convivium/dsh-plugin/config/presets/<presetId>/agent.cordis.yml` 装载对应 Preset，不能令普通用户输入 Session 默认进入任一会议角色 Preset。每个角色的 `dshPresetId` 与 Preset 目录名精确为 `convivium-` 加 roleDefinitionId 去掉 `meeting_` 前缀后的下划线转连字符形式（例如 `convivium-manager`）；Definition ID 仍为 `convivium.<roleDefinitionId>`。该 Preset 中 `dsh-skill-filesystem` 配置 `includeDefaultRoots:false`、`watch:false`，`customSkillDirs` 仅列上表对应的能力目录，直接以能力目录为扫描根读取其 `SKILL.md`；每个路径在 `presets/<presetId>/agent.cordis.yml` 中用 `fileURLToPath(new URL("../../skills/<ability>/", baseUrl))` 求得绝对安装路径，不得依赖 Host 当前工作目录，也不得挂载五能力共享父目录。目标 DSH `0.2.0-rc.2` 的 filesystem provider 将扫描根下的 `SKILL.md` 作为 flat Markdown Skill 读取，并把扫描根作为相邻 `scripts/` 等资源的 base，故不需复制 Skill bundle。目标 Web bundle 已禁用 base 的 host `skill-filesystem` 行；部署仍可能加装其他 global Skill provider。预检必须对实际模型可见 `snapshot` 做完整集合相等校验，并在同一 scope 对分配项、未分配项调用 `get`；额外可见、缺失、同名覆盖或正文 SHA 不符均为 `CAPABILITY_MISSING`；资源来源按真实路径校验，允许指向同一安装目录的符号链接。`toolFilter` 只收窄继承工具，Host 文件、网络和执行权限继续生效。
 
-当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。五个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 用户控制不注册 Agent tool；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
+当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。五个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 专属用户控制不注册 Agent tool；已有 pending Agenda 的激活复用命令并注册 Manager 专用 `convivium_activate_agenda`；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
 
 `meeting_manager` 与 `verification_reviewer` 只在创建时绑定唯一 Manager 与专职 reviewer；其它五个角色映射为 `roles:["contributor"]`，动态接纳只能使用这五个。Reviewer 只经专用 `convivium_run_review_worker` 启动固定 schema 的 one-shot DSH worker，不取得通用 subagent tool 或 worker Meeting authority。Definition 不授予 Meeting 控制权。
 
@@ -262,6 +262,11 @@ Pause 停止新调度并取消目标身份正在进行的会议活动，恢复�
 2. 七个角色的模型可见 Skill 集合精确等于分配集合，未分配 Skill 既不可列出也不可按名称加载；缺失或额外 global capability 不创建 identity/Session。
 3. Manager 的 `reject` 不创建 Session/identity，`admit` 的 provisioning 意图在完成平级 Session/ownership 前不授予 Meeting authority。
 4. 用户输入 Session 关闭不阻止已创建身份的投递与用户控制；可信用户入口重新连接后无需恢复原 Session。冷恢复使用原 `EffectiveAgentOptions` 与资源绑定，缺失 descriptor/资源时 fail closed，而不套用当前默认。
+
+## Meeting Agent Working Directory
+
+DSH adapter 从 Host 启动工作目录的真实绝对路径派生 `meetings/<meetingId>/agents/<identityId>/`，创建目录后把该绝对路径传入 `ctx.agents.create` 的 `meta.cwd`，DSH Session header 持久化该字段；不增加调用方可指定的路径参数。Meeting/Identity ID 必须是单个非空路径分量，拒绝穿越和受管路径上的符号链接。恢复、scope 切换及记住 handle 时核对 header.cwd 与该路径完全一致；缺失、目录损坏或绑定不符返回 RECOVERY_UNAVAILABLE，不回填无 cwd 的旧 Session、不改变 Session ID。Host 必须从原启动目录恢复。文件只归该身份作为工作产物使用，不进入正式会议事实，不自动删除；Host Sandbox/Approval 和会议证据可见性规则继续独立生效。Reviewer 的原生 worker 保持 DSH 的父会话 cwd 继承规则，本次不增加 worker 工作目录覆盖或文件隔离机制。
+
 
 ## Related Documents
 

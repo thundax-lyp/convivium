@@ -682,7 +682,11 @@ export const activateTargetMeetingApplication = async (
         }
     };
     const resolveCallerScope = createCallerScopeResolver(registry);
-    const agentOwner = createMeetingAgentOwner({ ctx, packageRoot: rolePackageRoot });
+    const agentOwner = createMeetingAgentOwner({
+        ctx,
+        packageRoot: rolePackageRoot,
+        workspaceRoot: process.cwd()
+    });
     const application = createMeetingCommandApplication({
         registry,
         ids,

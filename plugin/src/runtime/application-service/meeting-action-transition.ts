@@ -287,7 +287,9 @@ const runUserControlTransition = (
             const result = transitionMeetingState(
                 snapshot.state,
                 action,
-                { kind: "captain_user", id: actorId },
+                action.kind === "activate_agenda" && input.scope.role === "manager"
+                    ? { kind: "identity", id: actorId }
+                    : { kind: "captain_user", id: actorId },
                 now,
                 factId
             );

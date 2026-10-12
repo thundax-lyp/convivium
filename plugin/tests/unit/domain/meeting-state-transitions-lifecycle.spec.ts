@@ -202,7 +202,7 @@ it("rejects promotion with a used agenda id", () => {
     expect(result.state.version).toBe(3);
 });
 
-it("requires the Captain user for agenda activation", () => {
+it("rejects agenda activation by an unknown identity", () => {
     const fixture = state();
     const current = {
         ...fixture,
@@ -335,13 +335,17 @@ it.each([
     ["converging lifecycle", captain, "converging", "pending", "INVALID_STATE"],
     ["ending lifecycle", captain, "ending", "pending", "INVALID_STATE"],
     ["target is not pending", captain, "running", "completed", "INVALID_STATE"],
-    ["open round", captain, "running", "pending", "PRECONDITION_FAILED"]
+    ["open round", captain, "running", "pending", "PRECONDITION_FAILED"],
+    ["manager missing target", manager, "running", "pending", "NOT_FOUND"],
+    ["manager paused", manager, "paused", "pending", "INVALID_STATE"],
+    ["manager non-pending", manager, "running", "completed", "INVALID_STATE"],
+    ["manager open round", manager, "running", "pending", "PRECONDITION_FAILED"]
 ] as const)("rejects agenda activation: %s", (_name, actor, status, targetStatus, code) => {
     const fixture = state(status);
     const current = {
         ...fixture,
         identities:
-            code === "PRECONDITION_FAILED"
+            code === "PRECONDITION_FAILED" || actor.id === manager.id
                 ? [
                       ...fixture.identities,
                       {

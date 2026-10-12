@@ -12,6 +12,7 @@ import { resolveResourceBinding, readRoleResource } from "@/role-composition/ind
 import { validateRoleSkills, matchesPreparedDescriptor } from "@/role-composition/index.ts";
 import { isDeepStrictEqual } from "node:util";
 import type { SessionOwnership } from "@/repository/index.ts";
+import { meetingAgentDirectory } from "./meeting-agent-directory.ts";
 
 declare module "@deepseek-ai/dsh-llm" {
     interface MessageSourceMap {
@@ -143,11 +144,20 @@ const deliverToHandle = async ({
 
 export const createMeetingAgentOwner = ({
     ctx,
-    packageRoot
+    packageRoot,
+    workspaceRoot
 }: {
     ctx: Context;
     packageRoot: string;
+    workspaceRoot: string;
 }): MeetingAgentOwner => {
+    const directory = (ownership: SessionOwnership, create = false) =>
+        meetingAgentDirectory({
+            workspaceRoot,
+            meetingId: ownership.meetingId,
+            identityId: ownership.identityId,
+            create
+        });
     const options = (ownership: SessionOwnership) => ({
         provider: ownership.agentOptions.provider,
         model: ownership.agentOptions.model,
@@ -228,6 +238,7 @@ export const createMeetingAgentOwner = ({
             const header = agent.session.header;
             if (
                 !header ||
+                header.cwd !== (await directory(ownership)) ||
                 header.agentPreset !== ownership.resources.presetId ||
                 header.parentSession !== undefined
             ) {
@@ -258,6 +269,7 @@ export const createMeetingAgentOwner = ({
     const remember = async (ownership: SessionOwnership, handle: AgentHandle, purpose: Purpose) => {
         if (
             handle.agent.id !== ownership.sessionId ||
+            handle.agent.session.header.cwd !== (await directory(ownership)) ||
             handle.agent.session.header.agentPreset !== ownership.resources.presetId ||
             handle.agent.session.header.parentSession !== undefined
         ) {
@@ -343,7 +355,10 @@ export const createMeetingAgentOwner = ({
                 await verifyResources(ownership, definition);
                 const handle = await ctx.agents.create({
                     sessionId: SessionId(ownership.sessionId),
-                    meta: { agentPreset: definition.dshPresetId },
+                    meta: {
+                        agentPreset: definition.dshPresetId,
+                        cwd: await directory(ownership, true)
+                    },
                     agentOptions: options(ownership),
                     signal,
                     setup: setup(ownership, definition, "provisioning", signal)
