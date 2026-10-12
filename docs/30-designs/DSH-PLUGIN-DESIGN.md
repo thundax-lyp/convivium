@@ -84,7 +84,9 @@ DSH Conversation
             └─ TimelineContent
 ```
 
-UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 显示为“主持人计划”。
+UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（Moderator）、Contributor → 嘉宾（Guest）；审核者与系统名称保持不变。内部角色标识、身份资源和权限不变，工程文档中的 Captain、Manager、Contributor 仍指对应内部角色。角色筛选、角色隐藏、身份标签及缺少显示名称时的角色回退均使用该映射；Manager plan 的内容类型显示为“主持安排”，事件显示为“主持人计划记录”。
+
+“内容类型”按 Event.subject.kind 筛选，显示业务内容名称，例如讨论轮次、证据、证据审核、审核反馈、轮次成果、主持安排、会议结果和会议归档；“事件”按 Event.kind 筛选，描述具体发生的行为。两者不改变事件字段和内部标识。
 
 DSH 的 `Meetings` 标签是功能级导航；Workspace 内使用视觉较轻的次级选项卡切换“概览 / 时间线”。Navigator、Header、切换器和内容由同一个 Client workspace owner 组合，不通过 `openView()`、URL、第二个 slot entry 或 module-global store 同步选择。
 

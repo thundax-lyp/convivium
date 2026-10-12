@@ -33,10 +33,18 @@ describe("Meeting timeline presentation", () => {
         const identities = screen.getByRole("group", { name: "身份" });
         expect(identities.textContent).toContain("Research Manager");
         expect(identities.textContent).not.toContain("manager-v1");
-        fireEvent.click(within(identities).getByRole("button", { name: "主持人: Research Manager" }));
+        fireEvent.click(
+            within(identities).getByRole("button", { name: "主持人: Research Manager" })
+        );
         expect(onFiltersChange).toHaveBeenCalledWith({
             ...INITIAL_TIMELINE_FILTERS,
             identityIds: ["manager-v1"]
+        });
+        const contentTypes = screen.getByRole("group", { name: "内容类型" });
+        fireEvent.click(within(contentTypes).getByRole("button", { name: "证据", exact: true }));
+        expect(onFiltersChange).toHaveBeenLastCalledWith({
+            ...INITIAL_TIMELINE_FILTERS,
+            objectKinds: ["evidence_version"]
         });
     });
     it("renders groups before filtering and keeps metadata stable while toggling details and event filters", () => {
