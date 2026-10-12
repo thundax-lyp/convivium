@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -22,7 +22,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
     const root = await realpath(await mkdtemp(join(tmpdir(), "convivium-owner-")));
     const ctx = new Context();
     ctx.baseUrl = new URL("../../../", import.meta.url).href;
-    const owner = createMeetingAgentOwner({ ctx, packageRoot: root });
+    const owner = createMeetingAgentOwner({ ctx, packageRoot: root, workspaceRoot: root });
     const signal = new AbortController().signal;
     try {
         await cp(fileURLToPath(new URL("../../../config", import.meta.url)), join(root, "config"), {
@@ -156,6 +156,10 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
             };
             await owner.create({ ownership, descriptor, definition, signal });
             const first = ctx.agents.get(SessionId(ownership.sessionId))!;
+            const expectedCwd = join(root, "meetings", "meeting", "agents", `identity-${index}`);
+            expect(first.session.header.cwd).toBe(expectedCwd);
+            expect((await stat(expectedCwd)).isDirectory()).toBe(true);
+            await writeFile(join(expectedCwd, "artifact.txt"), definition.roleDefinitionId);
             expect(first.session.header.parentSession).toBeUndefined();
             expect(first.session.header.agentPreset).toBe(definition.dshPresetId);
             expect(
@@ -175,6 +179,9 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
             );
             expect(ctx.tools.schemas(first)).toEqual([]);
             await ctx.sessions.flush(first.session);
+            expect(
+                (await ctx.sessionPersistence.stat(SessionId(ownership.sessionId))).header.cwd
+            ).toBe(expectedCwd);
             await owner.resume({
                 ownership: { ...ownership, lifecycleStatus: "active" },
                 definition,
@@ -184,6 +191,10 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
             const second = ctx.agents.get(SessionId(ownership.sessionId))!;
             expect(second).not.toBe(first);
             expect(second.id).toBe(first.id);
+            expect(second.session.header.cwd).toBe(expectedCwd);
+            expect(await readFile(join(expectedCwd, "artifact.txt"), "utf8")).toBe(
+                definition.roleDefinitionId
+            );
             const expectedTools =
                 definition.toolFilter?.allow ??
                 toolNames.filter((name) => !definition.toolFilter?.deny?.includes(name));

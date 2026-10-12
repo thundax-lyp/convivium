@@ -1,12 +1,22 @@
-import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.ts";
 import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts";
 import { definitionHash } from "@/role-composition/resolve.ts";
 import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 
+const directories: string[] = [];
+afterEach(async () => {
+    await Promise.all(
+        directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))
+    );
+});
 const fixture = async () => {
+    const workspaceRoot = await realpath(await mkdtemp(join(tmpdir(), "convivium-owner-unit-")));
+    directories.push(workspaceRoot);
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
     const definitions = parseAgentDefinitions(
         JSON.parse(
@@ -37,7 +47,11 @@ const fixture = async () => {
             listener(payload);
         }
     };
-    const header = { cwd: packageRoot, agentPreset: definition.dshPresetId };
+    const header = {
+        cwd: join(workspaceRoot, "meetings", "meeting", "agents", "identity"),
+        agentPreset: definition.dshPresetId
+    };
+    await mkdir(header.cwd, { recursive: true });
     const skills = {
         snapshot: async () => ({ complete: true, skills: [skill] }),
         get: async (name) => (name === skill.name ? skill : undefined)
@@ -130,17 +144,39 @@ const fixture = async () => {
         handles,
         emit,
         header,
-        owner: createMeetingAgentOwner({ ctx, packageRoot })
+        workspaceRoot,
+        owner: createMeetingAgentOwner({ ctx, packageRoot, workspaceRoot })
     };
 };
 describe("meeting Agent owner", () => {
+    it("rejects a resumed Session whose cwd differs without rewriting its header", async () => {
+        const f = await fixture();
+        await f.owner.create(f);
+        await f.owner.suspend({ ownership: f.ownership, reason: "pause" });
+        f.header.cwd = join(f.workspaceRoot, "other");
+        await expect(f.owner.resume({ ...f, purpose: "provisioning" })).rejects.toThrow(
+            "Session header differs"
+        );
+        expect(f.header.cwd).toBe(join(f.workspaceRoot, "other"));
+    });
+    it("refuses a symlink in the managed directory without writing into its target", async () => {
+        const f = await fixture();
+        const foreign = join(f.workspaceRoot, "foreign");
+        await mkdir(foreign);
+        await rm(join(f.workspaceRoot, "meetings"), { recursive: true });
+        await symlink(foreign, join(f.workspaceRoot, "meetings"));
+        await expect(f.owner.create(f)).rejects.toThrow("Agent directory unavailable");
+        expect(f.ctx.agents.create).not.toHaveBeenCalled();
+        expect(await readdir(foreign)).toEqual([]);
+    });
+
     it("creates a restricted peer then replaces its scope for active delivery", async () => {
         const f = await fixture();
         await f.owner.create(f);
         expect(f.ctx.agents.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 sessionId: "session",
-                meta: { agentPreset: f.definition.dshPresetId },
+                meta: { agentPreset: f.definition.dshPresetId, cwd: f.header.cwd },
                 agentOptions: f.ownership.agentOptions
             })
         );
