@@ -377,10 +377,6 @@ describe("Timeline object details", () => {
     });
 });
 
-it("does not manufacture timeline events from DTO timestamps when the log is absent", () => {
-    expect(buildTimelineNodes(activeTimelineFixture())).toEqual([]);
-});
-
 it("intersects identity, object, status and relation filters on committed events", () => {
     const decision: MeetingEventView = {
         ...envelope(7),

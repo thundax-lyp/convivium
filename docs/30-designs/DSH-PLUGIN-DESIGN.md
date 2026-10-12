@@ -228,7 +228,7 @@ interface TimelineMilestoneGroup {
 
 活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
 
-Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromLegacyView` 或 DTO 时间字段 fallback。首条事件缺少完整标记的会议读取和恢复返回不可重试的 `RECOVERY_UNAVAILABLE`，既有测试数据按确认范围删除；不回填历史。共享 `MeetingView` 中事件字段为 optional 仅服务 identity 的事件可见性隔离，不代表 Captain 读取可以缺少日志。
+Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromLegacyView` 或 DTO 时间字段 fallback。缺少完整事件日志的既有测试数据按确认范围删除；不增加旧数据识别或拒绝机制，不回填历史。共享 `MeetingView` 中事件字段为 optional 仅服务 identity 的事件可见性隔离，不代表 Captain 读取可以缺少日志。
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 

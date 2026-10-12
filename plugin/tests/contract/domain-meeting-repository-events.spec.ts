@@ -157,21 +157,6 @@ describe("Meeting committed event log", () => {
         await repository.close();
     });
 
-    it("rejects a log that has no complete marker", async () => {
-        const { repository } = await fixture();
-        const projection = Reflect.get(repository, "projection");
-        projection.events[seqKey(1)].payload = { meetingId: repository.meetingId };
-        await expect(repository.readCommittedEvents()).rejects.toMatchObject({
-            code: "RECOVERY_UNAVAILABLE",
-            retryable: false
-        });
-        await expect(repository.recover()).rejects.toMatchObject({
-            code: "RECOVERY_UNAVAILABLE",
-            retryable: false
-        });
-        await repository.close();
-    });
-
     it.each([
         "gap",
         "unknown-kind",

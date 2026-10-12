@@ -316,8 +316,10 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 
 ## 2026-10-12 移除无完整事件日志的会议兼容
 
-用户确认未发布阶段不保留旧测试数据兼容。Client 移除 DTO 时间字段时间线投影，只消费 `timelineEvents`；Repository 对缺少完整标记的事件日志拒绝读取与恢复，返回不可重试的 `RECOVERY_UNAVAILABLE`。共享 DTO 的事件字段仍为 optional，仅因 Agent identity 不接收事件日志。
+用户确认未发布阶段不保留旧测试数据兼容。Client 移除 DTO 时间字段时间线投影，只消费 `timelineEvents`；不增加旧数据专用识别、拒绝或恢复校验机制。共享 DTO 的事件字段仍为 optional，仅因 Agent identity 不接收事件日志。
 
 固定人工 Web SQLite 在清理前仅有 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`，checkpoint 中 eventSeq 1 的 `meeting.created` 仅包含 `meetingId`，缺少 `logVersion:1`。确认 31828 无运行 Host 后，事务删除该会议 domain 的五张表、unit 元数据与 catalog 记录；读回 catalog 为 0，`PRAGMA integrity_check` 为 `ok`。DSH 对话、凭据、工作目录与安装保留。此前旧 DTO 展示的历史验收记录不代表当前支持范围。
 
-验证：先观察缺失完整标记仍返回 legacy、恢复仍成功和 DTO 时间字段仍制造节点的失败；修改后相关 Client、事件日志 contract 与 recovery 共 17 个测试文件、135 个 case 通过；完整回归 `pnpm --dir plugin exec vitest run` 为 104 个文件、995 个 case 通过。额外保留事件筛选交集的行为保护并单独复验。根 `pnpm lint`、插件 `typecheck` 和 `build` 通过，lint 有既有 Repository 文件行数 warning。Not Covered：本次没有运行真实 DSH Host 或人工 Browser 验收，未刷新固定人工安装。
+历史验证（范围收窄前）：先观察缺失完整标记仍返回 legacy、恢复仍成功和 DTO 时间字段仍制造节点的失败；修改后相关 Client、事件日志 contract 与 recovery 共 17 个测试文件、135 个 case 通过；完整回归 `pnpm --dir plugin exec vitest run` 为 104 个文件、995 个 case 通过。额外保留事件筛选交集的行为保护并单独复验。根 `pnpm lint`、插件 `typecheck` 和 `build` 通过，lint 有既有 Repository 文件行数 warning。Not Covered：本次没有运行真实 DSH Host 或人工 Browser 验收，未刷新固定人工安装。
+
+2026-10-12 按用户确认收窄为删除旧数据和兼容代码：撤掉旧日志专用拒绝分支、恢复检查和两个旧数据场景测试，身份恢复 fixture 恢复原输入；保留当前事件完整性、事件展示和筛选验证。此前基于旧数据写入拒绝要求提出的 Review finding 随该要求撤回。本次验证：Vitest 全量 104 个文件、994 个测试通过；Host typecheck、修改文件 Prettier 和 ESLint、`git diff --check` 通过。ESLint 保留 Repository 文件既有 `max-lines` 警告；未重新执行人工 DSH Web 验收。

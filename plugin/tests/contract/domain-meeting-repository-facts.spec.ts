@@ -375,36 +375,7 @@ describe("peer creation and ownership transaction", () => {
                     transition: () => ({
                         state: changed,
                         result: {},
-                        events: [
-                            change === "paused"
-                                ? {
-                                      type: "meeting.lifecycle_changed",
-                                      payload: {
-                                          logVersion: 1,
-                                          actor: { kind: "system" },
-                                          subject: { kind: "meeting", id: state.id },
-                                          relatedObjects: [],
-                                          data: { from: "running", to: "paused" }
-                                      }
-                                  }
-                                : {
-                                      type: "identity.recommended",
-                                      payload: {
-                                          logVersion: 1,
-                                          actor: { kind: "system" },
-                                          subject: {
-                                              kind: "identity_recommendation",
-                                              id: intent.id
-                                          },
-                                          relatedObjects: [],
-                                          data: {
-                                              decision: "admit",
-                                              status: "provisioning",
-                                              rationale: "ownership fixture"
-                                          }
-                                      }
-                                  }
-                        ],
+                        events: [{ type: "meeting.changed", payload: {} }],
                         outbox: []
                     })
                 });
