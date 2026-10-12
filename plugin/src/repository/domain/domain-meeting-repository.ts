@@ -595,14 +595,20 @@ export class DomainMeetingRepository<TState = JsonObject>
                 resultingState: this.decodeState(fact.resultingState)
             }));
     }
-    async readCommittedEvents(): Promise<
-        { kind: "legacy" } | { kind: "complete"; events: readonly PersistedMeetingEvent[] }
-    > {
+    async readCommittedEvents(): Promise<{
+        kind: "complete";
+        events: readonly PersistedMeetingEvent[];
+    }> {
         this.ensureOpen();
         const projection = this.projection;
         const first = projection?.events[seqKey(1)];
         if (first?.payload.logVersion !== 1) {
-            return { kind: "legacy" };
+            throw new RepositoryError(
+                "RECOVERY_UNAVAILABLE",
+                false,
+                this.meetingId,
+                "Complete event log is required"
+            );
         }
         const unavailable = () =>
             new RepositoryError(
@@ -881,6 +887,9 @@ export class DomainMeetingRepository<TState = JsonObject>
                     this.meetingId,
                     "Meeting bootstrap is missing"
                 );
+            }
+            if (this.projection?.snapshot) {
+                await this.readCommittedEvents();
             }
             const now = _input.now ?? this.now();
             let reclaimedOutbox = 0;

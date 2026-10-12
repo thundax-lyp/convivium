@@ -776,12 +776,7 @@ export const activateTargetMeetingApplication = async (
                 throw new Error("Meeting is not ready.");
             }
             const eventLog = await repository.readCommittedEvents();
-            return projectMeetingView(
-                snapshot,
-                { kind: "captain" },
-                undefined,
-                eventLog.kind === "complete" ? eventLog.events : undefined
-            );
+            return projectMeetingView(snapshot, { kind: "captain" }, undefined, eventLog.events);
         },
         async control(command: MeetingCommand, signal: AbortSignal) {
             if (
