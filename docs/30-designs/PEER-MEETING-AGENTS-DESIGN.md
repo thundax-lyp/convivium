@@ -64,6 +64,10 @@ outbox dispatcher 每次按 Meeting、目标 identity、Session ownership、capa
 
 pause 停止新调度、撤销当前活动的继续条件并取消受影响的 Agent turn；resume 从已提交状态和 outbox 生成新的可见通知。end/归档先物化完整 ArchivePackage，随后仅对目标 Meeting 的 ownership 先 revoke capability，再 cancel/drain/dispose handle；任一关闭失败保持 archiving，直到可证明全部关闭。即使 DSH 持久 Session 日志仍在，已撤权身份不能调用 Meeting。插件停机保留 Meeting 事实和未完成 effect，释放所持 handle，不关闭别的 Meeting 或用户输入 Session。
 
+## Identity Working Directories
+
+owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<meetingId>/agents/<identityId>/`；每级受管目录验证真实路径，权限 mode 为 0700。`meta.cwd` 与 agentPreset 一并交给 DSH，setup 和 remember 核对持久 header；resume 复用既有目录和 Session，不自动创建缺失目录或改写历史 header。目录生命周期独立于 handle 和归档：失败、暂停、结束和会议删除均不自动删除工作文件。这里不新增 ownership 字段或存储迁移；cwd 由 DSH header 持久化，当前固定 Host 启动根与稳定身份 ID 用于复核，移动根会拒绝恢复。验收应证明不同身份目录不同、文件不覆盖、相同身份恢复 cwd 不变、原生持久历史可观察；不将 cwd 分离声明为访问隔离。
+
 ## Security And Observability
 
 私有 bootstrap/ownership 可以保存 Session ID、资源 SHA 与模型 route，但公开 status、Catalog、Archive、Remote 和 Markdown 不显示这些值。诊断区分 `create/setup`、`ownership activation`、`followup/flush`、`outbox commit`、`resume`、`revoke/drain`；不可把某一阶段的成功描述为整条链路成功。Skill 脚本的文件与执行权限由 Host policy 判定，Skill 存在不等于工具、网络或 Meeting 权限。

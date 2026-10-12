@@ -263,6 +263,11 @@ Pause 停止新调度并取消目标身份正在进行的会议活动，恢复�
 3. Manager 的 `reject` 不创建 Session/identity，`admit` 的 provisioning 意图在完成平级 Session/ownership 前不授予 Meeting authority。
 4. 用户输入 Session 关闭不阻止已创建身份的投递与用户控制；可信用户入口重新连接后无需恢复原 Session。冷恢复使用原 `EffectiveAgentOptions` 与资源绑定，缺失 descriptor/资源时 fail closed，而不套用当前默认。
 
+## Meeting Agent Working Directory
+
+DSH adapter 从 Host 启动工作目录的真实绝对路径派生 `meetings/<meetingId>/agents/<identityId>/`，创建目录后把该绝对路径传入 `ctx.agents.create` 的 `meta.cwd`，DSH Session header 持久化该字段；不增加调用方可指定的路径参数。Meeting/Identity ID 必须是单个非空路径分量，拒绝穿越和受管路径上的符号链接。恢复、scope 切换及记住 handle 时核对 header.cwd 与该路径完全一致；缺失、目录损坏或绑定不符返回 RECOVERY_UNAVAILABLE，不回填无 cwd 的旧 Session、不改变 Session ID。Host 必须从原启动目录恢复。文件只归该身份作为工作产物使用，不进入正式会议事实，不自动删除；Host Sandbox/Approval 和会议证据可见性规则继续独立生效。Reviewer 的原生 worker 保持 DSH 的父会话 cwd 继承规则，本次不增加 worker 工作目录覆盖或文件隔离机制。
+
+
 ## Related Documents
 
 - [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
