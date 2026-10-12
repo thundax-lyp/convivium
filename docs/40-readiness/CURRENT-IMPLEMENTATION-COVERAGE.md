@@ -39,7 +39,7 @@
 
 ## Validated Contract
 
-Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Round 前置、版本和事务检查保障；选择首个有价值路径、先记录阻塞、旧议题 previousDisposition 是否应为 completed、以及何时穷尽路径，仍依赖角色指令与模型判断；会议 outcome=completed 仍受 Domain 的确定性目标满足与未解决项校验。工具与状态转换可用，不等于模型已稳定完成跨议题流程；真实运行缺口见 Executed Validation。
+Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Round 前置、版本和事务检查保障；以核心判断的实质增量决定是否开轮、选择首个有价值路径、先记录阻塞、旧议题 previousDisposition 是否应为 completed、以及何时穷尽路径，仍依赖角色指令与模型判断；会议 outcome=completed 仍受 Domain 的确定性目标满足与未解决项校验。工具与状态转换可用，不等于模型已稳定完成跨议题流程；真实运行缺口见 Executed Validation。
 
 - `MeetingState`、target codec、`DomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox 与 archive lifecycle 使用同一 `meetingId` namespace。
 - 创建、状态变更、read projection、identity provisioning/recovery、review delivery、round publication 与 archive 均从同一已提交状态派生。
@@ -88,6 +88,14 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 
 Not Covered：尚未部署本次改动或新建真实模型人工会议，未验证 Browser 历史读取和进程级冷启动；integration 验证原生 Session 持久化及 scope 释放后的恢复，不冒充完整 Host 冷恢复。无 cwd 的旧 Session 不回填、不迁移，其历史错误不会因源码修改自动消失，旧人工数据未改动。DSH SubagentStartRequest 无逐次 cwd 覆盖字段，一次性 Reviewer worker 仍按原生规则继承父 Reviewer cwd，本次不实现独立 worker 子目录。工作目录不是证据隔离或 sandbox 边界。
 
+
+### 2026-10-12：Manager 按核心判断的实质增量收敛
+
+Scope / Validated Contract：`cef9efa1` 先确认 ER-FR-7 与验收第 12 项，并同步会议级入口及 ELK 决策流程图。`a9cfb3b6` 的 Manager AGENTS 与 meeting-facilitation Skill 改为先形成对原目标的有界答案，再判断下一轮能否改变核心结论、置信程度或关键适用边界；plan rationale 说明当前判断、预期改变和具体证据机会。连续轮次判断不变时必须有新的关键证据机会；次要缺陷、负面审核或未解决问题不自动要求继续。沿用现有计划字段、正常 outcome 和自动推进已授权议题，不新增固定轮数、协议字段或 Runtime 信息价值判定。
+
+Executed Validation：七角色资源检查与 Manager 指纹校验 PASS；format、lint PASS（0 error，两项既有 Repository 长度 warning）；既有 Manager 停止后续流程 1 文件 / 3 测试 PASS。本地文档链接与 diff 检查通过。角色部署与目标契约 2 文件 / 5 测试 PASS；本地文件链接 1150 项零错误（不检查 anchors）。最终 ELK 流程图经临时 Mermaid CLI 12.0.0 与 Chrome headless shell 渲染 PASS，并人工检查中文标签、继续/收口分支及切换议题后的重新判断回路；渲染依赖不进入仓库。
+
+Not Covered / Closure：上述验证只证明资产一致性与既有确定性流程未回归，不证明真实模型能稳定识别实质增量、停止或跨议题推进。未对本次新 Prompt 做真实模型对照或完整会议运行，未部署、重启人工 Host 或改变当前会议及其冻结资源；当前冒烟会议不能作为新指令的验证证据。历史模型结果仍只适用于各自指令版本。本次完成指令层实现，模型收敛稳定性仍未验证。
 
 ### 2026-10-12：代码、文档与议题推进流程图校准
 

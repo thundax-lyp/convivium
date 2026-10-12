@@ -174,7 +174,7 @@ flowchart TD
     Next -->|是| Activate["按 Agenda 顺序选择首个可推进项；activate_agenda，无需 Captain 再确认"]
     Activate --> Disposition["旧议题显式 deferred / closed / completed；阻塞不解除，目标不自动完成"]
     Disposition --> Fresh["等待激活成功；重读新 active Agenda 与版本"]
-    Fresh --> Plan
+    Fresh --> Answer
     Next -->|否| Work{"有未完成任务或影响判断的待用户处置路径？"}
     Work -->|是| Wait["记录等待原因与下一步，不结束；Captain 专属处置仍由用户执行"]
     Work -->|否| Exhausted{"影响原目标的路径均完成、无实质新增价值或明确不可解除？"}
