@@ -10,7 +10,6 @@ describe("Meetings workspace state", () => {
         expect(INITIAL_TIMELINE_FILTERS).toEqual({
             identityIds: [],
             objectKinds: [],
-            statuses: [],
             collapsedLanes: []
         });
         const { result } = renderHook(useMeetingWorkspace);

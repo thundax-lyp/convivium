@@ -118,7 +118,6 @@ interface MeetingsWorkspaceState {
   timeline: {
     identityFilter: string[];
     typeFilter: string[];
-    statusFilter: string[];
     collapsedLanes: string[];
   };
 }
@@ -238,7 +237,7 @@ Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromL
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 
-时间线提供 identity、object type、事件 kind 和事件发生时状态筛选，以及滚动和角色隐藏。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
+时间线提供 identity、object type 和事件 kind 筛选，以及滚动和角色隐藏。默认与详细事件展示遵循 MO-FR-17.19；显式筛选可以直接显示匹配的过程事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
 
 ### 模式定位、响应式与失败
 

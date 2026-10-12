@@ -180,7 +180,6 @@ export const TimelineFilters = ({
         ...new Set(nodes.flatMap((node) => (node.identityId ? [node.identityId] : [])))
     ];
     const kinds = [...new Set(nodes.map((node) => node.objectKind))];
-    const statuses = [...new Set(nodes.flatMap((node) => (node.status ? [node.status] : [])))];
     return (
         <div>
             {filterGroup(
@@ -216,20 +215,6 @@ export const TimelineFilters = ({
                 (kind) => label(`enum.timelineKind.${kind}`, kind, t),
                 (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
             )}
-            {filterGroup(
-                t("panel.timeline.filter.status"),
-                statuses,
-                filters.statuses,
-                (status) =>
-                    [
-                        ...new Set(
-                            nodes
-                                .filter((node) => node.status === status)
-                                .map((node) => statusLabel(node, t))
-                        )
-                    ].join(" / "),
-                (status) => onChange({ ...filters, statuses: toggle(filters.statuses, status) })
-            )}
             <Button
                 type="button"
                 variant="outline"
@@ -239,8 +224,7 @@ export const TimelineFilters = ({
                     onChange({
                         ...filters,
                         identityIds: [],
-                        objectKinds: [],
-                        statuses: []
+                        objectKinds: []
                     });
                 }}
             >
@@ -310,8 +294,7 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
         showDetails ||
         eventKinds.length > 0 ||
         filters.objectKinds.length > 0 ||
-        filters.identityIds.length > 0 ||
-        filters.statuses.length > 0
+        filters.identityIds.length > 0
             ? filtered
             : filtered.filter(isPrimaryNode);
     const visibleKeys = new Set(visible.map((node) => node.key));

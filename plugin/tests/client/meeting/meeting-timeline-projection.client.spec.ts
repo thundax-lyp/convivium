@@ -377,7 +377,7 @@ describe("Timeline object details", () => {
     });
 });
 
-it("intersects identity, object and status filters on committed events", () => {
+it("intersects identity and object filters on committed events", () => {
     const decision: MeetingEventView = {
         ...envelope(7),
         kind: "decision.recorded",
@@ -390,15 +390,19 @@ it("intersects identity, object and status filters on committed events", () => {
         eventTimelineFixture([
             decision,
             { ...decision, eventSeq: 8, actor: { kind: "identity", actorId: "contributor-v1" } },
-            { ...decision, eventSeq: 9, data: { status: "rejected" } }
+            {
+                ...decision,
+                eventSeq: 9,
+                subject: { kind: "completion_fact", id: "completion-1" },
+                data: { status: "active" }
+            }
         ])
     );
     expect(
         filterTimelineNodes(nodes, {
             ...INITIAL_TIMELINE_FILTERS,
             identityIds: ["manager-v1"],
-            objectKinds: ["decision"],
-            statuses: ["accepted"]
+            objectKinds: ["decision"]
         }).map(({ key }) => key)
     ).toEqual(["event:7"]);
 });

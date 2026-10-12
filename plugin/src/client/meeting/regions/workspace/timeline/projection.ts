@@ -368,9 +368,7 @@ export const filterTimelineNodes = (
         (node) =>
             (filters.identityIds.length === 0 ||
                 (node.identityId !== undefined && filters.identityIds.includes(node.identityId))) &&
-            (filters.objectKinds.length === 0 || filters.objectKinds.includes(node.objectKind)) &&
-            (filters.statuses.length === 0 ||
-                (node.status !== undefined && filters.statuses.includes(node.status)))
+            (filters.objectKinds.length === 0 || filters.objectKinds.includes(node.objectKind))
     );
 };
 
