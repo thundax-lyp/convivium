@@ -99,7 +99,7 @@
 9. `promote` 必须在一个原子提交中把仍为 `pending` 的 candidate 标为 `promoted` 并创建一个完整的 pending AgendaItem，但不得改变当前 active agenda；`park` 和 `reject` 只改变 candidate 状态。
 10. 同一 candidate 只能处置一次。处置失败不得写入 Meeting state、event、receipt、outbox 或增加 Meeting version；成功处置不产生 outbox。
 11. 当前状态必须以稳定顺序公开 `parkingLot` 的 `id`、`title`、`reason` 和 `status`；归档保留相同事实。未处置的 candidate 不阻塞会议结束，并以 `pending` 原样进入归档。
-12. 已授权议题指可信用户创建会议时提供、或由 Captain 将 candidate 正式 promoted 后形成的 AgendaItem。当前议题收口且无 open Round、后续 pending Agenda 有可执行工作时，Manager 无需用户再次确认即可调用 activate_agenda；默认按已有 Agenda 顺序选择首个可推进项，跳过项必须说明阻塞原因。切换显式记录旧议题 completed/deferred/closed 与理由，局部阻塞优先 deferred；completed 必须有议题已完成的事实，议题切换不改变目标完成状态或解决阻塞。暂停、终态、未收口轮次、未知或非 pending 目标均拒绝；Contributor、Reviewer 不获得激活权限。Captain 保留手工激活与 candidate 处置权限。
+12. 已授权议题指可信用户创建会议时提供、或由 Captain 将 candidate 正式 promoted 后形成的 AgendaItem。当前议题收口且无 open Round、后续 pending Agenda 有可执行工作时，Manager 无需用户再次确认即可调用 activate_agenda；默认按已有 Agenda 顺序选择首个可推进项，跳过项必须说明阻塞原因。切换显式记录旧议题 completed/deferred/closed 与理由，局部阻塞优先 deferred；completed 必须有议题已完成的事实，议题切换不改变目标完成状态或解决阻塞。暂停、终态、未收口轮次、未知或非 pending 目标均拒绝；Contributor、Reviewer 不获得激活权限。激活时同事务把目标议题加入有显式责任列表的专职 Manager，使其能主持该议题的轮次；空责任列表仍表示会议内全部议题，不扩张 Contributor 的责任、角色、Session 或工具能力。Captain 保留手工激活与 candidate 处置权限。
 13. 任一已授权 MeetingIdentity 可结构化记录 Question 或 Issue；Captain（本地用户）通过可信用户入口 resolve Question 或 dispose Issue，不冒充 MeetingIdentity 提交记录。来源或权限不符必须拒绝，自然语言、Agent 输出或 Manager 计划不能替代结构化处置及用户入口授权。
 
 ### MO-FR-7：提案、立场与决策

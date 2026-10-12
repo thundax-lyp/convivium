@@ -616,7 +616,7 @@ Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/�
 | 用户操作          | action schema                     | 来源              |
 | ----------------- | --------------------------------- | ----------------- |
 | 创建会议          | CreateMeeting                     | loopback 本地用户 |
-| 激活议题          | ActivateAgenda                    | loopback 本地用户 |
+| 手工激活议题      | ActivateAgenda                    | loopback 本地用户 |
 | 处置议题候选      | DisposeAgendaCandidate            | loopback 本地用户 |
 | 解决问题          | ResolveQuestion                   | loopback 本地用户 |
 | 处置 Issue        | DisposeIssue                      | loopback 本地用户 |
@@ -1394,7 +1394,7 @@ type AgentNoticePayload =
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
 
-`activate_agenda` 允许 Captain 或当前 Meeting Manager 提交；Agent 入口为 `convivium_activate_agenda`，沿用相同命令字段、版本、幂等与事务。只接受本会议已有 pending Agenda，拒绝非 running、旧议题有 open Round、未知或非 pending 目标；Manager 的 fact/event actor 保留真实 identity，不冒充 Captain。切换不提升 candidate、不完成目标或解除阻塞，保留旧议题 plan 与记录。
+`activate_agenda` 允许 Captain 或当前 Meeting Manager 提交；Agent 入口为 `convivium_activate_agenda`，沿用相同命令字段、版本、幂等与事务。只接受本会议已有 pending Agenda，拒绝非 running、旧议题有 open Round、未知或非 pending 目标；Manager 的 fact/event actor 保留真实 identity，不冒充 Captain。切换同事务将目标加入有显式责任列表的专职 Manager，不改变其角色、Session、Definition 或工具能力，不扩张 Contributor 责任；空列表仍表示全部议题。切换不提升 candidate、不完成目标或解除阻塞，保留旧议题 plan 与记录。
 
 Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` 说明受影响结论、解除条件及仍可推进的路径；它随 plan 原子提交并进入 `manager_plan.recorded` 事件，不新增异常实体或改变 Issue/Agenda/lifecycle。`blockingReason` 可与 `open_round` 或 `continue_agenda` 同时存在，不隐式触发 `stop_agenda`、结束或议题激活。记录只表示阻塞判断，不自动满足目标、处置 Issue 或解除依赖。局部阻塞后的继续与正常停止条件见 [ER-FR-7](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划)。
 

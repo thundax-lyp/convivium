@@ -114,29 +114,77 @@ Captain 或 loopback 本地召集人可以在轮次无法继续时通过结构�
 
 ## Business Sequence
 
+此时序展示一个贡献者提交、另一贡献者拒绝的正常轮次；提交失败、审核重试和异常中止仍按 ER-FR-3～7 处理。Manager 的后续决策另见下图。
+
 ```mermaid
 sequenceDiagram
-    actor S as 召集人
+    actor S as Captain（本地用户）
     participant M as Manager
     participant A as 贡献者 A
     participant B as 贡献者 B
-    participant H as 审核人
-    participant C as Meeting
-    S->>C: 发起会议与目标
-    M->>C: 发布议题并开轮
+    participant H as 专职审核人
+    participant C as Meeting Runtime
+    S->>C: 创建目标、已授权 Agenda 与身份
+    C-->>M: meeting_started
+    M->>C: read_meeting 读取当前版本
+    M->>C: submit_manager_plan（open_round、roundGoal）
+    C-->>M: 成功回执、新版本与 planId
+    M->>C: open_round（新版本、planId）
     C-->>A: 开轮通知与选择期限
     C-->>B: 开轮通知与选择期限
-    A->>C: 举手并说明取证目的
-    B->>C: 明确拒绝举手
-    M->>C: 接纳 A 举手
-    A->>C: 登记唯一最终证据版本
-    H->>C: 对该版本完成独立审核
-    C-->>A: 送达最终审核意见
+    A->>C: raise_hand（取证目的）
+    B->>C: decline_hand（主动拒绝）
+    M->>C: dispose_hand_raise（接纳 A）
+    A->>C: submit_evidence（唯一最终版本）
+    C-->>H: 待审版本与有效 claim
+    H->>C: run_review_worker（独立审核）
+    Note over H,C: Runtime 校验 worker 结果并提交 Review
+    C-->>A: 成功送达最终审核意见
     Note over A,C: 送达即结算贡献，不在同轮补证
-    M->>C: 发布已收口轮次
-    M->>C: 将待补证问题规划到下一轮
-    C-->>S: 报告公开结果与未满足目标
+    C-->>M: round_ready（全部选择、贡献和审核已收口）
+    M->>C: publish_round
+    C-->>M: 成功回执、新版本与 Publication
+    M->>C: read_meeting 重读公开结果
+    Note over M,C: 按后续决策流程继续本议题、切换已授权议题或结束
+    C-->>S: 公开结果、局部阻塞与未满足目标可读
 ```
+
+下图是 Manager 应遵循的业务决策流程，不代表 Runtime 自动替模型判断信息价值或是否穷尽路径。已授权 pending Agenda 来自会议创建或 Captain 正式提升的 candidate；单纯 pending candidate 不是授权议题，也不必然阻止会议结束。
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart TD
+    R["轮次发布后或收到 agenda_stopped"] --> Read["Manager 重读完整 Meeting 与最新版本"]
+    Read --> Life{"Meeting running 且无 open Round？"}
+    Life -->|否| Guard["遵守当前生命周期、收口或恢复路径，不切换议题"]
+    Guard -.->|paused / converging 且无 open Round，符合正常结束条件| End
+    Life -->|是| Block{"局部阻塞记录需要新增或更新？"}
+    Block -->|是| Record["Manager plan 记录事实、影响、解除条件与后续工作；等待成功回执"]
+    Block -->|否| Current
+    Record --> Current{"当前 Agenda 有独立可执行且有新增价值的路径？"}
+    Current -->|是| Plan["提交 open_round plan 与 roundGoal，保留相关阻塞"]
+    Plan --> Receipt["等待成功回执；使用新版本与 planId"]
+    Receipt --> Open["open_round；贡献、独立审核、送达与轮末发布"]
+    Open --> R
+    Current -->|否| Next{"已有可推进的 pending Agenda？"}
+    Next -->|是| Activate["按 Agenda 顺序选择首个可推进项；activate_agenda，无需 Captain 再确认"]
+    Activate --> Disposition["旧议题显式 deferred / closed / completed；阻塞不解除，目标不自动完成"]
+    Disposition --> Fresh["等待激活成功；重读新 active Agenda 与版本"]
+    Fresh --> Plan
+    Next -->|否| Work{"有未完成任务或影响判断的待用户处置路径？"}
+    Work -->|是| Wait["记录等待原因与下一步，不结束；Captain 专属处置仍由用户执行"]
+    Work -->|否| Exhausted{"相关路径均完成、无新增价值或明确不可解除？"}
+    Current -.->|否：可选停止判断后独立通知再扫描| SubmitStop["stop_agenda 记录停止依据；不改变 Agenda 或 lifecycle"]
+    SubmitStop --> Notice["同事务产生 agenda_stopped；有效通知独立投递"]
+    Notice --> Read
+    Exhausted -->|否| Wait
+    Exhausted -->|是| End["Manager 正常 end_meeting：completed / partial / no_consensus；保留未解决限制"]
+```
+
+每条写命令等待回执后才提交下一条，不同写入不能共用提交前版本；版本冲突先重读。`stop_agenda` 的独立通知要求不限制已扫描出后续议题时直接激活，也不把它当作所有正常结束的强制前置命令。正常结束入口接受 running / paused / converging 且无 open Round；暂停不授权继续开轮或切换议题，已终止状态不再提交正常结束。`completed` 需要确定性完成事实；Captain 的取消/故障终止与 Runtime 归档不在此正常规划图中。
 
 ## Acceptance Criteria
 
