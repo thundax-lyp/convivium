@@ -328,33 +328,6 @@ export const groupTimelineMilestones = (
         .sort((a, b) => a.startedAt - b.startedAt);
 };
 
-export const isPrimaryTimelineNode = (node: TimelineNode): boolean => {
-    if (node.eventKind === undefined) {
-        return true;
-    }
-    if (
-        node.eventKind === "contribution.failed" ||
-        node.eventKind === "evidence_validation.failed" ||
-        node.status === "failed"
-    ) {
-        return true;
-    }
-    return (
-        ![
-            "formal_message.published",
-            "hand_raise.recorded",
-            "hand_raise.disposed",
-            "round.participation_recorded",
-            "contribution.closed",
-            "evidence_review.claimed",
-            "manager_plan.recorded",
-            "identity.recommended",
-            "identity.admission_recorded"
-        ].includes(node.eventKind) &&
-        !(node.eventKind === "review_delivery.recorded" && node.status === "sent")
-    );
-};
-
 const unique = <T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined => {
     const matches = items.filter(predicate);
     return matches.length === 1 ? matches[0] : undefined;

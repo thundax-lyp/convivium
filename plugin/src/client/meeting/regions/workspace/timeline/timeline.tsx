@@ -14,7 +14,6 @@ import {
     filterTimelineNodes,
     resolveTimelineNodeContent,
     groupTimelineMilestones,
-    isPrimaryTimelineNode,
     type TimelineMilestoneGroup,
     type TimelineNode
 } from "./projection.ts";
@@ -250,29 +249,6 @@ export const TimelineFilters = ({
     );
 };
 
-const isPrimaryNode = (node: TimelineNode): boolean => {
-    if (node.eventKind !== undefined) {
-        return isPrimaryTimelineNode(node);
-    }
-    switch (node.objectKind) {
-        case "opportunity_request":
-        case "hand_raise":
-        case "formal_message":
-        case "identity_recommendation":
-        case "proposal_revision":
-        case "position":
-        case "decision_candidate":
-        case "manager_plan":
-            return false;
-        case "review_delivery":
-            return node.status === "failed";
-        case "task":
-            return false;
-        default:
-            return true;
-    }
-};
-
 const nodeEmphasis = (node: TimelineNode): string => {
     if (
         (node.objectKind === "round" && node.phase === "opened") ||
@@ -293,10 +269,8 @@ const nodeEmphasis = (node: TimelineNode): string => {
 export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
     const { detail, filters, onFiltersChange } = props;
     const t = useMeetingTranslate();
-    const [showDetails, setShowDetails] = useState(false);
     const [eventKinds, setEventKinds] = useState<string[]>([]);
     useEffect(() => {
-        setShowDetails(false);
         setEventKinds([]);
     }, [detail.meetingId]);
     const allNodes = buildTimelineNodes(detail);
@@ -306,28 +280,13 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
             eventKinds.length === 0 ||
             (node.eventKind !== undefined && eventKinds.includes(node.eventKind))
     );
-    const visible =
-        showDetails ||
-        eventKinds.length > 0 ||
-        filters.objectKinds.length > 0 ||
-        filters.participantIds.length > 0
-            ? filtered
-            : filtered.filter(isPrimaryNode);
-    const visibleKeys = new Set(visible.map((node) => node.key));
+    const visibleKeys = new Set(filtered.map((node) => node.key));
     const nodes = groups.flatMap((group) =>
         allNodes.filter((node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key))
     );
     return (
         <section aria-label={t("panel.timeline.title")}>
             <p>{t("panel.timeline.disclaimer")}</p>
-            <label className={styles.detailToggle}>
-                <input
-                    type="checkbox"
-                    checked={showDetails}
-                    onChange={(event) => setShowDetails(event.target.checked)}
-                />
-                {t("panel.timeline.showDetails")}
-            </label>
             <TimelineFilters
                 detail={props.detail}
                 nodes={allNodes}

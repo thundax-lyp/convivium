@@ -48,7 +48,7 @@ describe("Meeting timeline presentation", () => {
             objectKinds: ["evidence_version"]
         });
     });
-    it("renders groups before filtering and keeps metadata stable while toggling details and event filters", () => {
+    it("renders groups before filtering and keeps metadata stable while filtering all events", () => {
         const { container } = render(
             withMeetingTranslation(
                 <MeetingPanelTimeline
@@ -70,7 +70,7 @@ describe("Meeting timeline presentation", () => {
             round().getAttribute("data-started-at"),
             round().getAttribute("data-completed-at")
         ];
-        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
         expect(screen.getByText("immutable evidence summary")).toBeTruthy();
         expect(keys()).toContain("event:5");
@@ -79,16 +79,14 @@ describe("Meeting timeline presentation", () => {
         opening.focus();
         fireEvent.keyDown(opening, { key: "ArrowDown" });
         expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         fireEvent.click(screen.getByRole("button", { name: "审核领取" }));
         expect(keys()).toEqual(["event:4"]);
         expect(container.querySelector('[data-group-key="milestone:meeting-start:1"]')).toBeNull();
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
         fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
-        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:5", "event:6"]);
+        expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
     });
 
     it("focuses the latest visible event key for an object without falling back to DTO keys", () => {
@@ -110,10 +108,10 @@ describe("Meeting timeline presentation", () => {
                 "zh"
             )
         );
-        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
+        expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:4");
         expect(consumed).toHaveBeenCalledOnce();
     });
-    it("alternates event cards, keeps round openings on the left and hides coordination details by default", () => {
+    it("alternates event cards, keeps round openings on the left and shows coordination events by default", () => {
         const detail = eventTimelineFixture();
         detail.rounds.push({
             ...detail.rounds[0]!,
@@ -185,8 +183,6 @@ describe("Meeting timeline presentation", () => {
         expect(cards.find((node) => node.dataset.nodeKey === "event:5")?.dataset.side).toBe(
             "right"
         );
-        expect(cards.some((node) => node.dataset.nodeKey === "event:7")).toBe(false);
-        fireEvent.click(screen.getByRole("checkbox", { name: "显示过程细节" }));
         expect(
             screen
                 .getAllByTestId("timeline-node")
