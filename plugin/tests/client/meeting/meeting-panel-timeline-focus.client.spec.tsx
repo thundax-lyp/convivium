@@ -12,6 +12,35 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 afterEach(cleanup);
 
 describe("Meeting timeline presentation", () => {
+    it("labels identities and related objects without exposing IDs and retains filter bindings", () => {
+        const detail = eventTimelineFixture();
+        detail.identities = detail.identities.map((identity) => ({
+            ...identity,
+            displayName: identity.id === "manager-v1" ? "Research Manager" : "Research Contributor"
+        }));
+        const onFiltersChange = vi.fn();
+        render(
+            withMeetingTranslation(
+                <MeetingPanelTimeline
+                    detail={detail}
+                    filters={INITIAL_TIMELINE_FILTERS}
+                    viewportRevision={0}
+                    onFiltersChange={onFiltersChange}
+                />,
+                "zh"
+            )
+        );
+        const identities = screen.getByRole("group", { name: "身份" });
+        expect(identities.textContent).toContain("Research Manager");
+        expect(identities.textContent).not.toContain("manager-v1");
+        const related = screen.getByRole("group", { name: "关联对象" });
+        expect(related.textContent).not.toContain("round-1");
+        fireEvent.click(within(related).getByRole("button"));
+        expect(onFiltersChange).toHaveBeenCalledWith({
+            ...INITIAL_TIMELINE_FILTERS,
+            relatedObjects: [{ objectKind: "round", objectId: "round-1" }]
+        });
+    });
     it.each([false, true])(
         "scrolls to the newest occurrence across groups, with captain hidden=%s",
         (hidden) => {
@@ -344,7 +373,10 @@ describe("Meeting overview location", () => {
             )
         );
         expect(document.activeElement?.tagName).toBe("LI");
-        expect(document.activeElement?.textContent).toContain("decision-1");
+        expect(document.activeElement?.getAttribute("data-overview-key")).toBe(
+            "decision:decision-1"
+        );
+        expect(document.activeElement?.textContent).not.toContain("decision-1");
         expect(screen.queryByRole("navigation", { name: "Timeline" })).toBeNull();
 
         rerender(

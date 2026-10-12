@@ -49,6 +49,7 @@ export interface TimelineProps {
 }
 
 export interface TimelineFiltersProps {
+    detail: MeetingView;
     nodes: readonly TimelineNode[];
     filters: TimelineFilterState;
     onChange(filters: TimelineFilterState): void;
@@ -139,7 +140,7 @@ const identityName = (detail: MeetingView, node: TimelineNode): string => {
         detail.lifecycle.status === "archived"
             ? detail.archive?.identityProvenance.find((item) => item.identityId === node.identityId)
             : detail.identities.find((item) => item.id === node.identityId);
-    return identity?.displayName ?? node.identityId;
+    return identity?.displayName ?? "";
 };
 
 const toggle = (values: readonly string[], value: string): string[] => {
@@ -171,6 +172,7 @@ const filterGroup = (
 };
 
 export const TimelineFilters = ({
+    detail,
     nodes,
     filters,
     onChange,
@@ -212,7 +214,10 @@ export const TimelineFilters = ({
                 filters.identityIds,
                 (id) => {
                     const lane = nodes.find((node) => node.identityId === id)?.lane ?? "system";
-                    return `${t(`panel.timeline.lane.${lane}` as MeetingLocaleKey)}: ${id}`;
+                    const node = nodes.find((item) => item.identityId === id)!;
+                    const name = identityName(detail, node);
+                    const role = t(`panel.timeline.lane.${lane}` as MeetingLocaleKey);
+                    return name ? `${role}: ${name}` : `${role} ${identities.indexOf(id) + 1}`;
                 },
                 (id) => onChange({ ...filters, identityIds: toggle(filters.identityIds, id) })
             )}
@@ -243,7 +248,17 @@ export const TimelineFilters = ({
                 filters.relatedObjects.map(refKey),
                 (key) => {
                     const ref = refs.find((item) => refKey(item) === key)!;
-                    return `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)}: ${ref.objectId}`;
+                    const ordinal =
+                        refs
+                            .filter((item) => item.objectKind === ref.objectKind)
+                            .findIndex((item) => refKey(item) === key) + 1;
+                    const heading = `${label(`enum.timelineKind.${ref.objectKind}`, ref.objectKind, t)} ${ordinal}`;
+                    if (ref.objectKind === "identity") {
+                        const node = nodes.find((item) => item.identityId === ref.objectId);
+                        const name = node && identityName(detail, node);
+                        return name ? `${heading}: ${name}` : heading;
+                    }
+                    return heading;
                 },
                 (key) => {
                     const keys = toggle(filters.relatedObjects.map(refKey), key);
@@ -355,6 +370,7 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
                 {t("panel.timeline.showDetails")}
             </label>
             <TimelineFilters
+                detail={props.detail}
                 nodes={allNodes}
                 filters={filters}
                 onChange={onFiltersChange}
@@ -421,8 +437,15 @@ const TimelineNodeContent = ({
                 <p>{t("panel.state.focusMissing")}</p>
             ) : (
                 <div>
-                    <Ellipsis text={contentTitle(node, content.title, t)} maxLines={3} />
-                    {content.detail === undefined ? null : (
+                    <Ellipsis
+                        text={
+                            content.title === node.objectId
+                                ? label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)
+                                : contentTitle(node, content.title, t)
+                        }
+                        maxLines={3}
+                    />
+                    {content.detail === undefined || content.detail === node.objectId ? null : (
                         <details>
                             <summary>{t("panel.timeline.details")}</summary>
                             <p>

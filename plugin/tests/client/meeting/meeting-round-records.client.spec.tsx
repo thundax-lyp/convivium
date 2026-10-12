@@ -98,7 +98,8 @@ describe("Meeting overview round records", () => {
             rows.findIndex((text) => text.includes("second message"))
         );
         expect(within(firstRound).getAllByRole("button", { name: /查看证据/ })).toHaveLength(2);
-        expect(rows.join("\n")).toContain("轮次发布: publication-1");
+        expect(rows.join("\n")).toContain("轮次发布:");
+        expect(rows.join("\n")).not.toContain("publication-1");
         expect(rows.join("\n")).not.toContain("reason A");
         expect(screen.queryByRole("region", { name: "证据" })).toBeNull();
         expect(screen.queryByRole("region", { name: "会议发言" })).toBeNull();
@@ -294,8 +295,8 @@ describe("Meeting overview contributor participation records", () => {
 
         const records = screen.getByRole("region", { name: "记录" });
         const firstRound = within(records).getByRole("region", { name: /round question/ });
-        expect(within(firstRound).getByText("contributor-v2")).toBeTruthy();
-        expect(within(firstRound).getByText("contributor-v3")).toBeTruthy();
+        expect(within(firstRound).getByText("贡献者 2")).toBeTruthy();
+        expect(within(firstRound).getByText("贡献者 3")).toBeTruthy();
         expect(
             within(firstRound)
                 .getAllByRole("listitem")
@@ -358,7 +359,7 @@ describe("Meeting overview contributor participation records", () => {
             within(round)
                 .getAllByRole("heading", { level: 6 })
                 .map((item) => item.textContent)
-        ).toEqual(["甲失败贡献者", "contributor-declined", "contributor-v1", "manager-v1"]);
+        ).toEqual(["贡献者 1", "甲失败贡献者", "contributor-v1", "manager-v1"]);
         expect(text.indexOf("取证失败")).toBeLessThan(text.indexOf("查看证据"));
         expect(within(round).getAllByRole("button", { name: /查看证据/ })).toHaveLength(1);
         expect(
