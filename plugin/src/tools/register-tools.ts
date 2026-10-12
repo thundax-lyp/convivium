@@ -114,8 +114,12 @@ const actionSchemas = {
             },
             "Required exactly when planKind is open_round."
         ),
-        rationale: requiredString("Why this is the next valid plan."),
-        blockingReason: optionalString("Current blocking condition, when applicable.")
+        rationale: requiredString(
+            "Why this plan advances the objective. For local blockers, state affected conclusions, unblock conditions and remaining feasible work; do not equate one blocked path with an exhausted Meeting."
+        ),
+        blockingReason: optionalString(
+            "Persist a local blocker and its cause, including when opening independent work. This does not end the Meeting, resolve the blocker or activate another agenda."
+        )
     }),
     dispose_hand_raise: exactObject({
         kind: { type: "string", const: "dispose_hand_raise", required: true },
