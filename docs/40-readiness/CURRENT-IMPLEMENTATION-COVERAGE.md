@@ -4,7 +4,7 @@
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
 
-当前 checkout 基线为插件版本 `0.1.0-alpha.1`、DSH `0.2.0-rc.2`；2026-10-12 核对的主线基线为 `62cac736`，本地 `main` 与刷新后的 `origin/main` 一致。PR #106～#115 均已通过 merge commit 进入主线，包含 `6880f067` 的 rc.2 业务修复、会议界面、事件日志与时间线、会议删除及其修复。合并状态不代表人工环境已部署该基线，也不替代对应运行验证。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。该主线基线没有对应 release tag。状态含义：
+当前 checkout 基线为插件版本 `0.1.0-alpha.1`、DSH `0.2.0-rc.2`；2026-10-12 核对的主线基线为 `1d9e09c3`，本地 `main` 与刷新后的 `origin/main` 一致。PR #106～#116 均已通过 merge commit 进入主线，包含 `6880f067` 的 rc.2 业务修复、会议界面、事件日志与时间线、会议删除及其修复，以及旧时间线兼容退役。合并状态不代表人工环境已部署该基线，也不替代对应运行验证。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。该主线基线没有对应 release tag。状态含义：
 
 - `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
@@ -35,7 +35,7 @@
 | MO-FR-14                              | Meeting Agent Definition                      | 部分实现 | PR #99；`ddd57953` | 七个 Definition 2.0.0、七份角色 AGENTS、七个 convivium-* Preset 和五项能力 Skills 已装配，真实 Loader 的列表/按名称加载逐角色隔离；组合测试核对角色身份指令与工具集合。Captain 为可信本地用户，创建、十控制及 pause/resume/end 共十四 action；输入 Session 关闭不影响投递和用户权限。旧共享 Preset、七角色型 Skill、Captain child 创建和旧 adapter 已删除。Manager 角色资源禁止把贡献产出分配给专职 Reviewer；真实来源读取、Reviewer worker、Agent 创建拒绝和冷恢复均有专项 PASS。                                                                                                                                                                                                              | 专项 smoke 未直接核对冷恢复后 Agent 的有效模型、角色身份指令与 toolFilter，也未验证 Reviewer 并发审核；MO-FR-14.11 的完整 Host 验收尚未闭合。模型可见能力隔离不承诺静态文件系统保密；人工 Browser、跨 Host 和长期模型质量未覆盖。                                         |
 | MO-FR-15                              | Developer Markdown Projection                 | 未覆盖   | PR #46、#88        | PR #46 的旧实现已随 target cutover 移除，无当前 target 实现。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `current.md`、`archive.md` 的 best-effort projection 尚未实现；旧 legacy projection 不构成该需求的当前覆盖。                                                                                                                                                              |
 
-生产 Agent tool surface 当前包括只读 `convivium_read_meeting`，reviewer 专用内部能力 `convivium_run_review_worker`，以及 command tools：`convivium_submit_manager_plan`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_raise_hand`、`convivium_submit_evidence`、`convivium_recommend_identity`。review worker 工具由 Runtime 校验结构化结果并使用捕获的 claim 与原 reviewer 权限直接提交，返回 accepted/rejected；不再注册独立的 `convivium_submit_evidence_review` 模型工具，不由 coordinator 转抄审核字段。loopback local controller 是独立入口，不得据此推断 Agent 已获得同等 tool surface。
+生产 Agent tool surface 当前包括只读 `convivium_read_meeting`，reviewer 专用内部能力 `convivium_run_review_worker`，以及 command tools：`convivium_submit_manager_plan`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_raise_hand`、`convivium_submit_evidence`、`convivium_recommend_identity`、`convivium_end_meeting`。review worker 工具由 Runtime 校验结构化结果并使用捕获的 claim 与原 reviewer 权限直接提交，返回 accepted/rejected；不再注册独立的 `convivium_submit_evidence_review` 模型工具，不由 coordinator 转抄审核字段。loopback local controller 是独立入口，不得据此推断 Agent 已获得同等 tool surface。
 
 ## Validated Contract
 
@@ -75,6 +75,22 @@
 本次未覆盖：人工 Web/Browser、跨 Host、MeetingTask/session_mail 的完整生产链、任意来源/第三方工具的普遍可用性和长期研究质量。隔离仅承诺模型可见能力，不是静态文件系统保密；旧 v1 明确拒读，无迁移。人工 `dsh-workspace/` 未部署、未启动、未清理。
 
 ## Executed Validation
+
+### 2026-10-12：文档、代码与 Skill 一致性收口
+
+范围为主线 `1d9e09c3` 上的 `codex/organize-docs`（提交基线 `61f9471c` 加本次工作区改动）。刷新远端确认 `main` 与 `origin/main` 同为 `1d9e09c3`。同步 Reviewer tool allow/Contributor deny、Runtime 捕获 claim 并提交 Review 的职责、事件日志唯一时间线来源、初始四角色与七份部署资源的区别，以及按指纹固化的身份资源口径；修正 readiness Skill 的失效设计引用，并将退役规则接入 PR Review 检查。
+
+按已确认的退役规则删除 MeetingState 中旧字段名的递归识别器与两个仅针对退役字段/归档形状的测试；混合契约用例保留当前状态 codec 往返与确定性序列化断言。保留当前 Schema、引用、结果、轮次与身份不变量校验，不为退役新增特殊错误或替代用例。
+
+本次实际执行 `pnpm --dir plugin exec vitest run`：104 个文件、992 个测试通过；根 `pnpm typecheck`（Host/Client）、`pnpm lint` 和 `pnpm build` 通过。lint 为 0 errors、2 处既有 Repository `max-lines` warnings；测试输出含依赖包缺失 source map 和 Node SQLite experimental warning。两个修改的 Skill 通过 `quick_validate.py`，本地 Markdown 文件链接检查无失效目标，修改源码/测试格式及 `git diff --check` 通过。Not Covered：remote-test typecheck、远端 CI、真实 provider/LLM、固定人工安装刷新、DSH Web/Browser 与新的会议业务验收均未执行；当前主线没有对应 release tag。
+
+### 2026-10-12：移除无完整事件日志的会议兼容
+
+用户确认未发布阶段不保留旧测试数据兼容。Client 移除 DTO 时间字段时间线投影，只消费 `timelineEvents`；不增加旧数据专用识别、拒绝或恢复校验机制。共享 DTO 的事件字段仍为 optional，仅因 Agent identity 不接收事件日志。
+
+固定人工 Web SQLite 在清理前仅有 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`，checkpoint 中 eventSeq 1 的 `meeting.created` 仅包含 `meetingId`，缺少 `logVersion:1`。确认 31828 无运行 Host 后，事务删除该会议 domain 的五张表、unit 元数据与 catalog 记录；读回 catalog 为 0，`PRAGMA integrity_check` 为 `ok`。DSH 对话、凭据、工作目录与安装保留。此前旧 DTO 展示的历史验收记录不代表当前支持范围。
+
+2026-10-12 按用户确认收窄为删除旧数据和兼容代码：撤掉旧日志专用拒绝分支、恢复检查和两个旧数据场景测试，身份恢复 fixture 恢复原输入；保留当前事件完整性、事件展示和筛选验证。此前基于旧数据写入拒绝要求提出的 Review finding 随该要求撤回。本次验证：Vitest 全量 104 个文件、994 个测试通过；Host typecheck、修改文件 Prettier 和 ESLint、`git diff --check` 通过。ESLint 保留 Repository 文件既有 `max-lines` 警告；未重新执行人工 DSH Web 验收。
 
 ### 2026-10-12：主线交付状态与证据边界
 
@@ -270,13 +286,3 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 当前可以声明 Meeting target runtime 已完成单一活动链切换，并对会议创建、证据轮次、状态读取、动态身份准入、持久化恢复和归档核心路径形成自动化覆盖。只有标为 `已实现` 的行可作为当前功能覆盖结论；`部分实现` 与 `未覆盖` 必须保留为交付缺口，不能由相邻 Domain 类型、测试 helper 或旧 legacy 实现推断为可用。
 
 相关依据：[Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
-
-## 2026-10-12 移除无完整事件日志的会议兼容
-
-用户确认未发布阶段不保留旧测试数据兼容。Client 移除 DTO 时间字段时间线投影，只消费 `timelineEvents`；不增加旧数据专用识别、拒绝或恢复校验机制。共享 DTO 的事件字段仍为 optional，仅因 Agent identity 不接收事件日志。
-
-固定人工 Web SQLite 在清理前仅有 `meeting-24c9ef9dac5cbe31685eb378e3ef2e41`，checkpoint 中 eventSeq 1 的 `meeting.created` 仅包含 `meetingId`，缺少 `logVersion:1`。确认 31828 无运行 Host 后，事务删除该会议 domain 的五张表、unit 元数据与 catalog 记录；读回 catalog 为 0，`PRAGMA integrity_check` 为 `ok`。DSH 对话、凭据、工作目录与安装保留。此前旧 DTO 展示的历史验收记录不代表当前支持范围。
-
-历史验证（范围收窄前）：先观察缺失完整标记仍返回 legacy、恢复仍成功和 DTO 时间字段仍制造节点的失败；修改后相关 Client、事件日志 contract 与 recovery 共 17 个测试文件、135 个 case 通过；完整回归 `pnpm --dir plugin exec vitest run` 为 104 个文件、995 个 case 通过。额外保留事件筛选交集的行为保护并单独复验。根 `pnpm lint`、插件 `typecheck` 和 `build` 通过，lint 有既有 Repository 文件行数 warning。Not Covered：本次没有运行真实 DSH Host 或人工 Browser 验收，未刷新固定人工安装。
-
-2026-10-12 按用户确认收窄为删除旧数据和兼容代码：撤掉旧日志专用拒绝分支、恢复检查和两个旧数据场景测试，身份恢复 fixture 恢复原输入；保留当前事件完整性、事件展示和筛选验证。此前基于旧数据写入拒绝要求提出的 Review finding 随该要求撤回。本次验证：Vitest 全量 104 个文件、994 个测试通过；Host typecheck、修改文件 Prettier 和 ESLint、`git diff --check` 通过。ESLint 保留 Repository 文件既有 `max-lines` 警告；未重新执行人工 DSH Web 验收。

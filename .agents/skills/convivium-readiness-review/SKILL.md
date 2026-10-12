@@ -25,7 +25,7 @@ description: Assess whether a Convivium implementation or PR is genuinely ready 
 
 没有实际命令输出时，不得写成“验证通过”；可以写“配置了验证入口”或“未覆盖”。
 
-测试充分性按 [Test Rules](../../../docs/00-governance/TEST-RULES.md) 判断行为依据和真实保护；本 Skill 的领域清单用于定位证据，不意味着每项都要新增 case。测试精简必须核对保护承接，不能只凭用例数或覆盖率升降判断 readiness。
+测试充分性按 [Test Rules](../../../docs/00-governance/TEST-RULES.md) 判断行为依据和真实保护；本 Skill 的领域清单用于定位证据，不意味着每项都要新增 case。测试精简必须核对保护承接，不能只凭用例数或覆盖率升降判断 readiness。已确认退役的行为与兼容性按 Test Rules 的 Retired Behavior And Compatibility 清理，不要求为旧输入新增识别、拒绝或替代测试。
 
 ## Coverage ledger
 
@@ -40,7 +40,7 @@ description: Assess whether a Convivium implementation or PR is genuinely ready 
 - Meeting/Participant/Turn 身份隔离与单一发言权。
 - 顺序发言、上下文投影、迟到结果拒绝和权限验证。
 - MeetingTask/mail 与正式 transcript、decision、completion 的边界。
-- Storage Domain 原子 command commit、幂等 receipt、event/outbox 顺序与重试、分页 checkpoint 和有界 tail 恢复；以 `docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md` 和 Storage Interface 为准，不把 provider 物理存储或 migration 纳入插件交付要求。
+- Storage Domain 原子 command commit、幂等 receipt、event/outbox 顺序与重试、分页 checkpoint 和有界 tail 恢复；以 [Meeting Design](../../../docs/30-designs/MEETING-DESIGN.md) 和 [Meeting Interface 的 Persistence And Effects](../../../docs/20-interfaces/MEETING-INTERFACE.md#persistence-and-effects) 为准，不把 provider 物理存储或 migration 纳入插件交付要求。
 - 暂停、恢复、冷启动、orphan Session、capability revoke、Activation drain 和归档。
 - Host/Client、HTTP/tools、错误语义、package exports 和浏览器 bundle 边界。
 - 成功、失败、并发、恢复、压力和权限测试。
