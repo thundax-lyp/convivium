@@ -76,6 +76,21 @@
 
 ## Executed Validation
 
+### 2026-10-12：Manager 局部阻塞与后续工作
+
+在 `codex/manager-local-blockers` 上先提交需求、接口与设计边界（`ec6f15b0`），再修改 Manager 指令、meeting-facilitation Skill、角色资源摘要及计划工具描述（`38e4d2c9`）。复用既有 ManagerPlan 的 `blockingReason`、`rationale` 与 `manager_plan.recorded`，不新增异常实体、命令、事件类型或状态机；当前 Agenda 的独立路径由 Manager 规划开轮，其他授权 Agenda 仍须 Captain 激活。新增回归确认局部阻塞保留在计划与事件中、独立工作能开轮、目标不被标为完成且会议不终止；既有运行机制已支持该行为，改动重点是模型决策指引。
+
+自动验证：runtime 后续通知、通知投递、Domain planning 与工具/角色契约共 6 文件、36 测试 PASS；plugin lint、Host/Client typecheck、build、verify:package、verify:agent-definitions、修改文件格式及 diff check PASS。lint 为 0 error，保留两项既有 Repository 文件长度 warning。未执行全量 verify。
+
+真实模型对照采用保留会议 `meeting-e4da0498d6b05197ec381fddca0ae52c` 在版本 20 发布后、提交停止命令前的历史上下文，重建 39 条消息、已加载 Skill 与原工具 schema，仅替换本次角色/Skill/工具描述。调用同一 DeepSeek 原生 Messages 接口、`deepseek-flash`、high reasoning；输出上限为 16384，原会话上限为 256000。只采集模型下一步返回，不执行会议命令，也未修改原会议或 Session。
+
+原指令两次均选择 `stop_agenda`。第一版修改仍有一次开轮、一次结束为 `partial`，暴露 Manager 把自己的工具限制当作 Contributor 能力限制；补清能力归属、材料修正路径和受阻重试限制后，最后两次均返回带 `blockingReason` 的 `open_round` 计划。**这两次历史回放的命令参数均未通过 MeetingCommandSchema：一次将 requestId 放在 action 内，另一次缺少 action.kind；因此合法命令为 0/2，不能声明第二轮启动成功。** 计划中个别新来源/全文取回路径仍需实际核实能力与条件，不能将模型规划直接当作已证明可执行。
+
+两个合成边界场景各执行一次：所有相关路径耗尽且无后续工作时返回 `end_meeting(partial)`；另一授权 Agenda 可推进但待 Captain 激活时返回带阻塞的 `continue_agenda`，不越权激活或结束。两者参数均通过 MeetingCommandSchema。最终提交仅在上述回放指令基础上修正一句标点与语病，未再次调用模型。小样本只支持决策方向改善，不证明稳定性或命令生成可靠性。
+
+Not Covered：未部署本次改动、未重启固定人工 Host、未新建真实 DSH 多轮会议或执行 Browser 全流程；历史已冻结角色资源不会随源码更新。尚需真实运行验证第二轮 Contributor/Reviewer 路径，以及模型参数错误后的工具反馈恢复；本次不把这些未验证项报为通过。
+
+
 ### 2026-10-12：文档、代码与 Skill 一致性收口
 
 范围为主线 `1d9e09c3` 上的 `codex/organize-docs`（提交基线 `61f9471c` 加本次工作区改动）。刷新远端确认 `main` 与 `origin/main` 同为 `1d9e09c3`。同步 Reviewer tool allow/Contributor deny、Runtime 捕获 claim 并提交 Review 的职责、事件日志唯一时间线来源、初始四角色与七份部署资源的区别，以及按指纹固化的身份资源口径；修正 readiness Skill 的失效设计引用，并将退役规则接入 PR Review 检查。
