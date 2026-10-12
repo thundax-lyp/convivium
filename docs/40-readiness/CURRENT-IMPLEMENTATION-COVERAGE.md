@@ -78,6 +78,17 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 
 ## Executed Validation
 
+### 2026-10-12：会议身份独立工作目录与 Session cwd
+
+范围：`codex/manager-local-blockers` 的 `d40dd15e` 后工作区。人工会议 arXiv 身份的 DSH 日志与投影存在且已执行多轮，但 header 无 cwd、存储在 `_no-cwd`；本地 DSH 0.2.0-rc.2 的 history sourceFor 对无 cwd 的 header 返回 session/not-found。Convivium 创建 Agent 时原先只传 agentPreset，形成该集成缺口。
+
+正式需求及接口明确每个 Meeting/Identity 独立目录。DSH adapter 现在从固定 Host 启动目录派生 `meetings/<meetingId>/agents/<identityId>/`，创建受管目录并传入 meta.cwd；setup/remember 核对原 header，恢复不创建缺失目录、不改写 Session，不改变角色、模型、工具权限或 ownership schema。拒绝路径穿越和受管符号链接，工作文件在暂停、结束、归档及会议删除后保留。目录分离不承诺文件访问隔离。
+
+先增强既有七角色真实 DSH integration，观察首个身份 header.cwd 为 undefined 的目标失败；实现后 2 文件/11 测试 PASS，覆盖各角色不同 cwd、真实 SessionPersistence header、同 Session 恢复与文件保持、cwd 不符及符号链接拒绝。随后 `pnpm --dir plugin verify` 全部 PASS：104 文件/1003 测试，format/lint、Host/Client/remote-test typecheck、build、environment、contract、七角色和 package。环境 Node v22.23.2、DSH 0.2.0-rc.2；两项既有 Repository 长度 lint warning、DSH UI primitives source map warning 非阻断。临时目录由测试 finally/afterEach 清理。文档链接 1149 项零错误（不检查 anchors），diff check PASS。
+
+Not Covered：尚未部署本次改动或新建真实模型人工会议，未验证 Browser 历史读取和进程级冷启动；integration 验证原生 Session 持久化及 scope 释放后的恢复，不冒充完整 Host 冷恢复。无 cwd 的旧 Session 不回填、不迁移，其历史错误不会因源码修改自动消失，旧人工数据未改动。DSH SubagentStartRequest 无逐次 cwd 覆盖字段，一次性 Reviewer worker 仍按原生规则继承父 Reviewer cwd，本次不实现独立 worker 子目录。工作目录不是证据隔离或 sandbox 边界。
+
+
 ### 2026-10-12：代码、文档与议题推进流程图校准
 
 在 `codex/manager-local-blockers` 的 `0fcae49a` 后工作区核对当前命令、Domain、caller-visible controls、角色资源及正式文档。`36217e4a` 补齐正常轮次时序与使用 ELK 的轮后决策流程：读取→计划回执→开轮、Runtime 提交独立 Review、送达与发布；局部阻塞记录→当前独立工作或自动切换已授权议题；用户专属处置等待与真正耗尽路径后的正常结束。图中明确 stop_agenda 仅记录停止判断、独立通知后重读，不是每次激活或正常结束的必选前置。running 才能继续开轮/切换；paused/converging 无 open Round 且符合结束条件时仍可正常结束。流程图描述应遵循的决策，不宣称 Runtime 自动穷尽取证路径。
