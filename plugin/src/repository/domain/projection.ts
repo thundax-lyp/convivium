@@ -1,12 +1,12 @@
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
 import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/index.ts";
-import { applyPatch } from "./json-patch.ts";
+import { applyPatch } from "@/utils/index.ts";
 import {
     decodeCanonicalJson,
     encodeCanonicalJson,
     sha256Hex,
     type JsonValue
-} from "./canonical-json.ts";
+} from "@/utils/index.ts";
 import { seqKey, type SeqKey } from "./keys.ts";
 import {
     CommitRecordSchema,
@@ -33,15 +33,14 @@ export class UnsupportedMeetingStateFormatError extends Error {
 
 const emptyMaps = (): Pick<
     PersistenceProjection,
-    "receipts" | "facts" | "events" | "outbox" | "sessionOwnership" | "privateMail"
+    "receipts" | "facts" | "events" | "outbox" | "sessionOwnership"
 > => {
     return {
         receipts: Object.create(null),
         facts: Object.create(null),
         events: Object.create(null),
         outbox: Object.create(null),
-        sessionOwnership: Object.create(null),
-        privateMail: Object.create(null)
+        sessionOwnership: Object.create(null)
     };
 };
 

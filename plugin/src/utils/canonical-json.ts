@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
-import type { JsonObject } from "@/repository/index.ts";
-
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+type JsonObject = { [key: string]: JsonValue };
 
 const dangerous = new Set(["__proto__", "prototype", "constructor"]);
 
@@ -60,8 +58,4 @@ export const encodeCanonicalJson = (value: unknown): Uint8Array => {
 
 export const decodeCanonicalJson = (bytes: Uint8Array): JsonValue => {
     return normalize(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
-};
-
-export const sha256Hex = (bytes: Uint8Array): string => {
-    return createHash("sha256").update(bytes).digest("hex");
 };

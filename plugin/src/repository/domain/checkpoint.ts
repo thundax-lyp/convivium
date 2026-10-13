@@ -14,7 +14,7 @@ import {
     projectionDigest
 } from "./projection.ts";
 import { generation } from "./keys.ts";
-import { encodeCanonicalJson, sha256Hex } from "./canonical-json.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 
 const pageKey = (gen: string, index: number): string =>
     `${gen}_${index.toString().padStart(10, "0")}`;

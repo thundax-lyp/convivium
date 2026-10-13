@@ -108,6 +108,8 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 PrivateMail 的五个 Domain transition 固定如下；application 只注入已认证 actor、ID 与 `Clock.now()`，不得重算 Domain 字段：
 
+私信随 `MeetingState.privateMails` 由统一 Repository command 原子保存。`DomainMeetingRepository` 直接继承提交与创建内核 `DomainMeetingRepositoryCore`，不设置私信仓储中间层、独立持久化 map 或另一套私信校验；私信状态与 serial gate 的唯一行为依据是 Domain transition。
+
 | 转换                    | 允许 actor 与 lifecycle                                           | 前提                                                                                                              | 成功结果                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `send_private_mail`     | `running` 中任一 Meeting identity                                 | recipient 是不同 identity；agenda 可选且存在；`relatedIds` 只含已公开 Publication/Message                         | append `queued` mail；发送范围为全部当前 Publication；deadline 为 `now+taskDeadlineMs`；产生唯一最小 `session_mail` effect request |

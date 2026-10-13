@@ -7,10 +7,9 @@ import type {
     MeetingBootstrap,
     MeetingSnapshot,
     OutboxKind,
-    PrivateMeetingMail,
     SessionOwnership
 } from "@/repository/index.ts";
-import type { JsonValue } from "./canonical-json.ts";
+import type { JsonValue } from "@/utils/index.ts";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([
@@ -422,34 +421,6 @@ const meetingBootstrap = z
         failureCode: z.string().optional()
     })
     .strict() satisfies z.ZodType<MeetingBootstrap>;
-const privateMail = z
-    .object({
-        mailId: z.string(),
-        meetingId: z.string(),
-        senderParticipantId: z.string(),
-        recipientParticipantId: z.string(),
-        content: z.string(),
-        meetingContext: JsonObjectSchema,
-        replyToMailId: z.string().optional(),
-        handlingAttemptId: z.string(),
-        status: z.enum([
-            "pending",
-            "processing",
-            "processed",
-            "obsolete",
-            "failed",
-            "timed_out",
-            "cancelled"
-        ]),
-        snapshotThroughSeq: z.number().int(),
-        processingThroughSeq: z.number().int().optional(),
-        deliveryId: z.string().optional(),
-        deadlineAt: z.number().int().optional(),
-        createdAt: z.number().int(),
-        updatedAt: z.number().int()
-    })
-    .strict() satisfies z.ZodType<PrivateMeetingMail>;
-
 export const CommittedFactRecordSchema = z
     .object({
         factId: z.string().min(1),
@@ -567,7 +538,6 @@ export const PersistenceProjectionSchema = z
         events: safeRecord(PersistedEventSchema),
         outbox: safeRecord(PersistedOutboxSchema),
         sessionOwnership: sessionOwnershipMap,
-        privateMail: safeRecord(privateMail),
         nextEventSeq: z.number().int()
     })
     .strict();

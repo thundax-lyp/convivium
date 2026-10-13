@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, diff } from "@/repository/domain/json-patch.ts";
-describe("domain JSON patch", () => {
+import { applyPatch, diff } from "@/utils/index.ts";
+describe("JSON patch", () => {
     it("orders remove, recursive and set operations deterministically", () => {
         const before = { a: [1, 2], remove: true };
         const after = { a: [1, 3, 4], add: "x" };

@@ -78,6 +78,14 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 
 ## Executed Validation
 
+### 2026-10-13：退役未使用的 Repository 结构
+
+Scope / Validated Contract：`codex/remove-retired-repository-structures` 的 `52341031`、`d0a51f4f`。删除无生产调用的 `DomainMeetingRepositoryMail`、旧私信校验、七个私信 port 方法、关联类型与独立 `privateMail` projection map；当前私信继续由 `MeetingState.privateMails` 和 Domain transition 管理。删除无调用且无当前契约依据的 `updateCreateResult`、`requeueAcceptedOutbox`。仓储直接继承提交内核，保持 command、receipt、facts/events、outbox lease、ownership、checkpoint 和删除恢复路径；可选 diagnostics hook 保留。
+
+Executed Validation：Node v24.19.0、DSH 0.2.0-rc.2。直接运行 Repository unit、facts/events/registry/ownership/deletion contract、Domain/SQLite recovery 及当前私信 Domain suites：15 文件 / 144 测试 PASS。`pnpm --dir plugin verify` 全部 PASS：104 文件 / 1012 测试，以及格式、lint、Host/Client/remote-test 类型、构建、环境、插件契约、七角色资源和包检查。DSH UI primitives 缺失 source map 的既有 warning 不阻断测试。`node .github/scripts/check-doc-links.mjs`：1150 个本地链接、0 错误（不检查 anchors）；`git diff --check` PASS。
+
+Not Covered / Closure：未部署或运行真实 Host/Browser、长期与压力场景。移除字段后的持久化 projection 只读当前 strict schema，不迁移或兼容包含旧独立 `privateMail` 字段的记录；固定人工 Web 数据未读取、修改或清理，其重开不在本次验证范围内。源码及关联测试结构退役完成，Git 历史保留恢复依据。
+
 ### 2026-10-12：会议身份独立工作目录与 Session cwd
 
 范围：`codex/manager-local-blockers` 的 `d40dd15e` 后工作区。人工会议 arXiv 身份的 DSH 日志与投影存在且已执行多轮，但 header 无 cwd、存储在 `_no-cwd`；本地 DSH 0.2.0-rc.2 的 history sourceFor 对无 cwd 的 header 返回 session/not-found。Convivium 创建 Agent 时原先只传 agentPreset，形成该集成缺口。

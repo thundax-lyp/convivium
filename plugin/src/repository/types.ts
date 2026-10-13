@@ -137,12 +137,6 @@ export interface CreateMeetingResult {
     }[];
 }
 
-export interface UpdateCreateResultInput {
-    expectedMeetingVersion: number;
-    result: CreateMeetingResult;
-    now?: number;
-}
-
 export interface CommittedResult<T> {
     requestId: string;
     meetingId: string;
@@ -246,71 +240,5 @@ export type SessionOwnershipInput = Omit<SessionOwnership, "createdAt" | "update
 export interface UpdateBootstrapInput {
     status: "creation_failed";
     failureCode?: string;
-    now?: number;
-}
-
-export type PrivateMeetingMailStatus =
-    "pending" | "processing" | "processed" | "obsolete" | "failed" | "timed_out" | "cancelled";
-
-export interface PrivateMeetingMail {
-    mailId: string;
-    meetingId: string;
-    senderParticipantId: string;
-    recipientParticipantId: string;
-    content: string;
-    meetingContext: JsonObject;
-    replyToMailId?: string;
-    handlingAttemptId: string;
-    status: PrivateMeetingMailStatus;
-    snapshotThroughSeq: number;
-    processingThroughSeq?: number;
-    deliveryId?: string;
-    deadlineAt?: number;
-    createdAt: number;
-    updatedAt: number;
-}
-
-export interface SendPrivateMeetingMailInput {
-    requestId: string;
-    requestHash: string;
-    authorization: CommandAuthorization;
-    expectedMeetingVersion: number;
-    isNewDeliveryAvailable: () => boolean;
-    mail: Omit<
-        PrivateMeetingMail,
-        "status" | "processingThroughSeq" | "deliveryId" | "deadlineAt" | "updatedAt"
-    >;
-    outbox: OutboxInput;
-}
-
-export interface StartPrivateMeetingMailInput {
-    requestId: string;
-    requestHash: string;
-    authorization: CommandAuthorization;
-    expectedMeetingVersion: number;
-    mailId: string;
-    processingThroughSeq: number;
-    deliveryId: string;
-    deadlineAt: number;
-    now?: number;
-}
-
-export interface FinishPrivateMeetingMailInput {
-    requestId: string;
-    requestHash: string;
-    authorization: CommandAuthorization;
-    expectedMeetingVersion: number;
-    mailId: string;
-    handlingAttemptId: string;
-    deliveryId: string;
-    status: Extract<PrivateMeetingMailStatus, "processed" | "obsolete" | "failed" | "timed_out">;
-    now?: number;
-}
-
-export interface CancelPrivateMeetingMailInput {
-    requestId: string;
-    requestHash: string;
-    authorization: CommandAuthorization;
-    expectedMeetingVersion: number;
     now?: number;
 }

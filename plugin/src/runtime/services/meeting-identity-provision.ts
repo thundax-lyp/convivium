@@ -9,7 +9,7 @@ import { resolveDynamicMeetingDefinition } from "@/role-composition/index.ts";
 import { preflightMeetingIdentity } from "@/role-composition/index.ts";
 import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.ts";
 import type { SessionOwnership, SessionOwnershipInput } from "@/repository/index.ts";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import type { IdentityAdmissionResultContext } from "@/domain/index.ts";
 
 export type IdentityProvisionResult =

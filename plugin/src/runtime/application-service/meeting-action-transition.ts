@@ -1,4 +1,4 @@
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import {
     captainActorIdFor,
     abortRound,

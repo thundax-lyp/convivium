@@ -19,7 +19,7 @@ import type { DomainRepositoryRegistry } from "@/repository/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import {
     LOCAL_CONTROLLER_PRINCIPAL_ID,
     type CreateMeetingCommand,

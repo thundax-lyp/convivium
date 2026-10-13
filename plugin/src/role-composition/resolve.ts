@@ -1,5 +1,5 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 import { parseAgentModelOverrides } from "./model-options.ts";
 import type { MeetingAgentModelOverrides } from "./model-options.ts";

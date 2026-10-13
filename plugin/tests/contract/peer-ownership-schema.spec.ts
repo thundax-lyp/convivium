@@ -63,7 +63,6 @@ const projection = {
     facts: {},
     events: {},
     outbox: {},
-    privateMail: {},
     nextEventSeq: 1
 };
 const creation = {
