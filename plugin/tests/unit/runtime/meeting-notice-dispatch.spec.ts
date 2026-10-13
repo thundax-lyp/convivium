@@ -49,7 +49,11 @@ describe("round ready notice", () => {
                 publicBaselinePublicationIds: [],
                 openedAt: 1,
                 status: "open",
-                contributionIds: ["contribution-1"]
+                contributionIds: ["contribution-1"],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+                ]
             }
         ];
         state.contributions = [
@@ -60,8 +64,7 @@ describe("round ready notice", () => {
                 handRaise: { raisedAt: 1, purpose: "Contribute" },
                 acceptedAt: 2,
                 status: "withdrawn",
-                exitReason: "Author withdrew",
-                substantiveSupplementCount: 0
+                exitReason: "Author withdrew"
             }
         ];
         const deliver = vi.fn().mockResolvedValue(true);
@@ -185,7 +188,9 @@ describe("round opened notice", () => {
                 publicBaselinePublicationIds: [],
                 openedAt: 1,
                 status: "open",
-                contributionIds: []
+                contributionIds: [],
+                invitedContributorIds: [],
+                participationResponses: []
             }
         ];
         const deliver = vi.fn().mockResolvedValue(true);
@@ -378,7 +383,11 @@ describe("committed meeting notice shapes", () => {
                 publicBaselinePublicationIds: [],
                 openedAt: 1,
                 status: "open",
-                contributionIds: ["contribution-1"]
+                contributionIds: ["contribution-1"],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+                ]
             }
         ];
         state.pendingHandRaises = [
@@ -396,8 +405,7 @@ describe("committed meeting notice shapes", () => {
                 contributorId: "contributor-v1",
                 handRaise: { raisedAt: 1, purpose: "Contribute" },
                 acceptedAt: 2,
-                status: "preparing",
-                substantiveSupplementCount: 0
+                status: "preparing"
             }
         ];
         state.messages = [
@@ -572,7 +580,11 @@ describe("Contributor turn failure notice dispatch", () => {
                 publicBaselinePublicationIds: [],
                 openedAt: 1,
                 status: "open",
-                contributionIds: ["contribution-1"]
+                contributionIds: ["contribution-1"],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+                ]
             }
         ];
         state.contributions = [
@@ -582,8 +594,7 @@ describe("Contributor turn failure notice dispatch", () => {
                 contributorId: "contributor-v1",
                 handRaise: { raisedAt: 1, purpose: "Contribute" },
                 acceptedAt: 2,
-                status: "preparing",
-                substantiveSupplementCount: 0
+                status: "preparing"
             }
         ];
         const execute = vi.fn(async (command) => {

@@ -56,7 +56,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "reviewer-v1",
-        completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
         reviews: [],
@@ -79,8 +78,7 @@ export function makeRunningMeetingStateV1(): MeetingState {
             maxFormalMessages: 100,
             maxDurationMs: 3600000,
             taskDeadlineMs: 600000,
-            reviewDeadlineMs: 600000,
-            responseDeadlineMs: 60000
+            reviewDeadlineMs: 600000
         }
     };
 }

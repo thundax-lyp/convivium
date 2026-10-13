@@ -16,13 +16,7 @@ type DisposeInput = {
     now: number;
 };
 
-const terminalContributionStatuses = new Set([
-    "withdrawn",
-    "submission_missing",
-    "timed_out",
-    "supplement_rejected",
-    "closed"
-]);
+const terminalContributionStatuses = new Set(["withdrawn", "submission_missing", "closed"]);
 
 const accepted = (
     state: MeetingState,

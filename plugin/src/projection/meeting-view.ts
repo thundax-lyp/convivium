@@ -3,7 +3,6 @@ import {
     type ArchivePackage,
     type MeetingRole,
     type MeetingState,
-    type PersistedMeetingEvent,
     type OpaqueId
 } from "@/domain/index.ts";
 import type { MeetingAgentCatalog } from "@/dsh/index.ts";
@@ -16,7 +15,7 @@ import {
     type MeetingSummary,
     type MeetingView
 } from "@/protocol/index.ts";
-import type { MeetingSnapshot } from "@/repository/index.ts";
+import type { MeetingSnapshot, PersistedMeetingEvent } from "@/repository/index.ts";
 
 export type MeetingProjectionCaller =
     | { readonly kind: "captain" }
@@ -292,22 +291,16 @@ export const projectMeetingView = (
             ...(round.publicationId === undefined ? {} : { publicationId: round.publicationId }),
             ...(round.abortReason === undefined ? {} : { abortReason: round.abortReason }),
             ...(round.abortedAt === undefined ? {} : { abortedAt: round.abortedAt }),
-            ...(round.invitedContributorIds === undefined
-                ? {}
-                : {
-                      invitedContributorIds:
-                          caller.kind === "captain" || manager
-                              ? [...round.invitedContributorIds]
-                              : round.invitedContributorIds.filter(
-                                    (id) => id === caller.identityId
-                                ),
-                      participationResponses: (round.participationResponses ?? []).filter(
-                          (response) =>
-                              caller.kind === "captain" ||
-                              manager ||
-                              response.contributorId === caller.identityId
-                      )
-                  }),
+            invitedContributorIds:
+                caller.kind === "captain" || manager
+                    ? [...round.invitedContributorIds]
+                    : round.invitedContributorIds.filter((id) => id === caller.identityId),
+            participationResponses: round.participationResponses.filter(
+                (response) =>
+                    caller.kind === "captain" ||
+                    manager ||
+                    response.contributorId === caller.identityId
+            ),
             pendingHandRaises: state.pendingHandRaises.filter(
                 (hand) =>
                     hand.roundId === round.id &&
@@ -317,25 +310,14 @@ export const projectMeetingView = (
             ),
             contributions: state.contributions
                 .filter(({ roundId }) => roundId === round.id)
-                .map(
-                    ({
-                        id,
-                        contributorId,
-                        status,
-                        packageId,
-                        substantiveSupplementCount,
-                        exitReason,
-                        failure
-                    }) => ({
-                        id,
-                        contributorId,
-                        status,
-                        ...(packageId ? { packageId } : {}),
-                        substantiveSupplementCount,
-                        ...(exitReason ? { exitReason } : {}),
-                        ...(failure ? { failure } : {})
-                    })
-                )
+                .map(({ id, contributorId, status, packageId, exitReason, failure }) => ({
+                    id,
+                    contributorId,
+                    status,
+                    ...(packageId ? { packageId } : {}),
+                    ...(exitReason ? { exitReason } : {}),
+                    ...(failure ? { failure } : {})
+                }))
         })),
         publications: copy(state.publications),
         evidencePackages: state.evidencePackages.flatMap((item) => {

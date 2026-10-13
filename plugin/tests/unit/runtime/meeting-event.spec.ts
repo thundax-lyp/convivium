@@ -171,6 +171,10 @@ const mappingState = (): MeetingState => {
                 openedAt: 20,
                 status: "open",
                 contributionIds: ["contribution"],
+                invitedContributorIds: ["contributor-v1"],
+                participationResponses: [
+                    { contributorId: "contributor-v1", status: "raised", recordedAt: 20 }
+                ],
                 deadlineAt: 30
             }
         ],
@@ -182,7 +186,6 @@ const mappingState = (): MeetingState => {
                 handRaise: { purpose: "purpose", raisedAt: 10 },
                 acceptedAt: 20,
                 status: "preparing",
-                substantiveSupplementCount: 0,
                 failure: {
                     sourceEffectId: "effect",
                     stage: "execution",

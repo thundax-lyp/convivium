@@ -49,13 +49,11 @@ export const EvidenceModal = ({
     version,
     title,
     contributorName,
-    originalMessage,
     onClose
 }: {
     version: EvidenceVersion | undefined;
     title: string;
     contributorName: string;
-    originalMessage?: string;
     onClose: () => void;
 }): ReactElement => {
     const t = useMeetingTranslate();
@@ -90,16 +88,9 @@ export const EvidenceModal = ({
                     </div>
                     <div className={styles.body}>
                         <dl>
-                            {version.summary ? (
-                                <Field markdown label={t("panel.evidence.summary")}>
-                                    {version.summary}
-                                </Field>
-                            ) : null}
-                            {originalMessage ? (
-                                <Field markdown label={t("panel.evidence.originalMessage")}>
-                                    {originalMessage}
-                                </Field>
-                            ) : null}
+                            <Field markdown label={t("panel.evidence.summary")}>
+                                {version.summary}
+                            </Field>
                             <Field markdown label={t("panel.evidence.observation")}>
                                 {version.observation}
                             </Field>

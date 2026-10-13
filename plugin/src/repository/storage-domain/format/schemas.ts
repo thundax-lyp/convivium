@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { abilityNames } from "@/domain/index.ts";
+import { abilityNames } from "@/role-skills/index.ts";
 import type {
     CommandAuthorization,
     CreateMeetingResult,
@@ -152,7 +152,7 @@ const MeetingEventDataSchemaByKind = {
     ]),
     "evidence.submitted": z.strictObject({ summary: nonempty }),
     "contribution.closed": z.strictObject({
-        exit: z.enum(["withdrawn", "timed_out", "submission_missing"]),
+        exit: z.enum(["withdrawn", "submission_missing"]),
         reason: nonempty
     }),
     "contribution.failed": z.strictObject({

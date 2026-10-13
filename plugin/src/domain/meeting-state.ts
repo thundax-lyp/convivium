@@ -147,9 +147,8 @@ export interface Round {
     openedAt: EpochMs;
     status: "open" | "published" | "aborted";
     contributionIds: readonly OpaqueId[];
-    /** Absent only on rounds persisted before participation choices were introduced. */
-    invitedContributorIds?: readonly OpaqueId[];
-    participationResponses?: readonly {
+    invitedContributorIds: readonly OpaqueId[];
+    participationResponses: readonly {
         contributorId: OpaqueId;
         status: "raised" | "declined" | "no_response";
         recordedAt: EpochMs;
@@ -169,11 +168,6 @@ export interface RoundGoal {
 export interface HandRaise {
     raisedAt: EpochMs;
     purpose: string;
-}
-
-export interface SupplementHand extends HandRaise {
-    status: "pending" | "accepted";
-    acceptedAt?: EpochMs;
 }
 
 export interface EvidenceOpportunityRequest {
@@ -202,19 +196,13 @@ export interface Contribution {
         | "aborted"
         | "registered"
         | "under_review"
-        | "awaiting_response"
         | "withdrawn"
         | "submission_missing"
         | "execution_failed"
-        | "timed_out"
-        | "supplement_rejected"
         | "closed";
     packageId?: OpaqueId;
-    substantiveSupplementCount: number;
-    supplementHand?: SupplementHand;
     exitReason?: string;
     failure?: ContributionFailure;
-    response?: string;
 }
 
 export interface ContributionFailure {
@@ -263,8 +251,7 @@ export interface EvidenceMaterial {
 }
 
 export interface EvidenceVersion {
-    /** Absent only on historical evidence versions. */
-    summary?: string;
+    summary: string;
     id: OpaqueId;
     ordinal: number;
     observation: string;
@@ -420,17 +407,6 @@ export interface RiskDisposition {
     scope: string;
     rationale: string;
     evidenceIds: readonly OpaqueId[];
-    createdAt: EpochMs;
-}
-
-export interface CompletionDeclaration {
-    id: OpaqueId;
-    actorId: OpaqueId;
-    outputId: OpaqueId;
-    criterionId?: OpaqueId;
-    statement: string;
-    evidenceIds: readonly OpaqueId[];
-    taskId?: OpaqueId;
     createdAt: EpochMs;
 }
 
@@ -632,7 +608,6 @@ export interface MeetingLimits {
     maxDurationMs: number;
     taskDeadlineMs: number;
     reviewDeadlineMs: number;
-    responseDeadlineMs: 60000;
 }
 
 export interface MeetingState {
@@ -652,7 +627,6 @@ export interface MeetingState {
     pendingHandRaises: readonly PendingHandRaise[];
     contributions: readonly Contribution[];
     evidenceReviewerId: OpaqueId;
-    completionDeclarations: readonly CompletionDeclaration[];
     evidencePackages: readonly EvidencePackage[];
     registrations: readonly Registration[];
     reviews: readonly EvidenceReview[];

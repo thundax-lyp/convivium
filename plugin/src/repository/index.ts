@@ -33,5 +33,6 @@ export type {
     OutboxCompletionResult,
     RecoverInput,
     RenewOutboxLeaseInput,
-    OutboxKind
+    OutboxKind,
+    PersistedMeetingEvent
 } from "./types.ts";

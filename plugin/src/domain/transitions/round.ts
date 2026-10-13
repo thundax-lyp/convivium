@@ -18,8 +18,6 @@ const terminalContributionStatuses = new Set([
     "withdrawn",
     "submission_missing",
     "execution_failed",
-    "timed_out",
-    "supplement_rejected",
     "aborted",
     "closed"
 ]);
@@ -246,9 +244,9 @@ export const isRoundClosable = (state: MeetingState, roundId: OpaqueId): boolean
         return false;
     }
     if (
-        round.invitedContributorIds?.some(
+        round.invitedContributorIds.some(
             (contributorId) =>
-                !round.participationResponses?.some(
+                !round.participationResponses.some(
                     (response) => response.contributorId === contributorId
                 )
         )
@@ -324,14 +322,14 @@ export const respondRoundParticipation = (
         return rejected(state, "MEETING_TERMINAL", "meeting is not running");
     }
     const round = state.rounds.find((candidate) => candidate.id === input.roundId);
-    if (!round || round.status !== "open" || !round.invitedContributorIds) {
+    if (!round || round.status !== "open") {
         return rejected(state, "INVALID_STATE", "round has no open participation choice");
     }
     if (!round.invitedContributorIds.includes(input.contributorId)) {
         return rejected(state, "UNAUTHORIZED", "contributor was not invited");
     }
     if (
-        round.participationResponses?.some(
+        round.participationResponses.some(
             (response) => response.contributorId === input.contributorId
         )
     ) {
@@ -353,7 +351,7 @@ export const respondRoundParticipation = (
                 ? {
                       ...candidate,
                       participationResponses: [
-                          ...(candidate.participationResponses ?? []),
+                          ...candidate.participationResponses,
                           {
                               contributorId: input.contributorId,
                               status: input.status,

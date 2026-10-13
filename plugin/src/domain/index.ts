@@ -1,12 +1,9 @@
-export { abilityNames } from "./abilities.ts";
-export { DomainError } from "./errors.ts";
 export {
     type EpochMs,
     type OpaqueId,
     type MeetingRole,
     type MeetingIdentity,
     type Round,
-    type SupplementHand,
     type EvidenceOpportunityRequest,
     type Contribution,
     type ContributionFailure,
@@ -27,8 +24,7 @@ export {
     type DecisionCandidate,
     type ProposalRevision,
     type Decision,
-    type Issue,
-    type CompletionDeclaration
+    type Issue
 } from "./meeting-state.ts";
 export {
     openRound,
@@ -77,6 +73,5 @@ export {
     type MeetingEventObjectRef,
     type MeetingEventDataByKind,
     type MeetingEventPayload,
-    type MeetingEventInput,
-    type PersistedMeetingEvent
+    type MeetingEventInput
 } from "./meeting-event.ts";

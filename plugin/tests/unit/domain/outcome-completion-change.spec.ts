@@ -2,7 +2,7 @@ import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.ts";
 import { changeCompletionFact } from "@/domain/transitions/outcome.ts";
-import { validState, completionReadyState } from "./outcome-fixtures.ts";
+import { addUnpublishedEvidence, validState, completionReadyState } from "./outcome-fixtures.ts";
 
 describe("CompletionFact change", () => {
     const ready = () => {
@@ -134,12 +134,7 @@ describe("CompletionFact change", () => {
     ] as const)("replacement typed ref %s", (_name, overrides, code, targetId) => {
         const state = ready();
         if (_name === "unpublished evidence") {
-            state.evidencePackages[0].versions.push({
-                ...state.evidencePackages[0].versions[0],
-                id: "v2",
-                ordinal: 2,
-                status: "submitted"
-            });
+            addUnpublishedEvidence(state);
         }
         expect(change(state, { replacement: { ...replacement, ...overrides } })).toMatchObject({
             error: { code },

@@ -122,7 +122,7 @@ export interface MeetingEventDataByKind {
           };
     "evidence.submitted": { summary: string };
     "contribution.closed": {
-        exit: "withdrawn" | "timed_out" | "submission_missing";
+        exit: "withdrawn" | "submission_missing";
         reason: string;
     };
     "contribution.failed": {
@@ -195,14 +195,5 @@ export type MeetingEventInput = {
         type: K;
         occurredAt: number;
         payload: MeetingEventPayload<K>;
-    };
-}[MeetingEventKind];
-export type PersistedMeetingEvent = {
-    [K in MeetingEventKind]: {
-        eventSeq: number;
-        meetingVersion: number;
-        type: K;
-        payload: MeetingEventPayload<K>;
-        createdAt: number;
     };
 }[MeetingEventKind];

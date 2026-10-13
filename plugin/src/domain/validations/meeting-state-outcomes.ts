@@ -72,9 +72,6 @@ const validateQuestions = (parsedState: MeetingState): string | undefined => {
             return fail(`${path}.blocking`);
         }
     }
-    if (parsedState.limits.responseDeadlineMs !== 60000) {
-        return fail("$.limits.responseDeadlineMs");
-    }
     return undefined;
 };
 
@@ -180,7 +177,7 @@ const proposalGroups = (state: MeetingState): Map<string, { ordinal: number; id:
     return groups;
 };
 
-const validatePlansRiskAndDeclarations = (parsedState: MeetingState): string | undefined => {
+const validatePlansAndRisk = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
     const agendaIds = ids(parsedState.agenda);
@@ -189,8 +186,6 @@ const validatePlansRiskAndDeclarations = (parsedState: MeetingState): string | u
     const publishedVersionIds = new Set(publications.flatMap((item) => item.finalVersionIds));
     const roundById = indexById(parsedState.rounds);
     const riskDispositions = parsedState.riskDispositions;
-    const outputIds = ids(parsedState.objective.requiredOutputs);
-    const criterionIds = ids(parsedState.objective.acceptanceCriteria);
     const plans = parsedState.managerPlans;
     const activePlanAgendas = new Set<string>();
     for (let i = 0; i < plans.length; i++) {
@@ -232,7 +227,6 @@ const validatePlansRiskAndDeclarations = (parsedState: MeetingState): string | u
             }
         }
     }
-    const taskIds = ids(parsedState.tasks);
     const issueIdsForRefs = ids(parsedState.issues);
     for (let i = 0; i < riskDispositions.length; i++) {
         const item = riskDispositions[i];
@@ -243,27 +237,6 @@ const validatePlansRiskAndDeclarations = (parsedState: MeetingState): string | u
         const p = checkRefs(item.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
         if (p) {
             return fail(p);
-        }
-    }
-    const declarations = parsedState.completionDeclarations;
-    for (let i = 0; i < declarations.length; i++) {
-        const item = declarations[i];
-        const path = `$.completionDeclarations[${i}]`;
-        if (!ref(item.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        if (!ref(item.outputId, outputIds)) {
-            return fail(`${path}.outputId`);
-        }
-        if (item.criterionId !== undefined && !ref(item.criterionId, criterionIds)) {
-            return fail(`${path}.criterionId`);
-        }
-        const p = checkRefs(item.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (p) {
-            return fail(p);
-        }
-        if (item.taskId !== undefined && !ref(item.taskId, taskIds)) {
-            return fail(`${path}.taskId`);
         }
     }
     return undefined;
@@ -618,8 +591,8 @@ const validateMailAvailability = (
                     ![
                         "withdrawn",
                         "submission_missing",
-                        "timed_out",
-                        "supplement_rejected",
+                        "execution_failed",
+                        "aborted",
                         "closed"
                     ].includes(c.status)
             ))
@@ -788,7 +761,7 @@ export const validateMeetingStateOutcomes = (
     return (
         validateQuestions(parsedState) ??
         validateIssues(parsedState) ??
-        validatePlansRiskAndDeclarations(parsedState) ??
+        validatePlansAndRisk(parsedState) ??
         validateCompletionFacts(parsedState) ??
         validateEffectiveCompletion(parsedState) ??
         validateTasks(parsedState) ??

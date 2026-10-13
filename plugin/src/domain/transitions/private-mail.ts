@@ -41,8 +41,8 @@ export interface ExpirePrivateMailInput {
 const terminal = new Set([
     "withdrawn",
     "submission_missing",
-    "timed_out",
-    "supplement_rejected",
+    "execution_failed",
+    "aborted",
     "closed"
 ]);
 const valid = (n: number) => Number.isSafeInteger(n) && n >= 0;

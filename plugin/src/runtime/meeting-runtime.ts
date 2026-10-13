@@ -111,7 +111,6 @@ const targetCreateState = (
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: reviewer.id,
-        completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
         reviews: [],
@@ -130,7 +129,7 @@ const targetCreateState = (
         managerPlans: [],
         privateMails: [],
         completionFacts: [],
-        limits: { ...action.limits, responseDeadlineMs: 60000 }
+        limits: action.limits
     };
 };
 

@@ -144,7 +144,7 @@ describe("Meeting overview round records", () => {
         expect(screen.queryByRole("region", { name: "证据" })).toBeNull();
     });
 
-    it("shows preparation and review progress before a formal message exists", () => {
+    it("shows preparation, submitted summary and review progress before a formal message exists", () => {
         const detail = structuredClone(activeTimelineFixture());
         detail.publications = [];
         detail.messages = [];
@@ -154,8 +154,7 @@ describe("Meeting overview round records", () => {
             {
                 id: "contribution-preparing",
                 contributorId: "contributor-v2",
-                status: "preparing",
-                substantiveSupplementCount: 0
+                status: "preparing"
             }
         ];
 
@@ -166,23 +165,8 @@ describe("Meeting overview round records", () => {
         });
         expect(within(round).getByText("准备中")).toBeTruthy();
         expect(within(round).getByText("审核中")).toBeTruthy();
-        expect(within(round).queryByRole("listitem", { name: "观点" })).toBeNull();
+        expect(within(round).getByRole("listitem", { name: "观点" })).toBeTruthy();
         expect(within(round).getByRole("button", { name: /查看证据/ })).toBeTruthy();
-    });
-
-    it("shows the original body when a legacy message has no summary", () => {
-        const detail = structuredClone(archiveTimelineFixture());
-        detail.archive!.messages[0].kind = "round_evidence";
-        detail.archive!.messages[0].actorId = "contributor-v1";
-        detail.archive!.messages[0].relatedIds = ["version-1", "review-1"];
-        detail.archive!.messages[0].body = "观察：完整历史原文";
-        render(withMeetingTranslation(<MeetingPanelOverview detail={detail} />, "zh"));
-        expect(screen.queryByText("历史记录未提供观点摘要")).toBeNull();
-        expect(screen.getByText("观察：完整历史原文")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: /查看证据/ }));
-        expect(screen.getByRole("dialog", { name: /round question/ }).textContent).toContain(
-            "观察：完整历史原文"
-        );
     });
 
     it("shows a submitted summary while publication is pending", () => {
@@ -319,7 +303,6 @@ describe("Meeting overview contributor participation records", () => {
                 id: "contribution-failed",
                 contributorId: "contributor-failed",
                 status: "execution_failed",
-                substantiveSupplementCount: 0,
                 exitReason: "worker failed",
                 failure: {
                     sourceEffectId: "effect-failed",

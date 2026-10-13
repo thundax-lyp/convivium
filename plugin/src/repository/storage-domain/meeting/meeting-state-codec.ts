@@ -16,7 +16,6 @@ const fields = [
     "pendingHandRaises",
     "contributions",
     "evidenceReviewerId",
-    "completionDeclarations",
     "evidencePackages",
     "registrations",
     "reviews",

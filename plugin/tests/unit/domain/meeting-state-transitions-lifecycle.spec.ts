@@ -383,7 +383,9 @@ it.each([
                           publicBaselinePublicationIds: [],
                           openedAt: 1,
                           status: "open" as const,
-                          contributionIds: []
+                          contributionIds: [],
+                          invitedContributorIds: [],
+                          participationResponses: []
                       }
                   ]
                 : [],

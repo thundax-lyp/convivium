@@ -65,15 +65,13 @@ const validateAgendaRoundsAndContributions = (parsedState: MeetingState): string
         if (!ref(r.agendaId, agendaIds)) {
             return fail(`${path}.agendaId`);
         }
-        if (r.invitedContributorIds !== undefined) {
-            const invalidInvite = checkRefs(
-                r.invitedContributorIds,
-                identityIds,
-                `${path}.invitedContributorIds`
-            );
-            if (invalidInvite) {
-                return fail(invalidInvite);
-            }
+        const invalidInvite = checkRefs(
+            r.invitedContributorIds,
+            identityIds,
+            `${path}.invitedContributorIds`
+        );
+        if (invalidInvite) {
+            return fail(invalidInvite);
         }
         const plan = managerPlanById.get(r.planId);
         if (
@@ -255,7 +253,6 @@ const validateRegistrationsAndReviews = (parsedState: MeetingState): string | un
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
     const roundById = indexById(parsedState.rounds);
-    const contributions = parsedState.contributions;
     const registrations = parsedState.registrations;
     const reviews = parsedState.reviews;
     const versionOwnerById = indexVersionOwners(parsedState);
@@ -342,13 +339,6 @@ const validateRegistrationsAndReviews = (parsedState: MeetingState): string | un
             reviews.some((review) => review.versionId === claim.versionId)
         ) {
             return fail(`${path}.versionId`);
-        }
-    }
-    for (let i = 0; i < contributions.length; i++) {
-        const hand = (contributions[i] as unknown as RecordValue).supplementHand as unknown as
-            RecordValue | undefined;
-        if (hand && hand.status !== "pending" && hand.status !== "accepted") {
-            return fail(`$.contributions[${i}].supplementHand.status`);
         }
     }
     return undefined;

@@ -2,7 +2,7 @@ import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.ts";
 import { decide, changeDecision } from "@/domain/transitions/outcome.ts";
-import { validState, decisionReadyState } from "./outcome-fixtures.ts";
+import { addUnpublishedEvidence, validState, decisionReadyState } from "./outcome-fixtures.ts";
 
 describe("decision change corrective gates", () => {
     const decidedState = () => {
@@ -41,12 +41,7 @@ describe("decision change corrective gates", () => {
     ] as const)("change evidence %s", (_name, evidenceIds, code) => {
         const state = decidedState();
         if (_name === "unpublished") {
-            state.evidencePackages[0].versions.push({
-                ...state.evidencePackages[0].versions[0],
-                id: "v2",
-                ordinal: 2,
-                status: "submitted"
-            });
+            addUnpublishedEvidence(state);
         }
         expect(change(state, { evidenceIds })).toMatchObject({
             kind: "rejected",

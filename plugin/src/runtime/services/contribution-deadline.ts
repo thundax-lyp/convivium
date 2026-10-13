@@ -10,13 +10,10 @@ const dueExit = (state: MeetingState, now: number) => {
         if (round.status !== "open") {
             continue;
         }
-        if (
-            round.invitedContributorIds !== undefined &&
-            now >= roundParticipationDeadline(state, round)
-        ) {
+        if (now >= roundParticipationDeadline(state, round)) {
             const contributorId = round.invitedContributorIds.find(
                 (id) =>
-                    !round.participationResponses?.some((response) => response.contributorId === id)
+                    !round.participationResponses.some((response) => response.contributorId === id)
             );
             if (contributorId !== undefined) {
                 return { kind: "participation" as const, roundId: round.id, contributorId };
@@ -50,47 +47,6 @@ const dueExit = (state: MeetingState, now: number) => {
                     };
                 }
                 continue;
-            }
-            if (
-                contribution.status !== "awaiting_response" ||
-                contribution.packageId === undefined ||
-                (contribution.response === undefined &&
-                    round.invitedContributorIds !== undefined) ||
-                contribution.supplementHand?.status === "pending"
-            ) {
-                continue;
-            }
-            const evidence = state.evidencePackages.find(
-                (item) => item.id === contribution.packageId
-            );
-            const version = evidence?.versions.find(
-                (item) => item.id === evidence.currentVersionId
-            );
-            const review = state.reviews.find((item) => item.versionId === version?.id);
-            const delivery = state.reviewDeliveries.find(
-                (item) => item.reviewId === review?.id && item.status === "sent"
-            );
-            if (!version || delivery?.sentAt === undefined) {
-                continue;
-            }
-            const deadline =
-                contribution.response === undefined
-                    ? delivery.sentAt + state.limits.responseDeadlineMs
-                    : Math.min(
-                          version.submittedAt + state.limits.taskDeadlineMs,
-                          round.deadlineAt ?? Infinity,
-                          ...taskDeadlines
-                      );
-            if (now >= deadline) {
-                return {
-                    kind: "contribution" as const,
-                    contributionId,
-                    exit: "timed_out" as const,
-                    reason:
-                        contribution.response === undefined
-                            ? "贡献者回复期限已到"
-                            : "继续申请未完成"
-                };
             }
         }
     }
@@ -133,8 +89,7 @@ export const runDueContributionDeadline = async (
                           kind: "close_contribution",
                           contributionId: due.contributionId,
                           exit: due.exit,
-                          reason:
-                              due.exit === "submission_missing" ? "证据提交期限已到" : due.reason
+                          reason: "证据提交期限已到"
                       }
         },
         { caller: { channel: "deadline_handler", principalId: DEADLINE_HANDLER_PRINCIPAL_ID } },

@@ -5,7 +5,6 @@ import type {
     DecisionCandidate,
     Decision,
     Issue,
-    CompletionDeclaration,
     CompletionFact
 } from "@/domain/index.ts";
 import type {
@@ -16,7 +15,6 @@ import type {
     DecideInput,
     ChangeDecisionInput,
     DisposeRiskInput,
-    SubmitCompletionDeclarationInput,
     RecordCompletionFactInput,
     ChangeCompletionFactInput
 } from "./outcome-types.ts";
@@ -34,7 +32,6 @@ export type {
     DecideInput,
     ChangeDecisionInput,
     DisposeRiskInput,
-    SubmitCompletionDeclarationInput,
     RecordCompletionFactInput,
     ChangeCompletionFactInput
 } from "./outcome-types.ts";
@@ -614,99 +611,6 @@ export const disposeRisk = (
         kind: "accepted",
         state: recalculated,
         relatedIds: [disposition.id, disposition.issueId, ...disposition.evidenceIds],
-        effectRequests: []
-    };
-};
-export const submitCompletionDeclaration = (
-    state: MeetingState,
-    input: SubmitCompletionDeclarationInput
-): MeetingTransitionResult => {
-    const e = base(state, input.actor, input.now);
-    if (e) {
-        return e;
-    }
-    if (
-        !validId(input.declarationId) ||
-        !validId(input.outputId) ||
-        !validId(input.statement) ||
-        !validArray(input.evidenceIds) ||
-        (input.criterionId !== undefined && !validId(input.criterionId)) ||
-        (input.taskId !== undefined && !validId(input.taskId))
-    ) {
-        return bad(state, "INVALID_ARGUMENT");
-    }
-    const a = identity(state, input.actor);
-    if (!a || !a.roles.includes("contributor")) {
-        return bad(state, "UNAUTHORIZED");
-    }
-    const lifecycleCode = lifecycle(state);
-    if (lifecycleCode) {
-        return bad(state, lifecycleCode);
-    }
-    if (uniqueEntity(state, input.declarationId, "completionDeclarations")) {
-        return bad(state, "INVALID_ARGUMENT");
-    }
-    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId)) {
-        return bad(state, "NOT_FOUND", "output not found", input.outputId);
-    }
-    if (
-        input.criterionId !== undefined &&
-        !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
-    ) {
-        return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
-    }
-    const missingEvidence = input.evidenceIds.find(
-        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
-    );
-    if (missingEvidence) {
-        return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
-    }
-    if (!evidenceOk(state, input.evidenceIds)) {
-        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
-    }
-    if (input.taskId !== undefined) {
-        const task = state.tasks.find((t) => t.id === input.taskId);
-        if (!task) {
-            return bad(state, "NOT_FOUND", "task not found", input.taskId);
-        }
-        if (
-            task.assigneeId !== input.actor.id ||
-            task.status !== "completed" ||
-            task.authorizationStatus !== "active" ||
-            !task.result?.trim()
-        ) {
-            return bad(state, "PRECONDITION_FAILED", "task is not completed", input.taskId);
-        }
-    }
-    const d: CompletionDeclaration = {
-        id: input.declarationId,
-        actorId: input.actor.id,
-        outputId: input.outputId,
-        ...(input.criterionId !== undefined ? { criterionId: input.criterionId } : {}),
-        statement: input.statement.trim(),
-        evidenceIds: [...input.evidenceIds],
-        ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
-        createdAt: input.now
-    };
-    const next = {
-        ...state,
-        version: state.version + 1,
-        updatedAt: input.now,
-        completionDeclarations: [...state.completionDeclarations, d]
-    };
-    if (validateMeetingState(next).kind !== "valid") {
-        return bad(state, "PRECONDITION_FAILED");
-    }
-    return {
-        kind: "accepted",
-        state: next,
-        relatedIds: [
-            d.id,
-            d.outputId,
-            ...(d.criterionId ? [d.criterionId] : []),
-            ...(d.taskId ? [d.taskId] : []),
-            ...d.evidenceIds
-        ],
         effectRequests: []
     };
 };

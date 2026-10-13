@@ -58,16 +58,6 @@ export interface DisposeRiskInput {
     actor: OutcomeActor;
     now: EpochMs;
 }
-export interface SubmitCompletionDeclarationInput {
-    declarationId: OpaqueId;
-    outputId: OpaqueId;
-    criterionId?: OpaqueId;
-    statement: string;
-    evidenceIds: readonly OpaqueId[];
-    taskId?: OpaqueId;
-    actor: OutcomeActor;
-    now: EpochMs;
-}
 export interface RecordCompletionFactInput {
     factId: OpaqueId;
     outputId: OpaqueId;

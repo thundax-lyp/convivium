@@ -12,14 +12,7 @@ type DisposeInput = {
     contributionId?: OpaqueId;
     now: number;
 };
-const terminal = new Set([
-    "withdrawn",
-    "submission_missing",
-    "timed_out",
-    "supplement_rejected",
-    "aborted",
-    "closed"
-]);
+const terminal = new Set(["withdrawn", "submission_missing", "aborted", "closed"]);
 
 const reservedFormalMessages = (state: MeetingState): number => {
     return state.rounds
@@ -58,20 +51,18 @@ export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransi
     if (round.status !== "open") {
         return reject(state, "INVALID_STATE", "round is not open");
     }
-    if (round.invitedContributorIds !== undefined) {
-        if (!round.invitedContributorIds.includes(input.contributorId)) {
-            return reject(state, "UNAUTHORIZED", "contributor was not invited");
-        }
-        if (
-            round.participationResponses?.some(
-                (response) => response.contributorId === input.contributorId
-            )
-        ) {
-            return reject(state, "PRECONDITION_FAILED", "participation choice already recorded");
-        }
-        if (input.now >= roundParticipationDeadline(state, round)) {
-            return reject(state, "PRECONDITION_FAILED", "participation choice deadline passed");
-        }
+    if (!round.invitedContributorIds.includes(input.contributorId)) {
+        return reject(state, "UNAUTHORIZED", "contributor was not invited");
+    }
+    if (
+        round.participationResponses.some(
+            (response) => response.contributorId === input.contributorId
+        )
+    ) {
+        return reject(state, "PRECONDITION_FAILED", "participation choice already recorded");
+    }
+    if (input.now >= roundParticipationDeadline(state, round)) {
+        return reject(state, "PRECONDITION_FAILED", "participation choice deadline passed");
     }
     const agenda = state.agenda.find((candidate) => candidate.id === round.agendaId);
     if (!agenda) {
@@ -126,24 +117,21 @@ export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransi
         ...state,
         version: state.version + 1,
         updatedAt: input.now,
-        rounds:
-            round.invitedContributorIds === undefined
-                ? state.rounds
-                : state.rounds.map((candidate) =>
-                      candidate.id === round.id
-                          ? {
-                                ...candidate,
-                                participationResponses: [
-                                    ...(candidate.participationResponses ?? []),
-                                    {
-                                        contributorId: input.contributorId,
-                                        status: "raised" as const,
-                                        recordedAt: input.now
-                                    }
-                                ]
-                            }
-                          : candidate
-                  ),
+        rounds: state.rounds.map((candidate) =>
+            candidate.id === round.id
+                ? {
+                      ...candidate,
+                      participationResponses: [
+                          ...candidate.participationResponses,
+                          {
+                              contributorId: input.contributorId,
+                              status: "raised" as const,
+                              recordedAt: input.now
+                          }
+                      ]
+                  }
+                : candidate
+        ),
         pendingHandRaises: [
             ...state.pendingHandRaises,
             {
@@ -232,8 +220,7 @@ export const disposeHandRaise = (
             contributorId: input.contributorId,
             handRaise: { raisedAt: hand.raisedAt, purpose: hand.purpose },
             acceptedAt: input.now,
-            status: "preparing",
-            substantiveSupplementCount: 0
+            status: "preparing"
         };
         const nextRound = {
             ...round,

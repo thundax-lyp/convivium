@@ -3,10 +3,6 @@ import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import { openRound } from "@/domain/transitions/round.ts";
 import { disposeHandRaise, raiseHand } from "@/domain/transitions/hand-raise.ts";
 import { submitEvidence } from "@/domain/transitions/format-evidence.ts";
-import {
-    disposeSupplementHand,
-    raiseSupplementHand
-} from "@/domain/transitions/supplement-hand.ts";
 
 function stateWithContribution() {
     const state = makeRunningMeetingStateV1();
@@ -53,13 +49,7 @@ function stateWithContribution() {
     if (accepted.kind !== "accepted") {
         throw new Error("accept");
     }
-    return {
-        ...accepted.state,
-        rounds: accepted.state.rounds.map(
-            ({ invitedContributorIds: _invited, participationResponses: _responses, ...round }) =>
-                round
-        )
-    };
+    return accepted.state;
 }
 const evidence = {
     summary: "观点摘要",
@@ -174,7 +164,7 @@ describe("format and evidence transitions", () => {
             state: deadlineState
         });
     });
-    it("appends an accepted supplement to the existing evidence package", () => {
+    it("rejects a second registration in the same Round", () => {
         const first = submitEvidence(stateWithContribution(), {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
@@ -186,108 +176,18 @@ describe("format and evidence transitions", () => {
         if (first.kind !== "accepted") {
             throw new Error("initial evidence did not register");
         }
-        const awaitingResponse = {
-            ...first.state,
-            contributions: first.state.contributions.map((contribution) => ({
-                ...contribution,
-                status: "awaiting_response" as const
-            }))
-        };
-        const raised = raiseSupplementHand(awaitingResponse, {
+        const result = submitEvidence(first.state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
-            purpose: "补充反证",
+            evidence,
+            packageId: "package-v2",
+            versionId: "version-v2",
             now: 5
         });
-        if (raised.kind !== "accepted") {
-            throw new Error("supplement hand did not raise");
-        }
-        const accepted = disposeSupplementHand(raised.state, {
-            contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            disposition: "accepted",
-            reason: "允许补充",
-            now: 6
+        expect(result).toMatchObject({
+            kind: "rejected",
+            error: { code: "INVALID_STATE" },
+            state: first.state
         });
-        if (accepted.kind !== "accepted") {
-            throw new Error("supplement hand was not accepted");
-        }
-
-        const result = submitEvidence(accepted.state, {
-            contributionId: "contribution-v1",
-            authorId: "contributor-v1",
-            evidence: { ...evidence, observation: "补充观察" },
-            packageId: "unused-new-package-id",
-            versionId: "version-v2",
-            now: 7
-        });
-
-        expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") {
-            return;
-        }
-        expect(result.state.evidencePackages).toHaveLength(1);
-        expect(result.state.evidencePackages[0]).toMatchObject({
-            id: "package-v1",
-            currentVersionId: "version-v2",
-            versions: [
-                { id: "version-v1", ordinal: 1 },
-                { id: "version-v2", ordinal: 2, observation: "补充观察" }
-            ]
-        });
-        expect(result.state.contributions[0]).toMatchObject({
-            packageId: "package-v1",
-            status: "under_review",
-            substantiveSupplementCount: 1
-        });
-        expect(result.state.contributions[0].supplementHand).toBeUndefined();
-        expect(result.state.contributions[0].response).toBeUndefined();
-        expect(result.state.registrations.at(-1)).toMatchObject({
-            versionId: "version-v2",
-            status: "complete"
-        });
-    });
-
-    it("does not append a version in a new round even with a stale accepted supplement hand", () => {
-        const first = submitEvidence(stateWithContribution(), {
-            contributionId: "contribution-v1",
-            authorId: "contributor-v1",
-            evidence,
-            packageId: "package-v1",
-            versionId: "version-v1",
-            now: 4
-        });
-        if (first.kind !== "accepted") {
-            throw new Error("initial evidence did not register");
-        }
-        const state = {
-            ...first.state,
-            rounds: first.state.rounds.map((round) => ({
-                ...round,
-                invitedContributorIds: ["contributor-v1"],
-                participationResponses: [
-                    { contributorId: "contributor-v1", status: "raised" as const, recordedAt: 2 }
-                ]
-            })),
-            contributions: first.state.contributions.map((contribution) => ({
-                ...contribution,
-                supplementHand: {
-                    purpose: "stale",
-                    raisedAt: 5,
-                    status: "accepted" as const,
-                    acceptedAt: 6
-                }
-            }))
-        };
-        const result = submitEvidence(state, {
-            contributionId: "contribution-v1",
-            authorId: "contributor-v1",
-            evidence,
-            packageId: "package-v1",
-            versionId: "version-v2",
-            now: 7
-        });
-        expect(result.kind).toBe("rejected");
-        expect(result.kind === "rejected" && result.state).toBe(state);
     });
 });

@@ -125,7 +125,9 @@ it("rejects planning while any round is open", () => {
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open",
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         }
     ];
     current.managerPlans = [

@@ -119,7 +119,9 @@ describe("identity filtered view and archive provenance", () => {
                 publicBaselinePublicationIds: [],
                 openedAt: 1,
                 status: "open",
-                contributionIds: []
+                contributionIds: [],
+                invitedContributorIds: [],
+                participationResponses: []
             }
         ];
 
@@ -292,6 +294,7 @@ describe("identity filtered view and archive provenance", () => {
         const version = {
             id: "version-private",
             ordinal: 1,
+            summary: "Evidence summary",
             observation: "private observation",
             interpretation: "interpretation",
             method: "method",
@@ -368,7 +371,11 @@ it("shows the Manager published independent reviews but not unpublished reviews"
             publicBaselinePublicationIds: [],
             openedAt: 1,
             status: "open",
-            contributionIds: ["contribution-1"]
+            contributionIds: ["contribution-1"],
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: [
+                { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+            ]
         }
     ];
     state.contributions = [
@@ -378,9 +385,9 @@ it("shows the Manager published independent reviews but not unpublished reviews"
             contributorId: "contributor-v1",
             handRaise: { raisedAt: 1, purpose: "Provide evidence" },
             acceptedAt: 1,
-            status: "awaiting_response",
-            packageId: "package-1",
-            substantiveSupplementCount: 0
+            status: "closed",
+            exitReason: "review_delivered",
+            packageId: "package-1"
         }
     ];
     state.evidencePackages = [
@@ -395,6 +402,7 @@ it("shows the Manager published independent reviews but not unpublished reviews"
                 {
                     id: "version-1",
                     ordinal: 1,
+                    summary: "Evidence summary",
                     observation: "Observed result",
                     interpretation: "Limited support",
                     method: "Source inspection",

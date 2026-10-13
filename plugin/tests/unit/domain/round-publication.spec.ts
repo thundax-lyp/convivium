@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
-import { openRound as openRoundTransition } from "@/domain/transitions/round.ts";
+import {
+    openRound as openRoundTransition,
+    respondRoundParticipation
+} from "@/domain/transitions/round.ts";
 
 type OpenRoundFixtureInput = Omit<Parameters<typeof openRoundTransition>[1], "planId">;
 
@@ -28,22 +31,20 @@ const rawOpenRoundWithPlan = (
         { ...input, planId: "plan-v1" }
     );
 const openRoundWithPlan: typeof rawOpenRoundWithPlan = (state, input) => {
-    const result = rawOpenRoundWithPlan(state, input);
-    return result.kind === "accepted"
-        ? {
-              ...result,
-              state: {
-                  ...result.state,
-                  rounds: result.state.rounds.map(
-                      ({
-                          invitedContributorIds: _invited,
-                          participationResponses: _responses,
-                          ...round
-                      }) => round
-                  )
-              }
-          }
-        : result;
+    const opened = rawOpenRoundWithPlan(state, input);
+    if (opened.kind !== "accepted") {
+        return opened;
+    }
+    const declined = respondRoundParticipation(opened.state, {
+        roundId: input.roundId,
+        contributorId: "contributor-v1",
+        status: "declined",
+        now: input.now
+    });
+    if (declined.kind !== "accepted") {
+        throw new Error("participation decline");
+    }
+    return declined;
 };
 import { publishRound } from "@/domain/transitions/round-publication.ts";
 

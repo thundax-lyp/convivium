@@ -1,4 +1,3 @@
-import { DomainError } from "@/domain/index.ts";
 import {
     emitDiagnostic,
     observeCommit,
@@ -182,10 +181,7 @@ export class MeetingPersistenceState<TState = JsonObject> {
             })
             .catch((error) => {
                 const state = this.projection?.snapshot?.state;
-                const code =
-                    error instanceof RepositoryError || error instanceof DomainError
-                        ? error.code
-                        : "INTERNAL_ERROR";
+                const code = error instanceof RepositoryError ? error.code : "INTERNAL_ERROR";
                 emitDiagnostic(this.onDiagnostic, {
                     meetingId: this.meetingId,
                     meetingVersion: this.projection?.snapshot?.version ?? 0,
@@ -195,8 +191,7 @@ export class MeetingPersistenceState<TState = JsonObject> {
                     timestamp: this.now(),
                     errorCode: code,
                     metrics: {
-                        failures: 1,
-                        ...(code === "STALE_ATTEMPT" ? { staleSubmits: 1 } : {})
+                        failures: 1
                     }
                 });
                 throw error;

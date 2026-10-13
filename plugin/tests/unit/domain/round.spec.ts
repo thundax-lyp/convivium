@@ -298,8 +298,7 @@ describe("round transitions", () => {
                     contributorId: "contributor-v1",
                     handRaise: { purpose: "x", raisedAt: 1 },
                     acceptedAt: 2,
-                    status: "preparing" as const,
-                    substantiveSupplementCount: 0
+                    status: "preparing" as const
                 }
             ],
             pendingHandRaises: [

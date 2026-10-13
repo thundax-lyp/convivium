@@ -121,7 +121,7 @@ const recordsForRound = (
                 id: contribution.id,
                 contribution
             })),
-        ...(round.participationResponses ?? [])
+        ...round.participationResponses
             .filter(
                 (response) => response.status === "declined" || response.status === "no_response"
             )
@@ -177,8 +177,8 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
     const participantIds = [
         ...new Set(
             rounds.flatMap((round) => [
-                ...(round.invitedContributorIds ?? []),
-                ...(round.participationResponses ?? []).map((response) => response.contributorId),
+                ...round.invitedContributorIds,
+                ...round.participationResponses.map((response) => response.contributorId),
                 ...round.contributions.map((contribution) => contribution.contributorId)
             ])
         )
@@ -241,8 +241,7 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                                     record.kind === "evidence"
                                         ? [
                                               ...record.messages.map(messageItem),
-                                              ...(record.messages.length === 0 &&
-                                              record.pair.version.summary
+                                              ...(record.messages.length === 0
                                                   ? [
                                                         <OverviewItem
                                                             key={overviewKey(
@@ -350,9 +349,7 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                                                           record.contribution.status ===
                                                               "registered" ||
                                                           record.contribution.status ===
-                                                              "under_review" ||
-                                                          record.contribution.status ===
-                                                              "awaiting_response"
+                                                              "under_review"
                                                               ? "•"
                                                               : "⚠️"
                                                       }
@@ -420,15 +417,6 @@ export const OverviewRecords = ({ detail }: SectionProps): ReactElement => {
                         .question ?? t("panel.overview.evidenceItem")
                 }
                 contributorName={selectedPair ? nameFor(selectedPair.authorId) : ""}
-                originalMessage={
-                    selectedVersion?.summary === undefined
-                        ? messages.find(
-                              (message) =>
-                                  message.kind === "round_evidence" &&
-                                  message.relatedIds.includes(selectedVersionId ?? "")
-                          )?.body
-                        : undefined
-                }
                 onClose={() => setSelectedVersionId(null)}
             />
         </Section>

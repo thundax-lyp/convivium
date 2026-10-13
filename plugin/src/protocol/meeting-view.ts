@@ -129,7 +129,7 @@ const MeetingEventDataSchemaByKind = {
     ]),
     "evidence.submitted": z.strictObject({ summary: text }),
     "contribution.closed": z.strictObject({
-        exit: z.enum(["withdrawn", "timed_out", "submission_missing"]),
+        exit: z.enum(["withdrawn", "submission_missing"]),
         reason: text
     }),
     "contribution.failed": z.strictObject({
@@ -313,17 +313,13 @@ export const ContributionViewSchema = z.object({
         "preparing",
         "registered",
         "under_review",
-        "awaiting_response",
         "withdrawn",
         "submission_missing",
         "execution_failed",
-        "timed_out",
-        "supplement_rejected",
         "aborted",
         "closed"
     ]),
     packageId: id.optional(),
-    substantiveSupplementCount: z.number().int().nonnegative(),
     exitReason: text.optional(),
     failure: z
         .object({
@@ -349,16 +345,14 @@ export const RoundViewSchema = z.object({
     publicationId: id.optional(),
     abortReason: text.optional(),
     abortedAt: epoch.optional(),
-    participationResponses: z
-        .array(
-            z.object({
-                contributorId: id,
-                status: z.enum(["raised", "declined", "no_response"]),
-                recordedAt: epoch
-            })
-        )
-        .optional(),
-    invitedContributorIds: z.array(id).optional(),
+    participationResponses: z.array(
+        z.object({
+            contributorId: id,
+            status: z.enum(["raised", "declined", "no_response"]),
+            recordedAt: epoch
+        })
+    ),
+    invitedContributorIds: z.array(id),
     pendingHandRaises: z.array(PendingHandRaiseViewSchema),
     contributions: z.array(ContributionViewSchema)
 });
@@ -420,7 +414,7 @@ const material = z.object({
 export const EvidenceVersionViewSchema = z.object({
     id,
     ordinal: z.number().int().positive(),
-    summary: text.optional(),
+    summary: text,
     observation: text,
     interpretation: text,
     method: text,
