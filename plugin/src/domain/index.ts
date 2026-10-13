@@ -1,5 +1,4 @@
 export { abilityNames } from "./abilities.ts";
-export { DomainError } from "./errors.ts";
 export {
     type EpochMs,
     type OpaqueId,
