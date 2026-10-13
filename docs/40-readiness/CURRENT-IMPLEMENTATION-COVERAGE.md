@@ -346,3 +346,57 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 当前可以声明 Meeting target runtime 已完成单一活动链切换，并对会议创建、证据轮次、状态读取、动态身份准入、持久化恢复和归档核心路径形成自动化覆盖。只有标为 `已实现` 的行可作为当前功能覆盖结论；`部分实现` 与 `未覆盖` 必须保留为交付缺口，不能由相邻 Domain 类型、测试 helper 或旧 legacy 实现推断为可用。
 
 相关依据：[Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
+
+### 2026-10-13：里程碑横条与收敛分组退役
+
+范围为 `codex/timeline-ui-optimization` 本次工作区。里程碑改为主轴上的全宽低高度浅背景横条，会议启动固定首位且上方无线；仅同名多实例显示序号，会议启动省略状态。删除 convergence 分组与其本地化标签，主持计划、决策与风险处置按唯一明确轮次关联归组，无关联或歧义进入 other，保留原始事件和 completion/closure 语义。
+
+Executed Validation：两份 timeline Client spec 共 35 项通过，受影响 ESLint、格式、文档链接及源码构建通过；固定人工安装根刷新重启后，Browser 读取同一归档 fixture，完整时间线仍含 62 个节点，分组由 7 个变为 6 个，没有方案收敛。截图保存在仓库外。Not Covered：完整测试套件、远端 CI、暗色主题及完整业务冒烟；仅验证本次展示与分组。
+
+### 2026-10-13：时间线筛选展开与收起
+
+范围为 `codex/timeline-ui-optimization` 的本次工作区改动。默认只展示参与者筛选；展开后显示内容类型与事件，收起保留条件和过滤结果，各分类标签用于清除本组筛选。展开状态为 Client 局部状态，不写入领域或持久存储。筛选行使用对齐的加粗可点击标签与可换行选项，标签只清除本分类；选项使用间隔与小圆角边框，展开控制为链接式文字。
+
+Executed Validation：`pnpm --dir plugin exec vitest run --project client tests/client/meeting/meeting-panel-timeline-focus.client.spec.tsx` 通过 11 项测试；新增分类标签清除断言先观察到标签不可点击的失败，再验证按分类清除、保留其他分类及匹配事件过滤通过。展开/收起新增断言先观察到缺少展开按钮及默认未隐藏后两行的失败，再验证实现通过，覆盖中英文文案、ARIA 状态、收起后条件保持及清除。`pnpm --dir plugin typecheck:client`、受影响文件 ESLint 和 `node .github/scripts/check-doc-links.mjs` 通过。依赖包缺少 source map 的 Vite 提示未阻止测试。
+
+2026-10-13 补充 Browser 验证：固定人工安装根按当前源码 `--dev-refresh` 构建安装并重启；通过 Codex In-app Browser 在现有归档 fixture 验证 1280×720 与 520×900 筛选区域截图。标签与清除按钮均为 12px/18px 宿主字体，标签列缩至 76px，选项统一 28px 高度、8px 间隔、4px 圆角，未选文字和边框使用宿主次级 token。展开、收起、证据分类筛选及点击分类标签清除通过；证据筛选显示 16 个节点，清除后恢复 62 个。两种视口无空白页或错误覆盖层，筛选选项换行无重叠；控制台仅记录本次 Host 停机刷新造成的断线重试警告，未发现应用错误。Playwright 的默认 Chrome 路径不可用，实际验证使用桌面浏览器工具，不安装依赖。截图保存在仓库外。
+
+后续同日调整与验证：筛选标签改为“角色 / 类型”，标签列进一步缩为 44px；删除全局清除按钮，只通过分类标签清除；分类标签按是否有选择展示不同状态，未选选项不显示边框和背景。展开/收起在所有视口均与首排选项对齐，固定于筛选区右上。11 项 Client 回归、Client typecheck、受影响 ESLint 与文档链接检查通过；刷新固定人工安装并在桌面及 520px 窄屏截图确认布局、选项与分类标签选中状态，无重叠。前段关于全局清除按钮及 76px 列宽的描述是本次调整前验证。
+
+Not Covered：完整测试套件、远端 CI、其它浏览器与暗色主题；本次只验收筛选交互与视觉，不代表完整业务人工冒烟通过。
+
+### 2026-10-13：时间线角色头像
+
+时间线五类角色使用 40px 彩色卡通头像，卡片首排按头像、姓名与浅色小字时间排列；装饰头像不参与辅助技术播报，卡片可访问文本继续保留角色信息。相关时间线交互测试 11 项通过，插件构建通过。头像视觉效果通过人工 DSH 页面检查，不将此验证扩展为所有主题与屏幕尺寸的验收。
+
+### 2026-10-13：时间线事件行简化
+
+卡片第二排显示事件名称与“查看”链接样式按钮，保留概览定位；移除对象类型和对象 ID/状态正文占位。时间线交互测试 12 项通过，覆盖空创建事件、保留事实正文和查看定位参数。当前 meeting.created 未记录用户输入原文，创建卡片因此没有正文；未增加历史输入回填或事件契约变更。
+
+### 2026-10-13：移除未归属事件里程碑
+
+未归属事件不再展示“其他已发生事件”标题与状态，事件各自作为普通卡片按事件时间排列，保留明确轮次关联的既有归属。时间线交互测试 13 项通过，新增场景验证未归属事实仍可见、无兜底里程碑标题及卡片顺序。
+
+### 2026-10-13：里程碑标题不提前展示状态
+
+轮次横框显示“第 {n} 轮”/“Round {n}”，所有里程碑横框移除状态，其他同名里程碑重复时保留序号。完成与中止仍由事件卡片表达，内部归属与状态元数据保持。时间线交互测试 13 项通过，插件构建通过。
+
+### 2026-10-13：数据阶段生成交错布局
+
+移除 other 里程碑数据，未归属事件直接生成普通展示块。展示数据统一确定卡片顺序和 side；每个真实里程碑从左侧开始，轮次开启计入左右交替，普通卡片延续计数。键盘遍历采用同一展示顺序。投影和时间线交互测试合计 38 项通过，新增场景覆盖两个轮次的举手记录均位于右侧。
+
+### 2026-10-13：时间线 DSH 配色与暗色主题
+
+卡片背景、关键事件强调、异常边框、链接和焦点使用 DSH 语义 token；里程碑横条保持中性。源码构建、CSS 格式及文档链接检查通过。固定人工环境在 869×954 下验证浅色与深色：62 条事件完整，筛选用户后为 1 条，清除恢复 62 条；审核失败筛选为 2 条，暗色卡片使用宿主层级背景、浅色文字和警告边框。展开、收起正常，Browser 未记录应用 error。未覆盖其它视口和浏览器；未执行完整业务冒烟。
+
+### 2026-10-13：时间线 UI 分支交付验证
+
+Scope：分支 `codex/timeline-ui-optimization`，代码边界 `b0049917`，[PR #120](https://github.com/thundax-lyp/convivium/pull/120)。前述同日条目记录迭代时的验证；本条为该代码边界的最终结果，不将旧版 other 分组、状态标题或旧筛选布局视为当前实现。
+
+Validated Contract：筛选默认仅展示角色，展开/收起保留条件，分类标签只清除本分类；取消 convergence 和 other 里程碑但保留实际事件，按唯一明确关联归组；每个真实里程碑首张卡片在左，轮次开启参与交替计数；轮次开始不提前展示最终状态。卡片采用角色头像、姓名时间、动词在前的事件文案与查看入口；DSH 语义配色随浅色/深色主题切换，头像视口收紧到 394×394，暗色背景不再露出外沿米白底。
+
+Executed Validation：2026-10-13 发布前重新执行两份 timeline Client spec，38 项通过；受影响 Prettier/ESLint、`git diff --check main...HEAD` 与文档链接检查通过；源码构建安装通过。固定人工 DSH 环境的现有归档会议验证 62 条事件完整、第一和第二轮首条举手在右侧、筛选/清除与展开/收起正常；869×954 下浅色与深色配色、暗色头像裁切经截图检查，Browser 无应用 error。[PR Verify](https://github.com/thundax-lyp/convivium/actions/runs/38351344980) 在 `b0049917` 上的 Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract 七项检查全部通过。
+
+Not Covered：本地未运行完整测试套件，完整自动化测试由远端 Plugin Test 覆盖；未执行新的完整业务 smoke、其它深色视口或其它浏览器验证。Codex 自动 review 因额度限制未执行，当前没有 reviewer finding；CI 通过不能代替人工代码评审或完整业务验收。
+
+Closure：分支已推送，PR 已创建并以 main 为目标，等待 review，尚未合并；本次不声明整体会议能力或发布就绪。
