@@ -21,7 +21,7 @@ import type {
     UpdateBootstrapInput
 } from "./types.ts";
 
-export interface MeetingRepositoryPort<TState = JsonObject> {
+export interface MeetingRepository<TState = JsonObject> {
     readonly meetingId: string;
     create(input: CreateMeetingInput<TState>): Promise<MeetingBootstrap>;
     completeCreate(

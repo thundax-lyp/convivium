@@ -2,14 +2,17 @@ import { expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import { peerBindings } from "../../fixtures/peer-ownership.ts";
 import { createFakeDomainFacility } from "../../fixtures/domain-storage.ts";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
-import { encodeMeetingState, decodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
+import {
+    encodeMeetingState,
+    decodeMeetingState
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import type { MeetingAction, MeetingCommand } from "@/protocol/index.ts";
 import type { MeetingState } from "@/domain/index.ts";
 
 const setup = async (state = makeRunningMeetingStateV1()) => {
-    const registry = await DomainRepositoryRegistry.open<MeetingState>({
+    const registry = await StorageDomainRepositoryRegistry.open<MeetingState>({
         storageDomain: createFakeDomainFacility(),
         codec: { encode: encodeMeetingState, decode: decodeMeetingState },
         authorizationValidator: {

@@ -6,13 +6,13 @@ import {
 import { projectMeetingView } from "@/projection/index.ts";
 import type { ReadMeetingRequest, MeetingReadResult } from "@/protocol/index.ts";
 import type { MeetingState } from "@/domain/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 
 export interface MeetingIdentityReaderDependencies {
     readonly registry: {
         openMeeting(input: {
             readonly meetingId: string;
-        }): Promise<Pick<MeetingRepositoryPort<MeetingState>, "recover">>;
+        }): Promise<Pick<MeetingRepository<MeetingState>, "recover">>;
     };
     readonly catalog?: RoleCatalogPort;
 }

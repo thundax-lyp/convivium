@@ -41,7 +41,7 @@
 
 Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Round 前置、版本和事务检查保障；以核心判断的实质增量决定是否开轮、选择首个有价值路径、先记录阻塞、旧议题 previousDisposition 是否应为 completed、以及何时穷尽路径，仍依赖角色指令与模型判断；会议 outcome=completed 仍受 Domain 的确定性目标满足与未解决项校验。工具与状态转换可用，不等于模型已稳定完成跨议题流程；真实运行缺口见 Executed Validation。
 
-- `MeetingState`、target codec、`DomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox 与 archive lifecycle 使用同一 `meetingId` namespace。
+- `MeetingState`、target codec、`StorageDomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox 与 archive lifecycle 使用同一 `meetingId` namespace。
 - 创建、状态变更、read projection、identity provisioning/recovery、review delivery、round publication 与 archive 均从同一已提交状态派生。
 - `meeting_started` 与 `transcript_update` 的公开 notice producer 不按角色、Agenda responsibility 或任务状态筛选 Meeting identity；dispatcher 在投递前仍验证公开事实引用、active ownership、固定 Session 绑定与 capability。其它定向 notice 不受该广播规则影响。
 - `convivium_read_meeting` 只接受与 active meeting-owned Session ownership 相同的 `meetingId`，并以 committed identity role 生成 caller-filtered projection；读取不产生 command commit、fact、receipt、outbox 或 version 变化。

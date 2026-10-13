@@ -22,6 +22,8 @@
 | `meeting/adapters`    | DSH tool、loopback Remote、存储和 Markdown/通知实现                          | application、ports | domain 内部可变状态                    |
 | `meeting/projection`  | 从已提交快照生成 caller-visible view、摘要和 Markdown 输入                   | domain             | 写端口、Session 内部数据               |
 
+当前源码中，业务 Domain 位于 `plugin/src/domain/`，命令应用服务位于 `plugin/src/runtime/application-service/`，`MeetingRepository` 契约位于 `plugin/src/repository/`；DSH Storage Domain 仓储实现位于 `plugin/src/repository/storage-domain/`，不属于业务 Domain。其中 `meeting/` 放单场会议的持久化编排及投影、检查点、删除等能力实现，`format/` 放 Catalog 与 Meeting 共用的存储键、记录格式和 Storage Domain 定义，Registry 留在上层协调 Catalog 与 Meeting 的打开和生命周期。
+
 Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)`；application 不得通过直接改数组、补默认字段或重写历史绕过转换。Repository 只接受完整的预期版本和转换结果，adapter 不得自行解释业务状态。
 
 ## Common Command Pipeline
@@ -108,7 +110,7 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 PrivateMail 的五个 Domain transition 固定如下；application 只注入已认证 actor、ID 与 `Clock.now()`，不得重算 Domain 字段：
 
-私信随 `MeetingState.privateMails` 由统一 Repository command 原子保存。`DomainMeetingRepository` 直接继承提交与创建内核 `DomainMeetingRepositoryCore`，不设置私信仓储中间层、独立持久化 map 或另一套私信校验；私信状态与 serial gate 的唯一行为依据是 Domain transition。
+私信随 `MeetingState.privateMails` 由统一 Repository command 原子保存。`StorageDomainMeetingRepository` 组合创建、命令、ownership、outbox、历史读取及恢复能力，共享单场 Meeting 的提交状态与串行写队列；不设置私信仓储中间层、独立持久化 map 或另一套私信校验。私信状态与 serial gate 的唯一行为依据是 Domain transition。
 
 | 转换                    | 允许 actor 与 lifecycle                                           | 前提                                                                                                              | 成功结果                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

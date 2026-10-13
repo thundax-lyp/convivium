@@ -1,7 +1,7 @@
 import { isRoundClosable, type MeetingIdentity, type MeetingState } from "@/domain/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
@@ -298,7 +298,7 @@ const findOwnership = (
 export interface MeetingNoticeDispatcherDependencies {
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
-    readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
+    readonly repository: Pick<MeetingRepository<MeetingState>, "recover">;
     readonly application: MeetingCommandApplication;
 }
 export const createMeetingNoticeDispatcher = (

@@ -5,7 +5,10 @@ import {
     ListMeetingsRequestSchema,
     ReadMeetingRequestSchema
 } from "@/protocol/meeting-command.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import {
     MeetingActionSchema as PublicMeetingActionV1Schema,
     MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,

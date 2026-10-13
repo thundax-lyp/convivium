@@ -16,13 +16,14 @@ import {
     type MeetingCommand
 } from "@/protocol/index.ts";
 import { readMeetingRoleCatalog, type RoleCatalogPort } from "@/dsh/index.ts";
-import type { DomainRepositoryRegistry } from "@/repository/index.ts";
+import type { StorageDomainRepositoryRegistry } from "@/repository/index.ts";
 import { meetingIdFor } from "@/repository/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import type {
     CommandAuthorization,
     CommittedFactRecord,
     JsonObject,
+    MeetingRepository,
     OutboxInput,
     RepositoryCommand,
     SessionOwnership,
@@ -87,7 +88,7 @@ export interface MeetingCommandApplication {
 
 export interface MeetingCommandApplicationDependencies {
     creation: MeetingCreationCoordinator;
-    registry: DomainRepositoryRegistry<MeetingState>;
+    registry: StorageDomainRepositoryRegistry<MeetingState>;
     ids: { nextId(kind: string): string };
     clock: { now(): number };
     resolveCallerScope: ResolveCallerScope;
@@ -280,8 +281,6 @@ const mapRepositoryError = (error: unknown): MeetingCommandResult => {
     return rejected(code, error.message);
 };
 
-type MeetingRepository = Awaited<ReturnType<DomainRepositoryRegistry<MeetingState>["openMeeting"]>>;
-
 const actionAuthorizationFailure = (
     command: MeetingCommand,
     context: MeetingCommandExecutionContext,
@@ -329,7 +328,7 @@ const actionAuthorizationFailure = (
 
 const prepareIdentityCatalog = async (
     deps: MeetingCommandApplicationDependencies,
-    repository: MeetingRepository,
+    repository: MeetingRepository<MeetingState>,
     command: MeetingCommand,
     scope: ResolvedCallerScope
 ): Promise<{ definitionHash?: string; result?: MeetingCommandResult }> => {

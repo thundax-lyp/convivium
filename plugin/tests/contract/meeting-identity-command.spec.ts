@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import type { MeetingState } from "@/domain/index.ts";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.ts";
+import type { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
+import type { MeetingRepository } from "@/repository/meeting-repository.ts";
 import type { RepositoryCommand } from "@/repository/types.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import * as legacyIdentityApplication from "@/runtime/application-service/meeting-identity.ts";
@@ -41,7 +41,7 @@ describe("meeting identity command", () => {
         const openMeeting = vi.fn();
         const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
-            registry: { openMeeting } as unknown as DomainRepositoryRegistry<MeetingState>,
+            registry: { openMeeting } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 1 },
             resolveCallerScope: async () => undefined
@@ -105,12 +105,12 @@ describe("meeting identity command", () => {
         const repository = {
             execute,
             replayReceipt: async () => undefined
-        } as unknown as MeetingRepositoryPort<MeetingState>;
+        } as unknown as MeetingRepository<MeetingState>;
         const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
-            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 1 },
             resolveCallerScope: async () => managerScope(),
@@ -205,7 +205,7 @@ describe("meeting identity command", () => {
         const repository = {
             replayReceipt,
             execute
-        } as unknown as MeetingRepositoryPort<MeetingState>;
+        } as unknown as MeetingRepository<MeetingState>;
         const readSnapshot = vi.fn(async () => ({
             kind: "unavailable" as const,
             error: { code: "CATALOG_NOT_FOUND" as const, message: "Catalog unavailable" }
@@ -214,7 +214,7 @@ describe("meeting identity command", () => {
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
-            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 1 },
             resolveCallerScope: async () => managerScope(),

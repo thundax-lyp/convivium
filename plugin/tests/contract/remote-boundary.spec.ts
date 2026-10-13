@@ -103,12 +103,14 @@ import {
     getLocalMeetingWebRuntime,
     getMeetingCommandApplication
 } from "@/runtime/meeting-lifecycle.ts";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
 it("routes all fourteen user controls through the application with a fixed trusted caller", async () => {
     const registry = { listMeetings: vi.fn(() => []), openMeeting: vi.fn(), close: vi.fn() };
-    const open = vi.spyOn(DomainRepositoryRegistry, "open").mockResolvedValue(registry as never);
+    const open = vi
+        .spyOn(StorageDomainRepositoryRegistry, "open")
+        .mockResolvedValue(registry as never);
     const owner = {
         storageDomain: {},
         logger: () => ({ error: vi.fn() }),

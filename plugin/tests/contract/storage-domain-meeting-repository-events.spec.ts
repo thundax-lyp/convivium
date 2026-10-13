@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { captainActorIdFor, type MeetingEventInput, type MeetingState } from "@/domain/index.ts";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
-import { seqKey } from "@/repository/domain/keys.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/storage-domain-meeting-repository.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
+import { seqKey } from "@/repository/storage-domain/format/keys.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
@@ -21,7 +24,7 @@ const fixture = async () => {
         codec: { encode: encodeMeetingState, decode: decodeMeetingState },
         now: () => 999
     };
-    const repository = await DomainMeetingRepository.open<MeetingState>(options);
+    const repository = await StorageDomainMeetingRepository.open<MeetingState>(options);
     const create = {
         requestId: "create-events",
         requestHash: "create-events-hash",
@@ -124,7 +127,7 @@ describe("Meeting committed event log", () => {
             [4, 3, 40]
         ]);
         await repository.close();
-        const reopened = await DomainMeetingRepository.open<MeetingState>(options);
+        const reopened = await StorageDomainMeetingRepository.open<MeetingState>(options);
         expect(await reopened.readCommittedEvents()).toEqual(log);
         log.events[0]!.payload.subject.id = "mutated-reader-copy";
         expect(await reopened.readCommittedEvents()).not.toEqual(log);
@@ -169,7 +172,7 @@ describe("Meeting committed event log", () => {
         async (corruption) => {
             const { repository } = await fixture();
             await repository.execute(command("corrupt", 1, [roundEvent]));
-            const projection = Reflect.get(repository, "projection");
+            const projection = Reflect.get(Reflect.get(repository, "state"), "projection");
             const event = projection.events[seqKey(2)];
             if (corruption === "gap") {
                 delete projection.events[seqKey(2)];

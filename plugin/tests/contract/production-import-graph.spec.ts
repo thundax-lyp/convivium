@@ -118,8 +118,8 @@ describe("production import graph", () => {
 
     it("keeps repository persistence on Storage Domain and away from filesystem paths", () => {
         const graph = importGraph([
-            "repository/domain/domain-meeting-repository.ts",
-            "repository/domain/domain-repository-registry.ts"
+            "repository/storage-domain/meeting/storage-domain-meeting-repository.ts",
+            "repository/storage-domain/storage-domain-repository-registry.ts"
         ]);
         expect(graph.files.some((file) => resolve(sourceRoot, file).startsWith(storageRoot))).toBe(
             false

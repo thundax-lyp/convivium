@@ -1,7 +1,7 @@
 import type { MeetingState } from "@/domain/index.ts";
 import type { RecoveryResult } from "@/repository/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
-import type { DomainRepositoryRegistry } from "@/repository/index.ts";
+import type { StorageDomainRepositoryRegistry } from "@/repository/index.ts";
 import type {
     DeleteMeetingRequest,
     DeleteMeetingResult,
@@ -43,7 +43,7 @@ export const meetingDeletionStatus = (
 
 /** Only the local Web adapter calls this operation; no Agent tool or Skill exposes it. */
 export const deleteMeeting = async (
-    registry: DomainRepositoryRegistry<MeetingState>,
+    registry: StorageDomainRepositoryRegistry<MeetingState>,
     request: DeleteMeetingRequest,
     signal: AbortSignal,
     quiesce?: () => void | Promise<void>

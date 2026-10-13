@@ -1,15 +1,18 @@
-import { createCommitRecord } from "@/repository/domain/projection.ts";
+import { createCommitRecord } from "@/repository/storage-domain/meeting/projection.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
-import { meetingDomainName } from "@/repository/domain/keys.ts";
-import type { MeetingDomain } from "@/repository/domain/specs.ts";
+import { meetingDomainName } from "@/repository/storage-domain/format/keys.ts";
+import type { MeetingDomain } from "@/repository/storage-domain/format/specs.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
-    DomainRepositoryRegistry,
+    StorageDomainRepositoryRegistry,
     type DomainFacilityPort
-} from "@/repository/domain/domain-repository-registry.ts";
+} from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -32,10 +35,10 @@ class Facility implements DomainFacilityPort {
     }
 }
 
-describe("target Domain repository recovery", () => {
+describe("Storage Domain repository recovery", () => {
     it("reopens a target snapshot with the registry codec", async () => {
         const facility = new Facility();
-        const first = await DomainRepositoryRegistry.open({
+        const first = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             codec
@@ -58,7 +61,7 @@ describe("target Domain repository recovery", () => {
         }
         await created.completeCreate(create);
 
-        const reopened = await DomainRepositoryRegistry.open({
+        const reopened = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             codec
@@ -71,7 +74,7 @@ describe("target Domain repository recovery", () => {
 
     it("fails closed for a legacy snapshot instead of migrating it", async () => {
         const facility = new Facility();
-        const legacy = await DomainRepositoryRegistry.open({
+        const legacy = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -93,7 +96,7 @@ describe("target Domain repository recovery", () => {
         }
         await repository.completeCreate(create);
 
-        const target = await DomainRepositoryRegistry.open({
+        const target = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             codec
@@ -106,7 +109,7 @@ describe("target Domain repository recovery", () => {
 
     it("rejects incomplete target ownership without rewriting it", async () => {
         const facility = new Facility();
-        const first = await DomainRepositoryRegistry.open({
+        const first = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             codec
@@ -151,7 +154,7 @@ describe("target Domain repository recovery", () => {
         );
         const before = [...domain.table("commits").entries()];
 
-        const target = await DomainRepositoryRegistry.open({
+        const target = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             codec

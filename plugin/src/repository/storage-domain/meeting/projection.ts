@@ -7,14 +7,15 @@ import {
     sha256Hex,
     type JsonValue
 } from "@/utils/index.ts";
-import { seqKey, type SeqKey } from "./keys.ts";
+import { seqKey, type SeqKey } from "@/repository/storage-domain/format/index.ts";
 import {
     CommitRecordSchema,
     PersistenceProjectionSchema,
     type CommitRecord,
     type PersistenceProjection
-} from "./schemas.ts";
-import type { MeetingDomain } from "./specs.ts";
+} from "@/repository/storage-domain/format/index.ts";
+import type { MeetingDomain } from "@/repository/storage-domain/format/index.ts";
+import { UnsupportedMeetingStateFormatError } from "@/repository/storage-domain/format/index.ts";
 
 export const MAX_COMMIT_VALUE_BYTES = 65_536;
 export const CHECKPOINT_PAGE_RAW_BYTES = 20_000;
@@ -23,13 +24,6 @@ export const APPLICATION_CHECKPOINT_TRIGGER_BYTES = 2_097_152;
 export const APPLICATION_TAIL_HARD_COMMITS = 256;
 export const APPLICATION_TAIL_HARD_BYTES = 4_194_304;
 export const MAX_APPLICATION_CHECKPOINT_BYTES = 16_777_216;
-
-export class UnsupportedMeetingStateFormatError extends Error {
-    constructor(readonly formatVersion: unknown) {
-        super(`Unsupported MeetingState format: ${String(formatVersion)}`);
-        this.name = "UnsupportedMeetingStateFormatError";
-    }
-}
 
 const emptyMaps = (): Pick<
     PersistenceProjection,

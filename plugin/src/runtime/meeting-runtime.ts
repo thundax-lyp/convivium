@@ -15,7 +15,7 @@ import { definitionHash, RoleCompositionError } from "@/role-composition/index.t
 import { preflightMeetingIdentity } from "@/role-composition/index.ts";
 import { createMeeting, type MeetingState } from "@/domain/index.ts";
 import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.ts";
-import type { DomainRepositoryRegistry } from "@/repository/index.ts";
+import type { StorageDomainRepositoryRegistry } from "@/repository/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import type { CreateMeetingInput, JsonObject, SessionOwnership } from "@/repository/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";
@@ -27,7 +27,7 @@ import {
 } from "./application-service/index.ts";
 
 export interface TargetMeetingCreationDependencies {
-    readonly registry: DomainRepositoryRegistry<MeetingState>;
+    readonly registry: StorageDomainRepositoryRegistry<MeetingState>;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly initialContributorRoleIds: readonly ContributorRoleDefinitionId[];

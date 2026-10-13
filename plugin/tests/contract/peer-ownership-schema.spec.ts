@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CreationRecordSchema, PersistenceProjectionSchema } from "@/repository/domain/schemas.ts";
-import { decodeProjection, encodeProjection } from "@/repository/domain/projection.ts";
+import {
+    CreationRecordSchema,
+    PersistenceProjectionSchema
+} from "@/repository/storage-domain/format/schemas.ts";
+import {
+    decodeProjection,
+    encodeProjection
+} from "@/repository/storage-domain/meeting/projection.ts";
 
 const binding = {
     agentDefinitionId: "convivium.domain_architect",

@@ -1,5 +1,5 @@
 import { roundParticipationDeadline, type MeetingState } from "@/domain/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import {
     DEADLINE_HANDLER_PRINCIPAL_ID,
     type MeetingCommandApplication
@@ -98,7 +98,7 @@ const dueExit = (state: MeetingState, now: number) => {
 };
 
 export const runDueContributionDeadline = async (
-    repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">,
+    repository: Pick<MeetingRepository<MeetingState>, "recover">,
     application: MeetingCommandApplication,
     now: number,
     signal: AbortSignal

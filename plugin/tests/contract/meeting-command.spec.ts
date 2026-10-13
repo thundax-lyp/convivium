@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import type { MeetingState } from "@/domain/index.ts";
 import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
-import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
-import { meetingIdFor } from "@/repository/domain/keys.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
+import type { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
+import { meetingIdFor } from "@/repository/storage-domain/format/keys.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import { RepositoryError } from "@/repository/errors.ts";
-import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.ts";
+import type { MeetingRepository } from "@/repository/meeting-repository.ts";
 import type { RepositoryCommand } from "@/repository/types.ts";
 
 describe("target Meeting command core", () => {
@@ -53,7 +56,7 @@ describe("target Meeting command core", () => {
                         eventSeqs: []
                     };
                 })
-            } as unknown as MeetingRepositoryPort<MeetingState>;
+            } as unknown as MeetingRepository<MeetingState>;
             const caller = {
                 channel: "dsh_tool" as const,
                 principalId: identityId,
@@ -63,7 +66,7 @@ describe("target Meeting command core", () => {
                 creation: { create: vi.fn() },
                 registry: {
                     openMeeting: vi.fn(async () => repository)
-                } as unknown as DomainRepositoryRegistry<MeetingState>,
+                } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
                 ids: { nextId: (kind) => `${kind}-1` },
                 clock: { now: () => 10 },
                 resolveCallerScope: async () => ({
@@ -299,7 +302,7 @@ describe("target Meeting command application creation", () => {
         const now = vi.fn(() => 11);
         const app = createMeetingCommandApplication({
             creation: { create },
-            registry: { openMeeting } as unknown as DomainRepositoryRegistry<MeetingState>,
+            registry: { openMeeting } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now },
             resolveCallerScope: vi.fn()
@@ -385,7 +388,9 @@ describe("target Meeting command application creation", () => {
                     );
                 })
             },
-            registry: { openMeeting: vi.fn() } as unknown as DomainRepositoryRegistry<MeetingState>,
+            registry: {
+                openMeeting: vi.fn()
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 11 },
             resolveCallerScope: vi.fn()
@@ -453,7 +458,7 @@ describe("target Meeting command application transitions", () => {
                     eventSeqs: []
                 };
             }
-        } as unknown as MeetingRepositoryPort<MeetingState>;
+        } as unknown as MeetingRepository<MeetingState>;
         const caller = {
             channel: "dsh_tool" as const,
             principalId: "manager-v1",
@@ -463,7 +468,7 @@ describe("target Meeting command application transitions", () => {
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
-            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 10 },
             resolveCallerScope: async () => ({
@@ -520,12 +525,12 @@ describe("target Meeting command application transitions", () => {
             };
         });
         let id = 0;
-        const repository = { execute } as unknown as MeetingRepositoryPort<MeetingState>;
+        const repository = { execute } as unknown as MeetingRepository<MeetingState>;
         const app = createMeetingCommandApplication({
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => repository)
-            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-${++id}` },
             clock: { now: () => 10 },
             resolveCallerScope: async ({ caller }) => ({
@@ -591,7 +596,7 @@ describe("target Meeting command application transitions", () => {
             creation: { create: vi.fn() },
             registry: {
                 openMeeting: vi.fn(async () => ({ execute, recover }))
-            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            } as unknown as StorageDomainRepositoryRegistry<MeetingState>,
             ids: { nextId: (kind) => `${kind}-1` },
             clock: { now: () => 10 },
             resolveCallerScope: async () => ({
