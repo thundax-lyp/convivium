@@ -18,8 +18,7 @@ import type {
     RenewOutboxLeaseInput,
     SessionOwnership,
     SessionOwnershipInput,
-    UpdateBootstrapInput,
-    UpdateCreateResultInput
+    UpdateBootstrapInput
 } from "./types.ts";
 
 export interface MeetingRepositoryPort<TState = JsonObject> {
@@ -28,7 +27,6 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     completeCreate(
         input: Pick<CreateMeetingInput<TState>, "requestId" | "requestHash" | "authorization">
     ): Promise<CommittedResult<CreateMeetingResult>>;
-    updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
     updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
     recordSessionOwnership(
         input: SessionOwnershipInput,
@@ -47,11 +45,6 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     execute<T>(command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>>;
     claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
     completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
-    requeueAcceptedOutbox(input: {
-        deliveryIds: readonly string[];
-        expectedMeetingVersion: number;
-        now?: number;
-    }): Promise<number>;
     renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
     recover(input?: RecoverInput): Promise<RecoveryResult<TState>>;
     close(): Promise<void>;

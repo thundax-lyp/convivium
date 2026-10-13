@@ -33,8 +33,7 @@ import type {
     RepositoryAuthorizationValidator,
     SessionOwnership,
     SessionOwnershipInput,
-    UpdateBootstrapInput,
-    UpdateCreateResultInput
+    UpdateBootstrapInput
 } from "@/repository/index.ts";
 import {
     createProjection,
@@ -739,72 +738,6 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 result,
                 eventSeqs: [1]
             };
-        });
-    }
-    async updateCreateResult(_input: UpdateCreateResultInput): Promise<CreateMeetingResult> {
-        const input = _input;
-        this.ensureOpen();
-        return this.enqueueMutation(async () => {
-            const creation = this.meetingDomain.table("creation").get("current");
-            const snapshot = this.projection?.snapshot;
-            if (!creation || !snapshot || creation.status !== "ready") {
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Create result can only be updated for a ready meeting"
-                );
-            }
-            if (
-                snapshot.version !== input.expectedMeetingVersion ||
-                input.result.meetingId !== this.meetingId ||
-                input.result.meetingVersion !== snapshot.version
-            ) {
-                throw new RepositoryError(
-                    "VERSION_CONFLICT",
-                    true,
-                    this.meetingId,
-                    "Create result version does not match the current meeting"
-                );
-            }
-            const now = input.now ?? this.now();
-            return this.commit({
-                operation: "create.result",
-                now,
-                mutate: (current) => {
-                    const matches = Object.entries(current.receipts).filter(
-                        ([, candidate]) =>
-                            candidate.requestId === creation.requestId &&
-                            candidate.commandKind === "create_meeting"
-                    );
-                    if (matches.length !== 1) {
-                        throw new RepositoryError(
-                            "CORRUPT_DATABASE",
-                            false,
-                            this.meetingId,
-                            "Create receipt is missing"
-                        );
-                    }
-                    const [key, receipt] = matches[0]!;
-                    const next = PersistenceProjectionSchema.parse({
-                        ...current,
-                        bootstrap: {
-                            ...current.bootstrap,
-                            createResult: input.result,
-                            updatedAt: now
-                        },
-                        receipts: {
-                            ...current.receipts,
-                            [key]: {
-                                ...receipt,
-                                meetingVersion: snapshot.version,
-                                result: input.result
-                            }
-                        }
-                    });
-                    return { next, result: input.result };
-                }
-            });
         });
     }
     async updateBootstrap(_input: UpdateBootstrapInput): Promise<MeetingBootstrap> {

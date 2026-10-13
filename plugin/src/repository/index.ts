@@ -30,7 +30,6 @@ export type {
     MeetingBootstrap,
     RepositoryAuthorizationValidator,
     UpdateBootstrapInput,
-    UpdateCreateResultInput,
     ClaimOutboxInput,
     CompleteOutboxInput,
     OutboxCompletionResult,

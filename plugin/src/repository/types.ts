@@ -137,12 +137,6 @@ export interface CreateMeetingResult {
     }[];
 }
 
-export interface UpdateCreateResultInput {
-    expectedMeetingVersion: number;
-    result: CreateMeetingResult;
-    now?: number;
-}
-
 export interface CommittedResult<T> {
     requestId: string;
     meetingId: string;
