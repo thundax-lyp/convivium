@@ -4,7 +4,7 @@
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
 
-当前 checkout 基线为插件版本 `0.1.0-alpha.1`、DSH `0.2.0-rc.2`；2026-10-12 核对的主线基线为 `1d9e09c3`，本地 `main` 与刷新后的 `origin/main` 一致。PR #106～#116 均已通过 merge commit 进入主线，包含 `6880f067` 的 rc.2 业务修复、会议界面、事件日志与时间线、会议删除及其修复，以及旧时间线兼容退役。合并状态不代表人工环境已部署该基线，也不替代对应运行验证。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。该主线基线没有对应 release tag。状态含义：
+当前 checkout 基线为插件版本 `0.1.0-alpha.1`、DSH `0.2.0-rc.2`；当前工作分支 `codex/domain-dead-code-boundary` 已包含 `6daa47ec`、`0bfe6346` 的轮次补证与历史展示退役，尚未作为主线或人工环境验收。2026-10-12 核对的主线基线为 `1d9e09c3`，当时本地 `main` 与刷新后的 `origin/main` 一致。PR #106～#116 均已通过 merge commit 进入主线，包含 `6880f067` 的 rc.2 业务修复、会议界面、事件日志与时间线、会议删除及其修复，以及旧时间线兼容退役。合并状态不代表人工环境已部署该基线，也不替代对应运行验证。矩阵中的版本证据优先记录形成、接入 target runtime 或后续收口该能力的 PR 编号；实际验证日期、环境和命令由 Executed Validation 记录。该主线基线没有对应 release tag。状态含义：
 
 - `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
@@ -77,6 +77,14 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 本次未覆盖：人工 Web/Browser、跨 Host、MeetingTask/session_mail 的完整生产链、任意来源/第三方工具的普遍可用性和长期研究质量。隔离仅承诺模型可见能力，不是静态文件系统保密；旧 v1 明确拒读，无迁移。人工 `dsh-workspace/` 未部署、未启动、未清理。
 
 ## Executed Validation
+
+### 2026-10-13：退役历史轮次补证与送达后响应
+
+Scope / Validated Contract：工作分支 `codex/domain-dead-code-boundary` 的 `6daa47ec`、`0bfe6346`。每个 EvidencePackage 只登记一份 EvidenceVersion；观点摘要在首次提交时形成，审核送达后关闭 Contribution，不再进入等待回应、同轮补证或响应超时分支。移除对应 Domain transition、命令/事件/持久格式字段、deadline 与 notice 分支、测试及 Client 历史观点原文回退。Round 的受邀名单与参与响应改为当前必填字段；不兼容旧持久数据，不另设历史输入识别或迁移路径。新证据通过后续 Round 的独立 Contribution 与 EvidencePackage 表达。
+
+Executed Validation：两笔提交前的最终源码工作树执行 `pnpm --dir plugin verify`，format、lint、Host/Client/remote-test typecheck、103 个测试文件 / 985 项测试、build、environment、contract、agent definitions 与 package 检查均通过；Vite 的 DSH UI primitives 缺失 source map warning 非阻断。提交后仅调整本 readiness 文案，未重跑插件验证。
+
+Not Covered / Closure：没有刷新或重启固定人工 Host，未运行新契约的真实 provider/LLM、Browser 全流程或旧 SQLite 冷恢复。此前针对送达后 `timed_out` 和缺少摘要时回退原文的人工验收属于退役行为，不作为当前流程证据；旧快照不迁移、不兼容，也未在本次修改中清理。
 
 ### 2026-10-13：退役无生产入口的 CompletionDeclaration
 
@@ -247,7 +255,7 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 
 ### 2026-10-10：历史观点缺少摘要时显示原文
 
-缺少独立摘要的历史观点直接显示已持久化的 FormalMessage 正文，沿用三行折叠与展开/收起交互，证据对话框仍保留原文。相关 records/locales 测试 2 files/15 tests、Client typecheck 与 diff check 通过；人工安装刷新后，真实归档会议的两条历史观点显示原文及“...展开”，不再显示缺少摘要的占位文案。未修改历史持久数据。
+历史证据（已退役；不代表当前能力）：当时缺少独立摘要的历史观点直接显示已持久化的 FormalMessage 正文，沿用三行折叠与展开/收起交互，证据对话框仍保留原文。相关 records/locales 测试 2 files/15 tests、Client typecheck 与 diff check 通过；人工安装刷新后，真实归档会议的两条历史观点显示原文及“...展开”，不再显示缺少摘要的占位文案。未修改历史持久数据。当前契约要求首次提交即包含摘要，原文回退已由 `0bfe6346` 删除。
 
 ### 2026-10-10：撤销记录调试数据
 
