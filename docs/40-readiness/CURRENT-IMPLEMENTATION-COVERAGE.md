@@ -388,3 +388,15 @@ Not Covered：完整测试套件、远端 CI、其它浏览器与暗色主题；
 ### 2026-10-13：时间线 DSH 配色与暗色主题
 
 卡片背景、关键事件强调、异常边框、链接和焦点使用 DSH 语义 token；里程碑横条保持中性。源码构建、CSS 格式及文档链接检查通过。固定人工环境在 869×954 下验证浅色与深色：62 条事件完整，筛选用户后为 1 条，清除恢复 62 条；审核失败筛选为 2 条，暗色卡片使用宿主层级背景、浅色文字和警告边框。展开、收起正常，Browser 未记录应用 error。未覆盖其它视口和浏览器；未执行完整业务冒烟。
+
+### 2026-10-13：时间线 UI 分支交付验证
+
+Scope：分支 `codex/timeline-ui-optimization`，代码边界 `b0049917`，[PR #120](https://github.com/thundax-lyp/convivium/pull/120)。前述同日条目记录迭代时的验证；本条为该代码边界的最终结果，不将旧版 other 分组、状态标题或旧筛选布局视为当前实现。
+
+Validated Contract：筛选默认仅展示角色，展开/收起保留条件，分类标签只清除本分类；取消 convergence 和 other 里程碑但保留实际事件，按唯一明确关联归组；每个真实里程碑首张卡片在左，轮次开启参与交替计数；轮次开始不提前展示最终状态。卡片采用角色头像、姓名时间、动词在前的事件文案与查看入口；DSH 语义配色随浅色/深色主题切换，头像视口收紧到 394×394，暗色背景不再露出外沿米白底。
+
+Executed Validation：2026-10-13 发布前重新执行两份 timeline Client spec，38 项通过；受影响 Prettier/ESLint、`git diff --check main...HEAD` 与文档链接检查通过；源码构建安装通过。固定人工 DSH 环境的现有归档会议验证 62 条事件完整、第一和第二轮首条举手在右侧、筛选/清除与展开/收起正常；869×954 下浅色与深色配色、暗色头像裁切经截图检查，Browser 无应用 error。[PR Verify](https://github.com/thundax-lyp/convivium/actions/runs/38351344980) 在 `b0049917` 上的 Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract 七项检查全部通过。
+
+Not Covered：本地未运行完整测试套件，完整自动化测试由远端 Plugin Test 覆盖；未执行新的完整业务 smoke、其它深色视口或其它浏览器验证。Codex 自动 review 因额度限制未执行，当前没有 reviewer finding；CI 通过不能代替人工代码评审或完整业务验收。
+
+Closure：分支已推送，PR 已创建并以 main 为目标，等待 review，尚未合并；本次不声明整体会议能力或发布就绪。
