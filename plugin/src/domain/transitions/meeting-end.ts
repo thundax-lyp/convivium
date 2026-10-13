@@ -17,12 +17,7 @@ export interface EndMeetingInput {
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
 const sameIds = (left: readonly string[], right: readonly string[]) =>
     left.length === right.length && left.every((value, index) => value === right[index]);
-const nonTerminalContributionStatuses = new Set([
-    "preparing",
-    "registered",
-    "under_review",
-    "awaiting_response"
-]);
+const nonTerminalContributionStatuses = new Set(["preparing", "registered", "under_review"]);
 
 export const endMeeting = (
     state: MeetingState,

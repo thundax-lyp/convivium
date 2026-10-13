@@ -95,10 +95,10 @@ const resumedRoundEffects = (state: MeetingState): readonly MeetingDomainEffectR
     state.rounds
         .filter((round) => round.status === "open")
         .flatMap((round) =>
-            (round.invitedContributorIds ?? [])
+            round.invitedContributorIds
                 .filter(
                     (contributorId) =>
-                        !round.participationResponses?.some(
+                        !round.participationResponses.some(
                             (response) => response.contributorId === contributorId
                         ) ||
                         state.contributions.some(

@@ -72,6 +72,10 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                 openedAt: 0,
                 status: "published",
                 contributionIds: ["c"],
+                invitedContributorIds: ["contributor"],
+                participationResponses: [
+                    { contributorId: "contributor", status: "raised", recordedAt: 0 }
+                ],
                 publicationId: "pub"
             }
         ],
@@ -85,7 +89,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                 handRaise: { raisedAt: 0, purpose: "x" },
                 acceptedAt: 0,
                 status: "registered",
-                substantiveSupplementCount: 0,
                 packageId: "p"
             }
         ],
@@ -102,6 +105,7 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                     {
                         id: "v",
                         ordinal: 1,
+                        summary: "Evidence summary",
                         observation: "x",
                         interpretation: "x",
                         method: "x",
@@ -189,8 +193,7 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             maxFormalMessages: 1,
             maxDurationMs: 1,
             taskDeadlineMs: 1,
-            reviewDeadlineMs: 1,
-            responseDeadlineMs: 60000
+            reviewDeadlineMs: 1
         }
     } as unknown as MeetingState;
     if (status === "terminal" || status === "archiving" || status === "archived") {
@@ -239,6 +242,58 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
         };
     }
     return state;
+}
+
+export function addUnpublishedEvidence(state: MeetingState, versionId = "v2"): void {
+    const round = state.rounds[0];
+    const version = state.evidencePackages[0].versions[0];
+    state.managerPlans.push({
+        id: "plan-unpublished",
+        agendaId: round.agendaId,
+        managerId: "manager",
+        kind: "open_round",
+        roundGoal: round.roundGoal,
+        rationale: "follow-up evidence",
+        createdAt: 0,
+        status: "completed"
+    });
+    state.rounds.push({
+        id: "round-unpublished",
+        agendaId: round.agendaId,
+        planId: "plan-unpublished",
+        roundGoal: round.roundGoal,
+        publicBaselinePublicationIds: state.publications.map((publication) => publication.id),
+        openedAt: 0,
+        status: "open",
+        contributionIds: ["contribution-unpublished"],
+        invitedContributorIds: ["captain"],
+        participationResponses: [{ contributorId: "captain", status: "raised", recordedAt: 0 }]
+    });
+    state.contributions.push({
+        id: "contribution-unpublished",
+        roundId: "round-unpublished",
+        contributorId: "captain",
+        handRaise: { raisedAt: 0, purpose: "follow-up evidence" },
+        acceptedAt: 0,
+        status: "under_review",
+        packageId: "package-unpublished"
+    });
+    state.evidencePackages.push({
+        id: "package-unpublished",
+        roundId: "round-unpublished",
+        contributionId: "contribution-unpublished",
+        authorId: "captain",
+        agendaId: round.agendaId,
+        currentVersionId: versionId,
+        versions: [{ ...version, id: versionId, ordinal: 1, status: "submitted" }]
+    });
+    state.registrations.push({
+        id: "registration-unpublished",
+        versionId,
+        status: "complete",
+        createdAt: 0
+    });
+    state.limits.maxFormalMessages = Math.max(state.limits.maxFormalMessages, 2);
 }
 
 export function completionReadyState(): MeetingState {

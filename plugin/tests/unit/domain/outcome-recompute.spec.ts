@@ -124,7 +124,9 @@ describe("Recompute/Convergence", () => {
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open",
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         });
         state.managerPlans.push({
             id: "pending-plan",

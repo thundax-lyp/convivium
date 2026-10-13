@@ -117,6 +117,10 @@ function stateWithPendingReview() {
             openedAt: 1,
             status: "published",
             contributionIds: ["contribution-baseline"],
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: [
+                { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+            ],
             publicationId: "publication-baseline"
         },
         {
@@ -125,12 +129,17 @@ function stateWithPendingReview() {
             publicBaselinePublicationIds: ["publication-baseline"],
             openedAt: 4,
             status: "open",
-            contributionIds: ["contribution-current"]
+            contributionIds: ["contribution-current"],
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: [
+                { contributorId: "contributor-v1", status: "raised", recordedAt: 4 }
+            ]
         }
     ];
     const version = (id: string, submittedAt: number): EvidenceVersion => ({
         id,
         ordinal: 1,
+        summary: "Evidence summary",
         observation: `observation:${id}`,
         interpretation: "interpretation",
         method: "method",

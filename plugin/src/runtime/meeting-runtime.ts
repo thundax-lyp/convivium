@@ -129,7 +129,7 @@ const targetCreateState = (
         managerPlans: [],
         privateMails: [],
         completionFacts: [],
-        limits: { ...action.limits, responseDeadlineMs: 60000 }
+        limits: action.limits
     };
 };
 

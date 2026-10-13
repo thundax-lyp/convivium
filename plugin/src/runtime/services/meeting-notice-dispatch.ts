@@ -174,22 +174,6 @@ const assertNoticeReferences = (
                 }
                 return { requestKind, roundId, contributorId };
             }
-            if (requestKind === "supplement") {
-                const contributionId = stringField(payload, "contributionId");
-                const contribution = state.contributions.find(
-                    (candidate) => candidate.id === contributionId
-                );
-                const round = state.rounds.find(
-                    (candidate) => candidate.id === contribution?.roundId
-                );
-                if (
-                    contribution?.supplementHand?.status !== "pending" ||
-                    round?.agendaId !== agendaId
-                ) {
-                    fail("NOTICE_VISIBILITY_INVALID");
-                }
-                return { requestKind, contributionId };
-            }
             return fail("NOTICE_PAYLOAD_INVALID");
         }
         case "hand_disposition": {
@@ -233,19 +217,6 @@ const assertNoticeReferences = (
                     };
                 }
                 return { requestKind, roundId, contributorId, disposition, reason };
-            }
-            if (requestKind === "supplement") {
-                const contributionId = stringField(payload, "contributionId");
-                const contribution = state.contributions.find(
-                    (candidate) => candidate.id === contributionId
-                );
-                const round = state.rounds.find(
-                    (candidate) => candidate.id === contribution?.roundId
-                );
-                if (contribution?.contributorId !== identity.id || round?.agendaId !== agendaId) {
-                    fail("NOTICE_VISIBILITY_INVALID");
-                }
-                return { requestKind, contributionId, disposition, reason };
             }
             return fail("NOTICE_PAYLOAD_INVALID");
         }

@@ -9,37 +9,6 @@ type Input = {
     messageIds: readonly OpaqueId[];
     now: number;
 };
-const body = (version: {
-    summary?: string;
-    observation: string;
-    interpretation: string;
-    method: string;
-    claims: readonly { statement: string; qualification: string; materialIds: readonly string[] }[];
-    falsifiers: readonly { value: string; reason?: string }[];
-    uncertainties: readonly { value: string; reason?: string }[];
-    limitations: readonly { value: string; reason?: string }[];
-}) => {
-    if (version.summary !== undefined) {
-        return version.summary;
-    }
-    const suffix = (reason?: string) => (reason === undefined ? "" : `｜原因：${reason}`);
-    return [
-        `观察：${version.observation}`,
-        `解释：${version.interpretation}`,
-        `方法：${version.method}`,
-        "主张：",
-        ...version.claims.map(
-            (claim) =>
-                `- ${claim.statement}｜限定：${claim.qualification}｜资料：${claim.materialIds.join("，")}`
-        ),
-        "反证：",
-        ...version.falsifiers.map((item) => `- ${item.value}${suffix(item.reason)}`),
-        "不确定性：",
-        ...version.uncertainties.map((item) => `- ${item.value}${suffix(item.reason)}`),
-        "限制：",
-        ...version.limitations.map((item) => `- ${item.value}${suffix(item.reason)}`)
-    ].join("\n");
-};
 export const publishRound = (state: MeetingState, input: Input): MeetingTransitionResult => {
     if (
         !input.roundId.trim() ||
@@ -112,7 +81,7 @@ export const publishRound = (state: MeetingState, input: Input): MeetingTransiti
         actorId: pkg.authorId,
         agendaId: round.agendaId,
         kind: "round_evidence",
-        body: body(pkg.versions.find((version) => version.id === pkg.currentVersionId)!),
+        body: pkg.versions.find((version) => version.id === pkg.currentVersionId)!.summary,
         publicationId: input.publicationId,
         relatedIds: [pkg.currentVersionId, finalReviewIds[index]],
         createdAt: input.now
@@ -154,12 +123,6 @@ export const publishRound = (state: MeetingState, input: Input): MeetingTransiti
             candidate.id === round.id
                 ? { ...candidate, status: "published", publicationId: publication.id }
                 : candidate
-        ),
-        contributions: state.contributions.map((contribution) =>
-            round.contributionIds.includes(contribution.id) &&
-            contribution.status === "awaiting_response"
-                ? { ...contribution, status: "closed" as const, exitReason: "published" }
-                : contribution
         ),
         publications: [...state.publications, publication],
         messages: [...state.messages, ...messages]

@@ -320,7 +320,7 @@ const actions = [
     z.object({
         kind: z.literal("close_contribution"),
         contributionId: id,
-        exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
+        exit: z.enum(["withdrawn", "submission_missing"]),
         reason: text
     }),
     z.object({

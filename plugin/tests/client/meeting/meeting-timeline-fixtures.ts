@@ -72,6 +72,7 @@ export const eventTimelineFixture = (events?: MeetingEventView[]): MeetingView =
 const version = {
     id: "version-1",
     ordinal: 1,
+    summary: "Evidence summary",
     observation: "observation",
     interpretation: "interpretation",
     method: "method",
@@ -194,6 +195,8 @@ export function activeTimelineFixture(): MeetingView {
                 status: "aborted",
                 baselinePublicationIds: [],
                 openedAt: 20,
+                invitedContributorIds: [],
+                participationResponses: [],
                 abortedAt: 21,
                 abortReason: "abort reason",
                 pendingHandRaises: [

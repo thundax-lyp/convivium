@@ -122,7 +122,7 @@ export interface MeetingEventDataByKind {
           };
     "evidence.submitted": { summary: string };
     "contribution.closed": {
-        exit: "withdrawn" | "timed_out" | "submission_missing";
+        exit: "withdrawn" | "submission_missing";
         reason: string;
     };
     "contribution.failed": {

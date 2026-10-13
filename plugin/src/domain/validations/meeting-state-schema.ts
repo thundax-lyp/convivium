@@ -228,17 +228,6 @@ const managerPlanSchema = z.object({
 });
 const handRaiseSchema = z.object({ raisedAt: epochSchema, purpose: textSchema });
 const textWithReasonSchema = z.object({ value: textSchema, reason: textSchema.optional() });
-const supplementHandSchema = z
-    .object({
-        raisedAt: epochSchema,
-        purpose: textSchema,
-        status: z.enum(["pending", "accepted"]),
-        acceptedAt: epochSchema.optional()
-    })
-    .refine((value) => isAbsentOrDefined(value, "acceptedAt"), { path: ["acceptedAt"] })
-    .refine((value) => (value.status === "accepted") === own(value, "acceptedAt"), {
-        path: ["acceptedAt"]
-    });
 const opportunityRequestSchema = z.object({
     id: opaqueIdSchema,
     agendaId: opaqueIdSchema,
@@ -266,16 +255,14 @@ const roundSchema = z
         openedAt: epochSchema,
         status: z.enum(["open", "published", "aborted"]),
         contributionIds: uniqueIdArraySchema,
-        invitedContributorIds: uniqueIdArraySchema.optional(),
-        participationResponses: z
-            .array(
-                z.object({
-                    contributorId: opaqueIdSchema,
-                    status: z.enum(["raised", "declined", "no_response"]),
-                    recordedAt: epochSchema
-                })
-            )
-            .optional(),
+        invitedContributorIds: uniqueIdArraySchema,
+        participationResponses: z.array(
+            z.object({
+                contributorId: opaqueIdSchema,
+                status: z.enum(["raised", "declined", "no_response"]),
+                recordedAt: epochSchema
+            })
+        ),
         deadlineAt: epochSchema.optional(),
         publicationId: opaqueIdSchema.optional(),
         abortReason: textSchema.optional(),
@@ -284,18 +271,11 @@ const roundSchema = z
     .refine((value) => isAbsentOrDefined(value, "publicationId"), { path: ["publicationId"] })
     .refine(
         (value) =>
-            (value.invitedContributorIds === undefined) ===
-            (value.participationResponses === undefined),
-        { path: ["participationResponses"] }
-    )
-    .refine(
-        (value) =>
-            value.participationResponses === undefined ||
-            (new Set(value.participationResponses.map((item) => item.contributorId)).size ===
+            new Set(value.participationResponses.map((item) => item.contributorId)).size ===
                 value.participationResponses.length &&
-                value.participationResponses.every((item) =>
-                    value.invitedContributorIds?.includes(item.contributorId)
-                )),
+            value.participationResponses.every((item) =>
+                value.invitedContributorIds.includes(item.contributorId)
+            ),
         { path: ["participationResponses"] }
     )
     .refine((value) => (value.status === "published") === own(value, "publicationId"), {
@@ -315,19 +295,15 @@ const contributionSchema = z
         acceptedAt: epochSchema,
         status: z.enum([
             "preparing",
+            "aborted",
             "registered",
             "under_review",
-            "awaiting_response",
             "withdrawn",
             "submission_missing",
             "execution_failed",
-            "timed_out",
-            "supplement_rejected",
             "closed"
         ]),
         packageId: opaqueIdSchema.optional(),
-        substantiveSupplementCount: integerSchema.max(2),
-        supplementHand: supplementHandSchema.optional(),
         exitReason: textSchema.optional(),
         failure: z
             .object({
@@ -339,19 +315,8 @@ const contributionSchema = z
                 retryable: z.boolean(),
                 occurredAt: epochSchema
             })
-            .optional(),
-        response: textSchema.optional()
+            .optional()
     })
-    .refine((value) => isAbsentOrDefined(value, "supplementHand"), {
-        path: ["supplementHand"]
-    })
-    .refine(
-        (value) =>
-            value.supplementHand === undefined ||
-            value.status === "awaiting_response" ||
-            value.supplementHand.status === "accepted",
-        { path: ["supplementHand"] }
-    )
     .refine((value) => (value.status === "execution_failed") === own(value, "failure"), {
         path: ["failure"]
     });
@@ -396,7 +361,7 @@ const evidenceVersionSchema = withDefinedOptionals(
     z.object({
         id: opaqueIdSchema,
         ordinal: positiveIntegerSchema,
-        summary: textSchema.optional(),
+        summary: textSchema,
         observation: textSchema,
         interpretation: textSchema,
         method: textSchema,
@@ -418,7 +383,7 @@ const evidenceVersionSchema = withDefinedOptionals(
             .enum(["review_timeout", "review_interrupted", "dispatch_failed"])
             .optional()
     }),
-    ["summary", "lastFailureReason"]
+    ["lastFailureReason"]
 ).superRefine((version, ctx) => {
     if ((version.status === "validation_failed") !== (version.lastFailureReason !== undefined)) {
         ctx.addIssue({ code: "custom", path: ["lastFailureReason"] });
@@ -431,7 +396,7 @@ const evidencePackageSchema = z.object({
     authorId: opaqueIdSchema,
     agendaId: opaqueIdSchema,
     currentVersionId: opaqueIdSchema,
-    versions: z.array(evidenceVersionSchema)
+    versions: z.tuple([evidenceVersionSchema])
 });
 const registrationSchema = z.object({
     id: opaqueIdSchema,
@@ -808,8 +773,7 @@ const limitsSchema = z.object({
     maxFormalMessages: integerSchema,
     maxDurationMs: integerSchema,
     taskDeadlineMs: integerSchema,
-    reviewDeadlineMs: integerSchema,
-    responseDeadlineMs: z.literal(60000)
+    reviewDeadlineMs: integerSchema
 });
 const meetingStateSchema = withDefinedOptionals(
     z.object({

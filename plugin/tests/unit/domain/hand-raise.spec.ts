@@ -42,6 +42,8 @@ function openState() {
             openedAt: 0,
             status: "published",
             contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: [],
             publicationId: "publication-0"
         }
     ];
@@ -175,8 +177,7 @@ describe("hand raise", () => {
             roundId: "round-v1",
             contributorId: "contributor-v1",
             status: "preparing",
-            acceptedAt: 3,
-            substantiveSupplementCount: 0
+            acceptedAt: 3
         });
         expect(result.state.rounds.find(({ id }) => id === "round-v1")?.contributionIds).toEqual([
             "contribution-v1"

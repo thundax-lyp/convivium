@@ -2,6 +2,7 @@ import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
+import { addUnpublishedEvidence, validState } from "./outcome-fixtures.ts";
 
 const roundGoal = { question: "q", evidenceGap: "gap", expectedOutput: "output" };
 
@@ -23,6 +24,22 @@ describe("canonical MeetingState validation", () => {
         const state = makeRunningMeetingStateV1();
         expect(validateMeetingState(state)).toEqual({ kind: "valid", state });
     });
+    it("rejects a second registered version in one evidence package", () => {
+        const state = validState();
+        const pkg = state.evidencePackages[0];
+        const extraVersion = { ...pkg.versions[0], id: "version-extra", ordinal: 2 };
+        expect(
+            validateMeetingState({
+                ...state,
+                evidencePackages: [{ ...pkg, versions: [...pkg.versions, extraVersion] }]
+            })
+        ).toMatchObject({ kind: "invalid", path: "$.evidencePackages[0].versions" });
+    });
+    it("accepts a distinct unpublished version in a later Round", () => {
+        const state = validState();
+        addUnpublishedEvidence(state);
+        expect(validateMeetingState(state)).toMatchObject({ kind: "valid" });
+    });
     it("requires exactly one evidence reviewer", () => {
         const state = makeRunningMeetingStateV1();
         expect(validateMeetingState({ ...state, evidenceReviewerId: "missing" })).toMatchObject({
@@ -41,6 +58,8 @@ describe("canonical MeetingState validation", () => {
             openedAt: 0,
             status: "aborted" as const,
             contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: [],
             abortReason: "x",
             abortedAt: 1
         };
@@ -67,7 +86,9 @@ describe("canonical MeetingState validation", () => {
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open" as const,
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         };
 
         expect(
@@ -92,7 +113,9 @@ describe("canonical MeetingState validation", () => {
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open" as const,
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         };
 
         expect(
@@ -115,7 +138,9 @@ describe("canonical MeetingState validation", () => {
             publicBaselinePublicationIds: [],
             openedAt: 0,
             status: "open" as const,
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         };
         const publication = {
             id: "publication-1",
@@ -160,6 +185,8 @@ describe("canonical MeetingState validation", () => {
             openedAt: 0,
             status: "published" as const,
             contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: [],
             publicationId: selectedPublication.id
         };
 

@@ -328,7 +328,9 @@ const businessFixture = async (action, terminal = false) => {
             publicBaselinePublicationIds: ["pub"],
             openedAt: 2,
             status: "open",
-            contributionIds: []
+            contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: []
         });
         state.managerPlans.push({
             id: "open-plan",

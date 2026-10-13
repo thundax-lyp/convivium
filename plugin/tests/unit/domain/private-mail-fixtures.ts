@@ -65,6 +65,8 @@ export function privateMailState(): MeetingState {
                 openedAt: 0,
                 status: "published",
                 contributionIds: [],
+                invitedContributorIds: [],
+                participationResponses: [],
                 publicationId: "pub-1"
             }
         ],
@@ -115,8 +117,7 @@ export function privateMailState(): MeetingState {
             maxFormalMessages: 10,
             maxDurationMs: 10,
             taskDeadlineMs: 100,
-            reviewDeadlineMs: 10,
-            responseDeadlineMs: 60000
+            reviewDeadlineMs: 10
         }
     } as MeetingState;
 }
@@ -131,8 +132,7 @@ export function privateMailStateWithContribution(
         contributorId,
         handRaise: { raisedAt: 0, purpose: "purpose" },
         acceptedAt: 0,
-        status,
-        substantiveSupplementCount: 0
+        status
     } as const;
     const state = privateMailState();
     return {

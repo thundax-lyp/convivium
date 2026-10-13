@@ -4,7 +4,7 @@ import {
     recordDecisionCandidate,
     pendingDecisionCandidates
 } from "@/domain/transitions/outcome.ts";
-import { validState, expectRejected } from "./outcome-fixtures.ts";
+import { addUnpublishedEvidence, validState, expectRejected } from "./outcome-fixtures.ts";
 
 const ready = () => {
     const state = validState();
@@ -96,12 +96,7 @@ it.each([
 ] as const)("Position evidence %s", (_name, evidenceIds, code) => {
     const state = ready();
     if (_name === "unpublished evidence") {
-        state.evidencePackages[0].versions.push({
-            ...state.evidencePackages[0].versions[0],
-            id: "v2",
-            ordinal: 2,
-            status: "submitted"
-        });
+        addUnpublishedEvidence(state);
     }
     const result = recordPosition(
         state,
@@ -255,12 +250,7 @@ it.each([
         }
     ];
     if (_name === "unpublished") {
-        state.evidencePackages[0].versions.push({
-            ...state.evidencePackages[0].versions[0],
-            id: "v2",
-            ordinal: 2,
-            status: "submitted"
-        });
+        addUnpublishedEvidence(state);
     }
     const result = recordDecisionCandidate(state, candidateInput(undefined, { evidenceIds }));
     expect(result).toMatchObject({

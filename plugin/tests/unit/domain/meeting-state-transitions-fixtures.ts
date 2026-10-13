@@ -71,8 +71,7 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
             maxFormalMessages: 0,
             maxDurationMs: 0,
             taskDeadlineMs: 0,
-            reviewDeadlineMs: 0,
-            responseDeadlineMs: 60000
+            reviewDeadlineMs: 0
         }
     };
 }
@@ -188,6 +187,10 @@ export function publishedQuestionState(blocking: boolean): MeetingState {
             openedAt: 0,
             status: "published",
             contributionIds: ["contribution-1"],
+            invitedContributorIds: ["contributor-1"],
+            participationResponses: [
+                { contributorId: "contributor-1", status: "raised", recordedAt: 0 }
+            ],
             publicationId: "publication-1"
         }
     ];
@@ -211,8 +214,7 @@ export function publishedQuestionState(blocking: boolean): MeetingState {
             handRaise: { raisedAt: 0, purpose: "x" },
             acceptedAt: 0,
             status: "registered",
-            packageId: "package-1",
-            substantiveSupplementCount: 0
+            packageId: "package-1"
         }
     ];
     current.evidencePackages = [
@@ -227,6 +229,7 @@ export function publishedQuestionState(blocking: boolean): MeetingState {
                 {
                     id: "version-1",
                     ordinal: 1,
+                    summary: "Evidence summary",
                     observation: "x",
                     interpretation: "x",
                     method: "x",

@@ -74,13 +74,7 @@ function evidenceState() {
     if (accept.kind !== "accepted") {
         throw new Error("accept");
     }
-    state = {
-        ...accept.state,
-        rounds: accept.state.rounds.map(
-            ({ invitedContributorIds: _invited, participationResponses: _responses, ...round }) =>
-                round
-        )
-    };
+    state = accept.state;
     const submit = submitEvidence(state, {
         contributionId: "contribution-v1",
         authorId: "contributor-v1",
@@ -620,9 +614,7 @@ describe("review delivery and publication", () => {
             now: 8
         });
         expect(sent.kind).toBe("accepted");
-        expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe(
-            "awaiting_response"
-        );
+        expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe("closed");
     });
 
     it("preserves a withdrawn Contribution when a pending review delivery is sent", () => {
@@ -661,7 +653,7 @@ describe("review delivery and publication", () => {
         );
     });
 
-    it("waits for the author's response before publishing delivered evidence", () => {
+    it("publishes delivered evidence without another author response", () => {
         const reviewed = submitClaimedReview(evidenceState(), {
             versionId: "version-v1",
             reviewId: "review-v1",
@@ -682,35 +674,15 @@ describe("review delivery and publication", () => {
             throw new Error("delivery");
         }
 
-        expect(isRoundClosable(delivered.state, "round-v1")).toBe(false);
-        const early = publishRound(delivered.state, {
-            roundId: "round-v1",
-            managerId: "manager-v1",
-            publicationId: "publication-early",
-            messageIds: ["message-early"],
-            now: 8
-        });
-        expect(early.kind).toBe("rejected");
-        const withdrawn = closeContribution(delivered.state, {
-            contributionId: "contribution-v1",
-            actorId: "contributor-v1",
-            actorKind: "author",
-            exit: "withdrawn",
-            reason: "不再补充",
-            now: 8
-        });
-        if (withdrawn.kind !== "accepted") {
-            throw new Error("withdrawal");
-        }
-        expect(isRoundClosable(withdrawn.state, "round-v1")).toBe(true);
-        expect(withdrawn.effectRequests).toContainEqual({
+        expect(isRoundClosable(delivered.state, "round-v1")).toBe(true);
+        expect(delivered.effectRequests).toContainEqual({
             kind: "agent_notice",
             noticeKind: "round_ready",
             recipientId: "manager-v1",
             agendaId: "agenda-v1",
             roundId: "round-v1"
         });
-        const published = publishRound(withdrawn.state, {
+        const published = publishRound(delivered.state, {
             roundId: "round-v1",
             managerId: "manager-v1",
             publicationId: "publication-v1",
@@ -724,9 +696,9 @@ describe("review delivery and publication", () => {
         }
         expect(published.state.messages[0]?.body).toBe("观点摘要");
         expect(published.state.evidencePackages[0]?.versions[0]?.observation).toBe("观察");
-        expect(published.state.contributions[0]?.status).toBe("withdrawn");
-        expect(published.state.contributions[0]?.exitReason).toBe("不再补充");
-        expect(published.state.publications[0]?.exitReasons).toEqual(["不再补充"]);
+        expect(published.state.contributions[0]?.status).toBe("closed");
+        expect(published.state.contributions[0]?.exitReason).toBe("review_delivered");
+        expect(published.state.publications[0]?.exitReasons).toEqual(["review_delivered"]);
         expect(published.effectRequests).toEqual(
             ["manager-v1", "contributor-v1", "reviewer-v1"].map((recipientId) => ({
                 kind: "agent_notice",

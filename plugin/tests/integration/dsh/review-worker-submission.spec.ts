@@ -30,7 +30,11 @@ const pendingState = (): MeetingState => {
             publicBaselinePublicationIds: [],
             openedAt: 1,
             status: "open",
-            contributionIds: ["contribution-1"]
+            contributionIds: ["contribution-1"],
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: [
+                { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+            ]
         }
     ];
     state.managerPlans = [
@@ -53,8 +57,7 @@ const pendingState = (): MeetingState => {
             handRaise: { purpose: "evidence", raisedAt: 1 },
             acceptedAt: 2,
             status: "under_review",
-            packageId: "package-1",
-            substantiveSupplementCount: 0
+            packageId: "package-1"
         }
     ];
     state.evidencePackages = [
@@ -69,6 +72,7 @@ const pendingState = (): MeetingState => {
                 {
                     id: "version-1",
                     ordinal: 1,
+                    summary: "Evidence summary",
                     observation: "observation",
                     interpretation: "interpretation",
                     method: "method",

@@ -72,9 +72,6 @@ const validateQuestions = (parsedState: MeetingState): string | undefined => {
             return fail(`${path}.blocking`);
         }
     }
-    if (parsedState.limits.responseDeadlineMs !== 60000) {
-        return fail("$.limits.responseDeadlineMs");
-    }
     return undefined;
 };
 
@@ -594,8 +591,8 @@ const validateMailAvailability = (
                     ![
                         "withdrawn",
                         "submission_missing",
-                        "timed_out",
-                        "supplement_rejected",
+                        "execution_failed",
+                        "aborted",
                         "closed"
                     ].includes(c.status)
             ))

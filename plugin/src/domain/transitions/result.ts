@@ -35,11 +35,6 @@ export type AgentNoticeEffectRequest =
           contributorId: OpaqueId;
       })
     | (AgentNoticeEffectBase & {
-          noticeKind: "hand_request";
-          requestKind: "supplement";
-          contributionId: OpaqueId;
-      })
-    | (AgentNoticeEffectBase & {
           noticeKind: "hand_disposition";
           requestKind: "initial";
           roundId: OpaqueId;
@@ -54,13 +49,6 @@ export type AgentNoticeEffectRequest =
           roundId: OpaqueId;
           contributorId: OpaqueId;
           disposition: "rejected" | "deferred";
-          reason: string;
-      })
-    | (AgentNoticeEffectBase & {
-          noticeKind: "hand_disposition";
-          requestKind: "supplement";
-          contributionId: OpaqueId;
-          disposition: "accepted" | "rejected" | "deferred";
           reason: string;
       })
     | (AgentNoticeEffectBase & { noticeKind: "review_request"; versionId: OpaqueId })

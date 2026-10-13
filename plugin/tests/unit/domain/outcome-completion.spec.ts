@@ -2,7 +2,12 @@ import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.ts";
 import { recordCompletionFact, changeCompletionFact } from "@/domain/transitions/outcome.ts";
-import { validState, completionReadyState, completionInput } from "./outcome-fixtures.ts";
+import {
+    addUnpublishedEvidence,
+    validState,
+    completionReadyState,
+    completionInput
+} from "./outcome-fixtures.ts";
 
 describe("CompletionFact", () => {
     const reviewBreaks = [
@@ -128,15 +133,7 @@ describe("CompletionFact", () => {
             ...state.objective.requiredOutputs[0],
             status: "satisfied"
         };
-        state.evidencePackages[0].currentVersionId = "v2";
-        state.evidencePackages[0].versions.push({
-            ...state.evidencePackages[0].versions[0],
-            id: "v2",
-            ordinal: 2,
-            status: "submitted"
-        });
-        state.publications[0].finalVersionIds = ["v", "v2"];
-        state.publications[0].finalReviewIds = ["review"];
+        addUnpublishedEvidence(state);
         const reviewResult = changeCompletionFact(state, {
             factId: "old",
             status: "superseded",

@@ -42,6 +42,8 @@ it("accepts a candidate source message when it belongs to the meeting", () => {
             openedAt: 0,
             status: "published",
             contributionIds: [],
+            invitedContributorIds: [],
+            participationResponses: [],
             publicationId: "publication-1"
         }
     ];

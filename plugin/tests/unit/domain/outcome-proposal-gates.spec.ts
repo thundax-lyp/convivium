@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recordProposalRevision } from "@/domain/transitions/outcome.ts";
-import { validState, proposalState } from "./outcome-fixtures.ts";
+import { addUnpublishedEvidence, validState, proposalState } from "./outcome-fixtures.ts";
 
 describe("proposal revision gates", () => {
     const input = (overrides: Record<string, unknown> = {}) => ({
@@ -39,12 +39,7 @@ describe("proposal revision gates", () => {
             error: { code: "NOT_FOUND", targetId: "missing" }
         });
         const unpublished = proposalState();
-        unpublished.evidencePackages[0].versions.push({
-            ...unpublished.evidencePackages[0].versions[0],
-            id: "v2",
-            ordinal: 2,
-            status: "submitted"
-        });
+        addUnpublishedEvidence(unpublished);
         const result = recordProposalRevision(unpublished, input({ evidenceIds: ["v2"] }));
         expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
     });

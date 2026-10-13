@@ -4,7 +4,6 @@ export {
     type MeetingRole,
     type MeetingIdentity,
     type Round,
-    type SupplementHand,
     type EvidenceOpportunityRequest,
     type Contribution,
     type ContributionFailure,

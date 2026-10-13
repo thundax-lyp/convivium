@@ -5,7 +5,7 @@ import {
     disposeRisk,
     recordCompletionFact
 } from "@/domain/transitions/outcome.ts";
-import { validState } from "./outcome-fixtures.ts";
+import { addUnpublishedEvidence, validState } from "./outcome-fixtures.ts";
 
 describe("risk disposition gates", () => {
     const riskState = () => {
@@ -191,12 +191,7 @@ describe("risk disposition gates", () => {
     });
     it("distinguishes an unpublished evidence version", () => {
         const state = riskState();
-        state.evidencePackages[0].versions.push({
-            ...state.evidencePackages[0].versions[0],
-            id: "v2",
-            ordinal: 2,
-            status: "submitted"
-        });
+        addUnpublishedEvidence(state);
         expect(
             disposeRisk(
                 state,
