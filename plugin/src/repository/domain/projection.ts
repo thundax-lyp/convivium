@@ -33,15 +33,14 @@ export class UnsupportedMeetingStateFormatError extends Error {
 
 const emptyMaps = (): Pick<
     PersistenceProjection,
-    "receipts" | "facts" | "events" | "outbox" | "sessionOwnership" | "privateMail"
+    "receipts" | "facts" | "events" | "outbox" | "sessionOwnership"
 > => {
     return {
         receipts: Object.create(null),
         facts: Object.create(null),
         events: Object.create(null),
         outbox: Object.create(null),
-        sessionOwnership: Object.create(null),
-        privateMail: Object.create(null)
+        sessionOwnership: Object.create(null)
     };
 };
 

@@ -1406,6 +1406,8 @@ Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` �
 
 ## Compatibility And Acceptance
 
+私信业务事实只存在于 `MeetingStateRecord.privateMails`，经统一 command 提交；Repository projection 不另存 `privateMail` map，也不提供独立私信读写方法。持久化 projection 只接受当前 strict schema；本次移除的独立私信字段不做迁移或兼容读取。
+
 当前契约不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。`MeetingAction`、`MeetingView` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。首次发布后可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
 
 1. TypeScript 实现可从本文声明每个 command、result、error 和 port，而无需 untyped 业务 payload。

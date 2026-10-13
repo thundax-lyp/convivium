@@ -1,4 +1,4 @@
-import { DomainMeetingRepositoryMail } from "./domain-meeting-repository-mail.ts";
+import { DomainMeetingRepositoryCore } from "./domain-meeting-repository-core.ts";
 import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
 import type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
 export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
@@ -62,7 +62,7 @@ const jsonValue = (value: unknown): JsonValue => {
 };
 
 export class DomainMeetingRepository<TState = JsonObject>
-    extends DomainMeetingRepositoryMail<TState>
+    extends DomainMeetingRepositoryCore<TState>
     implements MeetingRepositoryPort<TState>
 {
     static async open<TState = JsonObject>(

@@ -9,11 +9,6 @@ import type {
     CreateMeetingResult,
     MeetingBootstrap,
     MeetingSnapshot,
-    PrivateMeetingMail,
-    SendPrivateMeetingMailInput,
-    StartPrivateMeetingMailInput,
-    FinishPrivateMeetingMailInput,
-    CancelPrivateMeetingMailInput,
     JsonObject,
     OutboxCompletionResult,
     OutboxItem,
@@ -43,21 +38,12 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     read(): Promise<MeetingSnapshot<TState>>;
     readCommittedFacts(): Promise<readonly CommittedFactRecord<TState>[]>;
     readCommittedEvents(): Promise<{ kind: "complete"; events: readonly PersistedMeetingEvent[] }>;
-    readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
-    listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
-    hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
     replayReceipt(
         input: Pick<
             RepositoryCommand<unknown, TState>,
             "requestId" | "commandKind" | "authorization" | "requestHash"
         >
     ): Promise<CommittedResult<unknown> | undefined>;
-    sendPrivateMeetingMail(
-        input: SendPrivateMeetingMailInput
-    ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
-    startPrivateMeetingMail(input: StartPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
-    finishPrivateMeetingMail(input: FinishPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
-    cancelUnfinishedPrivateMeetingMail(input: CancelPrivateMeetingMailInput): Promise<number>;
     execute<T>(command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>>;
     claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
     completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
