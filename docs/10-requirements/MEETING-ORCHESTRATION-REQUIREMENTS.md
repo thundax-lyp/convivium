@@ -440,7 +440,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 52. DSH Conversation 只注册一个 Convivium `Meetings` View；进入后先显示完整 Meeting Navigator，未选择 Meeting 时不调用详情读取，也不显示当前 Meeting Header、模式切换器或内容。
 53. 选择 Meeting 后默认显示概览；切换到时间线时继续使用同一个 ID 和同一详情投影。选择另一个 Meeting 后回到概览且旧时间线本地状态被清除；旧 Meeting 的迟到读取结果不能覆盖新选择。详情失败、断线或选中项从新摘要列表消失时分别遵守 MO-FR-17.4，均不自动改选其他 Meeting。
 54. 活动、暂停、终态和归档 Meeting 的共享 Header 只显示各自 `controls` 允许的暂停、继续和异常取消 control；陈旧或提交中状态全部禁写。概览只读展示 Contribution 授权、Decision 和 Risk，时间线不产生任何写操作。
-55. 给定可信 local controller 返回的 `timelineEvents`，时间线按连续 `eventSeq` 展示左右交错节点，角色与行为者来自事件契约；同一 Task 的不同已发生事件形成独立节点，不从当前 DTO 时间字段推导历史。
+55. 给定可信 local controller 返回的 `timelineEvents`，时间线按连续 `eventSeq` 展示左右交错节点，角色与行为者来自事件契约；用户、主持人、嘉宾、审核者、系统各有可区分的角色头像；卡片第一排左侧头像，右侧上方身份名称（无名称时使用角色文字），下方浅色小字时间，可访问文本保留角色信息；同一 Task 的不同已发生事件形成独立节点，不从当前 DTO 时间字段推导历史。
 56. 给定归档会议的 `timelineEvents`，时间线仍以基础事件日志为唯一来源，展示归档前过程及终止、归档事实；不得从 `ArchiveView` 或顶层运行对象回填节点，也不得重复节点。
 57. 普通 Participant、用户、Manager 和 Reviewer 的身份投影只暴露 caller-filtered 事实；完整事件时间线仅由可信 local controller 读取。概览、筛选数量和定位结果不得泄露当前入口不可见的对象。
 58. 在窄屏下 Navigator 通过按钮与抽屉操作同一个选择状态，Workspace 占满抽屉外内容区，时间线保持必要时可水平滚动的左右交错布局；键盘可以按时间访问节点，定位后焦点与可访问文本落在目标卡片。
@@ -469,6 +469,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 - DSH 插件与 Meetings View 设计：[`../30-designs/DSH-PLUGIN-DESIGN.md`](../30-designs/DSH-PLUGIN-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。
+
+时间线卡片第二排左侧为事件名称，右侧为“查看”链接样式按钮，沿用概览定位行为。正文展示对应事件的已记录内容，不单独展示对象类型、不使用对象 ID 或状态作为正文占位。用户事件展示对应输入原文的前提是事件确实记录该原文；当前 meeting.created 的事件数据为空，不从当前会议标题或后续内容回填创建输入。
 
 未归属事件保留为无标题、无状态的普通时间线卡片，不展示“其他已发生事件”里程碑横框。每张未归属卡片按自身事件时间与真实里程碑块排列，会议启动仍置顶；未归属事件不创建里程碑 group，也不按时间邻近归入轮次。
 

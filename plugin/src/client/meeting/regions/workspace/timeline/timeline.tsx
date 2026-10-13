@@ -18,9 +18,9 @@ import {
     type TimelineNode
 } from "./projection.ts";
 import type { MeetingFocusTarget, TimelineFilterState } from "@/client/meeting/shared/index.ts";
-import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Ellipsis } from "@/client/meeting/components/index.ts";
 import styles from "./timeline.module.css";
+import roleAvatarSheet from "./role-avatar-sheet.svg";
 
 export type TimelineDirection = "up" | "down" | "left" | "right";
 
@@ -333,6 +333,21 @@ interface TimelineNodeContentProps {
     onLocateInOverview?: TimelineProps["onLocateInOverview"];
 }
 
+const roleAvatarSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(roleAvatarSheet)}`;
+const roleAvatarX = { captain: 23, manager: 446, contributor: 870, reviewer: 1293, system: 1717 };
+
+const TimelineRoleIcon = ({ lane }: { lane: TimelineNode["lane"] }): ReactElement => (
+    <svg
+        className={styles.roleIcon}
+        data-role={lane}
+        viewBox={`${roleAvatarX[lane]} 125 430 430`}
+        aria-hidden="true"
+        focusable="false"
+    >
+        <image href={roleAvatarSrc} width="2172" height="724" />
+    </svg>
+);
+
 const TimelineNodeContent = ({
     detail,
     node,
@@ -345,49 +360,49 @@ const TimelineNodeContent = ({
     const identity = identityName(detail, node);
     return (
         <>
-            <p>{identity ? `${laneLabel}: ${identity}` : laneLabel}</p>
-            <p>{label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)}</p>
-            <p>
-                {label(
-                    node.eventKind === undefined
-                        ? `enum.timelinePhase.${node.phase}`
-                        : `enum.timelineEvent.${node.eventKind}`,
-                    node.eventKind ?? node.phase,
-                    t
-                )}
-            </p>
-            <time dateTime={new Date(node.time).toISOString()}>
-                {dateFormatter.format(new Date(node.time))}
-            </time>
+            <div className={styles.actor}>
+                <TimelineRoleIcon lane={node.lane} />
+                <div className={styles.actorInfo}>
+                    <span>{identity || laneLabel}</span>
+                    <time dateTime={new Date(node.time).toISOString()}>
+                        {dateFormatter.format(new Date(node.time))}
+                    </time>
+                </div>
+            </div>
+            <div className={styles.eventRow}>
+                <span>
+                    {label(
+                        node.eventKind === undefined
+                            ? `enum.timelinePhase.${node.phase}`
+                            : `enum.timelineEvent.${node.eventKind}`,
+                        node.eventKind ?? node.phase,
+                        t
+                    )}
+                </span>
+                {onLocateInOverview ? (
+                    <button
+                        className={styles.viewLink}
+                        type="button"
+                        onClick={() =>
+                            onLocateInOverview({
+                                meetingId: detail.meetingId,
+                                objectKind: node.objectKind,
+                                objectId: node.objectId
+                            })
+                        }
+                    >
+                        {t("panel.timeline.view")}
+                    </button>
+                ) : null}
+            </div>
             {node.status === undefined ? null : <p>{statusLabel(node, t)}</p>}
-            {onLocateInOverview ? (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                        onLocateInOverview({
-                            meetingId: detail.meetingId,
-                            objectKind: node.objectKind,
-                            objectId: node.objectId
-                        })
-                    }
-                >
-                    {t("panel.mode.overview")}
-                </Button>
-            ) : null}
             {content === undefined ? (
                 <p>{t("panel.state.focusMissing")}</p>
             ) : (
                 <div>
-                    <Ellipsis
-                        text={
-                            content.title === node.objectId
-                                ? label(`enum.timelineKind.${node.objectKind}`, node.objectKind, t)
-                                : contentTitle(node, content.title, t)
-                        }
-                        maxLines={3}
-                    />
+                    {content.title === node.objectId || content.title === node.status ? null : (
+                        <Ellipsis text={contentTitle(node, content.title, t)} maxLines={3} />
+                    )}
                     {content.detail === undefined || content.detail === node.objectId ? null : (
                         <details>
                             <summary>{t("panel.timeline.details")}</summary>

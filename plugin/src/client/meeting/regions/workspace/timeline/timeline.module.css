@@ -193,6 +193,56 @@
     }
 }
 
+.actor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.actorInfo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+.actorInfo > span {
+    font-weight: 500;
+}
+.actorInfo time {
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+}
+.roleIcon {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 50%;
+    overflow: hidden;
+}
+
+.eventRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-block: 4px 8px;
+}
+.viewLink {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    color: var(--dsw-alias-label-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.viewLink:hover {
+    color: var(--dsw-alias-label-primary);
+    text-decoration: underline;
+}
+
 .group[data-ungrouped="true"] {
     padding-block: 0;
 }

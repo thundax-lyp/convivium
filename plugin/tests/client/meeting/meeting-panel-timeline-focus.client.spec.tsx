@@ -11,6 +11,36 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 
 afterEach(cleanup);
 
+it("shows an event row with a view link and omits empty meeting placeholders", () => {
+    const detail = eventTimelineFixture();
+    const onLocateInOverview = vi.fn();
+    render(
+        withMeetingTranslation(
+            <MeetingPanelTimeline
+                detail={detail}
+                filters={INITIAL_TIMELINE_FILTERS}
+                viewportRevision={0}
+                onFiltersChange={vi.fn()}
+                onLocateInOverview={onLocateInOverview}
+            />,
+            "zh"
+        )
+    );
+    const created = screen
+        .getAllByTestId("timeline-node")
+        .find((node) => node.dataset.nodeKey === "event:1")!;
+    expect(within(created).getByText("会议创建")).toBeTruthy();
+    expect(within(created).queryByText("会议", { exact: true })).toBeNull();
+    expect(within(created).queryByRole("button", { name: "概览" })).toBeNull();
+    fireEvent.click(within(created).getByRole("button", { name: "查看", exact: true }));
+    expect(onLocateInOverview).toHaveBeenCalledWith({
+        meetingId: detail.meetingId,
+        objectKind: "meeting",
+        objectId: detail.meetingId
+    });
+    expect(screen.getByText("immutable evidence summary")).toBeTruthy();
+});
+
 it("keeps unassigned facts without presenting an other-events milestone", () => {
     const detail = eventTimelineFixture();
     detail.timelineEvents!.push({
