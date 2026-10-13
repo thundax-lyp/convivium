@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { Button, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
     knownEnum,
     zh,
@@ -139,24 +139,33 @@ const filterGroup = (
     values: readonly string[],
     selected: readonly string[],
     display: (value: string) => string,
-    onToggle: (value: string) => void
-): ReactElement => {
-    return (
-        <fieldset>
-            <legend>{title}</legend>
+    onToggle: (value: string) => void,
+    onClear: () => void
+): ReactElement => (
+    <div className={styles.filterRow} role="group" aria-label={title}>
+        <button
+            type="button"
+            className={styles.filterLabel}
+            aria-pressed={selected.length === 0}
+            onClick={onClear}
+        >
+            {title}
+        </button>
+        <div className={styles.filterOptions}>
             {values.map((value) => (
-                <Pill
+                <button
+                    type="button"
+                    className={styles.filterOption}
                     key={value}
-                    active={selected.includes(value)}
                     aria-pressed={selected.includes(value)}
                     onClick={() => onToggle(value)}
                 >
                     {display(value)}
-                </Pill>
+                </button>
             ))}
-        </fieldset>
-    );
-};
+        </div>
+    </div>
+);
 
 export const TimelineFilters = ({
     detail,
@@ -167,6 +176,8 @@ export const TimelineFilters = ({
     onEventKindsChange
 }: TimelineFiltersProps): ReactElement => {
     const t = useMeetingTranslate();
+    const [expanded, setExpanded] = useState(false);
+    const additionalFiltersId = useId();
     const participants = [
         ...new Set(
             [...nodes]
@@ -184,67 +195,82 @@ export const TimelineFilters = ({
     ];
     const kinds = [...new Set(nodes.map((node) => node.objectKind))];
     return (
-        <div>
-            {filterGroup(
-                t("panel.timeline.filter.identity"),
-                participants,
-                filters.participantIds,
-                (key) => {
-                    const node = nodes.find(
-                        (item) =>
-                            (item.identityId
-                                ? `identity:${item.identityId}`
-                                : `role:${item.lane}`) === key
-                    )!;
-                    const role = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
-                    if (node.lane === "captain" || node.lane === "manager" || !node.identityId) {
-                        return role;
-                    }
-                    const name = identityName(detail, node);
-                    return name
-                        ? node.lane === "contributor" || node.lane === "reviewer"
-                            ? name
-                            : `${role}: ${name}`
-                        : `${role} ${participants.indexOf(key) + 1}`;
-                },
-                (key) =>
-                    onChange({ ...filters, participantIds: toggle(filters.participantIds, key) })
-            )}
-            {filterGroup(
-                t("panel.timeline.filter.type"),
-                kinds,
-                filters.objectKinds,
-                (kind) => label(`enum.timelineKind.${kind}`, kind, t),
-                (kind) => onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) })
-            )}
-            {filterGroup(
-                t("panel.timeline.filter.event"),
-                [
-                    ...new Set(
-                        nodes.flatMap((node) =>
-                            node.eventKind === undefined ? [] : [node.eventKind]
+        <div className={styles.filters}>
+            <div className={styles.filterHeader}>
+                {filterGroup(
+                    t("panel.timeline.filter.identity"),
+                    participants,
+                    filters.participantIds,
+                    (key) => {
+                        const node = nodes.find(
+                            (item) =>
+                                (item.identityId
+                                    ? `identity:${item.identityId}`
+                                    : `role:${item.lane}`) === key
+                        )!;
+                        const role = t(`panel.timeline.lane.${node.lane}` as MeetingLocaleKey);
+                        if (
+                            node.lane === "captain" ||
+                            node.lane === "manager" ||
+                            !node.identityId
+                        ) {
+                            return role;
+                        }
+                        const name = identityName(detail, node);
+                        return name
+                            ? node.lane === "contributor" || node.lane === "reviewer"
+                                ? name
+                                : `${role}: ${name}`
+                            : `${role} ${participants.indexOf(key) + 1}`;
+                    },
+                    (key) =>
+                        onChange({
+                            ...filters,
+                            participantIds: toggle(filters.participantIds, key)
+                        }),
+                    () => onChange({ ...filters, participantIds: [] })
+                )}
+                <div className={styles.filterActions}>
+                    <button
+                        type="button"
+                        className={styles.filterLink}
+                        aria-expanded={expanded}
+                        aria-controls={additionalFiltersId}
+                        onClick={() => setExpanded((current) => !current)}
+                    >
+                        {t(
+                            expanded
+                                ? "panel.timeline.filter.collapse"
+                                : "panel.timeline.filter.expand"
+                        )}
+                    </button>
+                </div>
+            </div>
+            <div id={additionalFiltersId} hidden={!expanded}>
+                {filterGroup(
+                    t("panel.timeline.filter.type"),
+                    kinds,
+                    filters.objectKinds,
+                    (kind) => label(`enum.timelineKind.${kind}`, kind, t),
+                    (kind) =>
+                        onChange({ ...filters, objectKinds: toggle(filters.objectKinds, kind) }),
+                    () => onChange({ ...filters, objectKinds: [] })
+                )}
+                {filterGroup(
+                    t("panel.timeline.filter.event"),
+                    [
+                        ...new Set(
+                            nodes.flatMap((node) =>
+                                node.eventKind === undefined ? [] : [node.eventKind]
+                            )
                         )
-                    )
-                ],
-                eventKinds,
-                (kind) => label(`enum.timelineEvent.${kind}`, kind, t),
-                (kind) => onEventKindsChange(toggle(eventKinds, kind))
-            )}
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                    onEventKindsChange([]);
-                    onChange({
-                        ...filters,
-                        participantIds: [],
-                        objectKinds: []
-                    });
-                }}
-            >
-                {t("panel.timeline.filter.clear")}
-            </Button>
+                    ],
+                    eventKinds,
+                    (kind) => label(`enum.timelineEvent.${kind}`, kind, t),
+                    (kind) => onEventKindsChange(toggle(eventKinds, kind)),
+                    () => onEventKindsChange([])
+                )}
+            </div>
         </div>
     );
 };

@@ -346,3 +346,15 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 当前可以声明 Meeting target runtime 已完成单一活动链切换，并对会议创建、证据轮次、状态读取、动态身份准入、持久化恢复和归档核心路径形成自动化覆盖。只有标为 `已实现` 的行可作为当前功能覆盖结论；`部分实现` 与 `未覆盖` 必须保留为交付缺口，不能由相邻 Domain 类型、测试 helper 或旧 legacy 实现推断为可用。
 
 相关依据：[Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
+
+### 2026-10-13：时间线筛选展开与收起
+
+范围为 `codex/timeline-ui-optimization` 的本次工作区改动。默认只展示参与者筛选；展开后显示内容类型与事件，收起保留条件和过滤结果，各分类标签用于清除本组筛选。展开状态为 Client 局部状态，不写入领域或持久存储。筛选行使用对齐的加粗可点击标签与可换行选项，标签只清除本分类；选项使用间隔与小圆角边框，展开控制为链接式文字。
+
+Executed Validation：`pnpm --dir plugin exec vitest run --project client tests/client/meeting/meeting-panel-timeline-focus.client.spec.tsx` 通过 11 项测试；新增分类标签清除断言先观察到标签不可点击的失败，再验证按分类清除、保留其他分类及匹配事件过滤通过。展开/收起新增断言先观察到缺少展开按钮及默认未隐藏后两行的失败，再验证实现通过，覆盖中英文文案、ARIA 状态、收起后条件保持及清除。`pnpm --dir plugin typecheck:client`、受影响文件 ESLint 和 `node .github/scripts/check-doc-links.mjs` 通过。依赖包缺少 source map 的 Vite 提示未阻止测试。
+
+2026-10-13 补充 Browser 验证：固定人工安装根按当前源码 `--dev-refresh` 构建安装并重启；通过 Codex In-app Browser 在现有归档 fixture 验证 1280×720 与 520×900 筛选区域截图。标签与清除按钮均为 12px/18px 宿主字体，标签列缩至 76px，选项统一 28px 高度、8px 间隔、4px 圆角，未选文字和边框使用宿主次级 token。展开、收起、证据分类筛选及点击分类标签清除通过；证据筛选显示 16 个节点，清除后恢复 62 个。两种视口无空白页或错误覆盖层，筛选选项换行无重叠；控制台仅记录本次 Host 停机刷新造成的断线重试警告，未发现应用错误。Playwright 的默认 Chrome 路径不可用，实际验证使用桌面浏览器工具，不安装依赖。截图保存在仓库外。
+
+后续同日调整与验证：筛选标签改为“角色 / 类型”，标签列进一步缩为 44px；删除全局清除按钮，只通过分类标签清除；分类标签按是否有选择展示不同状态，未选选项不显示边框和背景。展开/收起在所有视口均与首排选项对齐，固定于筛选区右上。11 项 Client 回归、Client typecheck、受影响 ESLint 与文档链接检查通过；刷新固定人工安装并在桌面及 520px 窄屏截图确认布局、选项与分类标签选中状态，无重叠。前段关于全局清除按钮及 76px 列宽的描述是本次调整前验证。
+
+Not Covered：完整测试套件、远端 CI、其它浏览器与暗色主题；本次只验收筛选交互与视觉，不代表完整业务人工冒烟通过。

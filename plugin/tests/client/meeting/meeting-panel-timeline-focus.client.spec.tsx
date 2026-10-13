@@ -11,6 +11,79 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 
 afterEach(cleanup);
 
+it("localizes the filter disclosure and preserves selected content types", () => {
+    const onFiltersChange = vi.fn();
+    render(
+        withMeetingTranslation(
+            <MeetingPanelTimeline
+                detail={eventTimelineFixture()}
+                filters={{ ...INITIAL_TIMELINE_FILTERS, objectKinds: ["evidence_version"] }}
+                viewportRevision={0}
+                onFiltersChange={onFiltersChange}
+            />,
+            "en"
+        )
+    );
+    expect(screen.getByRole("group", { name: "Roles" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Type" })).toBeNull();
+    const expand = screen.getByRole("button", { name: "Expand" });
+    const controlled = document.getElementById(expand.getAttribute("aria-controls")!);
+    expect(controlled?.hidden).toBe(true);
+    fireEvent.click(expand);
+    expect(controlled?.hidden).toBe(false);
+    const evidence = within(screen.getByRole("group", { name: "Type" })).getByRole("button", {
+        name: "Evidence",
+        exact: true
+    });
+    expect(evidence.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse" }));
+    expect(controlled?.hidden).toBe(true);
+    expect(onFiltersChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Type", exact: true }));
+    expect(onFiltersChange).toHaveBeenCalledWith(INITIAL_TIMELINE_FILTERS);
+});
+
+it("clears only the clicked filter category", () => {
+    const onFiltersChange = vi.fn();
+    const filters = {
+        ...INITIAL_TIMELINE_FILTERS,
+        participantIds: ["identity:contributor-v1"],
+        objectKinds: ["evidence_version"]
+    };
+    render(
+        withMeetingTranslation(
+            <MeetingPanelTimeline
+                detail={eventTimelineFixture()}
+                filters={filters}
+                viewportRevision={0}
+                onFiltersChange={onFiltersChange}
+            />,
+            "zh"
+        )
+    );
+    expect(screen.getAllByTestId("timeline-node").map((node) => node.dataset.nodeKey)).toEqual([
+        "event:3"
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "角色", exact: true }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({ ...filters, participantIds: [] });
+    fireEvent.click(screen.getByRole("button", { name: "展开" }));
+    expect(
+        screen.getByRole("button", { name: "类型", exact: true }).getAttribute("aria-pressed")
+    ).toBe("false");
+    expect(
+        screen.getByRole("button", { name: "事件", exact: true }).getAttribute("aria-pressed")
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "类型", exact: true }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({ ...filters, objectKinds: [] });
+    fireEvent.click(screen.getByRole("button", { name: "审核领取", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "事件", exact: true }));
+    expect(
+        screen.getByRole("button", { name: "审核领取", exact: true }).getAttribute("aria-pressed")
+    ).toBe("false");
+});
+
 describe("Meeting timeline presentation", () => {
     it("labels identities without exposing IDs and retains filter bindings", () => {
         const detail = eventTimelineFixture();
@@ -30,7 +103,7 @@ describe("Meeting timeline presentation", () => {
                 "zh"
             )
         );
-        const identities = screen.getByRole("group", { name: "参与者" });
+        const identities = screen.getByRole("group", { name: "角色" });
         expect(identities.textContent).toContain("主持人");
         expect(
             within(identities).getByRole("button", { name: "Research Contributor", exact: true })
@@ -41,7 +114,8 @@ describe("Meeting timeline presentation", () => {
             ...INITIAL_TIMELINE_FILTERS,
             participantIds: ["identity:manager-v1"]
         });
-        const contentTypes = screen.getByRole("group", { name: "内容类型" });
+        fireEvent.click(screen.getByRole("button", { name: "展开" }));
+        const contentTypes = screen.getByRole("group", { name: "类型" });
         fireEvent.click(within(contentTypes).getByRole("button", { name: "证据", exact: true }));
         expect(onFiltersChange).toHaveBeenLastCalledWith({
             ...INITIAL_TIMELINE_FILTERS,
@@ -81,11 +155,29 @@ describe("Meeting timeline presentation", () => {
         expect(document.activeElement?.getAttribute("data-node-key")).toBe("event:3");
         expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
+        expect(screen.queryByRole("group", { name: "类型" })).toBeNull();
+        expect(screen.queryByRole("group", { name: "事件" })).toBeNull();
+        const expand = screen.getByRole("button", { name: "展开" });
+        expect(expand.getAttribute("aria-expanded")).toBe("false");
+        fireEvent.click(expand);
+        expect(screen.getByRole("button", { name: "收起" }).getAttribute("aria-expanded")).toBe(
+            "true"
+        );
         fireEvent.click(screen.getByRole("button", { name: "审核领取" }));
         expect(keys()).toEqual(["event:4"]);
         expect(container.querySelector('[data-group-key="milestone:meeting-start:1"]')).toBeNull();
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
-        fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+        fireEvent.click(screen.getByRole("button", { name: "收起" }));
+        expect(screen.queryByRole("group", { name: "事件" })).toBeNull();
+        expect(keys()).toEqual(["event:4"]);
+        fireEvent.click(screen.getByRole("button", { name: "展开" }));
+        expect(screen.getByRole("button", { name: "审核领取" }).getAttribute("aria-pressed")).toBe(
+            "true"
+        );
+        fireEvent.click(screen.getByRole("button", { name: "收起" }));
+        expect(screen.queryByRole("button", { name: "清除筛选" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "展开" }));
+        fireEvent.click(screen.getByRole("button", { name: "事件", exact: true }));
         expect(keys()).toEqual(["event:1", "event:2", "event:3", "event:4", "event:5", "event:6"]);
     });
 
