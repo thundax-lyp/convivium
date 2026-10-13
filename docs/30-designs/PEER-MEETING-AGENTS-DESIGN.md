@@ -6,7 +6,7 @@
 
 ## Scope And Non-goals
 
-覆盖新会议按 Host 配置选择的初始身份与既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
+覆盖结构化 Captain 按显示名称选择可选初始 Contributor、Skill 按 Host 配置补齐默认 Contributor、既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
 
 ## Responsibilities And Dependencies
 
