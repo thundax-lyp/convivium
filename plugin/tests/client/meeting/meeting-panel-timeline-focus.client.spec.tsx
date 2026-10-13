@@ -29,7 +29,7 @@ it("shows an event row with a view link and omits empty meeting placeholders", (
     const created = screen
         .getAllByTestId("timeline-node")
         .find((node) => node.dataset.nodeKey === "event:1")!;
-    expect(within(created).getByText("会议创建")).toBeTruthy();
+    expect(within(created).getByText("创建会议")).toBeTruthy();
     expect(within(created).queryByText("会议", { exact: true })).toBeNull();
     expect(within(created).queryByRole("button", { name: "概览" })).toBeNull();
     fireEvent.click(within(created).getByRole("button", { name: "查看", exact: true }));
@@ -183,10 +183,10 @@ it("clears only the clicked filter category", () => {
     ).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "类型", exact: true }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({ ...filters, objectKinds: [] });
-    fireEvent.click(screen.getByRole("button", { name: "审核领取", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "领取审核", exact: true }));
     fireEvent.click(screen.getByRole("button", { name: "事件", exact: true }));
     expect(
-        screen.getByRole("button", { name: "审核领取", exact: true }).getAttribute("aria-pressed")
+        screen.getByRole("button", { name: "领取审核", exact: true }).getAttribute("aria-pressed")
     ).toBe("false");
 });
 
@@ -271,7 +271,7 @@ describe("Meeting timeline presentation", () => {
         expect(screen.getByRole("button", { name: "收起" }).getAttribute("aria-expanded")).toBe(
             "true"
         );
-        fireEvent.click(screen.getByRole("button", { name: "审核领取" }));
+        fireEvent.click(screen.getByRole("button", { name: "领取审核" }));
         expect(keys()).toEqual(["event:4"]);
         expect(container.querySelector('[data-group-key="milestone:meeting-start:1"]')).toBeNull();
         expect(metadata()).toEqual(["completed", "1", "20", "23"]);
@@ -279,7 +279,7 @@ describe("Meeting timeline presentation", () => {
         expect(screen.queryByRole("group", { name: "事件" })).toBeNull();
         expect(keys()).toEqual(["event:4"]);
         fireEvent.click(screen.getByRole("button", { name: "展开" }));
-        expect(screen.getByRole("button", { name: "审核领取" }).getAttribute("aria-pressed")).toBe(
+        expect(screen.getByRole("button", { name: "领取审核" }).getAttribute("aria-pressed")).toBe(
             "true"
         );
         fireEvent.click(screen.getByRole("button", { name: "收起" }));
