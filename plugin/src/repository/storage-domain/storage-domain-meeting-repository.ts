@@ -1,8 +1,8 @@
-import { DomainMeetingRepositoryCore } from "./domain-meeting-repository-core.ts";
+import { StorageDomainMeetingRepositoryCore } from "./storage-domain-meeting-repository-core.ts";
 import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
-import type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
-export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-repository-core.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { StorageDomainMeetingRepositoryOpenOptions } from "./storage-domain-meeting-repository-core.ts";
+export type { StorageDomainMeetingRepositoryOpenOptions } from "./storage-domain-meeting-repository-core.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,
@@ -61,14 +61,14 @@ const jsonValue = (value: unknown): JsonValue => {
     throw new TypeError("Repository value is not JSON-compatible");
 };
 
-export class DomainMeetingRepository<TState = JsonObject>
-    extends DomainMeetingRepositoryCore<TState>
-    implements MeetingRepositoryPort<TState>
+export class StorageDomainMeetingRepository<TState = JsonObject>
+    extends StorageDomainMeetingRepositoryCore<TState>
+    implements MeetingRepository<TState>
 {
     static async open<TState = JsonObject>(
-        options: DomainMeetingRepositoryOpenOptions<TState>
-    ): Promise<DomainMeetingRepository<TState>> {
-        const repository = new DomainMeetingRepository<TState>(options);
+        options: StorageDomainMeetingRepositoryOpenOptions<TState>
+    ): Promise<StorageDomainMeetingRepository<TState>> {
+        const repository = new StorageDomainMeetingRepository<TState>(options);
         await repository.initialize();
         return repository;
     }

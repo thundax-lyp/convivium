@@ -1,16 +1,15 @@
 import type { MeetingState } from "@/domain/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type { RecoveryResult } from "@/repository/index.ts";
 import type { MeetingOutboxWakeup } from "@/runtime/index.ts";
 
 export interface MeetingCommandRecoveryDependencies {
-    readonly repository: MeetingRepositoryPort<MeetingState>;
+    readonly repository: MeetingRepository<MeetingState>;
     readonly wakeOutbox?: MeetingOutboxWakeup["wake"];
 }
 
 export const recoverMeetingCommands = async (
-    repositoryOrDependencies:
-        MeetingRepositoryPort<MeetingState> | MeetingCommandRecoveryDependencies
+    repositoryOrDependencies: MeetingRepository<MeetingState> | MeetingCommandRecoveryDependencies
 ): Promise<RecoveryResult<MeetingState>> => {
     const dependencies =
         "repository" in repositoryOrDependencies

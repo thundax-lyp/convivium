@@ -4,7 +4,7 @@ import {
     createTargetMeetingEffectDispatcher,
     getLocalMeetingWebRuntime
 } from "@/runtime/meeting-lifecycle.ts";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import roleResources from "../../../config/definitions.json" with { type: "json" };
 
@@ -81,7 +81,7 @@ describe("target Meeting list", () => {
             close: async () => undefined
         };
         const open = vi
-            .spyOn(DomainRepositoryRegistry, "open")
+            .spyOn(StorageDomainRepositoryRegistry, "open")
             .mockResolvedValue(registry as never);
         const owner = {
             storageDomain: {},

@@ -232,10 +232,13 @@ describe("Captain trusted user authorization", () => {
     });
 });
 
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting-state-codec.ts";
 import { completionReadyState, completionInput } from "../unit/domain/outcome-fixtures.ts";
 import {
     captainActorIdFor,
@@ -375,7 +378,7 @@ const businessFixture = async (action, terminal = false) => {
         codec: { encode: encodeMeetingState, decode: decodeMeetingState },
         now: () => 10
     };
-    let repository = await DomainMeetingRepository.open(options);
+    let repository = await StorageDomainMeetingRepository.open(options);
     const create = {
         requestId: "create",
         requestHash: "create",
@@ -413,7 +416,7 @@ const businessFixture = async (action, terminal = false) => {
             application.execute(input, { caller: user }, new AbortController().signal),
         reopen: async () => {
             await repository.close();
-            repository = await DomainMeetingRepository.open(options);
+            repository = await StorageDomainMeetingRepository.open(options);
         },
         close: () => repository.close()
     };

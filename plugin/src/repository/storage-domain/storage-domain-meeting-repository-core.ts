@@ -64,7 +64,7 @@ const canonicalStateObject = (value: unknown): JsonObject => {
     return JsonObjectSchema.parse(normalized);
 };
 
-export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
+export interface StorageDomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly catalogDomain: CatalogDomain;
     readonly meetingDomain: MeetingDomain;
     readonly meetingId: string;
@@ -75,7 +75,7 @@ export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly onProjectionCommitted?: (snapshot: MeetingSnapshot<TState>) => void;
 }
 
-export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
+export abstract class StorageDomainMeetingRepositoryCore<TState = JsonObject> {
     readonly meetingId: string;
     protected readonly catalogDomain: CatalogDomain;
     protected readonly meetingDomain: MeetingDomain;
@@ -96,7 +96,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     protected maintenanceError: unknown;
     protected closePromise: Promise<void> | undefined;
 
-    protected constructor(options: DomainMeetingRepositoryOpenOptions<TState>) {
+    protected constructor(options: StorageDomainMeetingRepositoryOpenOptions<TState>) {
         this.catalogDomain = options.catalogDomain;
         this.meetingDomain = options.meetingDomain;
         this.meetingId = options.meetingId;

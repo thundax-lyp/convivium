@@ -1,5 +1,5 @@
 import type { RepositoryAuthorizationValidator } from "@/repository/types.ts";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "./domain-storage.ts";
 
 export const allow: RepositoryAuthorizationValidator = {
@@ -9,7 +9,7 @@ export const allow: RepositoryAuthorizationValidator = {
 
 export async function maintenanceFixture(initialState: Record<string, unknown> = { count: 0 }) {
     const meeting = createFakeMeetingDomain();
-    const repository = await DomainMeetingRepository.open({
+    const repository = await StorageDomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: meeting,
         meetingId: "meeting-1",
@@ -30,7 +30,7 @@ export async function maintenanceFixture(initialState: Record<string, unknown> =
 }
 
 export async function appendVersion(
-    repository: DomainMeetingRepository,
+    repository: StorageDomainMeetingRepository,
     authorization: { callerBinding: string; capabilityId: string },
     expectedMeetingVersion: number
 ) {

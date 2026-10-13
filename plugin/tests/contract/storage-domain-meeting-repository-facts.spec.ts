@@ -1,11 +1,14 @@
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { describe, expect, it } from "vitest";
-import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import type { MeetingState } from "@/domain/meeting-state.ts";
-import { MAX_COMMIT_VALUE_BYTES } from "@/repository/domain/projection.ts";
+import { MAX_COMMIT_VALUE_BYTES } from "@/repository/storage-domain/projection.ts";
 
 const authorization = { callerBinding: "runtime", capabilityId: "runtime" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -16,7 +19,7 @@ async function fixture() {
     const catalog = createFakeCatalogDomain();
     const state = makeRunningMeetingStateV1();
     state.identities.push({ ...state.identities[1], id: "extra-researcher" });
-    const repository = await DomainMeetingRepository.open<MeetingState>({
+    const repository = await StorageDomainMeetingRepository.open<MeetingState>({
         catalogDomain: catalog,
         meetingDomain: meeting,
         meetingId: state.id,
@@ -101,7 +104,7 @@ describe("target repository facts contract", () => {
         });
 
         expect(committed.meetingVersion).toBe(1);
-        const reopened = await DomainMeetingRepository.open<MeetingState>({
+        const reopened = await StorageDomainMeetingRepository.open<MeetingState>({
             catalogDomain: catalog,
             meetingDomain: meeting,
             meetingId: state.id,
@@ -232,7 +235,7 @@ describe("peer creation and ownership transaction", () => {
         state.identities.push({ ...state.identities[1], id: "extra-researcher" });
         const meeting = createFakeMeetingDomain();
         const catalog = createFakeCatalogDomain();
-        const repository = await DomainMeetingRepository.open<MeetingState>({
+        const repository = await StorageDomainMeetingRepository.open<MeetingState>({
             catalogDomain: catalog,
             meetingDomain: meeting,
             meetingId: state.id,
@@ -287,7 +290,7 @@ describe("peer creation and ownership transaction", () => {
             { ...active, capabilityStatus: "revoked", lifecycleStatus: "closed" },
             13
         );
-        const reopened = await DomainMeetingRepository.open<MeetingState>({
+        const reopened = await StorageDomainMeetingRepository.open<MeetingState>({
             catalogDomain: catalog,
             meetingDomain: meeting,
             meetingId: state.id,
@@ -321,7 +324,7 @@ describe("peer creation and ownership transaction", () => {
             };
             // The generic Repository port validates private ownership against the persisted domain facts.
             const initialState = { ...state, identityRecommendations: [intent] };
-            const repository = await DomainMeetingRepository.open({
+            const repository = await StorageDomainMeetingRepository.open({
                 catalogDomain: createFakeCatalogDomain(),
                 meetingDomain: createFakeMeetingDomain(),
                 meetingId: state.id,
@@ -402,7 +405,7 @@ describe("peer creation and ownership transaction", () => {
     it("revokes every ownership in the same failed creation record", async () => {
         const state = makeRunningMeetingStateV1();
         state.identities.push({ ...state.identities[1], id: "extra-researcher" });
-        const repository = await DomainMeetingRepository.open<MeetingState>({
+        const repository = await StorageDomainMeetingRepository.open<MeetingState>({
             catalogDomain: createFakeCatalogDomain(),
             meetingDomain: createFakeMeetingDomain(),
             meetingId: state.id,

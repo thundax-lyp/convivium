@@ -3,7 +3,7 @@ import type { MeetingAgentOwner } from "@/dsh/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import type { MeetingIdentity, MeetingState } from "@/domain/index.ts";
 import { decodeMeetingIdentitySessionLabel } from "@/dsh/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
@@ -43,7 +43,7 @@ interface DispatchArchiveCleanupInput {
 
 interface MeetingArchiveDispatcherDependencies {
     readonly repository: Pick<
-        MeetingRepositoryPort<MeetingState>,
+        MeetingRepository<MeetingState>,
         "recover" | "recordSessionOwnership"
     >;
     readonly owner: Pick<MeetingAgentOwner, "stop">;

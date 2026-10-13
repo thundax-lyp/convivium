@@ -1,13 +1,13 @@
 export {
-    DomainRepositoryRegistry,
+    StorageDomainRepositoryRegistry,
     meetingIdFor,
     decodeMeetingState,
     encodeMeetingState
-} from "./domain/index.ts";
+} from "./storage-domain/index.ts";
 export { RepositoryError } from "./errors.ts";
 export { emitDiagnostic, observeCommit } from "./diagnostics.ts";
 export type { DiagnosticSink } from "./diagnostics.ts";
-export type { MeetingRepositoryPort } from "./meeting-repository-port.ts";
+export type { MeetingRepository } from "./meeting-repository.ts";
 export type {
     CommandAuthorization,
     CommittedFactRecord,

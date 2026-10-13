@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
-import { catalogKey, meetingDomainName } from "@/repository/domain/keys.ts";
+import { catalogKey, meetingDomainName } from "@/repository/storage-domain/keys.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import { appendVersion } from "../fixtures/domain-meeting-repository.ts";
+import { appendVersion } from "../fixtures/storage-domain-meeting-repository.ts";
 
 const fixture = async () => {
     const catalog = createFakeCatalogDomain();
     const meeting = createFakeMeetingDomain({ name: meetingDomainName("meeting-delete") });
-    const registry = await DomainRepositoryRegistry.open({
+    const registry = await StorageDomainRepositoryRegistry.open({
         storageDomain: {
             async open<S extends DomainSpec>(spec: S): Promise<Domain<S>> {
                 if (![catalog.name, meeting.name].includes(spec.name)) {

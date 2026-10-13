@@ -9,7 +9,7 @@ import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.ts";
 import type { MeetingAgentOwner } from "@/dsh/index.ts";
 import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
 import { ReviewWorkerOutputSchema } from "@/protocol/index.ts";
 import {
@@ -167,7 +167,7 @@ interface DispatchEvidenceReviewInput {
 interface EvidenceReviewDispatcherDependencies {
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
-    readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
+    readonly repository: Pick<MeetingRepository<MeetingState>, "recover">;
     readonly application: MeetingCommandApplication;
     readonly clock: { now(): number };
 }
@@ -257,7 +257,7 @@ export const createReviewWorkerPromptResolver = (dependencies: {
     readonly registry: {
         openMeeting(input: {
             readonly meetingId: string;
-        }): Promise<Pick<MeetingRepositoryPort<MeetingState>, "recover">>;
+        }): Promise<Pick<MeetingRepository<MeetingState>, "recover">>;
     };
     readonly clock: { now(): number };
 }): {

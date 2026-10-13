@@ -10,7 +10,7 @@ import type {
     MeetingSnapshot,
     RepositoryAuthorizationValidator
 } from "@/repository/index.ts";
-import { DomainMeetingRepository } from "./domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "./storage-domain-meeting-repository.ts";
 import { catalogKey, meetingDomainName } from "./keys.ts";
 import { loadProjection } from "./projection.ts";
 import {
@@ -27,7 +27,7 @@ export interface DomainFacilityPort {
     open<S extends DomainSpec>(spec: S): Promise<Domain<S>>;
 }
 
-export interface DomainRepositoryRegistryOptions<TState = JsonObject> {
+export interface StorageDomainRepositoryRegistryOptions<TState = JsonObject> {
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly authorizationValidator: RepositoryAuthorizationValidator<TState>;
     readonly codec?: MeetingStateCodec<TState>;
@@ -36,7 +36,7 @@ export interface DomainRepositoryRegistryOptions<TState = JsonObject> {
     readonly onProjectionCommitted?: (snapshot: MeetingSnapshot<TState>) => void;
 }
 
-export interface OpenDomainMeetingInput<TState = JsonObject> {
+export interface OpenStorageDomainMeetingInput<TState = JsonObject> {
     readonly meetingId: string;
     readonly create?: CreateMeetingInput<TState>;
 }
@@ -72,9 +72,12 @@ const validateCreationIdentity = (
     }
 };
 
-export class DomainRepositoryRegistry<TState = JsonObject> {
-    private readonly repositories = new Map<string, Promise<DomainMeetingRepository<TState>>>();
-    private readonly opened = new Map<string, DomainMeetingRepository<TState>>();
+export class StorageDomainRepositoryRegistry<TState = JsonObject> {
+    private readonly repositories = new Map<
+        string,
+        Promise<StorageDomainMeetingRepository<TState>>
+    >();
+    private readonly opened = new Map<string, StorageDomainMeetingRepository<TState>>();
     private closePromise: Promise<void> | undefined;
     private closed = false;
     private readonly deletions = new Map<string, Promise<void>>();
@@ -91,10 +94,10 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     ) {}
 
     static async open<TState = JsonObject>(
-        options: DomainRepositoryRegistryOptions<TState>
-    ): Promise<DomainRepositoryRegistry<TState>> {
+        options: StorageDomainRepositoryRegistryOptions<TState>
+    ): Promise<StorageDomainRepositoryRegistry<TState>> {
         const catalog = await options.storageDomain.open(catalogDomainSpec);
-        const registry = new DomainRepositoryRegistry(
+        const registry = new StorageDomainRepositoryRegistry(
             options.storageDomain,
             catalog,
             options.authorizationValidator,
@@ -202,8 +205,8 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
     }
 
     async openMeeting(
-        input: OpenDomainMeetingInput<TState>
-    ): Promise<DomainMeetingRepository<TState>> {
+        input: OpenStorageDomainMeetingInput<TState>
+    ): Promise<StorageDomainMeetingRepository<TState>> {
         this.ensureOpen();
         const key = catalogKey(input.meetingId);
         if (input.create && this.catalog.table("deleted").get(key)) {
@@ -254,8 +257,8 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
 
     private async openMeetingOnce(
         key: string,
-        input: OpenDomainMeetingInput<TState>
-    ): Promise<DomainMeetingRepository<TState>> {
+        input: OpenStorageDomainMeetingInput<TState>
+    ): Promise<StorageDomainMeetingRepository<TState>> {
         const catalog = this.catalog.table("meetings").get(key);
         if (!catalog && !input.create) {
             throw new RepositoryError(
@@ -301,7 +304,7 @@ export class DomainRepositoryRegistry<TState = JsonObject> {
             if (catalog) {
                 await this.reconcile(domain, key, catalog);
             }
-            const repository = await DomainMeetingRepository.open<TState>({
+            const repository = await StorageDomainMeetingRepository.open<TState>({
                 catalogDomain: this.catalog,
                 meetingDomain: domain,
                 meetingId: input.meetingId,

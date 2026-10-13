@@ -14,7 +14,10 @@ import { isRoundClosable } from "@/domain/transitions/round.ts";
 import { publishRound } from "@/domain/transitions/round-publication.ts";
 import { closeContribution } from "@/domain/transitions/contribution-exit.ts";
 import { validateMeetingState } from "@/domain/meeting-state-validation.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting-state-codec.ts";
 import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 
 function evidenceState() {

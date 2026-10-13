@@ -2,10 +2,10 @@ import { peerBindings } from "../fixtures/peer-ownership.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
-    DomainRepositoryRegistry,
+    StorageDomainRepositoryRegistry,
     type DomainFacilityPort
-} from "@/repository/domain/domain-repository-registry.ts";
-import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/domain/keys.ts";
+} from "@/repository/storage-domain/storage-domain-repository-registry.ts";
+import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/storage-domain/keys.ts";
 import { RepositoryError } from "@/repository/errors.ts";
 import {
     createFakeCatalogDomain,
@@ -119,7 +119,7 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
     return { catalog, facility };
 }
 
-describe("DomainRepositoryRegistry contract", () => {
+describe("StorageDomainRepositoryRegistry contract", () => {
     it("derives repository identity from meetingId and create requestId only", () => {
         expect(catalogKey("meeting-1")).toBe(
             "f95fc417838d20816d75e96d1faef1db9e131b29625e9cbb0aaefe6c894589ae"
@@ -131,7 +131,7 @@ describe("DomainRepositoryRegistry contract", () => {
     it("opens the catalog once and returns a deterministic sorted list", async () => {
         const records = [catalogRecord("meeting-2"), catalogRecord("meeting-1")];
         const { facility } = fixture(records);
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -150,7 +150,7 @@ describe("DomainRepositoryRegistry contract", () => {
             release = resolve;
         });
         facility.block(record.domainName, pending);
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -181,7 +181,7 @@ describe("DomainRepositoryRegistry contract", () => {
                 initial: { creation: new Map([["current", failedCreation]]) }
             })
         );
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -199,7 +199,7 @@ describe("DomainRepositoryRegistry contract", () => {
         const record = catalogRecord("meeting-1");
         const { facility } = fixture([record]);
         facility.failOnce(record.domainName);
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -222,7 +222,7 @@ describe("DomainRepositoryRegistry contract", () => {
             id: `identity-${i}`,
             roles: [i === 0 ? "manager" : i === 1 ? "evidence_reviewer" : "contributor"]
         }));
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow,
             onProjectionCommitted: (snapshot) => snapshots.push(snapshot)
@@ -257,7 +257,7 @@ describe("DomainRepositoryRegistry contract", () => {
     it("rejects cached identity or domainName mismatch", async () => {
         const record = catalogRecord("meeting-1");
         const { catalog, facility } = fixture([record]);
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
@@ -276,7 +276,7 @@ describe("DomainRepositoryRegistry contract", () => {
     it("closes Meeting domains in domainName order before catalog exactly once", async () => {
         const records = [catalogRecord("meeting-b"), catalogRecord("meeting-a")];
         const { facility } = fixture(records);
-        const registry = await DomainRepositoryRegistry.open({
+        const registry = await StorageDomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });

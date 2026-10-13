@@ -1,13 +1,13 @@
 import type { IdentityAdmissionResultContext, MeetingState } from "@/domain/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import type { MeetingCommandApplication } from "./meeting-command.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem } from "@/repository/index.ts";
 import type { IdentityProvisionResult } from "@/runtime/services/index.ts";
 
 export interface MeetingIdentityEffectHandlerDependencies {
     readonly application: MeetingCommandApplication;
-    readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "read">;
+    readonly repository: Pick<MeetingRepository<MeetingState>, "read">;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly provision: (input: {
         recommendation: {

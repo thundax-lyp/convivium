@@ -8,7 +8,7 @@ import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.ts";
 import { decodeMeetingState, encodeMeetingState } from "@/repository/index.ts";
-import { DomainRepositoryRegistry } from "@/repository/index.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/index.ts";
 import { parseAgentDefinitions } from "@/role-composition/index.ts";
 import {
     createMeetingCommandApplication,
@@ -34,7 +34,7 @@ import {
 import { provisionMeetingIdentity } from "./services/index.ts";
 import type { MeetingIdentityProvisionDependencies } from "./services/index.ts";
 import type { OutboxItem } from "@/repository/index.ts";
-import type { MeetingRepositoryPort } from "@/repository/index.ts";
+import type { MeetingRepository } from "@/repository/index.ts";
 import { meetingDeletionStatus, deleteMeeting } from "./services/index.ts";
 import type { DeleteMeetingRequest } from "@/protocol/index.ts";
 
@@ -87,7 +87,10 @@ export const createTargetMeetingEffectDispatcher = (dependencies: {
 };
 
 export const recoverTargetMeetingDeliveries = async (dependencies: {
-    readonly registry: Pick<DomainRepositoryRegistry<MeetingState>, "listMeetings" | "openMeeting">;
+    readonly registry: Pick<
+        StorageDomainRepositoryRegistry<MeetingState>,
+        "listMeetings" | "openMeeting"
+    >;
     readonly owner: import("@/dsh/index.ts").MeetingAgentOwner;
     readonly definitions: readonly import("@/role-composition/index.ts").MeetingAgentDefinition[];
     readonly ensureDelivery: (meetingId: string) => void | Promise<void>;
@@ -273,7 +276,7 @@ export const recoverTargetMeetingDeliveries = async (dependencies: {
 };
 
 const createIdentityProvisionOwner = (dependencies: {
-    repository: MeetingRepositoryPort<MeetingState>;
+    repository: MeetingRepository<MeetingState>;
     agents: import("@/dsh/index.ts").MeetingAgentOwner;
     definitions: readonly import("@/role-composition/index.ts").MeetingAgentDefinition[];
 }): MeetingIdentityProvisionDependencies["owner"] => {
@@ -388,7 +391,7 @@ export const getMeetingIdentityReader = (owner: object): MeetingIdentityReader =
 };
 
 const createCallerScopeResolver =
-    (registry: DomainRepositoryRegistry<MeetingState>) =>
+    (registry: StorageDomainRepositoryRegistry<MeetingState>) =>
     async (input: {
         meetingId: string;
         caller: {
@@ -455,7 +458,7 @@ const createCallerScopeResolver =
     };
 
 const startContributionDeadlinePoller = (
-    repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">,
+    repository: Pick<MeetingRepository<MeetingState>, "recover">,
     application: MeetingCommandApplication,
     onError: (error: unknown) => void
 ): { stop(): Promise<void> } => {
@@ -511,7 +514,7 @@ const createDeliveryManager = (input: {
     ctx: Context;
     config: Config;
     rolePackageRoot: string;
-    registry: DomainRepositoryRegistry<MeetingState>;
+    registry: StorageDomainRepositoryRegistry<MeetingState>;
     agentOwner: ReturnType<typeof createMeetingAgentOwner>;
     definitions: ReturnType<typeof parseAgentDefinitions>;
     application: MeetingCommandApplication;
@@ -650,7 +653,7 @@ export const activateTargetMeetingApplication = async (
     assertTargetLifecycle(config, ctx);
     let sequence = 0;
     const refreshListeners = new Set<(meetingId: string, committedVersion: number) => void>();
-    const registry = await DomainRepositoryRegistry.open<MeetingState>({
+    const registry = await StorageDomainRepositoryRegistry.open<MeetingState>({
         storageDomain: ctx.storageDomain,
         codec: { encode: encodeMeetingState, decode: decodeMeetingState },
         authorizationValidator: {

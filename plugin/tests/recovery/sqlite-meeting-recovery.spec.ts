@@ -1,6 +1,6 @@
 import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.ts";
 import { DatabaseSync } from "node:sqlite";
-import { meetingDomainName } from "@/repository/domain/keys.ts";
+import { meetingDomainName } from "@/repository/storage-domain/keys.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
@@ -10,13 +10,16 @@ import * as storageSqlite from "@deepseek-ai/dsh-storage-sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.ts";
-import { decodeMeetingState, encodeMeetingState } from "@/repository/domain/meeting-state-codec.ts";
+import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
+import {
+    decodeMeetingState,
+    encodeMeetingState
+} from "@/repository/storage-domain/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import SessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from "@deepseek-ai/dsh-session";
 import { MessageId } from "@deepseek-ai/dsh-llm";
-import { createMeetingDomainSpec } from "@/repository/domain/specs.ts";
+import { createMeetingDomainSpec } from "@/repository/storage-domain/specs.ts";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -32,12 +35,12 @@ async function open(path: string, target: boolean) {
         { backend: "sqlite" }
     );
     const registry = target
-        ? await DomainRepositoryRegistry.open({
+        ? await StorageDomainRepositoryRegistry.open({
               storageDomain: context.storageDomain,
               authorizationValidator: allow,
               codec
           })
-        : await DomainRepositoryRegistry.open({
+        : await StorageDomainRepositoryRegistry.open({
               storageDomain: context.storageDomain,
               authorizationValidator: allow
           });
