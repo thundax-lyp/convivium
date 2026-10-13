@@ -232,7 +232,7 @@ describe("Captain trusted user authorization", () => {
     });
 });
 
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/storage-domain-meeting-repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import {

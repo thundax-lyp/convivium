@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createMeetingCreationCoordinator } from "@/runtime/meeting-runtime.ts";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/storage-domain-meeting-repository.ts";
 import { RepositoryError } from "@/repository/errors.ts";
 import {
     decodeMeetingState,

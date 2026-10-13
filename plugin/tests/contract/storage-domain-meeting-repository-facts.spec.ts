@@ -1,6 +1,6 @@
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { describe, expect, it } from "vitest";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/storage-domain-meeting-repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import {
     decodeMeetingState,

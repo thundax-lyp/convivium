@@ -110,7 +110,7 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 PrivateMail 的五个 Domain transition 固定如下；application 只注入已认证 actor、ID 与 `Clock.now()`，不得重算 Domain 字段：
 
-私信随 `MeetingState.privateMails` 由统一 Repository command 原子保存。`StorageDomainMeetingRepository` 直接继承提交与创建内核 `StorageDomainMeetingRepositoryCore`，不设置私信仓储中间层、独立持久化 map 或另一套私信校验；私信状态与 serial gate 的唯一行为依据是 Domain transition。
+私信随 `MeetingState.privateMails` 由统一 Repository command 原子保存。`StorageDomainMeetingRepository` 组合创建、命令、ownership、outbox、历史读取及恢复能力，共享单场 Meeting 的提交状态与串行写队列；不设置私信仓储中间层、独立持久化 map 或另一套私信校验。私信状态与 serial gate 的唯一行为依据是 Domain transition。
 
 | 转换                    | 允许 actor 与 lifecycle                                           | 前提                                                                                                              | 成功结果                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

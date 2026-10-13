@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { captainActorIdFor, type MeetingEventInput, type MeetingState } from "@/domain/index.ts";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/storage-domain-meeting-repository.ts";
 import {
     decodeMeetingState,
     encodeMeetingState
@@ -172,7 +172,7 @@ describe("Meeting committed event log", () => {
         async (corruption) => {
             const { repository } = await fixture();
             await repository.execute(command("corrupt", 1, [roundEvent]));
-            const projection = Reflect.get(repository, "projection");
+            const projection = Reflect.get(Reflect.get(repository, "state"), "projection");
             const event = projection.events[seqKey(2)];
             if (corruption === "gap") {
                 delete projection.events[seqKey(2)];
