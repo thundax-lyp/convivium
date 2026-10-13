@@ -1,7 +1,7 @@
-import { StorageDomainMeetingRepositoryCore } from "./storage-domain-meeting-repository-core.ts";
+import { StorageDomainMeetingRepositoryCore } from "./repository-core.ts";
 import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
-import type { StorageDomainMeetingRepositoryOpenOptions } from "./storage-domain-meeting-repository-core.ts";
-export type { StorageDomainMeetingRepositoryOpenOptions } from "./storage-domain-meeting-repository-core.ts";
+import type { StorageDomainMeetingRepositoryOpenOptions } from "./repository-core.ts";
+export type { StorageDomainMeetingRepositoryOpenOptions } from "./repository-core.ts";
 import type { MeetingRepository } from "@/repository/index.ts";
 import type {
     ClaimOutboxInput,
@@ -24,14 +24,17 @@ import {
     PersistedReceiptSchema,
     PersistenceProjectionSchema,
     type PersistenceProjection
-} from "./schemas.ts";
+} from "@/repository/storage-domain/format/index.ts";
 import { decodeProjection, encodeProjection } from "./projection.ts";
-import { receiptKey, seqKey } from "./keys.ts";
+import { receiptKey, seqKey } from "@/repository/storage-domain/format/index.ts";
 import { encodeCanonicalJson, type JsonValue } from "@/utils/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
-import { catalogKey } from "./keys.ts";
+import { catalogKey } from "@/repository/storage-domain/format/index.ts";
 import { purgeMeetingData } from "./meeting-data-deletion.ts";
-import { CatalogMeetingRecordSchema, type CatalogMeetingRecord } from "./schemas.ts";
+import {
+    CatalogMeetingRecordSchema,
+    type CatalogMeetingRecord
+} from "@/repository/storage-domain/format/index.ts";
 
 const jsonValue = (value: unknown): JsonValue => {
     if (

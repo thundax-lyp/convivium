@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { catalogDomainSpec, createMeetingDomainSpec } from "@/repository/storage-domain/specs.ts";
+import {
+    catalogDomainSpec,
+    createMeetingDomainSpec
+} from "@/repository/storage-domain/format/specs.ts";
 describe("Meeting Storage Domain specifications", () => {
     it("declares the exact catalog and meeting domain specs", () => {
         expect(catalogDomainSpec.name).toBe("convivium_catalog");

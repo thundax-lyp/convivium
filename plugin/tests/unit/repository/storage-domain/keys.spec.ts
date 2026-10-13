@@ -6,7 +6,7 @@ import {
     meetingIdFor,
     receiptKey,
     seqKey
-} from "@/repository/storage-domain/keys.ts";
+} from "@/repository/storage-domain/format/keys.ts";
 describe("Meeting storage key encoding", () => {
     it("derives every key and identity formula exactly", () => {
         expect(meetingIdFor("request")).toBe("meeting-1f58b9145b24d108d7ac38887338b3ea");

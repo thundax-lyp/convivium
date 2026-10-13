@@ -1,5 +1,5 @@
 import type { RepositoryAuthorizationValidator } from "@/repository/types.ts";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "./domain-storage.ts";
 
 export const allow: RepositoryAuthorizationValidator = {

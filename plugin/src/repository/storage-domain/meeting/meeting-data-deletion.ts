@@ -1,4 +1,4 @@
-import type { MeetingDomain } from "./specs.ts";
+import type { MeetingDomain } from "@/repository/storage-domain/format/index.ts";
 
 /** Only plugin-owned business tables; Session persistence is a separate Host resource. */
 export const purgeMeetingData = async (domain: MeetingDomain): Promise<void> => {

@@ -3,12 +3,12 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createMeetingCreationCoordinator } from "@/runtime/meeting-runtime.ts";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
 import { RepositoryError } from "@/repository/errors.ts";
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { parseAgentDefinitions } from "@/role-composition/model.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../../fixtures/domain-storage.ts";
 

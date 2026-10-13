@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
-import { catalogKey, meetingDomainName } from "@/repository/storage-domain/keys.ts";
+import { catalogKey, meetingDomainName } from "@/repository/storage-domain/format/keys.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { appendVersion } from "../fixtures/storage-domain-meeting-repository.ts";

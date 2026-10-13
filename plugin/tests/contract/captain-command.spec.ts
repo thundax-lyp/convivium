@@ -232,13 +232,13 @@ describe("Captain trusted user authorization", () => {
     });
 });
 
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { completionReadyState, completionInput } from "../unit/domain/outcome-fixtures.ts";
 import {
     captainActorIdFor,

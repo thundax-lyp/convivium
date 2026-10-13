@@ -1,7 +1,7 @@
-import { createCommitRecord } from "@/repository/storage-domain/projection.ts";
+import { createCommitRecord } from "@/repository/storage-domain/meeting/projection.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
-import { meetingDomainName } from "@/repository/storage-domain/keys.ts";
-import type { MeetingDomain } from "@/repository/storage-domain/specs.ts";
+import { meetingDomainName } from "@/repository/storage-domain/format/keys.ts";
+import type { MeetingDomain } from "@/repository/storage-domain/format/specs.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,7 +12,7 @@ import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/do
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };

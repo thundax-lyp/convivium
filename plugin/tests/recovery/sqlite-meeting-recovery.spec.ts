@@ -1,6 +1,6 @@
 import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.ts";
 import { DatabaseSync } from "node:sqlite";
-import { meetingDomainName } from "@/repository/storage-domain/keys.ts";
+import { meetingDomainName } from "@/repository/storage-domain/format/keys.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
@@ -14,12 +14,12 @@ import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/sto
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import SessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from "@deepseek-ai/dsh-session";
 import { MessageId } from "@deepseek-ai/dsh-llm";
-import { createMeetingDomainSpec } from "@/repository/storage-domain/specs.ts";
+import { createMeetingDomainSpec } from "@/repository/storage-domain/format/specs.ts";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UnsupportedMeetingStateFormatError } from "./projection.ts";
+import { UnsupportedMeetingStateFormatError } from "./errors.ts";
 import { defineDomain, domainTable, type Domain } from "@deepseek-ai/dsh-storage-domain";
 import {
     CheckpointPageSchema,

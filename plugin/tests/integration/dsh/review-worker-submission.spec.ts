@@ -8,7 +8,7 @@ import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/sto
 import {
     encodeMeetingState,
     decodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import { createReviewWorkerPromptResolver } from "@/runtime/services/evidence-review-dispatch.ts";
 import { registerMeetingTools } from "@/tools/index.ts";

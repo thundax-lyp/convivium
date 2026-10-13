@@ -6,7 +6,7 @@ import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/sto
 import {
     encodeMeetingState,
     decodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import type { MeetingAction, MeetingCommand } from "@/protocol/index.ts";
 import type { MeetingState } from "@/domain/index.ts";

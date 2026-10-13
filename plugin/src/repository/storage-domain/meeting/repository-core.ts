@@ -9,7 +9,7 @@ import {
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
 import { DomainError, captainActorIdFor, type MeetingEventInput } from "@/domain/index.ts";
 import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/index.ts";
-import type { CatalogDomain, MeetingDomain } from "./specs.ts";
+import type { CatalogDomain, MeetingDomain } from "@/repository/storage-domain/format/index.ts";
 import {
     SessionOwnershipSchema,
     PreparedDescriptorSchema,
@@ -21,7 +21,7 @@ import {
     PersistedOutboxSchema,
     PersistedReceiptSchema,
     PersistenceProjectionSchema
-} from "./schemas.ts";
+} from "@/repository/storage-domain/format/index.ts";
 import type {
     CommittedResult,
     CreateMeetingInput,
@@ -40,11 +40,11 @@ import {
     createCommitRecord,
     decodeProjection,
     encodeProjection,
-    projectionDigest,
-    UnsupportedMeetingStateFormatError
+    projectionDigest
 } from "./projection.ts";
+import { UnsupportedMeetingStateFormatError } from "@/repository/storage-domain/format/index.ts";
 import { diff } from "@/utils/index.ts";
-import { catalogKey, receiptKey, seqKey } from "./keys.ts";
+import { catalogKey, receiptKey, seqKey } from "@/repository/storage-domain/format/index.ts";
 import { loadProjection } from "./projection.ts";
 import { decodeCanonicalJson, encodeCanonicalJson } from "@/utils/index.ts";
 import { RepositoryError } from "@/repository/index.ts";

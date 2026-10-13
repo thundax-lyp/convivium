@@ -22,7 +22,7 @@
 | `meeting/adapters`    | DSH tool、loopback Remote、存储和 Markdown/通知实现                          | application、ports | domain 内部可变状态                    |
 | `meeting/projection`  | 从已提交快照生成 caller-visible view、摘要和 Markdown 输入                   | domain             | 写端口、Session 内部数据               |
 
-当前源码中，业务 Domain 位于 `plugin/src/domain/`，命令应用服务位于 `plugin/src/runtime/application-service/`，`MeetingRepository` 契约位于 `plugin/src/repository/`；DSH Storage Domain 仓储实现位于 `plugin/src/repository/storage-domain/`，不属于业务 Domain。
+当前源码中，业务 Domain 位于 `plugin/src/domain/`，命令应用服务位于 `plugin/src/runtime/application-service/`，`MeetingRepository` 契约位于 `plugin/src/repository/`；DSH Storage Domain 仓储实现位于 `plugin/src/repository/storage-domain/`，不属于业务 Domain。其中 `meeting/` 放单场会议的持久化编排及投影、检查点、删除等能力实现，`format/` 放 Catalog 与 Meeting 共用的存储键、记录格式和 Storage Domain 定义，Registry 留在上层协调 Catalog 与 Meeting 的打开和生命周期。
 
 Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)`；application 不得通过直接改数组、补默认字段或重写历史绕过转换。Repository 只接受完整的预期版本和转换结果，adapter 不得自行解释业务状态。
 

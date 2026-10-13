@@ -8,8 +8,8 @@ import {
     projectionDigest,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
-} from "@/repository/storage-domain/projection.ts";
-import { CommitRecordSchema } from "@/repository/storage-domain/schemas.ts";
+} from "@/repository/storage-domain/meeting/projection.ts";
+import { CommitRecordSchema } from "@/repository/storage-domain/format/schemas.ts";
 describe("Storage Domain projection", () => {
     const bootstrap = {
         creator: { kind: "local_user" as const, principalId: "local-controller" as const },

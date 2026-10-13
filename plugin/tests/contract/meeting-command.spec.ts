@@ -5,9 +5,9 @@ import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/mee
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import type { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
-import { meetingIdFor } from "@/repository/storage-domain/keys.ts";
+import { meetingIdFor } from "@/repository/storage-domain/format/keys.ts";
 import { createMeetingCommandApplication } from "@/runtime/application-service/meeting-command.ts";
 import { RepositoryError } from "@/repository/errors.ts";
 import type { MeetingRepository } from "@/repository/meeting-repository.ts";

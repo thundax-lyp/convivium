@@ -5,7 +5,11 @@ import {
     StorageDomainRepositoryRegistry,
     type DomainFacilityPort
 } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
-import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/storage-domain/keys.ts";
+import {
+    catalogKey,
+    meetingDomainName,
+    meetingIdFor
+} from "@/repository/storage-domain/format/keys.ts";
 import { RepositoryError } from "@/repository/errors.ts";
 import {
     createFakeCatalogDomain,

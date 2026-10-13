@@ -2,7 +2,7 @@ import { DomainError as StorageDomainError } from "@deepseek-ai/dsh-storage-doma
 import type { DiagnosticSink } from "@/repository/index.ts";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { RepositoryError } from "@/repository/index.ts";
-import { UnsupportedMeetingStateFormatError } from "./projection.ts";
+import { UnsupportedMeetingStateFormatError } from "./format/index.ts";
 import type {
     CreateMeetingInput,
     JsonObject,
@@ -10,17 +10,17 @@ import type {
     MeetingSnapshot,
     RepositoryAuthorizationValidator
 } from "@/repository/index.ts";
-import { StorageDomainMeetingRepository } from "./storage-domain-meeting-repository.ts";
-import { catalogKey, meetingDomainName } from "./keys.ts";
-import { loadProjection } from "./projection.ts";
+import { StorageDomainMeetingRepository } from "./meeting/index.ts";
+import { catalogKey, meetingDomainName } from "./format/index.ts";
+import { loadProjection } from "./meeting/index.ts";
 import {
     catalogDomainSpec,
     createMeetingDomainSpec,
     type CatalogDomain,
     type MeetingDomain
-} from "./specs.ts";
-import type { CatalogMeetingRecord, CreationRecord } from "./schemas.ts";
-import { purgeMeetingData } from "./meeting-data-deletion.ts";
+} from "./format/index.ts";
+import type { CatalogMeetingRecord, CreationRecord } from "./format/index.ts";
+import { purgeMeetingData } from "./meeting/index.ts";
 import type { RecoveryResult } from "@/repository/index.ts";
 
 export interface DomainFacilityPort {

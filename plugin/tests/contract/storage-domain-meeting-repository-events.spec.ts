@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { captainActorIdFor, type MeetingEventInput, type MeetingState } from "@/domain/index.ts";
-import { StorageDomainMeetingRepository } from "@/repository/storage-domain/storage-domain-meeting-repository.ts";
+import { StorageDomainMeetingRepository } from "@/repository/storage-domain/meeting/repository.ts";
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
-import { seqKey } from "@/repository/storage-domain/keys.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
+import { seqKey } from "@/repository/storage-domain/format/keys.ts";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";

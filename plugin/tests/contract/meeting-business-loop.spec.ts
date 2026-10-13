@@ -8,7 +8,7 @@ import {
 import {
     decodeMeetingState,
     encodeMeetingState
-} from "@/repository/storage-domain/meeting-state-codec.ts";
+} from "@/repository/storage-domain/meeting/meeting-state-codec.ts";
 import {
     MeetingActionSchema as PublicMeetingActionV1Schema,
     MeetingCommandResultSchema as PublicMeetingCommandResultV1Schema,
