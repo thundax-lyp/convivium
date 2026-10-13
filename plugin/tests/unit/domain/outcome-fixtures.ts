@@ -90,7 +90,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             }
         ],
         evidenceReviewerId: "reviewer",
-        completionDeclarations: [],
         evidencePackages: [
             {
                 id: "p",

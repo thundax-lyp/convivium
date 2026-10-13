@@ -570,19 +570,6 @@ const riskDispositionSchema = z.object({
     evidenceIds: uniqueIdArraySchema,
     createdAt: epochSchema
 });
-const completionDeclarationSchema = withDefinedOptionals(
-    z.object({
-        id: opaqueIdSchema,
-        actorId: opaqueIdSchema,
-        outputId: opaqueIdSchema,
-        criterionId: opaqueIdSchema.optional(),
-        statement: textSchema,
-        evidenceIds: uniqueIdArraySchema,
-        taskId: opaqueIdSchema.optional(),
-        createdAt: epochSchema
-    }),
-    ["criterionId", "taskId"]
-);
 const completionFactSchema = withDefinedOptionals(
     z.object({
         id: opaqueIdSchema,
@@ -856,7 +843,6 @@ const meetingStateSchema = withDefinedOptionals(
         issues: uniqueEntityArray(issueSchema),
         riskDispositions: uniqueEntityArray(riskDispositionSchema),
         tasks: uniqueEntityArray(taskSchema),
-        completionDeclarations: uniqueEntityArray(completionDeclarationSchema),
         completionFacts: uniqueEntityArray(completionFactSchema),
         privateMails: uniqueEntityArray(privateMailSchema),
         managerPlans: uniqueEntityArray(managerPlanSchema),

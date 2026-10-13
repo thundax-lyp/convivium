@@ -56,7 +56,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "reviewer-v1",
-        completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
         reviews: [],

@@ -78,6 +78,14 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 
 ## Executed Validation
 
+### 2026-10-13：退役无生产入口的 CompletionDeclaration
+
+Scope / Validated Contract：移除未接入生产命令、投影、归档或完成判定的 `CompletionDeclaration`，同步收窄 MO-FR-8、Meeting action 契约与 Domain/Meeting 设计。新建 MeetingState 不再携带 `completionDeclarations`；Domain 类型、transition、schema/reference 校验、Repository 必填字段与专属测试已清理。`CompletionFact` 的 Captain 授权、证据与 Decision basis 校验，以及确定性完成判定保持不变。
+
+Executed Validation：`pnpm --dir plugin exec vitest run`：104 文件 / 993 测试 PASS；定向 Domain、命令契约与 SQLite 恢复 3 文件 / 54 测试 PASS；`pnpm --dir plugin typecheck:host`、`pnpm --dir plugin lint`、`pnpm --dir plugin format:check` PASS；本地文档链接 1150 项、0 错误（不检查 anchors）；`git diff --check` PASS。Vite 对 DSH UI primitives 缺失 source map 的既有 warning 不阻断测试。
+
+Not Covered / Closure：本次未运行构建、打包、真实 Host 或 Browser 冒烟；不读取、迁移或清理固定人工环境及既有持久化快照。旧快照中的额外字段不会由本次源码清理主动删除。
+
 ### 2026-10-13：退役未使用的 Repository 结构
 
 Scope / Validated Contract：`codex/remove-retired-repository-structures` 的 `52341031`、`d0a51f4f`。删除无生产调用的 `DomainMeetingRepositoryMail`、旧私信校验、七个私信 port 方法、关联类型与独立 `privateMail` projection map；当前私信继续由 `MeetingState.privateMails` 和 Domain transition 管理。删除无调用且无当前契约依据的 `updateCreateResult`、`requeueAcceptedOutbox`。仓储直接继承提交内核，保持 command、receipt、facts/events、outbox lease、ownership、checkpoint 和删除恢复路径；可选 diagnostics hook 保留。

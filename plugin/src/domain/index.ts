@@ -25,8 +25,7 @@ export {
     type DecisionCandidate,
     type ProposalRevision,
     type Decision,
-    type Issue,
-    type CompletionDeclaration
+    type Issue
 } from "./meeting-state.ts";
 export {
     openRound,

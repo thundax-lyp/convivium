@@ -49,7 +49,6 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "reviewer-1",
-        completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
         reviews: [],

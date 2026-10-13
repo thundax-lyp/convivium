@@ -111,7 +111,6 @@ const targetCreateState = (
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: reviewer.id,
-        completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
         reviews: [],

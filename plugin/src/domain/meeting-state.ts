@@ -423,17 +423,6 @@ export interface RiskDisposition {
     createdAt: EpochMs;
 }
 
-export interface CompletionDeclaration {
-    id: OpaqueId;
-    actorId: OpaqueId;
-    outputId: OpaqueId;
-    criterionId?: OpaqueId;
-    statement: string;
-    evidenceIds: readonly OpaqueId[];
-    taskId?: OpaqueId;
-    createdAt: EpochMs;
-}
-
 export interface CompletionFact {
     id: OpaqueId;
     outputId: OpaqueId;
@@ -652,7 +641,6 @@ export interface MeetingState {
     pendingHandRaises: readonly PendingHandRaise[];
     contributions: readonly Contribution[];
     evidenceReviewerId: OpaqueId;
-    completionDeclarations: readonly CompletionDeclaration[];
     evidencePackages: readonly EvidencePackage[];
     registrations: readonly Registration[];
     reviews: readonly EvidenceReview[];

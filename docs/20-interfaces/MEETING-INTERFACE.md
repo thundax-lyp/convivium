@@ -100,7 +100,6 @@ type MeetingAction =
   | Decide
   | ChangeDecision
   | DisposeRisk
-  | SubmitCompletionDeclaration
   | RecordCompletionFact
   | ChangeCompletionFact
   | PlanNextStep
@@ -497,14 +496,6 @@ interface DisposeRisk {
   rationale: string;
   evidenceIds: OpaqueId[];
 }
-interface SubmitCompletionDeclaration {
-  kind: "submit_completion_declaration";
-  outputId: OpaqueId;
-  criterionId?: OpaqueId;
-  statement: string;
-  evidenceIds: OpaqueId[];
-  taskId?: OpaqueId;
-}
 interface RecordCompletionFact {
   kind: "record_completion_fact";
   outputId: OpaqueId;
@@ -603,9 +594,9 @@ interface RecordArchiveSessionResult {
 }
 ```
 
-`RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
+`RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate 与 task result；Captain 不提交 Contributor 贡献或 CompletionDeclaration。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate 与 task result；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -637,7 +628,7 @@ Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/�
 
 A DecisionCandidate is accepted only when it names the current ProposalRevision and its evidence/positions are visible, valid and meeting-local. Each Candidate may be used by at most one Decision and each ProposalRevision may have at most one accepted Decision. Decide accepts exactly one unused Candidate and rejects a second accepted Decision on the same revision. Supersede requires replacementCandidateId naming an unused Candidate on the same proposal's current revision and atomically accepts it, creates its Decision and marks the old accepted Decision superseded; revoke must not contain replacementCandidateId. Candidate reject/revoke does not exist. Risk accept/reject only accepts an exact `status=open` Issue and checks its riskLevel against acceptableRiskLevel, every hard constraint named by that Issue's `affectedConstraintIds`, lifecycle, non-empty rationale and meeting-local evidence; `resolved|deferred|out_of_scope` is rejected. Accept requires those constraints to be satisfied and updates only that Issue to accepted_risk and non-blocking. Reject is not limited by acceptableRiskLevel and keeps the Issue open and blocking.
 
-For historical Rounds without participation fields, RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is contributor-only: the caller must be an existing `MeetingIdentity` whose roles include `contributor`; the external Captain, manager-only, evidence-reviewer-only and local-controller callers are rejected. When `taskId` is present, it must name the caller's completed Task with active authorization and a nonempty result. The action creates an immutable declaration but never changes output, criterion, Agenda, Question, Issue, lifecycle or completion status. 当前契约的 `RecordCompletionFact` 没有 `declarationId`，因此不消费、匹配、替代或删除 CompletionDeclaration；它独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
+For historical Rounds without participation fields, RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits the author to use the same SubmitEvidence action, which atomically consumes the hand and increments the count when appending a new registered current version. Rejected/deferred supplement requests create no new EvidenceVersion and do not mean withdrawal. `RecordCompletionFact` 独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
 
 `pendingDecisionCandidates` contains current-revision candidates without any Decision only while lifecycle is `running|paused`; `paused` preserves resumable work but does not permit acceptance. It is empty for `preparing|converging|ending|terminal|archiving|archived`. Caller filtering remains Captain/local-only.
 
