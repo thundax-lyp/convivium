@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import { projectMeetingView } from "@/projection/meeting-view.ts";
-import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
+import { captainActorIdFor } from "@/domain/index.ts";
+import type { PersistedMeetingEvent } from "@/repository/index.ts";
 
 const state = makeRunningMeetingStateV1();
 const snapshot = { meetingId: state.id, version: state.version, state, createdAt: 0, updatedAt: 1 };

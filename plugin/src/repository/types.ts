@@ -4,11 +4,21 @@ import type {
     EffectiveAgentOptions,
     PreparedDescriptor
 } from "@/role-composition/index.ts";
+import type { MeetingEventKind, MeetingEventPayload } from "@/domain/index.ts";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 export type MeetingEventType = string;
+export type PersistedMeetingEvent = {
+    [K in MeetingEventKind]: {
+        eventSeq: number;
+        meetingVersion: number;
+        type: K;
+        payload: MeetingEventPayload<K>;
+        createdAt: number;
+    };
+}[MeetingEventKind];
 
 export interface MeetingStateCodec<TState> {
     encode(state: TState): Uint8Array;

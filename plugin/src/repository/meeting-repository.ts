@@ -1,5 +1,4 @@
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
-import type { PersistedMeetingEvent } from "@/domain/index.ts";
 import type {
     ClaimOutboxInput,
     CommittedFactRecord,
@@ -10,6 +9,7 @@ import type {
     MeetingBootstrap,
     MeetingSnapshot,
     JsonObject,
+    PersistedMeetingEvent,
     OutboxCompletionResult,
     OutboxItem,
     RecoverInput,

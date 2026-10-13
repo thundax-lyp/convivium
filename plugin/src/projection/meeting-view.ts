@@ -3,7 +3,6 @@ import {
     type ArchivePackage,
     type MeetingRole,
     type MeetingState,
-    type PersistedMeetingEvent,
     type OpaqueId
 } from "@/domain/index.ts";
 import type { MeetingAgentCatalog } from "@/dsh/index.ts";
@@ -16,7 +15,7 @@ import {
     type MeetingSummary,
     type MeetingView
 } from "@/protocol/index.ts";
-import type { MeetingSnapshot } from "@/repository/index.ts";
+import type { MeetingSnapshot, PersistedMeetingEvent } from "@/repository/index.ts";
 
 export type MeetingProjectionCaller =
     | { readonly kind: "captain" }

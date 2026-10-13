@@ -75,6 +75,5 @@ export {
     type MeetingEventObjectRef,
     type MeetingEventDataByKind,
     type MeetingEventPayload,
-    type MeetingEventInput,
-    type PersistedMeetingEvent
+    type MeetingEventInput
 } from "./meeting-event.ts";

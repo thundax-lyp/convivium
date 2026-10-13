@@ -197,12 +197,3 @@ export type MeetingEventInput = {
         payload: MeetingEventPayload<K>;
     };
 }[MeetingEventKind];
-export type PersistedMeetingEvent = {
-    [K in MeetingEventKind]: {
-        eventSeq: number;
-        meetingVersion: number;
-        type: K;
-        payload: MeetingEventPayload<K>;
-        createdAt: number;
-    };
-}[MeetingEventKind];

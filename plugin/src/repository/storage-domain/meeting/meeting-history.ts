@@ -1,5 +1,5 @@
-import { captainActorIdFor, type PersistedMeetingEvent } from "@/domain/index.ts";
-import type { CommittedFactRecord, JsonObject } from "@/repository/index.ts";
+import { captainActorIdFor } from "@/domain/index.ts";
+import type { CommittedFactRecord, JsonObject, PersistedMeetingEvent } from "@/repository/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import { CommittedMeetingEventSchema, seqKey } from "@/repository/storage-domain/format/index.ts";
 import { MeetingPersistenceState } from "./meeting-persistence-state.ts";
