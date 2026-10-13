@@ -11,6 +11,82 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 
 afterEach(cleanup);
 
+it("keeps unassigned facts without presenting an other-events milestone", () => {
+    const detail = eventTimelineFixture();
+    detail.timelineEvents!.push({
+        eventSeq: 7,
+        meetingVersion: 7,
+        occurredAt: 24,
+        kind: "manager_plan.recorded",
+        actor: { kind: "identity", actorId: "manager-v1" },
+        subject: { kind: "manager_plan", id: "plan-unassigned" },
+        relatedObjects: [],
+        data: { planKind: "open_round", summary: "unassigned factual plan" }
+    });
+    render(
+        withMeetingTranslation(
+            <MeetingPanelTimeline
+                detail={detail}
+                filters={INITIAL_TIMELINE_FILTERS}
+                viewportRevision={0}
+                onFiltersChange={vi.fn()}
+            />,
+            "zh"
+        )
+    );
+    expect(screen.getByText("unassigned factual plan")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /其他已发生事件/ })).toBeNull();
+    expect(screen.getAllByTestId("timeline-node").map((node) => node.dataset.nodeKey)).toEqual([
+        "event:1",
+        "event:2",
+        "event:3",
+        "event:4",
+        "event:5",
+        "event:6",
+        "event:7"
+    ]);
+});
+
+it("alternates from the first card of each round, including hand raises", () => {
+    const detail = eventTimelineFixture();
+    const opened = detail.timelineEvents![1]!;
+    detail.timelineEvents = [
+        detail.timelineEvents![0]!,
+        opened,
+        {
+            ...opened,
+            eventSeq: 3,
+            kind: "hand_raise.recorded",
+            occurredAt: 21,
+            data: { contributorId: "contributor-v1", purpose: "first hand" }
+        },
+        { ...opened, eventSeq: 4, occurredAt: 22, subject: { kind: "round", id: "round-2" } },
+        {
+            ...opened,
+            eventSeq: 5,
+            kind: "hand_raise.recorded",
+            occurredAt: 23,
+            subject: { kind: "round", id: "round-2" },
+            data: { contributorId: "contributor-v1", purpose: "second hand" }
+        }
+    ];
+    render(
+        withMeetingTranslation(
+            <MeetingPanelTimeline
+                detail={detail}
+                filters={INITIAL_TIMELINE_FILTERS}
+                viewportRevision={0}
+                onFiltersChange={vi.fn()}
+            />,
+            "zh"
+        )
+    );
+    const cards = screen.getAllByTestId("timeline-node");
+    expect(
+        cards.filter((node) => node.dataset.nodeKey !== "event:1").map((node) => node.dataset.side)
+    ).toEqual(["left", "right", "left", "right"]);
+});
+
 it("localizes the filter disclosure and preserves selected content types", () => {
     const onFiltersChange = vi.fn();
     render(
@@ -135,6 +211,8 @@ describe("Meeting timeline presentation", () => {
                 "zh"
             )
         );
+        expect(screen.getByRole("heading", { name: "会议启动", exact: true })).toBeTruthy();
+        expect(screen.getByRole("heading", { name: "第 1 轮", exact: true })).toBeTruthy();
         const keys = () =>
             screen.getAllByTestId("timeline-node").map((node) => node.dataset.nodeKey);
         const round = () => container.querySelector('[data-group-key="milestone:round:round-1"]')!;

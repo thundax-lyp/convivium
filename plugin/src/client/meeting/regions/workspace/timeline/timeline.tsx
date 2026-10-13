@@ -2,7 +2,6 @@ import * as React from "react";
 import { useEffect, useId, useRef, useState, type ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
-import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
     knownEnum,
     zh,
@@ -11,6 +10,7 @@ import {
 } from "@/client/meeting/shared/index.ts";
 import {
     buildTimelineNodes,
+    buildTimelineBlocks,
     filterTimelineNodes,
     resolveTimelineNodeContent,
     groupTimelineMilestones,
@@ -18,6 +18,7 @@ import {
     type TimelineNode
 } from "./projection.ts";
 import type { MeetingFocusTarget, TimelineFilterState } from "@/client/meeting/shared/index.ts";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Ellipsis } from "@/client/meeting/components/index.ts";
 import styles from "./timeline.module.css";
 
@@ -306,9 +307,8 @@ export const MeetingPanelTimeline = (props: TimelineProps): ReactElement => {
             eventKinds.length === 0 ||
             (node.eventKind !== undefined && eventKinds.includes(node.eventKind))
     );
-    const visibleKeys = new Set(filtered.map((node) => node.key));
-    const nodes = groups.flatMap((group) =>
-        allNodes.filter((node) => group.eventKeys.includes(node.key) && visibleKeys.has(node.key))
+    const nodes = buildTimelineBlocks(filtered, groups).flatMap((block) =>
+        block.members.map(({ node }) => node)
     );
     return (
         <section aria-label={t("panel.timeline.title")}>
@@ -476,13 +476,7 @@ export const TimelineViewport = ({
         consumedFocus.current = focusTarget;
         onFocusConsumed?.();
     }, [focusTarget, nodes, filters, detail.meetingId, onFocusConsumed, onFiltersChange]);
-    const blocks = groups
-        .map((group) => ({
-            group,
-            nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
-        }))
-        .filter((block) => block.nodes.length > 0);
-    let alternatingIndex = 0;
+    const blocks = buildTimelineBlocks(nodes, groups);
     return (
         <div>
             {focusMissing ? <p role="status">{t("panel.state.focusMissing")}</p> : null}
@@ -491,28 +485,33 @@ export const TimelineViewport = ({
                 aria-label={t("panel.timeline.aria.viewport")}
                 className={styles.viewport}
             >
-                {blocks.map(({ group, nodes: members }) => (
+                {blocks.map(({ group, members, key }) => (
                     <section
-                        key={group.key}
+                        key={key}
                         className={styles.group}
-                        data-group-key={group.key}
-                        data-group-status={group.status}
-                        data-group-occurrence={group.occurrence}
-                        data-started-at={group.startedAt}
-                        data-completed-at={group.completedAt}
+                        data-group-key={group?.key}
+                        data-ungrouped={group === undefined ? "true" : undefined}
+                        data-group-status={group?.status}
+                        data-group-occurrence={group?.occurrence}
+                        data-started-at={group?.startedAt}
+                        data-completed-at={group?.completedAt}
                     >
-                        <h3>
-                            {t(`panel.timeline.group.${group.kind}`)} · {group.occurrence} ·{" "}
-                            {t(`panel.timeline.groupStatus.${group.status}`)}
-                        </h3>
+                        {group === undefined ? null : (
+                            <h3>
+                                {group.kind === "round"
+                                    ? t("panel.timeline.group.round").replace(
+                                          "{n}",
+                                          String(group.occurrence)
+                                      )
+                                    : t(`panel.timeline.group.${group.kind}`)}
+                                {group.kind !== "round" &&
+                                groups.filter((item) => item.kind === group.kind).length > 1
+                                    ? ` · ${group?.occurrence}`
+                                    : null}
+                            </h3>
+                        )}
                         <div className={styles.grid}>
-                            {members.map((node, index) => {
-                                const side =
-                                    node.objectKind === "round" && node.phase === "opened"
-                                        ? "left"
-                                        : alternatingIndex++ % 2 === 0
-                                          ? "left"
-                                          : "right";
+                            {members.map(({ node, side }, index) => {
                                 const laneLabel = t(
                                     `panel.timeline.lane.${node.lane}` as MeetingLocaleKey
                                 );

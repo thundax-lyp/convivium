@@ -5,6 +5,7 @@ import { MeetingViewSchema } from "@/protocol/meeting-view.ts";
 import {
     type TimelineNode,
     buildTimelineNodes,
+    buildTimelineBlocks,
     filterTimelineNodes,
     resolveTimelineNodeContent
 } from "@/client/meeting/regions/workspace/timeline/projection.ts";
@@ -53,6 +54,13 @@ const ended = (
 });
 const groupsFor = (events: MeetingEventView[]) =>
     groupTimelineMilestones(buildTimelineNodes(eventTimelineFixture(events)));
+
+it("keeps meeting start first when later events have earlier timestamps", () => {
+    const view = eventTimelineFixture();
+    view.timelineEvents![0]!.occurredAt = 1000;
+    const groups = groupTimelineMilestones(buildTimelineNodes(view));
+    expect(groups[0]!.kind).toBe("meeting_start");
+});
 
 describe("Timeline event milestone grouping", () => {
     it("keeps publication's subsequent formal message in its round", () => {
@@ -116,41 +124,60 @@ describe("Timeline event milestone grouping", () => {
         view.timelineEvents!.push(message);
         const groups = groupTimelineMilestones(buildTimelineNodes(view));
         expect(groups.find((group) => group.kind === "round")?.eventKeys).not.toContain("event:7");
-        expect(groups.find((group) => group.kind === "other")?.eventKeys).toEqual(["event:7"]);
+        expect(
+            buildTimelineBlocks(buildTimelineNodes(view), groups)
+                .filter((block) => !block.group)
+                .flatMap((block) => block.members.map(({ node }) => node.key))
+        ).toEqual(["event:7"]);
     });
 
-    it("reuses active convergence, closes without completion and numbers a later entry independently", () => {
-        const groups = groupsFor([
-            plan(1),
-            lifecycle(2, "running", "converging"),
-            lifecycle(3, "paused", "converging"),
-            lifecycle(4, "converging", "running"),
-            lifecycle(5, "running", "converging"),
-            plan(6)
+    it("retains unbound planning and lifecycle events as ordinary cards", () => {
+        const groups = groupsFor([plan(1), lifecycle(2, "running", "converging"), plan(3)]);
+        expect(groups).toEqual([]);
+        const view = eventTimelineFixture();
+        view.timelineEvents = [plan(1), lifecycle(2, "running", "converging"), plan(3)];
+        expect(
+            buildTimelineBlocks(buildTimelineNodes(view), groups).flatMap((block) =>
+                block.members.map(({ node }) => node.key)
+            )
+        ).toEqual(["event:1", "event:2", "event:3"]);
+    });
+
+    it("assigns planning events only through an explicit unique round relation", () => {
+        const view = eventTimelineFixture();
+        view.timelineEvents = [
+            view.timelineEvents![1]!,
+            {
+                ...plan(3),
+                relatedObjects: [{ kind: "round", id: "round-1" }]
+            },
+            plan(4)
+        ];
+        const groups = groupTimelineMilestones(buildTimelineNodes(view));
+        expect(groups.find((group) => group.kind === "round")?.eventKeys).toEqual([
+            "event:2",
+            "event:3"
         ]);
-        expect(groups.map((group) => [group.key, group.status, group.eventKeys])).toEqual([
-            ["milestone:convergence:1", "completed", ["event:1", "event:2", "event:3", "event:4"]],
-            ["milestone:convergence:2", "active", ["event:5", "event:6"]]
-        ]);
-        expect(groups[0]).toMatchObject({ startedAt: 10, completedAt: 40 });
+        expect(
+            buildTimelineBlocks(buildTimelineNodes(view), groups)
+                .filter((block) => !block.group)
+                .flatMap((block) => block.members.map(({ node }) => node.key))
+        ).toEqual(["event:4"]);
     });
 
     it.each(["paused", "running"] as const)(
-        "assigns the leaving boundary only to completion and closes both instances for %s",
+        "assigns the leaving boundary only to completion and closes the completion instance for %s",
         (to) => {
             const groups = groupsFor([
                 lifecycle(1, "running", "converging"),
                 completion(2),
                 lifecycle(3, "converging", to)
             ]);
-            expect(groups.map((group) => group.eventKeys)).toEqual([
-                ["event:1"],
-                ["event:2", "event:3"]
-            ]);
+            expect(groups.map((group) => group.eventKeys)).toEqual([["event:2", "event:3"]]);
             expect(groups.map((group) => group.status)).toEqual(
-                to === "paused" ? ["blocked", "blocked"] : ["completed", "completed"]
+                to === "paused" ? ["blocked"] : ["completed"]
             );
-            expect(groups.map((group) => group.completedAt)).toEqual([30, 30]);
+            expect(groups.map((group) => group.completedAt)).toEqual([30]);
         }
     );
 
@@ -175,22 +202,20 @@ describe("Timeline event milestone grouping", () => {
                     data: { status: "complete" }
                 }
             ]);
-            expect(groups.slice(0, 2).map((group) => group.status)).toEqual(
-                outcome === "completed" ? ["completed", "completed"] : ["aborted", "aborted"]
-            );
-            expect(groups[2]).toMatchObject({
+            expect(groups[0]?.status).toBe(outcome === "completed" ? "completed" : "aborted");
+            expect(groups[1]).toMatchObject({
                 key: "milestone:closure:1",
                 status: "completed",
                 completedAt: 60,
                 eventKeys: ["event:4", "event:5", "event:6"]
             });
-            expect(groups[1]?.eventKeys).toEqual(["event:2", "event:3"]);
-            expect(groups.slice(0, 2).map((group) => group.completedAt)).toEqual([30, 30]);
-            expect(new Set(groups.flatMap((group) => group.eventKeys)).size).toBe(6);
+            expect(groups[0]?.eventKeys).toEqual(["event:2", "event:3"]);
+            expect(groups.map((group) => group.completedAt)).toEqual([30, 60]);
+            expect(new Set(groups.flatMap((group) => group.eventKeys)).size).toBe(5);
         }
     );
 
-    it("omits empty internal convergence and preserves shared occurrence across later stages", () => {
+    it("numbers separate completion instances while retaining unbound plans", () => {
         const groups = groupsFor([
             completion(1),
             lifecycle(2, "converging", "paused"),
@@ -199,12 +224,11 @@ describe("Timeline event milestone grouping", () => {
         ]);
         expect(groups.map((group) => [group.key, group.status])).toEqual([
             ["milestone:completion:1", "blocked"],
-            ["milestone:convergence:2", "active"],
             ["milestone:completion:2", "active"]
         ]);
     });
 
-    it("uses other for absent or ambiguous round relations and never guesses from current DTOs", () => {
+    it("keeps ordinary cards for absent or ambiguous round relations and never guesses from current DTOs", () => {
         const view = eventTimelineFixture();
         view.timelineEvents = [
             view.timelineEvents![2]!,
@@ -215,9 +239,12 @@ describe("Timeline event milestone grouping", () => {
                 data: { status: "complete" }
             }
         ];
-        expect(groupsFor(view.timelineEvents).map((group) => [group.key, group.eventKeys])).toEqual(
-            [["milestone:other:1", ["event:3", "event:7"]]]
-        );
+        expect(groupsFor(view.timelineEvents)).toEqual([]);
+        expect(
+            buildTimelineBlocks(buildTimelineNodes(view), []).flatMap((block) =>
+                block.members.map(({ node }) => node.key)
+            )
+        ).toEqual(["event:3", "event:7"]);
     });
     it("uses only events, sorts ties by sequence and preserves immutable content", () => {
         const view = eventTimelineFixture();

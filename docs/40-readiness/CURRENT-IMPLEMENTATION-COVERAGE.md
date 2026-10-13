@@ -347,6 +347,12 @@ T7 最终 `pnpm verify` 再次通过（102 files/960 tests，以及 format/lint/
 
 相关依据：[Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
 
+### 2026-10-13：里程碑横条与收敛分组退役
+
+范围为 `codex/timeline-ui-optimization` 本次工作区。里程碑改为主轴上的全宽低高度浅背景横条，会议启动固定首位且上方无线；仅同名多实例显示序号，会议启动省略状态。删除 convergence 分组与其本地化标签，主持计划、决策与风险处置按唯一明确轮次关联归组，无关联或歧义进入 other，保留原始事件和 completion/closure 语义。
+
+Executed Validation：两份 timeline Client spec 共 35 项通过，受影响 ESLint、格式、文档链接及源码构建通过；固定人工安装根刷新重启后，Browser 读取同一归档 fixture，完整时间线仍含 62 个节点，分组由 7 个变为 6 个，没有方案收敛。截图保存在仓库外。Not Covered：完整测试套件、远端 CI、暗色主题及完整业务冒烟；仅验证本次展示与分组。
+
 ### 2026-10-13：时间线筛选展开与收起
 
 范围为 `codex/timeline-ui-optimization` 的本次工作区改动。默认只展示参与者筛选；展开后显示内容类型与事件，收起保留条件和过滤结果，各分类标签用于清除本组筛选。展开状态为 Client 局部状态，不写入领域或持久存储。筛选行使用对齐的加粗可点击标签与可换行选项，标签只清除本分类；选项使用间隔与小圆角边框，展开控制为链接式文字。
@@ -358,3 +364,15 @@ Executed Validation：`pnpm --dir plugin exec vitest run --project client tests/
 后续同日调整与验证：筛选标签改为“角色 / 类型”，标签列进一步缩为 44px；删除全局清除按钮，只通过分类标签清除；分类标签按是否有选择展示不同状态，未选选项不显示边框和背景。展开/收起在所有视口均与首排选项对齐，固定于筛选区右上。11 项 Client 回归、Client typecheck、受影响 ESLint 与文档链接检查通过；刷新固定人工安装并在桌面及 520px 窄屏截图确认布局、选项与分类标签选中状态，无重叠。前段关于全局清除按钮及 76px 列宽的描述是本次调整前验证。
 
 Not Covered：完整测试套件、远端 CI、其它浏览器与暗色主题；本次只验收筛选交互与视觉，不代表完整业务人工冒烟通过。
+
+### 2026-10-13：移除未归属事件里程碑
+
+未归属事件不再展示“其他已发生事件”标题与状态，事件各自作为普通卡片按事件时间排列，保留明确轮次关联的既有归属。时间线交互测试 13 项通过，新增场景验证未归属事实仍可见、无兜底里程碑标题及卡片顺序。
+
+### 2026-10-13：里程碑标题不提前展示状态
+
+轮次横框显示“第 {n} 轮”/“Round {n}”，所有里程碑横框移除状态，其他同名里程碑重复时保留序号。完成与中止仍由事件卡片表达，内部归属与状态元数据保持。时间线交互测试 13 项通过，插件构建通过。
+
+### 2026-10-13：数据阶段生成交错布局
+
+移除 other 里程碑数据，未归属事件直接生成普通展示块。展示数据统一确定卡片顺序和 side；每个真实里程碑从左侧开始，轮次开启计入左右交替，普通卡片延续计数。键盘遍历采用同一展示顺序。投影和时间线交互测试合计 38 项通过，新增场景覆盖两个轮次的举手记录均位于右侧。

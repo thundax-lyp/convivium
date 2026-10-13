@@ -181,13 +181,7 @@ interface TimelineNode {
 ```ts
 interface TimelineMilestoneGroup {
   key: string;
-  kind:
-    | "meeting_start"
-    | "round"
-    | "convergence"
-    | "completion"
-    | "closure"
-    | "other";
+  kind: "meeting_start" | "round" | "completion" | "closure";
   occurrence: number;
   title: string;
   status: "active" | "completed" | "aborted" | "blocked";
@@ -197,20 +191,20 @@ interface TimelineMilestoneGroup {
 }
 ```
 
-`occurrence` 区分同类阶段的多次进入，只存在于 Client group。固定 key 为 `milestone:meeting-start:1`、`milestone:round:<roundId>`、`milestone:convergence:<occurrence>`、`milestone:completion:<occurrence>`、`milestone:closure:1` 和 `milestone:other:1`。meeting-start、closure、other 的 occurrence 为 1；round occurrence 是 `round.opened` 按 `eventSeq` 出现的序号；convergence 与其 completion 共用从 1 开始的 occurrence。没有事件节点的内部实例不输出 group。
+`occurrence` 区分同类阶段的多次进入，只存在于 Client group。固定 key 为 `milestone:meeting-start:1`、`milestone:round:<roundId>`、`milestone:completion:<occurrence>`、`milestone:closure:1`。meeting-start、closure 的 occurrence 为 1；round occurrence 是 `round.opened` 按 `eventSeq` 出现的序号；completion 的每个独立实例从 1 开始递增 occurrence。没有事件节点的内部实例不输出 group。
 
 分组器先对完整、未经过详情开关或显式筛选的 event nodes 按 `eventSeq` 执行以下确定性 reducer，再对每组节点应用可见性筛选；筛选不得改变 group key、occurrence、status、startedAt 或 completedAt，筛选后没有可见节点的 group 不渲染。摘要只能读取筛选后仍可见的节点。
 
 1. `meeting.created` 建立并完成 meeting-start，且该事件归入该组。
-2. `round.opened` 建立对应 round group；后续只有 subject 或 relation 明确指向该 round ID 的 round 类事件才能进入。`round.published` 将其完成，`round.aborted` 将其中止；找不到已建立 round group 时进入 other，不补建或回填历史 round。
-3. 扫描到 `meeting.lifecycle_changed` 且 `to="converging"` 时，若当前没有活动 convergence，则 occurrence 加一并建立该 convergence；该 lifecycle event 归入 convergence。已经存在活动 convergence 时不递增 occurrence。
-4. 扫描到 convergence 类事件且没有活动 convergence 时，occurrence 加一并建立 convergence；该事件归入当前 convergence。扫描到 completion 类事件时，若没有活动 convergence，则 occurrence 加一并建立无节点的内部 convergence，再建立同 occurrence 的 completion；该事件只归入 completion。没有事件节点的内部 convergence 不输出空 group。
-5. 扫描到 `meeting.lifecycle_changed` 且 `from="converging"`、`to!=="converging"` 时，它归入同 occurrence 已存在的 completion，否则归入 convergence。`to="terminal"` 时保留活动实例，由同次提交后续的 `meeting.ended` 按 outcome 关闭，不提前推断阶段完成；其它目标同时关闭活动 convergence 和 completion，`to="paused"` 时状态为 `blocked`，其余为 `completed`，`completedAt` 取 lifecycle event 的 `occurredAt`。关闭后清除活动实例，下一次进入重新递增 occurrence。
-6. `meeting.ended` 先关闭仍活动的 convergence/completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时进入 other。`archive.completed` 完成 closure。
-7. 唯一的已关闭 round 归组例外：`formal_message.published` 的 typed relations 必须唯一指向一个已扫描的 `round.published` subject publication 和它所属的 round，且两条事件的 `meetingVersion` 相同；该正式消息仍归入原 round，但不得修改其 occurrence、status 或 completedAt。仅凭 round ID、时间相同或相邻 seq 不满足此例外；不同提交、publication 关联缺失或冲突时进入 other。
-8. 未命中上述唯一规则的事件进入 other。除第 7 条的同次 publication 正式消息外，已经关闭的里程碑保持不变，不把后续事件回填为其历史。
+2. `round.opened` 建立对应 round group；后续只有 subject 或 relation 明确指向该 round ID 的 round 类事件才能进入。`round.published` 将其完成，`round.aborted` 将其中止；找不到已建立 round group 时作为未归属普通卡片，不补建或回填历史 round。
+3. 不建立 convergence 分组。主持计划、Question/Issue/Risk 处置与 Decision 事件仅在存在唯一明确 round 关联且该 round 已建立时归入该轮次，包括已经结束的轮次；无关联或关联歧义时作为未归属普通卡片，不按时间或文本猜测。
+4. completion 类事件建立或复用当前 completion，新的独立实例递增 occurrence；不创建内部 convergence。
+5. `meeting.lifecycle_changed` 离开 converging 时，有当前 completion 则归入它；目标非 terminal 时按 paused → blocked、其它 → completed 关闭并清除当前 completion。无 completion 时事件作为未归属普通卡片。目标 terminal 的 completion 留待 meeting.ended 关闭。
+6. `meeting.ended` 先关闭仍活动的 completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时作为未归属普通卡片。`archive.completed` 完成 closure。
+7. 已关闭 round 的正式消息归组例外：`formal_message.published` 的 typed relations 必须唯一指向一个已扫描的 `round.published` subject publication 和它所属的 round，且两条事件的 `meetingVersion` 相同；该正式消息仍归入原 round，但不得修改其 occurrence、status 或 completedAt。仅凭 round ID、时间相同或相邻 seq 不满足此例外；不同提交、publication 关联缺失或冲突时作为未归属普通卡片。
+8. 未命中上述唯一规则的事件作为未归属普通卡片。除第 3 条的明确轮次关联协调事件及第 7 条的同次 publication 正式消息外，已经关闭的里程碑保持不变，不把后续事件回填为其历史。
 
-状态只从上述明确事件派生：meeting-start 当场完成；round 为 active/completed/aborted；convergence 与 completion 为 active/completed/aborted/blocked；closure 为 active/completed；other 保持 active。`startedAt` 取该组首个实际成员的 `occurredAt`，`completedAt` 只取明确关闭事件。不得根据沉默、时间间隔、当前 DTO 状态或下一组已经出现推断本组完成。
+状态只从上述明确事件派生：meeting-start 当场完成；round 为 active/completed/aborted；completion 为 active/completed/aborted/blocked；closure 为 active/completed。`startedAt` 取该组首个实际成员的 `occurredAt`，`completedAt` 只取明确关闭事件。不得根据沉默、时间间隔、当前 DTO 状态或下一组已经出现推断本组完成。
 
 默认分组承担以下用户叙事：
 
@@ -218,25 +212,23 @@ interface TimelineMilestoneGroup {
 | -------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | 会议启动       | 创建或启动、目标或范围确认、准备失败                                    | 身份推荐、准入和其它准备过程                                         |
 | 议题与证据轮次 | 轮次开启、证据提交、审核完成或失败、审核送达失败、Publication、轮次中止 | opportunity request、举手、拒绝、未回应、Contribution 处置、送达成功 |
-| 方案收敛       | Question/Issue/Risk 处置、Decision 形成、替代或撤销                     | ManagerPlan、ProposalRevision、Position、DecisionCandidate           |
 | 完成判定       | CompletionFact 形成、替代或撤销，影响完成判定的未解决事项               | 支撑完成判断的普通正式消息和任务过程                                 |
 | 结束与归档     | Termination、异常取消、Archive 完成                                     | 正常关闭过程和可复用材料关联                                         |
-| 其他已发生事件 | 无法可靠归属但默认必须可见的关键事件                                    | 无法可靠归属的普通过程事件                                           |
 
-所有 caller-visible 事件默认展示，不提供“显示过程细节”开关；正文详情可展开，显式筛选可缩小范围。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
+所有 caller-visible 事件默认展示，不提供“显示过程细节”开关；正文详情可展开，显式筛选可缩小范围。Contribution 执行失败、轮次中止、审核失败或送达失败等具有明确已发生时间且会影响推进的异常不得因属于过程类型而被隐藏；当前 `TaskView` 不提供失败或阻塞状态及发生时间，Client 不据此构造任务异常。里程碑以居中压在时间线主轴上的全宽、低高度且带浅背景的横向宽条展示阶段标题；仅完整事件序列中存在多个同名里程碑时显示序号，筛选不改变该判断。所有里程碑横框均不展示状态；不以外围边框或背景包住整组事件。阶段内事件卡片仍沿主轴左右排列，会议启动固定为首个里程碑，主轴不向其上方延伸；其余阶段保持既有排序，阶段分组与筛选语义不变。阶段标题不重复充当事件卡片；活动里程碑默认展开，完成的历史里程碑可以折叠为只使用组内可见事实生成的摘要。
 
-事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时进入 `other`，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。
+事件归组先使用事件的 `subject.kind`、`kind` 和带类型 `relatedObjects`；关联不足时作为未归属普通卡片，不得按时间接近、文本相似、身份相同或业务常识猜测。一个 `TimelineNode` 只有一个主里程碑；它与其它阶段的显式关系只用于筛选、高亮和定位，不复制节点。`startedAt` 取组内最早节点的时间，只作为展示排序依据，不宣称领域阶段在该时刻开始；会议启动固定首位，其余里程碑组按 `startedAt` 排列，组内继续使用 `time → eventSeq`。分组后的 DOM 阅读和键盘遍历顺序与该展示顺序一致。
 
-| 事件 kind                                                                                                                                                                            | 主分组                                                   | 默认可见性                            |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------- |
-| `meeting.created`                                                                                                                                                                    | `meeting_start`                                          | 默认展示 |
-| `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                       | 默认展示 |
-| `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                       | 默认展示 |
-| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 当前 `convergence`；没有活动实例时新建                   | 默认展示 |
-| `completion_fact.recorded`、`completion_fact.changed`                                                                                                                                | 当前 `completion`；没有活动实例时随当前 convergence 建立 | 关键                                  |
-| `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                                | 默认展示 |
-| `identity.recommended`、`identity.admission_recorded`                                                                                                                                | `other`                                                  | 默认展示 |
-| `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | `other`                                                  | 关键状态变化                          |
+| 事件 kind                                                                                                                                                                            | 主分组                                                 | 默认可见性   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------ |
+| `meeting.created`                                                                                                                                                                    | `meeting_start`                                        | 默认展示     |
+| `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                     | 默认展示     |
+| `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                     | 默认展示     |
+| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 唯一明确关联的 round；无关联或歧义时作为未归属普通卡片 | 默认展示     |
+| `completion_fact.recorded`、`completion_fact.changed`                                                                                                                                | 当前 `completion`；没有活动实例时建立                  | 关键         |
+| `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                              | 默认展示     |
+| `identity.recommended`、`identity.admission_recorded`                                                                                                                                | 未归属普通卡片                                         | 默认展示     |
+| `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | 未归属普通卡片                                         | 关键状态变化 |
 
 活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
 
@@ -244,7 +236,7 @@ Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromL
 
 lane 只从事件 `actor` 派生：`captain` 固定为 Captain，`system` 固定为系统，`identity` 使用同一 view 的 `IdentityView.roles`；identity 同时具有多个角色且事件 kind 不能唯一确定行为角色时使用系统 lane，但仍显示该 `displayName`。关联身份、assignee 与业务常识不能替代 actor。角色和状态不只用颜色表示。
 
-时间线提供 参与者、object type 和事件 kind 筛选，以及滚动。全部事件默认展示遵循 MO-FR-17.19；显式筛选显示匹配的事件。卡片左右交错，`round.opened` 固定在左侧且不消耗交替序号；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
+时间线提供 参与者、object type 和事件 kind 筛选，以及滚动。全部事件默认展示遵循 MO-FR-17.19；显式筛选显示匹配的事件。卡片左右交错，每个真实里程碑首张可见卡片从左侧开始，`round.opened` 参与交替计数；里程碑背景由事件 kind 与 occurrence data 派生，正文使用原生 details 展开。筛选只处理 caller-filtered 节点；空结果使用不披露隐藏对象的中性文案。当前不实现全文搜索、额外 event ID 或因果推断。
 
 ### 模式定位、响应式与失败
 
@@ -287,3 +279,13 @@ DSH 接受输入、Session 投递成功、Agent 执行完成和 Meeting 事实�
 7. 切换 Meeting、补读后选中项消失、详情失败和断线分别按 Meetings Workspace 状态规则处理，不发生隐式改选或跨 Meeting 本地状态泄漏。
 8. 活动与归档 Timeline 分别只从其允许的 caller-filtered 数据源确定性生成节点；身份角色、系统角色、多 phase、筛选与定位不生成新事实或泄露隐藏对象。
 9. 宽屏侧栏与窄屏抽屉共享选择状态；左右交错卡片、角色标识、键盘顺序、焦点、本地化和颜色之外的状态表达通过 Client 与真实 DSH Web 验证。
+
+未归属事件保留为无标题、无状态的普通时间线卡片，不展示“其他已发生事件”里程碑横框。每张未归属卡片按自身事件时间与真实里程碑块排列，会议启动仍置顶；未归属事件不创建里程碑 group，也不按时间邻近归入轮次。
+
+轮次开始处横框仅显示“第 {n} 轮”（英文 Round {n}），其中 n 为该轮次序号，即使只有一轮也显示序号；不在轮次开始处显示最终状态。轮次发布、轮次中止由对应时间位置的事件卡片表达，内部完成状态与筛选归属不变。
+
+所有里程碑横框均不展示状态，避免将最终状态提前展示为当前时间点的事实。非轮次里程碑仅同名重复时展示序号；内部状态仍保留用于既有归属逻辑，完成、中止等事实由对应事件卡片表达。
+
+事件卡片默认使用 -64px margin-top，向上错开形成左右交错感；真实里程碑横框下的首张事件卡片 margin-top 为 0，无里程碑标题的普通卡片仍保留负顶部间距。
+
+Client 先生成展示块和左右位置，再渲染：未归属事件直接输出普通卡片，不创建 other 里程碑；每个真实里程碑首张卡片为左侧，其后按可见卡片顺序左、右交替，轮次开启也计入交替计数，普通卡片延续当前计数。

@@ -82,19 +82,44 @@
     overflow: auto;
 }
 .group {
-    margin-block: 16px;
-    padding: 12px;
-    border: 1px solid var(--dsw-alias-border-l2);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
+    position: relative;
+    padding-block: 16px;
+}
+.group::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 50%;
+    border-left: 2px solid var(--dsw-alias-border-l2);
+    transform: translateX(-50%);
+}
+.group:first-child::before {
+    top: 32px;
+}
+.group:first-child {
+    padding-top: 0;
 }
 .group h3 {
-    margin-block: 0 8px;
-    font-size: 14px;
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0 auto 12px;
+    padding: 5px 12px;
+    border: 0.5px solid var(--dsw-alias-border-l3);
+    border-radius: var(--dsw-radius-sm);
+    background:
+        linear-gradient(
+            var(--dsw-alias-interactive-bg-hover),
+            var(--dsw-alias-interactive-bg-hover)
+        ),
+        var(--dsw-alias-bg-layer-1);
+    text-align: center;
+    font-size: 13px;
+    line-height: 20px;
 }
-.group[data-group-status="blocked"],
-.group[data-group-status="aborted"] {
-    border-width: 2px;
+.group[data-group-status="blocked"] h3,
+.group[data-group-status="aborted"] h3 {
+    border-color: var(--dsw-alias-label-secondary);
 }
 .grid {
     position: relative;
@@ -103,15 +128,10 @@
     row-gap: 20px;
     padding-block: 12px;
 }
-.grid::before {
-    content: "";
-    position: absolute;
-    inset-block: 12px;
-    left: 50%;
-    border-left: 2px solid var(--dsw-alias-border-l2);
-    transform: translateX(-50%);
-}
 .node {
+    margin-top: -64px;
+    font-size: 13px;
+    line-height: 20px;
     position: relative;
     grid-column: 1;
     min-width: 0;
@@ -119,6 +139,9 @@
     border: 1px solid var(--dsw-alias-border-l2);
     border-radius: 12px;
     overflow-wrap: anywhere;
+}
+.group:not([data-ungrouped="true"]) .node:first-child {
+    margin-top: 0;
 }
 .node[data-side="right"] {
     grid-column: 3;
@@ -162,10 +185,17 @@
     margin-top: 8px;
 }
 @media (max-width: 560px) {
-    .grid {
+    .group {
         min-width: 440px;
     }
     .node {
         padding: 10px;
     }
+}
+
+.group[data-ungrouped="true"] {
+    padding-block: 0;
+}
+.group[data-ungrouped="true"]::before {
+    top: 0;
 }

@@ -124,7 +124,7 @@ export const buildTimelineNodes = (view: MeetingView): readonly TimelineNode[] =
 
 export interface TimelineMilestoneGroup {
     key: string;
-    kind: "meeting_start" | "round" | "convergence" | "completion" | "closure" | "other";
+    kind: "meeting_start" | "round" | "completion" | "closure";
     occurrence: number;
     title: string;
     status: "active" | "completed" | "aborted" | "blocked";
@@ -149,7 +149,7 @@ const roundEvents = new Set<MeetingEventView["kind"]>([
     "evidence_review.claimed",
     "evidence_validation.failed"
 ]);
-const convergenceEvents = new Set<MeetingEventView["kind"]>([
+const coordinationEvents = new Set<MeetingEventView["kind"]>([
     "manager_plan.recorded",
     "question.disposed",
     "issue.disposed",
@@ -164,10 +164,8 @@ export const groupTimelineMilestones = (
     const groups: TimelineMilestoneGroup[] = [];
     const rounds = new Map<string, TimelineMilestoneGroup>();
     const publications = new Map<string, { roundId: string; meetingVersion: number }>();
-    let convergence: TimelineMilestoneGroup | undefined;
     let completion: TimelineMilestoneGroup | undefined;
     let closure: TimelineMilestoneGroup | undefined;
-    let other: TimelineMilestoneGroup | undefined;
     let occurrence = 0;
     let roundOccurrence = 0;
     const create = (
@@ -187,18 +185,6 @@ export const groupTimelineMilestones = (
         };
         groups.push(group);
         return group;
-    };
-    const enterConvergence = (time: number): TimelineMilestoneGroup => {
-        if (!convergence) {
-            occurrence += 1;
-            convergence = create(
-                "convergence",
-                `milestone:convergence:${occurrence}`,
-                occurrence,
-                time
-            );
-        }
-        return convergence;
     };
     const close = (
         group: TimelineMilestoneGroup | undefined,
@@ -231,7 +217,10 @@ export const groupTimelineMilestones = (
         ];
         const publication =
             publicationIds.length === 1 ? publications.get(publicationIds[0]!) : undefined;
-        if (candidate?.status === "active") {
+        if (
+            candidate &&
+            (candidate.status === "active" || (kind !== undefined && coordinationEvents.has(kind)))
+        ) {
             group = candidate;
             if (kind === "round.published" || kind === "round.aborted") {
                 close(group, kind === "round.published" ? "completed" : "aborted", node.time);
@@ -271,28 +260,22 @@ export const groupTimelineMilestones = (
             group = resolveRoundGroup(node);
         } else if (
             kind === "meeting.lifecycle_changed" &&
-            "to" in data &&
-            data.to === "converging"
-        ) {
-            group = enterConvergence(node.time);
-        } else if (
-            kind === "meeting.lifecycle_changed" &&
             "from" in data &&
             data.from === "converging" &&
             data.to !== "converging"
         ) {
-            group = completion ?? convergence;
+            group = completion;
             if (data.to !== "terminal") {
                 const status = data.to === "paused" ? "blocked" : "completed";
-                close(convergence, status, node.time);
                 close(completion, status, node.time);
-                convergence = undefined;
                 completion = undefined;
             }
-        } else if (convergenceEvents.has(kind)) {
-            group = enterConvergence(node.time);
+        } else if (coordinationEvents.has(kind)) {
+            group = resolveRoundGroup(node);
         } else if (kind === "completion_fact.recorded" || kind === "completion_fact.changed") {
-            enterConvergence(node.time);
+            if (!completion) {
+                occurrence += 1;
+            }
             completion ??= create(
                 "completion",
                 `milestone:completion:${occurrence}`,
@@ -303,9 +286,7 @@ export const groupTimelineMilestones = (
         } else if (kind === "meeting.ended") {
             const status =
                 "outcome" in data && data.outcome === "completed" ? "completed" : "aborted";
-            close(convergence, status, node.time);
             close(completion, status, node.time);
-            convergence = undefined;
             completion = undefined;
             closure = create("closure", "milestone:closure:1", 1, node.time);
             group = closure;
@@ -316,8 +297,7 @@ export const groupTimelineMilestones = (
             }
         }
         if (group === undefined) {
-            other ??= create("other", "milestone:other:1", 1, node.time);
-            group = other;
+            continue;
         }
         group.startedAt =
             group.eventKeys.length === 0 ? node.time : Math.min(group.startedAt, node.time);
@@ -325,7 +305,57 @@ export const groupTimelineMilestones = (
     }
     return groups
         .filter((group) => group.eventKeys.length > 0)
-        .sort((a, b) => a.startedAt - b.startedAt);
+        .sort((a, b) =>
+            a.kind === "meeting_start" && b.kind !== "meeting_start"
+                ? -1
+                : b.kind === "meeting_start" && a.kind !== "meeting_start"
+                  ? 1
+                  : a.startedAt - b.startedAt
+        );
+};
+
+export const buildTimelineBlocks = (
+    nodes: readonly TimelineNode[],
+    groups: readonly TimelineMilestoneGroup[]
+): {
+    key: string;
+    group?: TimelineMilestoneGroup;
+    members: { node: TimelineNode; side: "left" | "right" }[];
+}[] => {
+    const assigned = new Set(groups.flatMap((group) => group.eventKeys));
+    const blocks = [
+        ...groups.map((group) => ({
+            key: group.key,
+            group,
+            time: group.startedAt,
+            nodes: nodes.filter((node) => group.eventKeys.includes(node.key))
+        })),
+        ...nodes
+            .filter((node) => !assigned.has(node.key))
+            .map((node) => ({ key: node.key, group: undefined, time: node.time, nodes: [node] }))
+    ]
+        .filter((block) => block.nodes.length > 0)
+        .sort((a, b) =>
+            a.group?.kind === "meeting_start" && b.group?.kind !== "meeting_start"
+                ? -1
+                : b.group?.kind === "meeting_start" && a.group?.kind !== "meeting_start"
+                  ? 1
+                  : a.time - b.time
+        );
+    let index = 0;
+    return blocks.map((block) => {
+        if (block.group) {
+            index = 0;
+        }
+        return {
+            key: block.key,
+            ...(block.group ? { group: block.group } : {}),
+            members: block.nodes.map((node) => ({
+                node,
+                side: index++ % 2 === 0 ? ("left" as const) : ("right" as const)
+            }))
+        };
+    });
 };
 
 const unique = <T>(items: readonly T[], predicate: (item: T) => boolean): T | undefined => {
