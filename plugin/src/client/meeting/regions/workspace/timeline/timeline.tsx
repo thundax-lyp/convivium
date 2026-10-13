@@ -340,7 +340,7 @@ const TimelineRoleIcon = ({ lane }: { lane: TimelineNode["lane"] }): ReactElemen
     <svg
         className={styles.roleIcon}
         data-role={lane}
-        viewBox={`${roleAvatarX[lane]} 125 430 430`}
+        viewBox={`${roleAvatarX[lane] + 18} 143 394 394`}
         aria-hidden="true"
         focusable="false"
     >
