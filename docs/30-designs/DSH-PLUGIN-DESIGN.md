@@ -24,6 +24,7 @@
 | 模块                    | 输入                                 | 输出                                       | 不变量                                 |
 | ----------------------- | ------------------------------------ | ------------------------------------------ | -------------------------------------- |
 | plugin/bootstrap        | Host lifecycle/capability registry   | Runtime、Tools、Remote factory             | 必需服务或版本缺失时不注册可写入口     |
+| role-skills             | 包内固定 Skill 名称                   | Definition 与持久化格式共享的名称集合      | 不引入 DSH 能力或文件系统依赖         |
 | role-composition        | 精确 Definition ID/version           | AGENTS/Preset/Skill 资源绑定、只读 Catalog | 不以当前默认版本或 displayName 回退    |
 | dsh/meeting-agent-owner | PreparedDescriptor、SessionOwnership | 平级 AgentHandle 创建、恢复、停止结果      | 一 Session 只属于一个 Meeting identity |
 | runtime/meeting-service | 可信 caller binding、MeetingCommand  | committed result、receipt、outbox          | 统一鉴权与领域转换                     |

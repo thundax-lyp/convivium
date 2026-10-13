@@ -1,4 +1,3 @@
-export { abilityNames } from "./abilities.ts";
 export {
     type EpochMs,
     type OpaqueId,

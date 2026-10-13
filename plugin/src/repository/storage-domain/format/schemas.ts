@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { abilityNames } from "@/domain/index.ts";
+import { abilityNames } from "@/role-skills/index.ts";
 import type {
     CommandAuthorization,
     CreateMeetingResult,

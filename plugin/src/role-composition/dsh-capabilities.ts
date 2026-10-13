@@ -7,8 +7,8 @@ import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
+import { abilityNames } from "@/role-skills/index.ts";
 import {
-    abilityNames,
     type AgentDefinitionBinding,
     type EffectiveAgentOptions,
     type MeetingAgentDefinition,

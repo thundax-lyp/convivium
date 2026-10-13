@@ -1,8 +1,6 @@
 import { z } from "zod";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
-import { abilityNames } from "@/domain/index.ts";
-
-export { abilityNames };
+import { abilityNames } from "@/role-skills/index.ts";
 
 const text = z.string().refine((value) => value.trim().length > 0);
 const names = z.array(text).refine((values) => new Set(values).size === values.length);
