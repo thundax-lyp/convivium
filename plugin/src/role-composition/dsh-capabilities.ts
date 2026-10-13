@@ -6,7 +6,7 @@ import type Skills from "@deepseek-ai/dsh-skill";
 import type { SkillViewOptions } from "@deepseek-ai/dsh-skill";
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import {
     abilityNames,
     type AgentDefinitionBinding,

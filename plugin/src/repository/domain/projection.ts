@@ -1,12 +1,12 @@
 import type { PreparedDescriptor } from "@/role-composition/index.ts";
 import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/index.ts";
-import { applyPatch } from "./json-patch.ts";
+import { applyPatch } from "@/utils/index.ts";
 import {
     decodeCanonicalJson,
     encodeCanonicalJson,
     sha256Hex,
     type JsonValue
-} from "./canonical-json.ts";
+} from "@/utils/index.ts";
 import { seqKey, type SeqKey } from "./keys.ts";
 import {
     CommitRecordSchema,

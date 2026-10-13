@@ -1,4 +1,4 @@
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import type { PreparedDescriptor } from "@/role-composition/model.ts";
 import type { SessionOwnershipInput } from "@/repository/types.ts";
 

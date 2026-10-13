@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import { generation, seqKey } from "@/repository/domain/keys.ts";
 import {
     createCommitRecord,

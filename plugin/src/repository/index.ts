@@ -1,6 +1,4 @@
 export {
-    encodeCanonicalJson,
-    sha256Hex,
     DomainRepositoryRegistry,
     meetingIdFor,
     decodeMeetingState,

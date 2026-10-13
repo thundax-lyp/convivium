@@ -1,6 +1,6 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { encodeCanonicalJson, sha256Hex } from "@/repository/index.ts";
+import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import type { EffectiveAgentOptions, MeetingAgentDefinition, ResourceBinding } from "./model.ts";
 import { definitionHash } from "./resolve.ts";
 

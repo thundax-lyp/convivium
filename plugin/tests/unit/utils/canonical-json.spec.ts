@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-    decodeCanonicalJson,
-    encodeCanonicalJson,
-    sha256Hex
-} from "@/repository/domain/canonical-json.ts";
-describe("domain canonical JSON", () => {
+import { decodeCanonicalJson, encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
+describe("canonical JSON", () => {
     it("sorts keys and produces a deterministic digest", () => {
         const bytes = encodeCanonicalJson({ b: 1, a: { d: true, c: null } });
         expect(new TextDecoder().decode(bytes)).toBe('{"a":{"c":null,"d":true},"b":1}');

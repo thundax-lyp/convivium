@@ -27,7 +27,7 @@ import {
 } from "./schemas.ts";
 import { decodeProjection, encodeProjection } from "./projection.ts";
 import { receiptKey, seqKey } from "./keys.ts";
-import { encodeCanonicalJson, type JsonValue } from "./canonical-json.ts";
+import { encodeCanonicalJson, type JsonValue } from "@/utils/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import { catalogKey } from "./keys.ts";
 import { purgeMeetingData } from "./meeting-data-deletion.ts";

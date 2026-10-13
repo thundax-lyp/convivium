@@ -9,7 +9,7 @@ import type {
     OutboxKind,
     SessionOwnership
 } from "@/repository/index.ts";
-import type { JsonValue } from "./canonical-json.ts";
+import type { JsonValue } from "@/utils/index.ts";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([

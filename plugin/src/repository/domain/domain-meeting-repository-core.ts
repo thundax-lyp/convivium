@@ -43,10 +43,10 @@ import {
     projectionDigest,
     UnsupportedMeetingStateFormatError
 } from "./projection.ts";
-import { diff } from "./json-patch.ts";
+import { diff } from "@/utils/index.ts";
 import { catalogKey, receiptKey, seqKey } from "./keys.ts";
 import { loadProjection } from "./projection.ts";
-import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.ts";
+import { decodeCanonicalJson, encodeCanonicalJson } from "@/utils/index.ts";
 import { RepositoryError } from "@/repository/index.ts";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
