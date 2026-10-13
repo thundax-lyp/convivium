@@ -161,7 +161,6 @@ const fixture = async (
         owner,
         registry,
         definitions,
-        initialContributorRoleIds: contributorRoles,
         packageRoot,
         cwd: packageRoot
     };
@@ -198,7 +197,7 @@ it("commits four peer bindings before factories and publishes only after all act
     }
 });
 
-it("creates only the contributor roles selected by configuration", async () => {
+it("creates only the contributor identities supplied by the adapter", async () => {
     const f = await fixture(-1, ["runtime_engineer"]);
     try {
         expect(await f.run()).toMatchObject({ kind: "accepted", meetingId: "meeting" });
@@ -206,6 +205,19 @@ it("creates only the contributor roles selected by configuration", async () => {
         expect(recovery.sessionOwnership).toHaveLength(3);
         expect(recovery.snapshot?.state.identities.map((identity) => identity.displayName)).toEqual(
             ["Meeting Manager", "Runtime Engineer", "Verification Reviewer"]
+        );
+    } finally {
+        await f.repository.close();
+    }
+});
+
+it("accepts a creation command with no contributor identities", async () => {
+    const f = await fixture(-1, []);
+    try {
+        expect(await f.run()).toMatchObject({ kind: "accepted", meetingId: "meeting" });
+        const recovery = await f.repository.recover();
+        expect(recovery.snapshot?.state.identities.map((identity) => identity.displayName)).toEqual(
+            ["Meeting Manager", "Verification Reviewer"]
         );
     } finally {
         await f.repository.close();

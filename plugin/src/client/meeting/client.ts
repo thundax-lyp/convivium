@@ -9,13 +9,13 @@ import {
 } from "@/protocol/index.ts";
 import type {} from "@convivium/dsh-plugin/remote";
 import {
+    CaptainMeetingCommandSchema,
     MeetingCommandResultSchema,
-    MeetingCommandSchema,
     MeetingListResultSchema,
     MeetingReadResultSchema,
     ReadMeetingRequestSchema,
     type MeetingCommandResult,
-    type MeetingCommand,
+    type CaptainMeetingCommand,
     type MeetingListResult,
     type MeetingReadResult,
     type ReadMeetingRequest,
@@ -49,7 +49,7 @@ export interface MeetingClient {
     ): Promise<DeleteMeetingResult>;
     list(signal?: AbortSignal): Promise<MeetingListResult>;
     read(request: ReadMeetingRequest, signal?: AbortSignal): Promise<MeetingReadResult>;
-    control(command: MeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
+    control(command: CaptainMeetingCommand, signal?: AbortSignal): Promise<MeetingCommandResult>;
     subscribeRefresh(callbacks: MeetingRefreshCallbacks): RemoteStream<RefreshNotice>;
 }
 
@@ -185,7 +185,7 @@ export const useMeetingSubmission = (
 ) => {
     const [pending, setPending] = useState(false);
     const [message, setMessage] = useState<string>();
-    const [uncertain, setUncertain] = useState<MeetingCommand>();
+    const [uncertain, setUncertain] = useState<CaptainMeetingCommand>();
     const inFlight = useRef(false);
     const generation = useRef(0);
     const edit = useCallback(() => {
@@ -193,7 +193,7 @@ export const useMeetingSubmission = (
         setUncertain(undefined);
         setMessage(undefined);
     }, []);
-    const send = async (command: MeetingCommand) => {
+    const send = async (command: CaptainMeetingCommand) => {
         if (disabled || inFlight.current) {
             return;
         }
@@ -250,11 +250,11 @@ export const useMeetingSubmission = (
         uncertain: uncertain !== undefined,
         edit,
         invalid: () => setMessage("invalid"),
-        submit: (meetingId: string, version: number, action: MeetingCommand["action"]) => {
+        submit: (meetingId: string, version: number, action: CaptainMeetingCommand["action"]) => {
             if (disabled || inFlight.current) {
                 return;
             }
-            const parsed = MeetingCommandSchema.safeParse({
+            const parsed = CaptainMeetingCommandSchema.safeParse({
                 protocolVersion: 1,
                 meetingId,
                 expectedMeetingVersion: version,

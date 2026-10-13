@@ -6,7 +6,7 @@
 
 ## Scope And Non-goals
 
-覆盖新会议按 Host 配置选择的初始身份与既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
+覆盖结构化 Captain 按显示名称选择可选初始 Contributor、Skill 按 Host 配置补齐默认 Contributor、既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
 
 ## Responsibilities And Dependencies
 
@@ -48,7 +48,7 @@ PreparedDescriptor 的 TTL 只限制首次 create/激活；active ownership 的�
 
 ## Captain, Caller And Audit
 
-Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Captain Agent 或原 Session 授权锁。结构化入口为 `plugin/src/remote/index.ts::ConviviumRemoteService.control` → `plugin/src/runtime/meeting-lifecycle.ts` 的 LocalMeetingWebRuntime.control → application。Remote 仍只在 webServer.host=127.0.0.1 时注册；来源固定 `{channel:"loopback_remote",principalId:"local-controller"}`。另有显式用户 Skill 入口：`/convivium <目标>` 的 `convivium_start_meeting` 只构造 CreateMeeting，经 LocalMeetingWebRuntime.startFromSkill 以 `{channel:"skill_invocation",principalId:"local-controller"}` 提交；`/convivium cancel <meetingId> <原因>` 的 `convivium_cancel_meeting` 只构造指定 Meeting 的 `cancelled` 终止命令，经 LocalMeetingWebRuntime.cancelFromSkill 使用同一 channel/principal。两项工具均只消费当前 turn 的直接用户输入的一次性授权，其余 Captain action 只经 Remote。两条创建路径使用相同版本/幂等/领域校验；start_archive 及归档结果由 runtime_recovery 执行。普通会议身份工具不获得 Captain 权限，旧 create tool 保持移除。入口参数与授权细节以 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#captain-control-surface) 为准。
+Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Captain Agent 或原 Session 授权锁。结构化入口为 `plugin/src/remote/index.ts::ConviviumRemoteService.control` → `plugin/src/runtime/meeting-lifecycle.ts` 的 LocalMeetingWebRuntime.control → application。Remote 仍只在 webServer.host=127.0.0.1 时注册；来源固定 `{channel:"loopback_remote",principalId:"local-controller"}`。结构化 `create_meeting` 只接收可选的 Contributor 角色显示名称列表（默认空），LocalMeetingWebRuntime 在 application 前解析 Definition，并补齐内部 Manager、Reviewer 与身份引用。另有显式用户 Skill 入口：`/convivium <目标>` 的 `convivium_start_meeting` 按 Host 默认角色直接构造内部 CreateMeeting，经 LocalMeetingWebRuntime.startFromSkill 以 `{channel:"skill_invocation",principalId:"local-controller"}` 提交；`/convivium cancel <meetingId> <原因>` 的 `convivium_cancel_meeting` 只构造指定 Meeting 的 `cancelled` 终止命令，经 LocalMeetingWebRuntime.cancelFromSkill 使用同一 channel/principal。两项工具均只消费当前 turn 的直接用户输入的一次性授权，其余 Captain action 只经 Remote。两条创建路径进入相同版本/幂等/领域校验；start_archive 及归档结果由 runtime_recovery 执行。普通会议身份工具不获得 Captain 权限，旧 create tool 保持移除。入口参数与授权细节以 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#captain-control-surface) 为准。
 
 `MeetingCommandExecutionContext` 删除 captainParent；创建从可信 adapter 得到 `creator:{kind:"local_user",principalId:"local-controller",sourceSessionId?:string}`。当前 Remote 和 Skill 均不填写 sourceSessionId；Skill 的输入 Session 与消息 ID 只用于当前 turn 的授权及 requestId 生成，不成为 Meeting 授权锁。`agent/pre-step` 仅识别直接用户来源且核对 `convivium` Skill 可由用户调用；授权在使用、turn 停止或用户换题后失效。Skill 创建与取消工具均无参数；创建的固定补齐字段与取消的目标、原因解析由 Meeting Interface 拥有，模型不能提交任意 Captain command。原 Session 关闭、重开面板、Host 重启均不影响当前本地用户控制。
 

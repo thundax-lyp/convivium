@@ -1,4 +1,5 @@
 import type {
+    CaptainMeetingCommand,
     MeetingCommandResult,
     MeetingCommand,
     MeetingListResult,
@@ -14,7 +15,7 @@ export interface LocalMeetingWebRuntime {
         request: { readonly protocolVersion: 1; readonly meetingId: string },
         signal: AbortSignal
     ): Promise<MeetingReadResult>;
-    control(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
+    control(command: CaptainMeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     startFromSkill(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     cancelFromSkill(command: MeetingCommand, signal: AbortSignal): Promise<MeetingCommandResult>;
     subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNotice>;

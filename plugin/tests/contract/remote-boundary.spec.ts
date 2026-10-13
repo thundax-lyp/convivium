@@ -62,7 +62,7 @@ describe("target Remote boundary", () => {
                     meetingId: "meeting-1",
                     expectedMeetingVersion: 1,
                     requestId: "request-1",
-                    action: { kind: "open_round", agendaId: "agenda-1", planId: "plan-1" }
+                    action: { kind: "decide", candidateId: "candidate-1" }
                 }
             })
         ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
@@ -106,7 +106,7 @@ import {
 import { StorageDomainRepositoryRegistry } from "@/repository/storage-domain/storage-domain-repository-registry.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
-it("routes all fourteen user controls through the application with a fixed trusted caller", async () => {
+it("routes Captain controls through the application with a fixed trusted caller", async () => {
     const registry = { listMeetings: vi.fn(() => []), openMeeting: vi.fn(), close: vi.fn() };
     const open = vi
         .spyOn(StorageDomainRepositoryRegistry, "open")
@@ -211,7 +211,7 @@ it("routes all fourteen user controls through the application with a fixed trust
             unresolvedIssueIds: []
         }
     );
-    actions.push({
+    const createAction = {
         kind: "create_meeting",
         objective: {
             statement: "goal",
@@ -220,23 +220,7 @@ it("routes all fourteen user controls through the application with a fixed trust
             hardConstraints: [],
             acceptableRiskLevel: "low"
         },
-        identities: roleResources.definitions.map((d) => ({
-            identityKey: d.roleDefinitionId,
-            displayName: d.displayName,
-            definitionId: d.agentDefinitionId,
-            roles: [
-                d.roleDefinitionId === "meeting_manager"
-                    ? "manager"
-                    : d.roleDefinitionId === "verification_reviewer"
-                      ? "evidence_reviewer"
-                      : "contributor"
-            ],
-            agendaResponsibilityIds: ["a"],
-            riskAuthority: false,
-            required: true
-        })),
-        managerIdentityKey: "meeting_manager",
-        evidenceReviewerIdentityKey: "verification_reviewer",
+        participantRoleNames: ["GitHub Research Analyst"],
         initialAgenda: [{ id: "a", title: "agenda", question: "question", requiredOutputIds: [] }],
         initialActiveAgendaId: "a",
         limits: {
@@ -245,7 +229,9 @@ it("routes all fourteen user controls through the application with a fixed trust
             taskDeadlineMs: 1000,
             reviewDeadlineMs: 1000
         }
-    });
+    } as const;
+    const { participantRoleNames: _participantRoleNames, ...createWithoutParticipants } =
+        createAction;
     try {
         for (const action of actions) {
             const command = {
@@ -266,7 +252,84 @@ it("routes all fourteen user controls through the application with a fixed trust
                 expect.any(AbortSignal)
             );
         }
-        expect(execute).toHaveBeenCalledTimes(14);
+        await expect(
+            gateway.invoke("control", {
+                command: {
+                    protocolVersion: 1,
+                    meetingId: "new",
+                    expectedMeetingVersion: 0,
+                    requestId: "create_meeting",
+                    action: createAction
+                }
+            })
+        ).resolves.toMatchObject({ kind: "accepted" });
+        expect(execute).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                action: expect.objectContaining({
+                    kind: "create_meeting",
+                    identities: [
+                        expect.objectContaining({
+                            displayName: "Meeting Manager",
+                            roles: ["manager"]
+                        }),
+                        expect.objectContaining({
+                            displayName: "GitHub Research Analyst",
+                            roles: ["contributor"]
+                        }),
+                        expect.objectContaining({
+                            displayName: "Verification Reviewer",
+                            roles: ["evidence_reviewer"]
+                        })
+                    ]
+                })
+            }),
+            {
+                caller: { channel: "loopback_remote", principalId: "local-controller" }
+            },
+            expect.any(AbortSignal)
+        );
+        await expect(
+            gateway.invoke("control", {
+                command: {
+                    protocolVersion: 1,
+                    meetingId: "new",
+                    expectedMeetingVersion: 0,
+                    requestId: "create-without-participants",
+                    action: createWithoutParticipants
+                }
+            })
+        ).resolves.toMatchObject({ kind: "accepted" });
+        expect(execute).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                action: expect.objectContaining({
+                    identities: [
+                        expect.objectContaining({ roles: ["manager"] }),
+                        expect.objectContaining({ roles: ["evidence_reviewer"] })
+                    ]
+                })
+            }),
+            expect.anything(),
+            expect.any(AbortSignal)
+        );
+        expect(execute).toHaveBeenCalledTimes(15);
+        await expect(
+            gateway.invoke("control", {
+                command: {
+                    protocolVersion: 1,
+                    meetingId: "new",
+                    expectedMeetingVersion: 0,
+                    requestId: "unknown-participant",
+                    action: {
+                        ...createWithoutParticipants,
+                        participantRoleNames: ["Unknown Role"]
+                    }
+                }
+            })
+        ).resolves.toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED" }
+        });
+        expect(execute).toHaveBeenCalledTimes(15);
         expect(registry.openMeeting).not.toHaveBeenCalled();
         await expect(
             gateway.invoke("control", { command: { action: { kind: "decide" } } })
@@ -281,8 +344,25 @@ it("routes all fourteen user controls through the application with a fixed trust
                     action: { kind: "raise_hand", roundId: "r", purpose: "speak" }
                 }
             })
-        ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
-        expect(execute).toHaveBeenCalledTimes(14);
+        ).rejects.toMatchObject({ code: "gateway/input-invalid" });
+        expect(execute).toHaveBeenCalledTimes(15);
+        await expect(
+            gateway.invoke("control", {
+                command: {
+                    protocolVersion: 1,
+                    meetingId: "new",
+                    expectedMeetingVersion: 0,
+                    requestId: "legacy-create",
+                    action: {
+                        ...createWithoutParticipants,
+                        identities: [],
+                        managerIdentityKey: "meeting_manager",
+                        evidenceReviewerIdentityKey: "verification_reviewer"
+                    }
+                }
+            })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
+        expect(execute).toHaveBeenCalledTimes(15);
     } finally {
         await gateway.dispose();
         await dispose();

@@ -72,14 +72,17 @@ export const parseAgentDefinitions = (value: unknown): readonly MeetingAgentDefi
     try {
         const parsed = z.array(definition).max(64).parse(value);
         const ids = new Set<string>();
+        const displayNames = new Set<string>();
         for (const item of parsed) {
             if (
                 ids.has(item.agentDefinitionId) ||
+                displayNames.has(item.displayName) ||
                 Buffer.byteLength(JSON.stringify(item), "utf8") > 16 * 1024
             ) {
                 throw new TypeError();
             }
             ids.add(item.agentDefinitionId);
+            displayNames.add(item.displayName);
             item.requiredSkillNames.sort();
             item.toolFilter?.allow?.sort();
             item.toolFilter?.deny?.sort();

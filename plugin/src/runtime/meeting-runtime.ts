@@ -6,11 +6,7 @@ import {
     resolveEffectiveAgentOptions,
     type MeetingAgentModelOverrides
 } from "@/role-composition/index.ts";
-import type {
-    ContributorRoleDefinitionId,
-    MeetingAgentDefinition,
-    PreparedDescriptor
-} from "@/role-composition/index.ts";
+import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
 import { definitionHash, RoleCompositionError } from "@/role-composition/index.ts";
 import { preflightMeetingIdentity } from "@/role-composition/index.ts";
 import { createMeeting, type MeetingState } from "@/domain/index.ts";
@@ -30,7 +26,6 @@ export interface TargetMeetingCreationDependencies {
     readonly registry: StorageDomainRepositoryRegistry<MeetingState>;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly agentModelOverrides?: MeetingAgentModelOverrides;
-    readonly initialContributorRoleIds: readonly ContributorRoleDefinitionId[];
     readonly ctx: Context;
     readonly owner: MeetingAgentOwner;
     readonly packageRoot: string;
@@ -135,17 +130,12 @@ const targetCreateState = (
 
 const assertInitialTargetIdentities = (
     command: CreateMeetingCommand,
-    definitions: readonly MeetingAgentDefinition[],
-    initialContributorRoleIds: readonly ContributorRoleDefinitionId[]
+    definitions: readonly MeetingAgentDefinition[]
 ): void => {
     const { action } = command;
-    const expectedCount = initialContributorRoleIds.length + 2;
-    if (action.identities.length !== expectedCount) {
-        throw new RoleCompositionError();
-    }
     const keys = new Set(action.identities.map((identity) => identity.identityKey));
     if (
-        keys.size !== expectedCount ||
+        keys.size !== action.identities.length ||
         action.managerIdentityKey === action.evidenceReviewerIdentityKey
     ) {
         throw new RoleCompositionError();
@@ -207,12 +197,7 @@ const assertInitialTargetIdentities = (
             throw new RoleCompositionError();
         }
     }
-    if (
-        managers !== 1 ||
-        reviewers !== 1 ||
-        contributors !== initialContributorRoleIds.length ||
-        initialContributorRoleIds.some((role) => !selectedRoles.has(role))
-    ) {
+    if (managers !== 1 || reviewers !== 1 || contributors !== action.identities.length - 2) {
         throw new RoleCompositionError();
     }
     for (const agenda of action.initialAgenda) {
@@ -341,11 +326,7 @@ export const createMeetingCreationCoordinator = (
                 }
             }
             try {
-                assertInitialTargetIdentities(
-                    command,
-                    dependencies.definitions,
-                    dependencies.initialContributorRoleIds
-                );
+                assertInitialTargetIdentities(command, dependencies.definitions);
             } catch (error) {
                 if (!(error instanceof RoleCompositionError)) {
                     throw error;

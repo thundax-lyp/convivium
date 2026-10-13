@@ -10,12 +10,17 @@ export {
     SubmitEvidenceReviewActionSchema,
     PublishRoundActionSchema,
     EndMeetingActionSchema,
+    CaptainCreateMeetingActionSchema,
+    CaptainMeetingActionSchema,
+    CaptainMeetingCommandSchema,
     MeetingCommandSchema,
     ListMeetingsRequestSchema,
     ReadMeetingRequestSchema,
     MeetingCommandResultSchema,
     type MeetingAction,
     type MeetingCommand,
+    type CaptainMeetingCommand,
+    type CaptainMeetingCommandInput,
     type ReadMeetingRequest,
     type MeetingCommandResult
 } from "./meeting-command.ts";
