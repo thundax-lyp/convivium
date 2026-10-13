@@ -4,7 +4,11 @@ import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
 import type { Config } from "@/index.ts";
 import type { MeetingState } from "@/domain/index.ts";
-import type { MeetingCommand, ReadMeetingRequest } from "@/protocol/index.ts";
+import type {
+    CaptainMeetingCommand,
+    MeetingCommand,
+    ReadMeetingRequest
+} from "@/protocol/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.ts";
 import { decodeMeetingState, encodeMeetingState } from "@/repository/index.ts";
@@ -37,6 +41,24 @@ import type { OutboxItem } from "@/repository/index.ts";
 import type { MeetingRepository } from "@/repository/index.ts";
 import { meetingDeletionStatus, deleteMeeting } from "./services/index.ts";
 import type { DeleteMeetingRequest } from "@/protocol/index.ts";
+import { resolveCaptainCommand } from "./captain-command.ts";
+
+const captainControlActions: ReadonlySet<string> = new Set([
+    "create_meeting",
+    "activate_agenda",
+    "dispose_agenda_candidate",
+    "resolve_question",
+    "dispose_issue",
+    "abort_round",
+    "decide",
+    "change_decision",
+    "dispose_risk",
+    "record_completion_fact",
+    "change_completion_fact",
+    "pause_meeting",
+    "resume_meeting",
+    "end_meeting"
+]);
 
 export const createTargetMeetingEffectDispatcher = (dependencies: {
     readonly identity: { dispatch(item: OutboxItem, signal: AbortSignal): Promise<void> };
@@ -700,7 +722,6 @@ export const activateTargetMeetingApplication = async (
             registry,
             definitions,
             agentModelOverrides: config.agentModelOverrides,
-            initialContributorRoleIds: config.initialContributorRoleIds,
             ctx,
             owner: agentOwner,
             packageRoot: rolePackageRoot,
@@ -785,25 +806,13 @@ export const activateTargetMeetingApplication = async (
             const eventLog = await repository.readCommittedEvents();
             return projectMeetingView(snapshot, { kind: "captain" }, undefined, eventLog.events);
         },
-        async control(command: MeetingCommand, signal: AbortSignal) {
-            if (
-                ![
-                    "create_meeting",
-                    "activate_agenda",
-                    "dispose_agenda_candidate",
-                    "resolve_question",
-                    "dispose_issue",
-                    "abort_round",
-                    "decide",
-                    "change_decision",
-                    "dispose_risk",
-                    "record_completion_fact",
-                    "change_completion_fact",
-                    "pause_meeting",
-                    "resume_meeting",
-                    "end_meeting"
-                ].includes(command.action.kind)
-            ) {
+        async control(command: CaptainMeetingCommand, signal: AbortSignal) {
+            const resolved = resolveCaptainCommand(command, definitions);
+            if (resolved.kind === "rejected") {
+                return resolved.result;
+            }
+            const internalCommand = resolved.command;
+            if (!captainControlActions.has(internalCommand.action.kind)) {
                 return MeetingCommandResultSchema.parse({
                     kind: "rejected",
                     error: {
@@ -813,7 +822,7 @@ export const activateTargetMeetingApplication = async (
                 });
             }
             const result = await application.execute(
-                command,
+                internalCommand,
                 {
                     caller: { channel: "loopback_remote", principalId: "local-controller" }
                 },

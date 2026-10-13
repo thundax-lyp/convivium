@@ -49,7 +49,7 @@ export class MeetingCreation<TState = JsonObject> {
                 Array.isArray(identities) &&
                 Array.isArray(ownerships) &&
                 Array.isArray(descriptors) &&
-                initialCount >= 3 &&
+                initialCount >= 2 &&
                 initialCount <= 7 &&
                 ownerships.length === initialCount &&
                 descriptors.length === initialCount &&

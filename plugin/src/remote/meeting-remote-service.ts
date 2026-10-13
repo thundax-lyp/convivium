@@ -5,10 +5,10 @@ import {
     MeetingCommandResultSchema,
     MeetingListResultSchema,
     MeetingReadResultSchema,
-    MeetingCommandSchema,
+    CaptainMeetingCommandSchema,
     ReadMeetingRequestSchema,
     RefreshNoticeSchema,
-    type MeetingCommand
+    type CaptainMeetingCommand
 } from "@/protocol/index.ts";
 import type { LocalMeetingWebRuntime } from "@/runtime/index.ts";
 import { DeleteMeetingRequestSchema, DeleteMeetingResultSchema } from "@/protocol/index.ts";
@@ -117,9 +117,9 @@ export class ConviviumRemoteService extends TypertRemoteService {
         signal: AbortSignal
     ): Promise<RemoteMeetingCommandResult> {
         signal.throwIfAborted();
-        let parsed: MeetingCommand;
+        let parsed: CaptainMeetingCommand;
         try {
-            parsed = MeetingCommandSchema.parse(command);
+            parsed = CaptainMeetingCommandSchema.parse(command);
         } catch (cause) {
             throw invalidRequest(cause);
         }

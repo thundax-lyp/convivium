@@ -24,6 +24,7 @@ const participant = {
     ...manager,
     agentDefinitionId: "participant",
     roleDefinitionId: "domain_architect",
+    displayName: "Participant",
     agentInstructions: { ...manager.agentInstructions, roleDefinitionId: "domain_architect" },
     requiredSkillNames: ["repository-analysis"],
     toolFilter: { deny: ["b", "a"] }
@@ -157,6 +158,9 @@ describe("meeting role definitions", () => {
     });
     it("rejects duplicates and excessive configuration and freezes snapshots", () => {
         expect(() => parseAgentDefinitions([manager, manager])).toThrow();
+        expect(() =>
+            parseAgentDefinitions([manager, { ...participant, displayName: manager.displayName }])
+        ).toThrow("Invalid meeting agent definitions.");
         expect(() => parseAgentDefinitions([{ ...manager, summary: "x".repeat(16384) }])).toThrow();
         expect(() =>
             parseAgentDefinitions(

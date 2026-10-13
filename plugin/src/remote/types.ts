@@ -1,5 +1,5 @@
 import type {
-    MeetingCommand,
+    CaptainMeetingCommandInput,
     MeetingCommandResult,
     MeetingListResult,
     MeetingReadResult,
@@ -19,7 +19,7 @@ export type RemoteJsonValue =
 
 export type RemoteMeetingListResult = MeetingListResult & Record<string, RemoteJsonValue>;
 export type RemoteMeetingReadResult = MeetingReadResult & Record<string, RemoteJsonValue>;
-export type RemoteMeetingCommand = MeetingCommand & Record<string, RemoteJsonValue>;
+export type RemoteMeetingCommand = CaptainMeetingCommandInput & Record<string, RemoteJsonValue>;
 export type RemoteMeetingCommandResult = MeetingCommandResult & Record<string, RemoteJsonValue>;
 export type RemoteReadMeetingRequest = {
     readonly protocolVersion: 1;

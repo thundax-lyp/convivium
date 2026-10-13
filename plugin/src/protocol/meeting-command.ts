@@ -58,6 +58,25 @@ export const CreateMeetingActionSchema = z.object({
     limits,
     continuation: continuation.optional()
 });
+const captainInitialAgenda = z.strictObject({
+    id,
+    title: text,
+    question: text,
+    requiredOutputIds: z.array(id),
+    ownerRoleName: text.optional()
+});
+export const CaptainCreateMeetingActionSchema = z.strictObject({
+    kind: z.literal("create_meeting"),
+    objective,
+    participantRoleNames: z
+        .array(text)
+        .refine((values) => new Set(values).size === values.length)
+        .default([]),
+    initialAgenda: z.array(captainInitialAgenda),
+    initialActiveAgendaId: id,
+    limits,
+    continuation: continuation.optional()
+});
 const evidenceText = z.object({ value: text, reason: text.optional() });
 const evidenceClaim = z.object({
     id,
@@ -296,6 +315,24 @@ export const ChangeCompletionFactActionSchema = z
         }
     });
 
+const captainActions = [
+    ActivateAgendaActionSchema,
+    DisposeAgendaCandidateActionSchema,
+    ResolveQuestionActionSchema,
+    DisposeIssueActionSchema,
+    AbortRoundActionSchema,
+    DecideActionSchema,
+    ChangeDecisionActionSchema,
+    DisposeRiskActionSchema,
+    RecordCompletionFactActionSchema,
+    ChangeCompletionFactActionSchema,
+    CaptainCreateMeetingActionSchema,
+    PauseMeetingActionSchema,
+    ResumeMeetingActionSchema,
+    EndMeetingActionSchema
+] as const;
+export const CaptainMeetingActionSchema = z.discriminatedUnion("kind", captainActions);
+
 const actions = [
     ActivateAgendaActionSchema,
     DisposeAgendaCandidateActionSchema,
@@ -409,6 +446,31 @@ export const MeetingCommandSchema = z
     });
 export type MeetingCommand = z.infer<typeof MeetingCommandSchema>;
 export type MeetingAction = z.infer<typeof MeetingActionSchema>;
+
+export const CaptainMeetingCommandSchema = z
+    .object({
+        protocolVersion: z.literal(1),
+        meetingId: nonEmpty,
+        expectedMeetingVersion: z.number().int().nonnegative().optional(),
+        requestId: nonEmpty,
+        action: CaptainMeetingActionSchema
+    })
+    .superRefine((value, ctx) => {
+        if (
+            value.action.kind === "create_meeting" &&
+            (value.meetingId !== "new" || value.expectedMeetingVersion !== 0)
+        ) {
+            ctx.addIssue({
+                code: "custom",
+                path: [value.meetingId !== "new" ? "meetingId" : "expectedMeetingVersion"]
+            });
+        }
+        if (value.action.kind !== "create_meeting" && value.expectedMeetingVersion === undefined) {
+            ctx.addIssue({ code: "custom", path: ["expectedMeetingVersion"] });
+        }
+    });
+export type CaptainMeetingCommand = z.infer<typeof CaptainMeetingCommandSchema>;
+export type CaptainMeetingCommandInput = z.input<typeof CaptainMeetingCommandSchema>;
 
 export const ListMeetingsRequestSchema = z.object({ protocolVersion: z.literal(1) });
 export type ListMeetingsRequest = z.infer<typeof ListMeetingsRequestSchema>;
