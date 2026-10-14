@@ -21,13 +21,6 @@ export type AgentNoticeEffectRequest =
     | (AgentNoticeEffectBase & { noticeKind: "meeting_started" })
     | (AgentNoticeEffectBase & { noticeKind: "agenda_stopped"; planId: OpaqueId })
     | (AgentNoticeEffectBase & { noticeKind: "round_opened"; roundId: OpaqueId })
-    | (AgentNoticeEffectBase & { noticeKind: "opportunity_request"; requestId: OpaqueId })
-    | (AgentNoticeEffectBase & {
-          noticeKind: "opportunity_disposition";
-          requestId: OpaqueId;
-          disposition: "rejected" | "deferred";
-          reason: string;
-      })
     | (AgentNoticeEffectBase & {
           noticeKind: "hand_request";
           requestKind: "initial";
@@ -61,13 +54,7 @@ export type AgentNoticeEffectRequest =
 export type MeetingDomainEffectRequest =
     | AgentNoticeEffectRequest
     | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
-    | { kind: "materialize_archive"; terminationId: OpaqueId }
-    | {
-          kind: "session_mail";
-          mailId: OpaqueId;
-          recipientId: OpaqueId;
-          contextPublicationUpperBound: readonly OpaqueId[];
-      };
+    | { kind: "materialize_archive"; terminationId: OpaqueId };
 
 export type MeetingTransitionResult =
     | {

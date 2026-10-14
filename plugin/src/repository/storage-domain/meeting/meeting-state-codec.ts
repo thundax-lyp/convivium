@@ -12,7 +12,6 @@ const fields = [
     "agenda",
     "agendaCandidates",
     "rounds",
-    "opportunityRequests",
     "pendingHandRaises",
     "contributions",
     "evidenceReviewerId",
@@ -31,7 +30,6 @@ const fields = [
     "issues",
     "riskDispositions",
     "managerPlans",
-    "privateMails",
     "completionFacts",
     "limits"
 ] as const;

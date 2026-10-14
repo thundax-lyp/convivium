@@ -212,7 +212,7 @@ interface TimelineMilestoneGroup {
 | 里程碑         | 默认关键事件                                                            | 可展开的过程细节                                                     |
 | -------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | 会议启动       | 创建或启动、目标或范围确认、准备失败                                    | 身份推荐、准入和其它准备过程                                         |
-| 议题与证据轮次 | 轮次开启、证据提交、审核完成或失败、审核送达失败、Publication、轮次中止 | opportunity request、举手、拒绝、未回应、Contribution 处置、送达成功 |
+| 议题与证据轮次 | 轮次开启、证据提交、审核完成或失败、审核送达失败、Publication、轮次中止 | 举手、拒绝、未回应、Contribution 处置、送达成功 |
 | 完成判定       | CompletionFact 形成、替代或撤销，影响完成判定的未解决事项               | 支撑完成判断的普通正式消息和任务过程                                 |
 | 结束与归档     | Termination、异常取消、Archive 完成                                     | 正常关闭过程和可复用材料关联                                         |
 
@@ -231,7 +231,7 @@ interface TimelineMilestoneGroup {
 | `identity.recommended`、`identity.admission_recorded`                                                                                                                                | 未归属普通卡片                                         | 默认展示     |
 | `agenda.activated`、`agenda_candidate.disposed`、未被上述 reducer 用作进入或离开 `converging` 边界的 `meeting.lifecycle_changed`                                                     | 未归属普通卡片                                         | 关键状态变化 |
 
-活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。`PrivateMailView`、deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
+活动和归档 Meeting 都只从该数组建节点，DTO 时间字段只用于正文展示，不再产生节点。deadline、outbox、Session notice 和 delivery retry 不进入事件日志或时间线。
 
 Meeting 时间线只调用事件 projection，不保留 `buildTimelineNodesFromLegacyView` 或 DTO 时间字段 fallback。缺少完整事件日志的既有测试数据按确认范围删除；不增加旧数据识别或拒绝机制，不回填历史。共享 `MeetingView` 中事件字段为 optional 仅服务 identity 的事件可见性隔离，不代表 Captain 读取可以缺少日志。
 

@@ -273,12 +273,6 @@ export const projectMeetingView = (
             : {}),
         agenda: copy(state.agenda),
         agendaCandidates: copy(state.agendaCandidates),
-        opportunityRequests: state.opportunityRequests.filter(
-            ({ contributorId }) =>
-                caller.kind === "captain" ||
-                manager ||
-                (caller.kind === "identity" && contributorId === caller.identityId)
-        ),
         rounds: state.rounds.map((round) => ({
             id: round.id,
             agendaId: round.agendaId,
@@ -375,14 +369,6 @@ export const projectMeetingView = (
         },
         ...(state.archive ? { archive: projectArchiveView(state.archive, caller) } : {}),
         managerPlans: copy(state.managerPlans),
-        privateMail: state.privateMails
-            .filter(
-                ({ senderId, recipientId }) =>
-                    caller.kind === "captain" ||
-                    (caller.kind === "identity" &&
-                        (senderId === caller.identityId || recipientId === caller.identityId))
-            )
-            .map(copy),
         controls: [...allowedControls(state, caller)]
     };
     return MeetingViewSchema.parse(result);

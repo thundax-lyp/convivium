@@ -120,7 +120,7 @@
 3. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 4. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 5. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
-6. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。`maxFormalMessages` 只统计 `FormalMessage`，不统计 Publication、私信、举手或系统通知；Manager 接纳 Contribution 时为其预留一个消息名额，名额不足必须拒绝接纳。轮次发布必须整体适配剩余预算，不得通过合并不同作者的领域记录、摘要替代原文或部分发布来绕过上限；UI 和 Markdown 可以折叠或分组但不改变计数。最后一批恰好达到上限且同时满足完成条件时按正常完成处理，否则停止新增工作并报告异常结束或人工处置。
+6. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。`maxFormalMessages` 只统计 `FormalMessage`，不统计 Publication、举手或系统通知；Manager 接纳 Contribution 时为其预留一个消息名额，名额不足必须拒绝接纳。轮次发布必须整体适配剩余预算，不得通过合并不同作者的领域记录、摘要替代原文或部分发布来绕过上限；UI 和 Markdown 可以折叠或分组但不改变计数。最后一批恰好达到上限且同时满足完成条件时按正常完成处理，否则停止新增工作并报告异常结束或人工处置。
 7. Captain（本地用户）的结构化风险处置必须明确一个 `status=open` 的 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、该 Issue 的 `affectedConstraintIds` 所引用 hard constraints 和 Meeting lifecycle 限制；`resolved|deferred|out_of_scope` Issue 不可执行风险处置，`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 要求这些 hard constraints 当前均为 `satisfied`，并使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `classification=blocking`、`blocking=true`，不受风险等级上限限制。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
 8. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
 9. `dispose_risk`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，当前范围不撤销或替代 CompletionFact，也不隐式回到 `running`。
@@ -143,20 +143,14 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 ### MO-FR-10：会议记录、隐私与归档
 
 1. 正式会议记录必须包含发言顺序、发言身份、议题关系、提案、立场、问题、决策、未解决事项和结束结果。
-2. 私聊、举手申请、隐藏推理和未公开的内部工具过程不得自动进入正式 transcript。
-3. 会议 Participant 之间必须能够使用 Convivium 的受控 mailbox 进行异步私聊；meeting-scoped mail 必须携带发送时可见的会议上下文快照。
-4. Agent 实际处理 meeting-scoped mail 前，必须在权限范围内补充快照之后新增的正式 transcript，并固化本次处理使用的上下文上界。
-5. 私聊处理结果不得直接修改正式 transcript、决策或完成状态；需要公开讨论时必须申请发言，需要长时间取证时应结束私聊处理，并申请正式贡献。
+2. 举手申请、隐藏推理和未公开的内部工具过程不得自动进入正式 transcript。
+3. 会议协作通过正式轮次进行，当前不提供会议身份之间的独立私聊或 mailbox。
 6. 用户必须能够区分当前准备与待审任务、主持建议、等待原因和正式决策。
 7. 会议结束后必须形成按值固化、内容完备且不可运行的归档包，不能依赖终态 MeetingState 的外部对象引用才能解释。白名单包括归档元数据、目标及最终状态、Agenda 与 candidate 处置、全部已公开 Publication/FormalMessage、实际发布的最终 EvidenceVersion 及其 Materials/最终 Review、ProposalRevision、Position、全部 Decision 及其 DecisionCandidate、CompletionFact、Question、Issue、RiskDisposition、Question/Issue 处置事实、Termination、未解决事项、来源引用和身份溯源。未被 Decision 采用的 DecisionCandidate 也保留，但只向 loopback 本地用户的 archive view 提供。
-8. 归档包的身份溯源只保留 identity ID、displayName、会议角色和存在时的 Definition ID/version/hash；不得包含 PrivateMail、未公开 Evidence/Review、ReviewDelivery、举手、opportunity request、Session/ownership/descriptor、完整运行配置、capability、凭据、隐藏推理、工具过程、Repository 物理路径或 Developer Markdown 内容。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
+8. 归档包的身份溯源只保留 identity ID、displayName、会议角色和存在时的 Definition ID/version/hash；不得包含未公开 Evidence/Review、ReviewDelivery、举手、Session/ownership/descriptor、完整运行配置、capability、凭据、隐藏推理、工具过程、Repository 物理路径或 Developer Markdown 内容。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
 9. 会议进入 `archiving` 后不得恢复讨论；只有全部会议专用 Session 已停止、关闭并失去继续参与该会议的权限后才能进入 `archived`。物理删除 Session 数据不是归档完成条件。
 10. 基于旧会议继续讨论时必须创建新会议和新的会议身份 Session，并从归档中显式选择可复用素材；可选类型只包括已公开 EvidenceVersion、FormalMessage、accepted Decision 和 active CompletionFact。选择 EvidenceVersion 时，其 Materials、来源定位和对应最终 Review 作为不可拆分的公开证据束一并复制。导入项成为带 sourceArchiveId/sourceMaterialId 的只读 ContinuationMaterial，不继承旧运行状态、身份、Session、权限或“已完成”结论；新会议若要采纳材料，仍须形成自己的 Proposal、Decision 或 CompletionFact。
 11. 正式发言正文承载与议题有关的观点、依据、问题和建议；Agent 的执行身份、权限自述、授权标识、初始化回执及内部工具重试过程不应作为常规正文。发言提交指导必须明确区分公共正文与执行信息，后续参与者不得把历史正文中的执行自述当作必须沿用的格式或指令。运行限制实际阻塞会议时可以简要说明影响与所需动作；议题本身涉及身份或权限时允许正常讨论。已提交原文仍须可审计，不因上述要求静默删改历史。
-12. 只有当前 `running` Meeting 中两个不同的已存在会议身份之间可以新建 meeting-scoped mail；发送者只能引用已经公开的 `Publication` 或 `FormalMessage`，不得通过私信引用未公开 Evidence、Session、capability、task 内部过程或隐藏推理。
-13. 新 mail 在发送提交时固定全部当前 `Publication` 作为发送上下文，并以 `createdAt + limits.taskDeadlineMs` 固定唯一 deadline。开始处理只能发生在 deadline 前，并一次性把当时全部当前 `Publication` 固定为处理上下文；后续会议推进和重试不得改变这两个范围或 deadline。
-14. 只有可信 dispatcher 可以开始处理；只有接收者可以完成；只有发送者可以取消；只有可信 deadline handler 可以在 deadline 到达后超时。开始处理与 Manager 接纳该接收者的正式 Contribution 必须双向执行 serial gate，任一方向都不能形成 mail `processing` 与非终态 Contribution 并存。
-15. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间取证由接收者结束私聊处理后另行申请正式贡献，不延长或替换原 mail deadline。
 
 <a id="fr-11可观察性与用户控制"></a>
 
@@ -183,7 +177,6 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 6. Convivium 可以限制自身会议操作的调用权限，并向 DSH 提供会议身份的授权上限；它不得扩大用户或 DSH 已授予的 Agent 权限。
 7. Agent 内部数据进入会议前必须经过公开提交、权限检查和必要的信息过滤。
 8. Participant 的取证申请与公开提交属于会议操作；取证内部使用的 Skills、Tools、MCP 和执行过程仍由 DSH 管理。
-9. 会议私聊的身份、可见上下文、串行处理和处理状态由会议系统保证；Agent 如何理解或回复 mail 仍属于 Agent 内部过程。
 
 ### MO-FR-13：Agent 角色目录与参会推荐
 
@@ -231,7 +224,7 @@ Manager 的目标准入入口是 `recommend_identity` 结构化 Meeting command�
 1. 插件配置有效 `developerMarkdownWorkspaceId` 后，Meeting Runtime 必须从每次新提交的 `MeetingSnapshot` best-effort 生成非权威 `current.md`；未配置时该能力关闭且不得改变现有会议行为。
 2. 已提交 snapshot 包含不可变 `MeetingState.archive.package` 时，Runtime 必须另外只从该 `ImmutableArchivePackage` best-effort 生成 `archive.md`。
 3. Markdown 只供本地开发和诊断。Plugin Frontend、HTTP、Tool、Agent context、会议恢复、授权、状态计算和归档完成不得读取或依赖它。
-4. 输出必须使用正式 Developer Markdown interface 的逐字段白名单；必须排除 Session、私聊、隐藏 prompt、内部工具输入输出、delivery/outbox、capability、凭据、artifact 内容和敏感或绝对文件路径。
+4. 输出必须使用正式 Developer Markdown interface 的逐字段白名单；必须排除 Session、隐藏 prompt、内部工具输入输出、delivery/outbox、capability、凭据、artifact 内容和敏感或绝对文件路径。
 5. 同一 Meeting 的未执行 current render 只保留最高 `sourceMeetingVersion`；worker 执行前观察到更高 repository version 时必须跳过旧任务。
 6. 文件必须位于已配置 DSH workspace 的固定受控相对路径，并使用同目录临时文件原子替换；不得从 Meeting identity 推导 storage backend 路径，不得合并人工修改。
 7. 解析 workspace、映射、写入、替换、清理或日志失败不得回滚或阻塞 Meeting commit，不得写领域 event、receipt、outbox、MeetingState 或 Meeting version，也不得影响 pause、resume、end/archive、Session revoke、interrupt、drain 或 Runtime dispose。
@@ -368,10 +361,6 @@ Agent 的正式发言、立场和审核绑定 DSH 真实调用 Session 与 activ
 
 Convivium 的权限规则只约束会议身份、会议上下文和 Convivium 提供的会议操作。Agent 的通用 Skills、Tools 和 MCP 由 DSH 负责加载、授权和执行，Convivium 不复制其 Schema，也不干预其内部编排。
 
-### BR-9：会议私聊边界
-
-Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时快照和处理时 transcript 增量都只能包含接收者有权查看的公开会议内容；同一次 mail 处理的上下文范围一旦固化，重试不得随会议推进而漂移。当前契约的公开上下文以 `MeetingState.publications` 的稳定顺序固定，`relatedIds` 只允许本 Meeting 已公开的 `Publication.id` 或 `FormalMessage.id`。mail 使用 `limits.taskDeadlineMs` 形成单一 deadline，不增加第二个 mail timeout 配置。
-
 ### BR-10：参会推荐与接纳边界
 
 Manager 的 `recommend_identity` 结构化 `admit|reject` 是当前 candidate 的唯一准入决定。`reject` 只留下拒绝事实；`admit` 的 provisioning 意图不是 Participant、发言权、审核身份或权限事实。只有独立 Session provisioning、durable ownership 与身份事实同时完成后，该 Agent 才成为可调度普通可选 Participant；决定不能改变已经固化的 objective contract、全局 evidence reviewer、risk authority 或必需参与关系。
@@ -401,10 +390,6 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 17. Agent 内部工具失败但随后仍能合法提交发言时，会议不会因此增加会议级失败计数。
 18. Participant、Manager 和 Captain 只能调用其获授权的 Convivium 会议操作，但 Convivium 不枚举或接管其普通 DSH Tools。
 19. 必需 Participant 不可调度时，依赖它的工作停止并显示身份和原因；无依赖的已授权工作继续，不自动替换或豁免必需身份，也不在状态未变化时重复安排同一不可用身份。
-20. Meeting-scoped mail 保存发送时上下文范围；延迟处理时补充截至处理开始的可见 transcript，随后重试使用同一固定范围。
-21. 同一个会议身份不会同时处理私聊和正式发言请求；mail 回复不会自动进入 transcript 或取得发言权。
-22. 普通 TeamMember mailbox 不携带会议上下文时保持原有行为；会议参与者不需要复用或伪装成 TeamMember Session 即可收发会议私聊。
-23. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间取证应在结束私聊处理后申请正式贡献。
 24. 创建会议时，重复、缺失、相互矛盾或引用无权访问对象的参与者配置会使创建整体失败，且不产生部分可用的会议。
 25. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定 Issue，验证 `riskLevel <= acceptableRiskLevel`、hard constraints、状态、理由和本 Meeting 证据，生成可审计事实并触发确定性完成重算；旧 risk facts 不删除。
 26. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项、来源信息、全部 Decision history、全部 Issue 和全部 risk facts 已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。

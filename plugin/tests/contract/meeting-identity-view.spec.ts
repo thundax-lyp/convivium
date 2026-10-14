@@ -78,32 +78,6 @@ describe("round participation visibility", () => {
 });
 
 describe("identity filtered view and archive provenance", () => {
-    it("projects opportunity requests without a plan binding", () => {
-        const state = makeRunningMeetingStateV1();
-        state.opportunityRequests = [
-            {
-                id: "opportunity-1",
-                agendaId: "agenda-v1",
-                contributorId: "contributor-v1",
-                purpose: "request evidence work",
-                requestedAt: 1
-            }
-        ];
-
-        const view = projectMeetingView(
-            {
-                meetingId: state.id,
-                version: state.version,
-                state,
-                createdAt: 0,
-                updatedAt: 1
-            },
-            { kind: "captain" }
-        );
-
-        expect(view.opportunityRequests).toEqual(state.opportunityRequests);
-    });
-
     it("preserves the Manager plan binding in each projected Round", () => {
         const state = makeRunningMeetingStateV1();
         state.rounds = [

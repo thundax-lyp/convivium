@@ -83,8 +83,6 @@ type MeetingAction =
   | ResolveQuestion
   | RecordIssue
   | DisposeIssue
-  | RequestEvidenceOpportunity
-  | DisposeEvidenceOpportunity
   | OpenRound
   | RaiseHand
   | DeclineHand
@@ -108,11 +106,6 @@ type MeetingAction =
   | RecordCompletionFact
   | ChangeCompletionFact
   | PlanNextStep
-  | SendPrivateMail
-  | StartPrivateMail
-  | CompletePrivateMail
-  | CancelPrivateMail
-  | ExpirePrivateMail
   | StartArchive
   | RecordArchiveSessionResult
   | RecommendIdentity
@@ -264,17 +257,6 @@ interface OpenRound {
   planId: OpaqueId;
   deadlineAt?: EpochMs;
 }
-interface RequestEvidenceOpportunity {
-  kind: "request_evidence_opportunity";
-  agendaId: OpaqueId;
-  purpose: string;
-}
-interface DisposeEvidenceOpportunity {
-  kind: "dispose_evidence_opportunity";
-  requestId: OpaqueId;
-  disposition: "rejected" | "deferred";
-  reason: string;
-}
 interface RaiseHand {
   kind: "raise_hand";
   roundId: OpaqueId;
@@ -359,13 +341,12 @@ interface AbortRound {
 
 `SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。`summary` 必须是非空作者观点摘要，与完整证据同版本受审核；轮末以摘要原文生成 `FormalMessage.body`，不删除完整证据、不合并作者或改变消息预算。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
 
-`RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束贡献时两种初次申请均返回 `PRECONDITION_FAILED`。
 
-`Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。开轮前已经排队的取证申请原子记为 `raised`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。
+`Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。
 
 `RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending、本轮已记录选择或已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
 
-`DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|execution_failed|aborted|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或持久状态不一致导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、删除完整证据仅保留摘要或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
+`DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|execution_failed|aborted|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、举手和系统通知不计数。名额损坏、竞态或持久状态不一致导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、删除完整证据仅保留摘要或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
 
 ```ts
 // 提交必须提供非空作者摘要。
@@ -446,7 +427,7 @@ Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `va
 
 `sourceEffectId` 由 dispatcher 从当前 outbox effect 注入并持久化；只有该原始 effect 在有效期内重投时保持 retryable，覆盖同一 version 的其它 effect 直接去重完成。这样重复通知不会形成写竞争，而原 effect 在进程崩溃后仍能等到 claim 过期并重新认领。
 
-### Deliberation, outcome and mail
+### Deliberation, outcome
 
 ```ts
 interface RecordProposalRevision {
@@ -521,31 +502,6 @@ interface PlanNextStep {
   rationale: string;
   blockingReason?: string;
 }
-interface SendPrivateMail {
-  kind: "send_private_mail";
-  recipientId: OpaqueId;
-  agendaId?: OpaqueId;
-  body: string;
-  relatedIds: OpaqueId[];
-}
-interface StartPrivateMail {
-  kind: "start_private_mail";
-  mailId: OpaqueId;
-}
-interface CompletePrivateMail {
-  kind: "complete_private_mail";
-  mailId: OpaqueId;
-}
-interface CancelPrivateMail {
-  kind: "cancel_private_mail";
-  mailId: OpaqueId;
-  reason: string;
-}
-interface ExpirePrivateMail {
-  kind: "expire_private_mail";
-  mailId: OpaqueId;
-  reason: string;
-}
 interface StartArchive {
   kind: "start_archive";
 }
@@ -559,7 +515,7 @@ interface RecordArchiveSessionResult {
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -617,16 +573,7 @@ A DecisionCandidate is accepted only when it names the current ProposalRevision 
 
 ContinuationInput is accepted only for a new Meeting when its authenticated Captain explicitly selects an immutable, caller-visible ArchivePackage and a distinct non-empty subset of exported material IDs whose kind is `published_evidence|formal_message|accepted_decision|active_completion_fact`. It imports read-only ContinuationMaterial copies with sourceArchiveId/sourceMaterialId provenance; selecting published evidence atomically includes its Materials, source locators and final Review as one evidence bundle. It never imports old Meeting ID, identity, Session, capability, full transcript, mail, authority, running state or a prior completion conclusion.
 
-PlanNextStep is Manager-only and is rejected while a Round is open; a new plan supersedes the current active plan for its Agenda. ExpirePrivateMail is deadline-handler-only and requires its persisted deadline to be no later than Runtime clock. StartPrivateMail is a trusted dispatcher action and is rejected if the recipient owns a claimed formal Contribution or another processing mail. It fixes the processing-visible Publication range; retries never recompute it. StartArchive is runtime-recovery-only from terminal and atomically materializes the ArchivePackage before archiving; RecordArchiveSessionResult is trusted session-owner-only. Any failed Session close leaves lifecycle archiving and rejects discussion; archived is entered only after every meeting-owned Session reports closed.
-
-`SendPrivateMail` 只允许 `running` Meeting 中已认证的 Meeting identity 发给另一个已存在 identity；sender 由 caller binding 注入，不能等于 recipient。`relatedIds` 必须非空、无重复，并且每一项只能解析为本 Meeting 已公开的 `Publication.id` 或 `FormalMessage.id`；`agendaId` 若存在必须指向本 Meeting Agenda。Runtime 为 mail 分配唯一 `mailId` 并注入 `now`，Domain 固定 `createdAt=now`、`deadlineAt=now+limits.taskDeadlineMs`、`sendContextPublicationUpperBound=state.publications.map(item => item.id)`；和式不是非负 safe integer 时返回 `PRECONDITION_FAILED`。caller 不得提交这四个派生字段。
-
-`StartPrivateMail` 只允许可信 effect dispatcher 在 `running`、`createdAt <= now < deadlineAt` 且 mail 为 `queued` 时执行。它原子写 `status=processing`、`processingStartedAt=now`，并把当时 `state.publications.map(item => item.id)` 固定为 `processingContextPublicationUpperBound`；该数组必须以发送范围为前缀。recipient 存在任一非终态 Contribution，或已经是另一条 `processing` mail 的 recipient 时返回 `PRECONDITION_FAILED`。同理，Manager 接纳该 identity 的 pending hand 并创建 Contribution 前，若其正在处理 mail，也必须返回 `PRECONDITION_FAILED`；pending hand 保持不变。
-
-`CompletePrivateMail` 只允许目标 recipient 在 mail 为 `processing` 且 `processingStartedAt <= now < deadlineAt` 时执行，写 `status=completed` 与 `completedAt=now`。`CancelPrivateMail` 只允许 sender 对 `queued|processing` mail 执行，要求 `now >= createdAt` 且已开始时还要求 `now >= processingStartedAt`，写 `status=cancelled`、`completedAt=now` 与 trim 后非空 `failureReason=reason`。`ExpirePrivateMail` 只允许 deadline handler 对 `queued|processing` mail 在 `now >= deadlineAt` 时执行，写 `status=timed_out`、`completedAt=now` 与非空 `failureReason=reason`。send/start 只允许 `running`；complete/cancel/expire 允许 `running|paused|converging|ending` 以释放占用；`terminal|archiving|archived` 一律 `MEETING_TERMINAL`。已经终结的 mail 再操作返回 `INVALID_STATE`，时间早于创建/处理、早到 start/complete/expire 均返回 `PRECONDITION_FAILED`。`SendPrivateMail` 除状态变化外产生唯一 `{kind:"session_mail",mailId,recipientId,contextPublicationUpperBound:sendContextPublicationUpperBound}` Domain effect request；其它四个 action 的 effect request 为空。五个 action 均不生成 FormalMessage、Decision、CompletionFact。
-
-
-
+PlanNextStep is Manager-only and is rejected while a Round is open; a new plan supersedes the current active plan for its Agenda. StartArchive is runtime-recovery-only from terminal and atomically materializes the ArchivePackage before archiving; RecordArchiveSessionResult is trusted session-owner-only. Any failed Session close leaves lifecycle archiving and rejects discussion; archived is entered only after every meeting-owned Session reports closed.
 
 ## Input Components
 
@@ -704,7 +651,6 @@ interface MeetingCommandAccepted {
     id: OpaqueId;
     kind:
       | "refresh"
-      | "session_mail"
       | "agent_notice"
       | "review_delivery"
       | "markdown_projection"
@@ -1040,7 +986,6 @@ interface MeetingView {
   identityRecommendations?: IdentityRecommendationView[];
   managerCatalog?: ManagerCatalogView;
   agenda: AgendaView[];
-  opportunityRequests: EvidenceOpportunityRequestView[];
   rounds: RoundView[];
   publications: PublicationView[];
   evidencePackages: EvidencePackageView[];
@@ -1053,7 +998,6 @@ interface MeetingView {
   outcomes: OutcomeView;
   archive?: ArchiveView;
   managerPlans: ManagerPlanView[];
-  privateMail: PrivateMailView[];
   timelineEvents?: MeetingEventView[];
   controls: AllowedControl[];
 }
@@ -1110,7 +1054,7 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 
 Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。缺少完整事件日志的既有测试会议应删除，不提供旧数据识别、兼容或迁移路径。
 
-各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
+各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取本轮全部 pending hand raises；普通 contributor 只读取自己的 pending hand raise，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
 Round 的受邀选择在 MeetingView 中向 Captain 和 Manager 显示全部受邀者及状态，普通 Contributor 仅显示自己；尚未选择者由受邀名单减去已记录响应派生。
 
@@ -1128,7 +1072,6 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface LifecycleView { status: "preparing" | "running" | "paused" | "converging" | "ending" | "terminal" | "archiving" | "archived"; changedAt: EpochMs; reason?: string }
     interface AgendaView { id: OpaqueId; title: string; question: string; status: "pending" | "active" | "blocked" | "completed" | "deferred" | "closed"; ownerId?: OpaqueId; requiredOutputIds: OpaqueId[] }
     interface AgendaCandidateView { id: OpaqueId; title: string; reason: string; sourceMessageId?: OpaqueId; status: "pending" | "promoted" | "parked" | "rejected" }
-    interface EvidenceOpportunityRequestView { id: OpaqueId; agendaId: OpaqueId; contributorId: OpaqueId; purpose: string; requestedAt: EpochMs }
     interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; invitedContributorIds: OpaqueId[]; participationResponses: Array<{ contributorId: OpaqueId; status: "raised" | "declined" | "no_response"; recordedAt: EpochMs }>; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
     interface PendingHandRaiseView { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; raisedAt: EpochMs }
     interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "withdrawn" | "submission_missing" | "execution_failed" | "aborted" | "closed"; packageId?: OpaqueId; exitReason?: string; failure?: ContributionFailure }
@@ -1184,7 +1127,6 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
       | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: ContinuationAcceptedDecisionContentView }
       | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: ContinuationCompletionFactContentView };
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
-    interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
     type AllowedControl = MeetingAction["kind"];
 
 evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核。Manager 可读取已发布版本及对应的独立 Review，不读取本轮未发布版本或 Review；其 `evidenceValidationStatuses` 只含当前 version 的 packageId、contributionId、versionId、EvidenceStatus、failureCount 与可选 lastFailureReason，不含本轮证据正文、资料 ID 或评分；其他 caller 得到空数组。唯一 evidence reviewer 读取全部当前待审版本、对应审核和各自固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。`EvidenceReviewView.reviewerId` 指审核者，`ReviewDeliveryView.authorId` 指反馈接收者（证据作者）；送达不构成作者自行审核。每个 EvidencePackage 只有一个已登记版本。
@@ -1270,7 +1212,6 @@ interface OutboxEffectRecord {
   committedVersion: number;
   kind:
     | "refresh"
-    | "session_mail"
     | "agent_notice"
     | "review_delivery"
     | "markdown_projection"
@@ -1286,7 +1227,6 @@ interface OutboxEffectRecord {
 type OutboxPayload =
   | { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
   | {
-      kind: "session_mail";
       mailId: OpaqueId;
       recipientId: OpaqueId;
       contextPublicationUpperBound: OpaqueId[];
@@ -1317,16 +1257,6 @@ type AgentNoticePayload =
   | (AgentNoticeBase & {
       noticeKind: "transcript_update";
       publicMessageId: OpaqueId;
-    })
-  | (AgentNoticeBase & {
-      noticeKind: "opportunity_request";
-      requestId: OpaqueId;
-    })
-  | (AgentNoticeBase & {
-      noticeKind: "opportunity_disposition";
-      requestId: OpaqueId;
-      disposition: "rejected" | "deferred";
-      reason: string;
     })
   | (AgentNoticeBase & {
       noticeKind: "hand_request";
@@ -1366,7 +1296,7 @@ type AgentNoticePayload =
   | (AgentNoticeBase & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
+`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
 
@@ -1382,7 +1312,7 @@ Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` �
 
 ## Compatibility And Acceptance
 
-私信业务事实只存在于 `MeetingStateRecord.privateMails`，经统一 command 提交；Repository projection 不另存 `privateMail` map，也不提供独立私信读写方法。创建结果在 `completeCreate` 中固化，Repository 不提供事后修改创建结果或按 delivery ID 将已完成 outbox 重新入队的辅助入口。持久化 projection 只接受当前 strict schema；本次移除的独立私信字段不做迁移或兼容读取。
+创建结果在 `completeCreate` 中固化，Repository 不提供事后修改创建结果或按 delivery ID 将已完成 outbox 重新入队的辅助入口。持久化 projection 只接受当前 strict schema；
 
 当前契约不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。`MeetingAction`、`MeetingView` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。首次发布后可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
 

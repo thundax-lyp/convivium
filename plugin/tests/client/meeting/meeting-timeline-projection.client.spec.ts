@@ -300,7 +300,6 @@ describe("Timeline object details", () => {
         const nodes = [
             ["lifecycle", "meeting-v1"],
             ["round", "round-1"],
-            ["opportunity_request", "request-1"],
             ["hand_raise", "round-1:contributor-v1"],
             ["evidence_version", "version-1"],
             ["evidence_review", "review-1"],
@@ -326,7 +325,6 @@ describe("Timeline object details", () => {
         const expected: Record<string, { title: string; detail?: string }> = {
             lifecycle: { title: "running", detail: "lifecycle reason" },
             round: { title: "round question", detail: "abort reason" },
-            opportunity_request: { title: "request purpose" },
             hand_raise: { title: "raise purpose" },
             evidence_version: { title: "observation", detail: "interpretation" },
             evidence_review: { title: "review scope" },

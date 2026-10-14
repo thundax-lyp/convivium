@@ -52,7 +52,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         ],
         agendaCandidates: [],
         rounds: [],
-        opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "reviewer-v1",
@@ -71,7 +70,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         issues: [],
         riskDispositions: [],
         managerPlans: [],
-        privateMails: [],
         completionFacts: [],
         limits: {
             maxFormalMessages: 100,

@@ -93,18 +93,6 @@ const validateAgendaRoundsAndContributions = (parsedState: MeetingState): string
             }
         }
     }
-    const opportunityRequestIds = new Set<string>();
-    for (let i = 0; i < parsedState.opportunityRequests.length; i++) {
-        const request = parsedState.opportunityRequests[i];
-        const path = `$.opportunityRequests[${i}]`;
-        opportunityRequestIds.add(request.id);
-        if (!ref(request.agendaId, agendaIds)) {
-            return fail(`${path}.agendaId`);
-        }
-        if (!ref(request.contributorId, identityIds)) {
-            return fail(`${path}.contributorId`);
-        }
-    }
     const pendingHandKeys = new Set<string>();
     for (let i = 0; i < parsedState.pendingHandRaises.length; i++) {
         const hand = parsedState.pendingHandRaises[i];

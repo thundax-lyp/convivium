@@ -293,13 +293,6 @@ export const AgendaCandidateViewSchema = z.object({
     sourceMessageId: id.optional(),
     status: z.enum(["pending", "promoted", "parked", "rejected"])
 });
-export const EvidenceOpportunityRequestViewSchema = z.object({
-    id,
-    agendaId: id,
-    contributorId: id,
-    purpose: text,
-    requestedAt: epoch
-});
 export const PendingHandRaiseViewSchema = z.object({
     roundId: id,
     contributorId: id,
@@ -754,22 +747,6 @@ export const ManagerPlanViewSchema = z.object({
     status: z.enum(["active", "superseded", "completed"]),
     createdAt: epoch
 });
-export const PrivateMailViewSchema = z.object({
-    id,
-    senderId: id,
-    recipientId: id,
-    agendaId: id.optional(),
-    body: text,
-    relatedIds: z.array(id),
-    sendContextPublicationUpperBound: z.array(id),
-    processingContextPublicationUpperBound: z.array(id).optional(),
-    status: z.enum(["queued", "processing", "completed", "timed_out", "cancelled"]),
-    deadlineAt: epoch,
-    createdAt: epoch,
-    processingStartedAt: epoch.optional(),
-    completedAt: epoch.optional(),
-    failureReason: text.optional()
-});
 
 export const ArchiveViewSchema = z
     .object({
@@ -911,7 +888,6 @@ export const MeetingViewSchema = z.object({
     identityRecommendations: z.array(IdentityRecommendationViewSchema).optional(),
     managerCatalog: ManagerCatalogViewSchema.optional(),
     agenda: z.array(AgendaViewSchema),
-    opportunityRequests: z.array(EvidenceOpportunityRequestViewSchema),
     rounds: z.array(RoundViewSchema),
     publications: z.array(PublicationViewSchema),
     evidencePackages: z.array(EvidencePackageViewSchema),
@@ -924,7 +900,6 @@ export const MeetingViewSchema = z.object({
     outcomes: OutcomeViewSchema,
     archive: ArchiveViewSchema.optional(),
     managerPlans: z.array(ManagerPlanViewSchema),
-    privateMail: z.array(PrivateMailViewSchema),
     controls: z.array(AllowedControlSchema)
 });
 export const MeetingListResultSchema = z.object({ meetings: z.array(MeetingSummarySchema) });
@@ -939,7 +914,6 @@ export type ObjectiveView = z.infer<typeof ObjectiveViewSchema>;
 export type LifecycleView = z.infer<typeof LifecycleViewSchema>;
 export type AgendaView = z.infer<typeof AgendaViewSchema>;
 export type AgendaCandidateView = z.infer<typeof AgendaCandidateViewSchema>;
-export type EvidenceOpportunityRequestView = z.infer<typeof EvidenceOpportunityRequestViewSchema>;
 export type PendingHandRaiseView = z.infer<typeof PendingHandRaiseViewSchema>;
 export type ContributionView = z.infer<typeof ContributionViewSchema>;
 export type RoundView = z.infer<typeof RoundViewSchema>;
@@ -965,7 +939,6 @@ export type ArchiveMaterialView = z.infer<typeof ArchiveMaterialViewSchema>;
 export type ContinuationMaterialView = z.infer<typeof ContinuationMaterialViewSchema>;
 export type ContinuationProvenanceView = z.infer<typeof ContinuationProvenanceViewSchema>;
 export type ManagerPlanView = z.infer<typeof ManagerPlanViewSchema>;
-export type PrivateMailView = z.infer<typeof PrivateMailViewSchema>;
 export type IdentityView = z.infer<typeof IdentityViewSchema>;
 export type IdentityRecommendationView = z.infer<typeof IdentityRecommendationViewSchema>;
 export type ManagerCatalogView = z.infer<typeof ManagerCatalogViewSchema>;

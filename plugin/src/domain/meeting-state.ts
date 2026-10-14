@@ -170,14 +170,6 @@ export interface HandRaise {
     purpose: string;
 }
 
-export interface EvidenceOpportunityRequest {
-    id: OpaqueId;
-    agendaId: OpaqueId;
-    contributorId: OpaqueId;
-    purpose: string;
-    requestedAt: EpochMs;
-}
-
 export interface PendingHandRaise {
     roundId: OpaqueId;
     contributorId: OpaqueId;
@@ -442,23 +434,6 @@ export interface ManagerPlan {
     status: "active" | "superseded" | "completed";
 }
 
-export interface PrivateMail {
-    id: OpaqueId;
-    senderId: OpaqueId;
-    recipientId: OpaqueId;
-    agendaId?: OpaqueId;
-    body: string;
-    relatedIds: readonly OpaqueId[];
-    sendContextPublicationUpperBound: readonly OpaqueId[];
-    processingContextPublicationUpperBound?: readonly OpaqueId[];
-    status: "queued" | "processing" | "completed" | "timed_out" | "cancelled";
-    deadlineAt: EpochMs;
-    createdAt: EpochMs;
-    processingStartedAt?: EpochMs;
-    completedAt?: EpochMs;
-    failureReason?: string;
-}
-
 export interface Termination {
     id: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
@@ -601,7 +576,6 @@ export interface MeetingState {
     agenda: readonly AgendaItem[];
     agendaCandidates: readonly AgendaCandidate[];
     rounds: readonly Round[];
-    opportunityRequests: readonly EvidenceOpportunityRequest[];
     pendingHandRaises: readonly PendingHandRaise[];
     contributions: readonly Contribution[];
     evidenceReviewerId: OpaqueId;
@@ -620,7 +594,6 @@ export interface MeetingState {
     issues: readonly Issue[];
     riskDispositions: readonly RiskDisposition[];
     managerPlans: readonly ManagerPlan[];
-    privateMails: readonly PrivateMail[];
     completionFacts: readonly CompletionFact[];
     limits: MeetingLimits;
     termination?: Termination;

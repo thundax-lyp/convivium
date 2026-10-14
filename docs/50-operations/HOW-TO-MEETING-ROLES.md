@@ -58,4 +58,4 @@ Definition ID 为 `convivium.<后缀>`。`config/agents/<后缀>/AGENTS.md` 由�
 
 ## Evidence And Not Covered
 
-把日期、commit/工作树范围、DSH 版本、命令、三个场景 observed 和 Restore 结果记入 readiness。人工 Browser、跨 Host、长期模型任务质量、MeetingTask/session_mail 完整生产链不由这些自动结果证明。
+把日期、commit/工作树范围、DSH 版本、命令、三个场景 observed 和 Restore 结果记入 readiness。人工 Browser、跨 Host、长期模型任务质量不由这些自动结果证明。
