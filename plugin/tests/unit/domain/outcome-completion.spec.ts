@@ -10,6 +10,18 @@ import {
 } from "./outcome-fixtures.ts";
 
 describe("CompletionFact", () => {
+    it("accepts Captain completion from published reviewed evidence without a decision chain", () => {
+        const state = completionReadyState();
+        const input = completionInput();
+        const result = recordCompletionFact(state, input);
+        expect(result).toMatchObject({ kind: "accepted" });
+        if (result.kind === "accepted") {
+            expect(result.state.completionFacts[0].evidenceIds).toEqual(["v"]);
+            expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
+            expect(result.state.lifecycle.status).toBe("converging");
+        }
+    });
+
     const reviewBreaks = [
         [
             "missing evidence review",
@@ -56,40 +68,6 @@ describe("CompletionFact", () => {
         expect(state.completionFacts).toEqual([]);
     });
 
-    it.each([
-        [
-            "revoked",
-            (s: MeetingState) => {
-                s.decisions[0].status = "revoked";
-            }
-        ],
-        [
-            "non-adopt",
-            (s: MeetingState) => {
-                s.decisions[0].outcome = "reject";
-            }
-        ],
-        [
-            "stale revision",
-            (s: MeetingState) => {
-                s.proposals.push({
-                    ...s.proposals[0],
-                    id: "rev-2",
-                    ordinal: 2,
-                    supersedesRevisionId: "rev"
-                });
-            }
-        ]
-    ] as const)("rejects %s decision basis", (_name, mutate) => {
-        const state = completionReadyState();
-        mutate(state);
-        const result = recordCompletionFact(state, completionInput());
-        expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
-        expect(result.state).toBe(state);
-        expect(result.effectRequests).toEqual([]);
-        expect(state.completionFacts).toEqual([]);
-    });
-
     it("checks authorization before review preconditions", () => {
         const state = completionReadyState();
         state.publications[0].finalReviewIds = [];
@@ -114,7 +92,7 @@ describe("CompletionFact", () => {
         }
     });
 
-    it("applies the same review and basis gates to replacement facts", () => {
+    it("requires published reviewed evidence for replacement facts", () => {
         const state = completionReadyState();
         state.completionFacts = [
             {
@@ -125,7 +103,6 @@ describe("CompletionFact", () => {
                 statement: "old",
                 rationale: "old",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];
@@ -143,8 +120,7 @@ describe("CompletionFact", () => {
                 outputId: "o",
                 statement: "new",
                 rationale: "new",
-                evidenceIds: ["v2"],
-                decisionIds: ["dec"]
+                evidenceIds: ["v2"]
             },
             actor: { kind: "captain_user", id: captainActorIdFor("m") },
             now: 1
@@ -153,57 +129,12 @@ describe("CompletionFact", () => {
             kind: "rejected",
             error: { code: "PRECONDITION_FAILED" }
         });
-        const basisState = completionReadyState();
-        basisState.completionFacts = [
-            {
-                id: "old",
-                outputId: "o",
-                actorId: captainActorIdFor("m"),
-                status: "active",
-                statement: "old",
-                rationale: "old",
-                evidenceIds: ["v"],
-                decisionIds: ["dec"],
-                createdAt: 0
-            }
-        ];
-        basisState.objective.requiredOutputs[0] = {
-            ...basisState.objective.requiredOutputs[0],
-            status: "pending"
-        };
-        basisState.proposals.push({
-            ...basisState.proposals[0],
-            id: "rev-2",
-            ordinal: 2,
-            supersedesRevisionId: "rev"
-        });
-        const basisResult = changeCompletionFact(basisState, {
-            factId: "old",
-            status: "superseded",
-            rationale: "replace",
-            replacement: {
-                factId: "new",
-                outputId: "o",
-                statement: "new",
-                rationale: "new",
-                evidenceIds: ["v"],
-                decisionIds: ["dec"]
-            },
-            actor: { kind: "captain_user", id: captainActorIdFor("m") },
-            now: 1
-        });
-        expect(basisResult).toMatchObject({
-            kind: "rejected",
-            error: { code: "PRECONDITION_FAILED" }
-        });
     });
     it.each([
         ["missing output", { outputId: "missing" }, "NOT_FOUND"],
         ["missing criterion", { criterionId: "missing" }, "NOT_FOUND"],
-        ["missing decision", { decisionIds: ["missing"] }, "NOT_FOUND"],
         ["missing evidence", { evidenceIds: ["missing"] }, "NOT_FOUND"],
         ["duplicate evidence", { evidenceIds: ["v", "v"] }, "INVALID_ARGUMENT"],
-        ["empty decision ids", { decisionIds: [] }, "INVALID_ARGUMENT"],
         ["duplicate fact", {}, "INVALID_ARGUMENT"]
     ] as const)("record rejects %s", (_name, overrides, code) => {
         const state = completionReadyState();
@@ -218,7 +149,6 @@ describe("CompletionFact", () => {
                     statement: "existing",
                     rationale: "existing",
                     evidenceIds: ["v"],
-                    decisionIds: ["dec"],
                     createdAt: 0
                 }
             ];

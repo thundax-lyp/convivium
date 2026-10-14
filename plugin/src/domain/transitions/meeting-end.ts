@@ -7,7 +7,6 @@ export interface EndMeetingInput {
     terminationId: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     reason: string;
-    decisionIds: readonly OpaqueId[];
     completionFactIds: readonly OpaqueId[];
     unresolvedQuestionIds: readonly OpaqueId[];
     unresolvedIssueIds: readonly OpaqueId[];
@@ -42,12 +41,10 @@ export const endMeeting = (
         !input.actorId.trim() ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0 ||
-        !unique(input.decisionIds) ||
         !unique(input.completionFactIds) ||
         !unique(input.unresolvedQuestionIds) ||
         !unique(input.unresolvedIssueIds) ||
         [
-            ...input.decisionIds,
             ...input.completionFactIds,
             ...input.unresolvedQuestionIds,
             ...input.unresolvedIssueIds
@@ -58,9 +55,6 @@ export const endMeeting = (
     if (state.termination !== undefined || state.rounds.some((round) => round.status === "open")) {
         return rejectedTransition(state, "INVALID_STATE", "meeting is already ending");
     }
-    const decisionIds = state.decisions
-        .filter((item) => item.status === "accepted")
-        .map((item) => item.id);
     const completionFactIds = state.completionFacts
         .filter((item) => item.status === "active")
         .map((item) => item.id);
@@ -71,7 +65,6 @@ export const endMeeting = (
         .filter((item) => item.status === "open" || item.status === "deferred")
         .map((item) => item.id);
     if (
-        !sameIds(input.decisionIds, decisionIds) ||
         !sameIds(input.completionFactIds, completionFactIds) ||
         !sameIds(input.unresolvedQuestionIds, unresolvedQuestionIds) ||
         !sameIds(input.unresolvedIssueIds, unresolvedIssueIds)
@@ -114,7 +107,6 @@ export const endMeeting = (
             outcome: input.outcome,
             reason: input.reason.trim(),
             endedAt: input.now,
-            decisionIds,
             completionFactIds,
             unresolvedQuestionIds,
             unresolvedIssueIds,
@@ -126,7 +118,6 @@ export const endMeeting = (
         state: next,
         relatedIds: [
             input.terminationId,
-            ...decisionIds,
             ...completionFactIds,
             ...unresolvedQuestionIds,
             ...unresolvedIssueIds,

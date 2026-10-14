@@ -425,178 +425,6 @@ const validateDeliveriesAndPublications = (parsedState: MeetingState): string | 
     return undefined;
 };
 
-const validateDiscussionRecords = (parsedState: MeetingState): string | undefined => {
-    const identityIds = ids(parsedState.identities);
-    const agendaIds = ids(parsedState.agenda);
-    const publicationIds = ids(parsedState.publications);
-    const publishedVersionIds = new Set(
-        parsedState.publications.flatMap((item) => item.finalVersionIds)
-    );
-    const messages = parsedState.messages;
-    const messageIds = new Set<string>();
-    for (let i = 0; i < messages.length; i++) {
-        const r = messages[i];
-        const path = `$.messages[${i}]`;
-        messageIds.add(r.id as string);
-        if (!ref(r.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        if (!ref(r.agendaId, agendaIds)) {
-            return fail(`${path}.agendaId`);
-        }
-        if (!ref(r.publicationId, publicationIds)) {
-            return fail(`${path}.publicationId`);
-        }
-    }
-    const proposals = parsedState.proposals;
-    const proposalIds = new Set<string>();
-    for (let i = 0; i < proposals.length; i++) {
-        const r = proposals[i];
-        const path = `$.proposals[${i}]`;
-        proposalIds.add(r.id as string);
-        if (!ref(r.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        if (!ref(r.agendaId, agendaIds)) {
-            return fail(`${path}.agendaId`);
-        }
-        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) {
-            return fail(evidencePath);
-        }
-    }
-    const positions = parsedState.positions;
-    const positionById = indexById(positions);
-    const positionIds = new Set<string>();
-    for (let i = 0; i < positions.length; i++) {
-        const r = positions[i];
-        const path = `$.positions[${i}]`;
-        positionIds.add(r.id as string);
-        if (!ref(r.proposalRevisionId, proposalIds)) {
-            return fail(`${path}.proposalRevisionId`);
-        }
-        if (!ref(r.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) {
-            return fail(evidencePath);
-        }
-    }
-    const decisionCandidates = parsedState.decisionCandidates;
-    const decisionCandidateIds = new Set<string>();
-    for (let i = 0; i < decisionCandidates.length; i++) {
-        const r = decisionCandidates[i];
-        const path = `$.decisionCandidates[${i}]`;
-        decisionCandidateIds.add(r.id as string);
-        if (!ref(r.proposalRevisionId, proposalIds)) {
-            return fail(`${path}.proposalRevisionId`);
-        }
-        if (!ref(r.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) {
-            return fail(evidencePath);
-        }
-        for (let j = 0; j < r.positionIds.length; j++) {
-            const position = positionById.get(r.positionIds[j]);
-            if (!position || position.proposalRevisionId !== r.proposalRevisionId) {
-                return fail(`${path}.positionIds[${j}]`);
-            }
-        }
-    }
-    return undefined;
-};
-
-const validateDecisions = (parsedState: MeetingState): string | undefined => {
-    const identityIds = ids(parsedState.identities);
-    const proposals = parsedState.proposals;
-    const proposalIds = ids(proposals);
-    const decisionCandidates = parsedState.decisionCandidates;
-    const decisionCandidateIds = ids(decisionCandidates);
-    const publishedVersionIds = new Set(
-        parsedState.publications.flatMap((item) => item.finalVersionIds)
-    );
-    const decisions = parsedState.decisions;
-    const decisionIds = new Set<string>();
-    for (let i = 0; i < decisions.length; i++) {
-        const r = decisions[i];
-        const path = `$.decisions[${i}]`;
-        decisionIds.add(r.id as string);
-        if (!ref(r.candidateId, decisionCandidateIds)) {
-            return fail(`${path}.candidateId`);
-        }
-        if (!ref(r.proposalRevisionId, proposalIds)) {
-            return fail(`${path}.proposalRevisionId`);
-        }
-        if (!ref(r.actorId, identityIds)) {
-            return fail(`${path}.actorId`);
-        }
-        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
-        if (evidencePath) {
-            return fail(evidencePath);
-        }
-        if (ownUndefined(r, "replacesDecisionId", `${path}.replacesDecisionId`)) {
-            return fail(`${path}.replacesDecisionId`);
-        }
-        if (
-            r.replacesDecisionId !== undefined &&
-            !decisionIds.has(r.replacesDecisionId as string)
-        ) {
-            return fail(`${path}.replacesDecisionId`);
-        }
-        if (r.replacesDecisionId === r.id) {
-            return fail(`${path}.replacesDecisionId`);
-        }
-    }
-    const acceptedByRevision = new Set<string>();
-    const decidedCandidates = new Set<string>();
-    const replacementCounts = new Map<string, number>();
-    for (let i = 0; i < decisions.length; i++) {
-        const d = decisions[i];
-        if (decidedCandidates.has(d.candidateId)) {
-            return fail(`$.decisions[${i}].candidateId`);
-        }
-        decidedCandidates.add(d.candidateId);
-        if (d.status === "accepted") {
-            if (acceptedByRevision.has(d.proposalRevisionId)) {
-                return fail(`$.decisions[${i}].proposalRevisionId`);
-            }
-            acceptedByRevision.add(d.proposalRevisionId);
-        }
-        if (d.replacesDecisionId !== undefined) {
-            const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
-            if (previous < 0 || previous >= i || decisions[previous].status !== "superseded") {
-                return fail(`$.decisions[${i}].replacesDecisionId`);
-            }
-            const previousRevision = proposals.find(
-                (revision) => revision.id === decisions[previous].proposalRevisionId
-            );
-            const replacementRevision = proposals.find(
-                (revision) => revision.id === d.proposalRevisionId
-            );
-            if (
-                !previousRevision ||
-                !replacementRevision ||
-                previousRevision.proposalId !== replacementRevision.proposalId
-            ) {
-                return fail(`$.decisions[${i}].replacesDecisionId`);
-            }
-            replacementCounts.set(
-                d.replacesDecisionId,
-                (replacementCounts.get(d.replacesDecisionId) ?? 0) + 1
-            );
-        }
-    }
-    for (let i = 0; i < decisions.length; i++) {
-        if (decisions[i].status === "superseded" && replacementCounts.get(decisions[i].id) !== 1) {
-            return fail(`$.decisions[${i}].status`);
-        }
-    }
-    return undefined;
-};
-
 const validateSequencesAndBaselines = (parsedState: MeetingState): string | undefined => {
     const rounds = parsedState.rounds;
     const contributions = parsedState.contributions;
@@ -608,10 +436,6 @@ const validateSequencesAndBaselines = (parsedState: MeetingState): string | unde
     const reviews = parsedState.reviews;
     const roundById = indexById(rounds);
     const versionOwnerById = indexVersionOwners(parsedState);
-    const proposals = parsedState.proposals;
-    const decisionCandidates = parsedState.decisionCandidates;
-    const decisionCandidateById = indexById(decisionCandidates);
-    const decisions = parsedState.decisions;
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as unknown as RecordValue;
         const path = `$.rounds[${i}]`;
@@ -665,41 +489,6 @@ const validateSequencesAndBaselines = (parsedState: MeetingState): string | unde
             }
         }
     }
-    const proposalGroups = new Map<string, { ordinal: number; id: string }>();
-    for (let i = 0; i < proposals.length; i++) {
-        const r = proposals[i] as unknown as RecordValue;
-        const path = `$.proposals[${i}]`;
-        const previous = proposalGroups.get(r.proposalId as string);
-        if ((r.ordinal as number) !== (previous?.ordinal ?? 0) + 1) {
-            return fail(`${path}.ordinal`);
-        }
-        proposalGroups.set(r.proposalId as string, {
-            ordinal: r.ordinal as number,
-            id: r.id as string
-        });
-        if ((r.ordinal as number) === 1 && r.supersedesRevisionId !== undefined) {
-            return fail(`${path}.supersedesRevisionId`);
-        }
-        if ((r.ordinal as number) > 1 && r.supersedesRevisionId !== previous?.id) {
-            return fail(`${path}.supersedesRevisionId`);
-        }
-    }
-    for (let i = 0; i < decisions.length; i++) {
-        const r = decisions[i];
-        const candidate = decisionCandidateById.get(r.candidateId);
-        if (candidate && r.proposalRevisionId !== candidate.proposalRevisionId) {
-            return fail(`$.decisions[${i}].proposalRevisionId`);
-        }
-        if (candidate && r.actorId !== candidate.actorId) {
-            return fail(`$.decisions[${i}].actorId`);
-        }
-        if (candidate && JSON.stringify(r.evidenceIds) !== JSON.stringify(candidate.evidenceIds)) {
-            return fail(`$.decisions[${i}].evidenceIds`);
-        }
-        if (candidate && JSON.stringify(r.positionIds) !== JSON.stringify(candidate.positionIds)) {
-            return fail(`$.decisions[${i}].positionIds`);
-        }
-    }
     return undefined;
 };
 
@@ -709,8 +498,6 @@ export const validateMeetingStateReferences = (parsedState: MeetingState): strin
         validateEvidencePackages(parsedState) ??
         validateRegistrationsAndReviews(parsedState) ??
         validateDeliveriesAndPublications(parsedState) ??
-        validateDiscussionRecords(parsedState) ??
-        validateDecisions(parsedState) ??
         validateSequencesAndBaselines(parsedState)
     );
 };

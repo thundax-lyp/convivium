@@ -550,7 +550,6 @@ describe("target Meeting command application transitions", () => {
                     kind: "end_meeting",
                     outcome: "cancelled",
                     reason: "本地用户异常终止",
-                    decisionIds: [],
                     completionFactIds: [],
                     unresolvedQuestionIds: [],
                     unresolvedIssueIds: []
@@ -646,14 +645,6 @@ const captainActions = [
         evidenceIds: []
     },
     { kind: "abort_round", roundId: "r", reason: "stop" },
-    { kind: "decide", candidateId: "c" },
-    {
-        kind: "change_decision",
-        decisionId: "d",
-        status: "revoked",
-        rationale: "invalid",
-        evidenceIds: []
-    },
     {
         kind: "dispose_risk",
         issueId: "i",
@@ -667,8 +658,7 @@ const captainActions = [
         outputId: "o",
         statement: "done",
         rationale: "verified",
-        evidenceIds: [],
-        decisionIds: []
+        evidenceIds: []
     },
     { kind: "change_completion_fact", factId: "f", status: "revoked", rationale: "invalid" }
 ];
@@ -720,18 +710,7 @@ describe("Captain action wire contract", () => {
             { id: "a", title: "topic", question: "why", requiredOutputIds: [] },
             "parked"
         ],
-        [
-            {
-                kind: "change_decision",
-                decisionId: "d",
-                status: "superseded",
-                rationale: "new",
-                evidenceIds: []
-            },
-            "replacementCandidateId",
-            "candidate-2",
-            "revoked"
-        ],
+
         [
             { kind: "change_completion_fact", factId: "f", status: "superseded", rationale: "new" },
             "replacement",
@@ -739,8 +718,7 @@ describe("Captain action wire contract", () => {
                 outputId: "o",
                 statement: "done",
                 rationale: "verified",
-                evidenceIds: [],
-                decisionIds: []
+                evidenceIds: []
             },
             "revoked"
         ]

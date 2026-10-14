@@ -12,7 +12,6 @@ describe("meeting archive", () => {
             terminationId: "termination-v1",
             outcome: "partial",
             reason: "未完成目标",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: [],

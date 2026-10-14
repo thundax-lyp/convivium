@@ -27,22 +27,6 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
         cancelled: "🛑",
         failed: "❌"
     };
-    const decisionOutcomeIcon: Record<
-        MeetingView["outcomes"]["decisions"][number]["outcome"],
-        string
-    > = {
-        adopt: "✅",
-        reject: "❌",
-        defer: "⏸️"
-    };
-    const decisionStatusIcon: Record<
-        MeetingView["outcomes"]["decisions"][number]["status"],
-        string
-    > = {
-        accepted: "✅",
-        superseded: "⏹️",
-        revoked: "🚫"
-    };
     const completionStatusIcon: Record<
         MeetingView["outcomes"]["completionFacts"][number]["status"],
         string
@@ -55,9 +39,6 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
         detail.lifecycle.status === "archived" && detail.archive?.status === "complete"
             ? detail.archive
             : undefined;
-    const candidates =
-        archive?.decisionCandidates ?? detail.outcomes.pendingDecisionCandidates ?? [];
-    const decisions = archive?.decisions ?? detail.outcomes.decisions;
     const facts = archive?.completionFacts ?? detail.outcomes.completionFacts;
     const termination = archive?.termination ?? detail.outcomes.termination;
     return (
@@ -76,24 +57,6 @@ export const OverviewOutcomes = ({ detail }: SectionProps): ReactElement => {
                               />
                           ]
                         : []),
-                    ...candidates.map((item) => (
-                        <OverviewItem
-                            key={overviewKey("decision_candidate", item.id)}
-                            kind="decision_candidate"
-                            id={item.id}
-                            sign={decisionOutcomeIcon[item.outcome]}
-                            text={`${known("decisionOutcome", item.outcome, t)}: ${item.rationale}`}
-                        />
-                    )),
-                    ...decisions.map((item) => (
-                        <OverviewItem
-                            key={overviewKey("decision", item.id)}
-                            kind="decision"
-                            id={item.id}
-                            sign={decisionStatusIcon[item.status]}
-                            text={`${known("decisionOutcome", item.outcome, t)}: ${known("decisionStatus", item.status, t)}: ${item.rationale}`}
-                        />
-                    )),
                     ...facts.map((item) => (
                         <OverviewItem
                             key={overviewKey("completion_fact", item.id)}

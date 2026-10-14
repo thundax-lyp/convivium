@@ -86,7 +86,6 @@ const MeetingEventObjectRefSchema = z.strictObject({
         "identity",
         "question",
         "issue",
-        "decision",
         "completion_fact",
         "risk_disposition",
         "termination",
@@ -205,15 +204,6 @@ const MeetingEventDataSchemaByKind = {
         scope: nonempty,
         rationale: nonempty
     }),
-    "decision.recorded": z.strictObject({ status: z.literal("accepted") }),
-    "decision.changed": z.discriminatedUnion("status", [
-        z.strictObject({
-            status: z.literal("superseded"),
-            rationale: nonempty,
-            replacementDecisionId: nonempty
-        }),
-        z.strictObject({ status: z.literal("revoked"), rationale: nonempty })
-    ]),
     "completion_fact.recorded": z.strictObject({
         outputId: nonempty,
         statement: nonempty,
@@ -282,8 +272,6 @@ export const CommittedMeetingEventSchema = z.discriminatedUnion("type", [
     meetingEvent("question.disposed", "question"),
     meetingEvent("issue.disposed", "issue"),
     meetingEvent("risk.disposed", "risk_disposition"),
-    meetingEvent("decision.recorded", "decision"),
-    meetingEvent("decision.changed", "decision"),
     meetingEvent("completion_fact.recorded", "completion_fact"),
     meetingEvent("completion_fact.changed", "completion_fact"),
     meetingEvent("meeting.ended", "termination"),

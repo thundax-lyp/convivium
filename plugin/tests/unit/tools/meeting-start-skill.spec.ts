@@ -210,7 +210,6 @@ describe("chat Meeting cancel", () => {
             meetingId: "meeting-1",
             version: 4,
             outcomes: {
-                decisions: [{ id: "decision-1", status: "accepted" }],
                 completionFacts: []
             },
             questions: [{ id: "question-1", status: "open" }],
@@ -246,7 +245,6 @@ describe("chat Meeting cancel", () => {
                     kind: "end_meeting",
                     outcome: "cancelled",
                     reason: "外部依赖故障",
-                    decisionIds: ["decision-1"],
                     completionFactIds: [],
                     unresolvedQuestionIds: ["question-1"],
                     unresolvedIssueIds: []

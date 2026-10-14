@@ -157,7 +157,7 @@ const evidence = (round, suffix) => ({
     ]
 });
 
-export async function runMeetingBusinessLoopScenario(runtime) {
+export const runMeetingBusinessLoopScenario = async (runtime) => {
     const {
         ctx,
         callTargetTool,
@@ -674,9 +674,6 @@ export async function runMeetingBusinessLoopScenario(runtime) {
                 kind: "end_meeting",
                 outcome: "partial",
                 reason: "four fixture research stages complete",
-                decisionIds: endView.outcomes.decisions
-                    .filter((item) => item.status === "accepted")
-                    .map((item) => item.id),
                 completionFactIds: endView.outcomes.completionFacts
                     .filter((item) => item.status === "active")
                     .map((item) => item.id),
@@ -740,4 +737,4 @@ export async function runMeetingBusinessLoopScenario(runtime) {
             subtopicOrigin: "manager-round-goal"
         }
     });
-}
+};

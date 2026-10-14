@@ -105,7 +105,7 @@ Overview 和 Timeline 详情可用时，右下通过 sticky slot 放置竖向 Bu
 
 时间线事件卡片纵向间距固定为 20px，不提供缩放控件。
 
-身份筛选使用 caller-visible 的 displayName 与角色；缺少名称时使用角色与序号，不回退到内部 ID。概览中的发布入口使用轮次目标，审核送达与决策展示状态及理由；时间线内容仅有原始对象 ID 时使用对象类型替代，不展示作为归档详情的原始 ID。key、筛选值及定位关联保留内部 ID，正文和证据引用编号保持原文。
+身份筛选使用 caller-visible 的 displayName 与角色；缺少名称时使用角色与序号，不回退到内部 ID。概览中的发布入口使用轮次目标，审核送达与完成事实展示状态及理由；时间线内容仅有原始对象 ID 时使用对象类型替代，不展示作为归档详情的原始 ID。key、筛选值及定位关联保留内部 ID，正文和证据引用编号保持原文。
 
 取得非空列表后，Navigator 使用“讨论区”区头和本地摘要搜索，列表以 `role="tree"` 呈现，每行以生命周期图标、单行省略的 objective 与相对 `updatedAt` 组成，按 `updatedAt` 倒序排列；相对时间由 Navigator 的单个时钟每分钟刷新。图标使用 DSH UI primitives，颜色使用 Host theme 语义变量；搜索无匹配使用搜索图标与 Client `Empty` 组件。搜索和排序只处理已获得的 `MeetingSummary[]`，不发起详情请求，也不改变选中 ID。
 
@@ -141,7 +141,7 @@ interface MeetingsWorkspaceState {
 
 1. “目标”：Objective 产出要求、验收标准与约束；
 2. “议题”：当前 Agenda；
-3. “结论”：存在时的 Termination outcome、caller-visible pending DecisionCandidate、当前和历史 Decision、CompletionFact；
+3. “结论”：存在时的 Termination outcome、当前和历史 CompletionFact；
 4. “开放项”：Question、Issue 与 RiskDisposition；
 5. 记录：每轮的 Publication、成对的 EvidenceVersion/EvidenceReview、关联的 ReviewDelivery、按 `seq` 排列的 FormalMessage、未形成证据的失败 Contribution，以及明确不举手或到期未回应的参与者；
 
@@ -151,7 +151,7 @@ interface MeetingsWorkspaceState {
 
 概览区域共用 `overview/components/` 的 Section 容器；带定位目标的区域由它保留聚焦属性。同目录的 OverviewItem 将传入的 `sign` 与文本 Ellipsis 或交互内容并列放在 ListItem 中、顶端对齐；记录中的“查看证据”按钮也使用该 Item 的布局。`overview/objective/`、`overview/agenda/`、`overview/outcomes/` 和 `overview/open-items/` 分别持有目标、议题、结论和开放项的投影选择、状态图标及条目渲染；各自按状态（RiskDisposition 按 action）选择文字图标，不使用跨区域的状态映射。`overview/records/` 持有记录的归组、排序及渲染。Objective、Agenda 和 Termination outcome 的生成状态文案不在正文显示，状态名称保留在可访问名称中。Termination 正文直接显示 reason，不添加“会议结果：”前缀。其余条目继续展示原有业务文本；记录中的轮次状态使用标题图标，观点和审核分别显示 💡 与 💬，新观点正文直接显示 FormalMessage.body 且不添加 kind 前缀，审核正文直接显示内容且不添加 Review ID 前缀，正文不重复类型文案，类型名称保留在可访问名称中；其余普通条目显示中性圆点，未形成证据的退出显示警示图标。长文本由 Ellipsis 按 `maxLines` 显示预览，其中轮次发布与观点最多预览 3 行。只有末尾的「...展开」按钮会展开全文；「收起」按钮位于全文下一行的右侧。
 
-Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。开放轮次不能执行 `EndMeeting`，投影不提供对应 control，避免面板呈现必然被领域拒绝的异常取消入口。概览内的 Contribution 授权、Decision 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
+Header 的暂停、继续和结束 lifecycle control 由 `MeetingView.controls`、last-good/陈旧状态和单个 pending command 联合决定是否呈现或启用。开放轮次不能执行 `EndMeeting`，投影不提供对应 control，避免面板呈现必然被领域拒绝的异常取消入口。概览内的 Contribution 授权 和 Risk 对象不渲染写控制。归档 Meeting 不渲染运行期进展和写控制；成功或协议拒绝后完整补读，不自动重试 command。
 
 ### 时间线 Client projection
 
@@ -198,7 +198,7 @@ interface TimelineMilestoneGroup {
 
 1. `meeting.created` 建立并完成 meeting-start，且该事件归入该组。
 2. `round.opened` 建立对应 round group；后续只有 subject 或 relation 明确指向该 round ID 的 round 类事件才能进入。`round.published` 将其完成，`round.aborted` 将其中止；找不到已建立 round group 时作为未归属普通卡片，不补建或回填历史 round。
-3. 不建立 convergence 分组。主持计划、Question/Issue/Risk 处置与 Decision 事件仅在存在唯一明确 round 关联且该 round 已建立时归入该轮次，包括已经结束的轮次；无关联或关联歧义时作为未归属普通卡片，不按时间或文本猜测。
+3. 不建立 convergence 分组。主持计划、Question/Issue/Risk 处置事件仅在存在唯一明确 round 关联且该 round 已建立时归入该轮次，包括已经结束的轮次；无关联或关联歧义时作为未归属普通卡片，不按时间或文本猜测。
 4. completion 类事件建立或复用当前 completion，新的独立实例递增 occurrence；不创建内部 convergence。
 5. `meeting.lifecycle_changed` 离开 converging 时，有当前 completion 则归入它；目标非 terminal 时按 paused → blocked、其它 → completed 关闭并清除当前 completion。无 completion 时事件作为未归属普通卡片。目标 terminal 的 completion 留待 meeting.ended 关闭。
 6. `meeting.ended` 先关闭仍活动的 completion：event data outcome=`completed` 时标记 `completed`，`partial|no_consensus|cancelled|failed` 时标记 `aborted`，`completedAt` 取该事件时间；该事件本身只建立 closure 并归入 closure。`archive.started`、`archive.completed` 进入已经建立的 closure，缺少 closure 时作为未归属普通卡片。`archive.completed` 完成 closure。

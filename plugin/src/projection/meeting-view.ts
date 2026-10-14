@@ -1,5 +1,4 @@
 import {
-    pendingDecisionCandidates,
     type ArchivePackage,
     type MeetingRole,
     type MeetingState,
@@ -117,23 +116,12 @@ const allowedControls = (state: MeetingState, caller: MeetingProjectionCaller) =
         if (state.issues.some((item) => ["open", "deferred"].includes(item.status))) {
             controls.push("dispose_issue");
         }
-        if (pendingDecisionCandidates(state).length > 0) {
-            controls.push("decide");
-        }
         const published = state.publications.flatMap((item) => item.finalVersionIds);
         if (published.length > 0) {
-            if (state.decisions.some((item) => item.status === "accepted")) {
-                controls.push("change_decision");
-            }
             if (state.issues.some((item) => item.status === "open")) {
                 controls.push("dispose_risk");
             }
-            if (
-                state.objective.requiredOutputs.length > 0 &&
-                state.decisions.some(
-                    (item) => item.status === "accepted" && item.outcome === "adopt"
-                )
-            ) {
+            if (state.objective.requiredOutputs.length > 0) {
                 controls.push("record_completion_fact");
             }
         }
@@ -178,15 +166,10 @@ export const projectMeetingSummary = (snapshot: MeetingSnapshot<MeetingState>): 
 
 export const projectArchiveView = (
     archive: ArchivePackage,
-    caller: MeetingProjectionCaller
+    _caller: MeetingProjectionCaller
 ): ArchiveView => {
-    const used = new Set(archive.decisions.map(({ candidateId }) => candidateId));
     return ArchiveViewSchema.parse({
-        ...copy(archive),
-        decisionCandidates:
-            caller.kind === "captain"
-                ? copy(archive.decisionCandidates)
-                : archive.decisionCandidates.filter(({ id }) => used.has(id)).map(copy)
+        ...copy(archive)
     });
 };
 
@@ -359,12 +342,8 @@ export const projectMeetingView = (
         questions: copy(state.questions),
         issues: copy(state.issues),
         outcomes: {
-            decisions: copy(state.decisions),
             completionFacts: copy(state.completionFacts),
             riskDispositions: caller.kind === "captain" ? copy(state.riskDispositions) : [],
-            ...(caller.kind === "captain"
-                ? { pendingDecisionCandidates: copy(pendingDecisionCandidates(state)) }
-                : {}),
             ...(state.termination ? { termination: copy(state.termination) } : {})
         },
         ...(state.archive ? { archive: projectArchiveView(state.archive, caller) } : {}),

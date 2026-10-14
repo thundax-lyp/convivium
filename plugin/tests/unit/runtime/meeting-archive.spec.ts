@@ -19,7 +19,6 @@ const terminalState = (): MeetingState => {
         terminationId: "termination-1",
         outcome: "partial",
         reason: "done",
-        decisionIds: [],
         completionFactIds: [],
         unresolvedQuestionIds: [],
         unresolvedIssueIds: [],

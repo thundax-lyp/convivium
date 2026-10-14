@@ -26,9 +26,6 @@ export {
     type IdentityAdmissionResultContext
 } from "./meeting-identity.ts";
 export {
-    pendingDecisionCandidates,
-    decide,
-    changeDecision,
     disposeRisk,
     recordCompletionFact,
     changeCompletionFact,

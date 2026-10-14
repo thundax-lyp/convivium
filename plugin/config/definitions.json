@@ -25,7 +25,7 @@
             "evidenceScopes": [],
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
-                "sha256": "ddb6dcebc6a15a5c7c4f55c751fcea2da9b90a53e576dad7a9a5269d8b5e2328"
+                "sha256": "6cf3cc7ea082e12fe17d38a426267630c5713a931f7fe869220a6d24b6bbbda2"
             }
         },
         {
@@ -51,7 +51,7 @@
             "evidenceScopes": ["repository"],
             "agentInstructions": {
                 "roleDefinitionId": "domain_architect",
-                "sha256": "a37aacb0d141bd99f1290006ca16388b47aa9b654cd76990839eaba296bb9224"
+                "sha256": "d4e469ad46a1eb29ec6b03435705d81fc63b0a5f839c2e1c344b0c02d532d4f1"
             }
         },
         {

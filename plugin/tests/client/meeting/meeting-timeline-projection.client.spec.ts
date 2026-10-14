@@ -307,8 +307,6 @@ describe("Timeline object details", () => {
             ["publication", "publication-1"],
             ["formal_message", "message-1"],
             ["identity_recommendation", "recommendation-1"],
-            ["decision_candidate", "candidate-1"],
-            ["decision", "decision-1"],
             ["completion_fact", "completion-1"],
             ["risk_disposition", "risk-1"],
             ["manager_plan", "plan-1"],
@@ -332,8 +330,6 @@ describe("Timeline object details", () => {
             publication: { title: "publication-1", detail: "reason A; reason B" },
             formal_message: { title: "notice", detail: "message body" },
             identity_recommendation: { title: "recommendation rationale", detail: "active" },
-            decision_candidate: { title: "adopt", detail: "candidate rationale" },
-            decision: { title: "adopt", detail: "candidate rationale" },
             completion_fact: { title: "completion statement", detail: "completion rationale" },
             risk_disposition: { title: "accept", detail: "risk rationale" },
             manager_plan: { title: "open_round", detail: "plan rationale" },
@@ -358,8 +354,6 @@ describe("Timeline object details", () => {
 
         const archive = archiveTimelineFixture();
         const archiveNodes = [
-            ["proposal_revision", "proposal-1"],
-            ["position", "position-1"],
             ["disposition_fact", "fact-1"],
             ["archive", "archive-1"]
         ].map(([objectKind, objectId]) => ({
@@ -372,8 +366,6 @@ describe("Timeline object details", () => {
             relatedObjects: []
         }));
         for (const [kind, content] of Object.entries({
-            proposal_revision: { title: "proposal summary", detail: "proposal body" },
-            position: { title: "support", detail: "position rationale" },
             disposition_fact: { title: "dispose_issue", detail: "fact rationale" },
             archive: { title: "complete", detail: "archive-1" }
         })) {
@@ -388,20 +380,20 @@ describe("Timeline object details", () => {
 });
 
 it("intersects participant and object filters on committed events", () => {
-    const decision: MeetingEventView = {
+    const reviewed: MeetingEventView = {
         ...envelope(7),
-        kind: "decision.recorded",
+        kind: "evidence_review.submitted",
         actor: { kind: "identity", actorId: "manager-v1" },
-        subject: { kind: "decision", id: "decision-1" },
+        subject: { kind: "evidence_review", id: "review-1" },
         relatedObjects: [{ kind: "evidence_version", id: "version-1" }],
-        data: { status: "accepted" }
+        data: { status: "validated" }
     };
     const nodes = buildTimelineNodes(
         eventTimelineFixture([
-            decision,
-            { ...decision, eventSeq: 8, actor: { kind: "identity", actorId: "contributor-v1" } },
+            reviewed,
+            { ...reviewed, eventSeq: 8, actor: { kind: "identity", actorId: "contributor-v1" } },
             {
-                ...decision,
+                ...reviewed,
                 eventSeq: 9,
                 subject: { kind: "completion_fact", id: "completion-1" },
                 data: { status: "active" }
@@ -412,7 +404,7 @@ it("intersects participant and object filters on committed events", () => {
         filterTimelineNodes(nodes, {
             ...INITIAL_TIMELINE_FILTERS,
             participantIds: ["identity:manager-v1"],
-            objectKinds: ["decision"]
+            objectKinds: ["evidence_review"]
         }).map(({ key }) => key)
     ).toEqual(["event:7"]);
 });

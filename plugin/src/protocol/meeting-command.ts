@@ -42,7 +42,6 @@ export const EndMeetingActionSchema = z.object({
     kind: z.literal("end_meeting"),
     outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
     reason: text,
-    decisionIds: z.array(id),
     completionFactIds: z.array(id),
     unresolvedQuestionIds: z.array(id),
     unresolvedIssueIds: z.array(id)
@@ -234,8 +233,7 @@ const completionInput = z.object({
     criterionId: id.optional(),
     statement: text,
     rationale: text,
-    evidenceIds: z.array(id),
-    decisionIds: z.array(id)
+    evidenceIds: z.array(id)
 });
 export const ActivateAgendaActionSchema = z.object({
     kind: z.literal("activate_agenda"),
@@ -275,21 +273,6 @@ export const AbortRoundActionSchema = z.object({
     roundId: id,
     reason: text
 });
-export const DecideActionSchema = z.object({ kind: z.literal("decide"), candidateId: id });
-export const ChangeDecisionActionSchema = z
-    .object({
-        kind: z.literal("change_decision"),
-        decisionId: id,
-        status: z.enum(["superseded", "revoked"]),
-        rationale: text,
-        evidenceIds: z.array(id),
-        replacementCandidateId: id.optional()
-    })
-    .superRefine((value, ctx) => {
-        if ((value.status === "superseded") !== (value.replacementCandidateId !== undefined)) {
-            ctx.addIssue({ code: "custom", path: ["replacementCandidateId"] });
-        }
-    });
 export const DisposeRiskActionSchema = z.object({
     kind: z.literal("dispose_risk"),
     issueId: id,
@@ -321,8 +304,6 @@ const captainActions = [
     ResolveQuestionActionSchema,
     DisposeIssueActionSchema,
     AbortRoundActionSchema,
-    DecideActionSchema,
-    ChangeDecisionActionSchema,
     DisposeRiskActionSchema,
     RecordCompletionFactActionSchema,
     ChangeCompletionFactActionSchema,
@@ -339,8 +320,6 @@ const actions = [
     ResolveQuestionActionSchema,
     DisposeIssueActionSchema,
     AbortRoundActionSchema,
-    DecideActionSchema,
-    ChangeDecisionActionSchema,
     DisposeRiskActionSchema,
     RecordCompletionFactActionSchema,
     ChangeCompletionFactActionSchema,

@@ -24,8 +24,6 @@ export const MEETING_EVENT_KINDS = [
     "question.disposed",
     "issue.disposed",
     "risk.disposed",
-    "decision.recorded",
-    "decision.changed",
     "completion_fact.recorded",
     "completion_fact.changed",
     "meeting.ended",
@@ -53,7 +51,6 @@ export type MeetingEventObjectKind =
     | "identity"
     | "question"
     | "issue"
-    | "decision"
     | "completion_fact"
     | "risk_disposition"
     | "termination"
@@ -164,10 +161,6 @@ export interface MeetingEventDataByKind {
         scope: string;
         rationale: string;
     };
-    "decision.recorded": { status: "accepted" };
-    "decision.changed":
-        | { status: "superseded"; rationale: string; replacementDecisionId: string }
-        | { status: "revoked"; rationale: string };
     "completion_fact.recorded": {
         outputId: string;
         statement: string;

@@ -496,28 +496,6 @@ const formalMessageSchema = z.object({
     relatedIds: uniqueIdArraySchema,
     createdAt: epochSchema
 });
-const proposalRevisionSchema = z
-    .object({
-        id: opaqueIdSchema,
-        proposalId: opaqueIdSchema,
-        ordinal: positiveIntegerSchema,
-        actorId: opaqueIdSchema,
-        agendaId: opaqueIdSchema,
-        summary: textSchema,
-        body: textSchema,
-        evidenceIds: uniqueIdArraySchema,
-        supersedesRevisionId: opaqueIdSchema.optional(),
-        createdAt: epochSchema
-    })
-    .refine((value) => isAbsentOrDefined(value, "supersedesRevisionId"), {
-        path: ["supersedesRevisionId"]
-    })
-    .refine((value) => value.ordinal !== 1 || !own(value, "supersedesRevisionId"), {
-        path: ["supersedesRevisionId"]
-    })
-    .refine((value) => value.ordinal === 1 || own(value, "supersedesRevisionId"), {
-        path: ["supersedesRevisionId"]
-    });
 const riskDispositionSchema = z.object({
     id: opaqueIdSchema,
     issueId: opaqueIdSchema,
@@ -538,7 +516,6 @@ const completionFactSchema = withDefinedOptionals(
         statement: textSchema,
         rationale: textSchema,
         evidenceIds: uniqueIdArraySchema.min(1),
-        decisionIds: uniqueIdArraySchema.min(1),
         supersedesFactId: opaqueIdSchema.optional(),
         createdAt: epochSchema
     }),
@@ -549,7 +526,6 @@ const terminationSchema = z.object({
     outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
     reason: textSchema,
     endedAt: epochSchema,
-    decisionIds: uniqueIdArraySchema,
     completionFactIds: uniqueIdArraySchema,
     unresolvedQuestionIds: uniqueIdArraySchema,
     unresolvedIssueIds: uniqueIdArraySchema,
@@ -632,12 +608,7 @@ const archiveIdentityProvenanceSchema = withDefinedOptionals(
 );
 const archiveMaterialSchema = z.object({
     id: opaqueIdSchema,
-    kind: z.enum([
-        "published_evidence",
-        "formal_message",
-        "accepted_decision",
-        "active_completion_fact"
-    ]),
+    kind: z.enum(["published_evidence", "formal_message", "active_completion_fact"]),
     title: textSchema,
     sourceObjectIds: uniqueIdArraySchema
 });
@@ -654,10 +625,6 @@ const archiveSchema = z.lazy(() =>
         publications: z.array(publicationSchema),
         messages: z.array(formalMessageSchema),
         evidenceBundles: z.array(archiveEvidenceBundleSchema),
-        proposalRevisions: z.array(proposalRevisionSchema),
-        positions: z.array(positionSchema),
-        decisionCandidates: z.array(decisionCandidateSchema),
-        decisions: z.array(decisionSchema),
         completionFacts: z.array(completionFactSchema),
         questions: z.array(questionSchema),
         issues: z.array(issueSchema),
@@ -680,30 +647,6 @@ const continuationSchema = z.object({
     selectedMaterialIds: uniqueIdArraySchema,
     importedAt: epochSchema,
     importedBy: opaqueIdSchema
-});
-const positionSchema = z.object({
-    id: opaqueIdSchema,
-    proposalRevisionId: opaqueIdSchema,
-    actorId: opaqueIdSchema,
-    stance: z.enum(["support", "oppose", "abstain", "conditional"]),
-    rationale: textSchema,
-    evidenceIds: uniqueIdArraySchema,
-    createdAt: epochSchema
-});
-const decisionCandidateSchema = z.object({
-    id: opaqueIdSchema,
-    proposalRevisionId: opaqueIdSchema,
-    actorId: opaqueIdSchema,
-    outcome: z.enum(["adopt", "reject", "defer"]),
-    rationale: textSchema,
-    evidenceIds: uniqueIdArraySchema,
-    positionIds: uniqueIdArraySchema,
-    createdAt: epochSchema
-});
-const decisionSchema = decisionCandidateSchema.extend({
-    candidateId: opaqueIdSchema,
-    status: z.enum(["accepted", "superseded", "revoked"]),
-    replacesDecisionId: opaqueIdSchema.optional()
 });
 const limitsSchema = z.object({
     maxFormalMessages: integerSchema,
@@ -734,10 +677,6 @@ const meetingStateSchema = withDefinedOptionals(
         reviewDeliveries: uniqueEntityArray(reviewDeliverySchema),
         publications: uniqueEntityArray(publicationSchema),
         messages: uniqueEntityArray(formalMessageSchema),
-        proposals: uniqueEntityArray(proposalRevisionSchema),
-        positions: uniqueEntityArray(positionSchema),
-        decisionCandidates: uniqueEntityArray(decisionCandidateSchema),
-        decisions: uniqueEntityArray(decisionSchema),
         questions: uniqueEntityArray(questionSchema),
         issues: uniqueEntityArray(issueSchema),
         riskDispositions: uniqueEntityArray(riskDispositionSchema),

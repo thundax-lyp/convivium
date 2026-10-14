@@ -41,8 +41,6 @@ const MEETING_EVENT_KINDS = [
     "question.disposed",
     "issue.disposed",
     "risk.disposed",
-    "decision.recorded",
-    "decision.changed",
     "completion_fact.recorded",
     "completion_fact.changed",
     "meeting.ended",
@@ -67,7 +65,6 @@ export const MeetingEventObjectRefSchema = z.strictObject({
         "identity",
         "question",
         "issue",
-        "decision",
         "completion_fact",
         "risk_disposition",
         "termination",
@@ -182,15 +179,6 @@ const MeetingEventDataSchemaByKind = {
         scope: text,
         rationale: text
     }),
-    "decision.recorded": z.strictObject({ status: z.literal("accepted") }),
-    "decision.changed": z.discriminatedUnion("status", [
-        z.strictObject({
-            status: z.literal("superseded"),
-            rationale: text,
-            replacementDecisionId: id
-        }),
-        z.strictObject({ status: z.literal("revoked"), rationale: text })
-    ]),
     "completion_fact.recorded": z.strictObject({ outputId: id, statement: text, rationale: text }),
     "completion_fact.changed": z.discriminatedUnion("status", [
         z.strictObject({ status: z.literal("superseded"), rationale: text, replacementFactId: id }),
@@ -245,8 +233,6 @@ export const MeetingEventViewSchema = z.discriminatedUnion("kind", [
     meetingEvent("question.disposed", "question"),
     meetingEvent("issue.disposed", "issue"),
     meetingEvent("risk.disposed", "risk_disposition"),
-    meetingEvent("decision.recorded", "decision"),
-    meetingEvent("decision.changed", "decision"),
     meetingEvent("completion_fact.recorded", "completion_fact"),
     meetingEvent("completion_fact.changed", "completion_fact"),
     meetingEvent("meeting.ended", "termination"),
@@ -516,43 +502,6 @@ export const FormalMessageViewSchema = z.object({
     relatedIds: z.array(id),
     createdAt: epoch
 });
-export const ProposalRevisionViewSchema = z.object({
-    id,
-    proposalId: id,
-    ordinal: z.number().int().positive(),
-    actorId: id,
-    agendaId: id,
-    summary: text,
-    body: text,
-    evidenceIds: z.array(id),
-    supersedesRevisionId: id.optional(),
-    createdAt: epoch
-});
-export const PositionViewSchema = z.object({
-    id,
-    proposalRevisionId: id,
-    actorId: id,
-    stance: z.enum(["support", "oppose", "abstain", "conditional"]),
-    rationale: text,
-    evidenceIds: z.array(id),
-    createdAt: epoch
-});
-export const DecisionCandidateViewSchema = z.object({
-    id,
-    proposalRevisionId: id,
-    actorId: id,
-    outcome: z.enum(["adopt", "reject", "defer"]),
-    rationale: text,
-    evidenceIds: z.array(id),
-    positionIds: z.array(id),
-    createdAt: epoch
-});
-export const DecisionViewSchema = z.object({
-    ...DecisionCandidateViewSchema.shape,
-    candidateId: id,
-    status: z.enum(["accepted", "superseded", "revoked"]),
-    replacesDecisionId: id.optional()
-});
 export const QuestionViewSchema = z.object({
     id,
     actorId: id,
@@ -594,7 +543,6 @@ export const CompletionFactViewSchema = z.object({
     statement: text,
     rationale: text,
     evidenceIds: z.array(id),
-    decisionIds: z.array(id),
     createdAt: epoch
 });
 export const RiskDispositionViewSchema = z.object({
@@ -612,17 +560,14 @@ export const TerminationViewSchema = z.object({
     outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
     reason: text,
     endedAt: epoch,
-    decisionIds: z.array(id),
     completionFactIds: z.array(id),
     unresolvedQuestionIds: z.array(id),
     unresolvedIssueIds: z.array(id),
     unclosedContributionIds: z.array(id)
 });
 export const OutcomeViewSchema = z.object({
-    decisions: z.array(DecisionViewSchema),
     completionFacts: z.array(CompletionFactViewSchema),
     riskDispositions: z.array(RiskDispositionViewSchema),
-    pendingDecisionCandidates: z.array(DecisionCandidateViewSchema).optional(),
     termination: TerminationViewSchema.optional()
 });
 
@@ -666,12 +611,7 @@ export const UnclosedContributionViewSchema = z.object({
 });
 export const ArchiveMaterialViewSchema = z.object({
     id,
-    kind: z.enum([
-        "published_evidence",
-        "formal_message",
-        "accepted_decision",
-        "active_completion_fact"
-    ]),
+    kind: z.enum(["published_evidence", "formal_message", "active_completion_fact"]),
     title: text,
     sourceObjectIds: z.array(id)
 });
@@ -704,17 +644,6 @@ export const ContinuationMaterialViewSchema = z.discriminatedUnion("kind", [
         sourceMaterialId: id,
         title: text,
         message: z.object({ kind: text, body: text, createdAt: epoch })
-    }),
-    z.object({
-        kind: z.literal("accepted_decision"),
-        sourceArchiveId: id,
-        sourceMaterialId: id,
-        title: text,
-        decision: z.object({
-            outcome: z.enum(["adopt", "reject", "defer"]),
-            rationale: text,
-            createdAt: epoch
-        })
     }),
     z.object({
         kind: z.literal("active_completion_fact"),
@@ -769,10 +698,6 @@ export const ArchiveViewSchema = z
                 review: EvidenceReviewViewSchema
             })
         ),
-        proposalRevisions: z.array(ProposalRevisionViewSchema),
-        positions: z.array(PositionViewSchema),
-        decisionCandidates: z.array(DecisionCandidateViewSchema),
-        decisions: z.array(DecisionViewSchema),
         completionFacts: z.array(CompletionFactViewSchema),
         questions: z.array(QuestionViewSchema),
         issues: z.array(IssueViewSchema),
@@ -841,8 +766,6 @@ export const AllowedControlSchema = z.enum([
     "resolve_question",
     "dispose_issue",
     "abort_round",
-    "decide",
-    "change_decision",
     "dispose_risk",
     "record_completion_fact",
     "change_completion_fact",
@@ -923,10 +846,6 @@ export type EvidencePackageView = z.infer<typeof EvidencePackageViewSchema>;
 export type EvidenceReviewView = z.infer<typeof EvidenceReviewViewSchema>;
 export type ReviewDeliveryView = z.infer<typeof ReviewDeliveryViewSchema>;
 export type FormalMessageView = z.infer<typeof FormalMessageViewSchema>;
-export type ProposalRevisionView = z.infer<typeof ProposalRevisionViewSchema>;
-export type PositionView = z.infer<typeof PositionViewSchema>;
-export type DecisionCandidateView = z.infer<typeof DecisionCandidateViewSchema>;
-export type DecisionView = z.infer<typeof DecisionViewSchema>;
 export type QuestionView = z.infer<typeof QuestionViewSchema>;
 export type IssueView = z.infer<typeof IssueViewSchema>;
 export type CompletionFactView = z.infer<typeof CompletionFactViewSchema>;

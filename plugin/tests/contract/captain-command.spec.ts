@@ -19,14 +19,6 @@ const actions = [
         evidenceIds: ["v"]
     },
     { kind: "abort_round", roundId: "r", reason: "stop" },
-    { kind: "decide", candidateId: "c" },
-    {
-        kind: "change_decision",
-        decisionId: "d",
-        status: "revoked",
-        rationale: "invalid",
-        evidenceIds: ["v"]
-    },
     {
         kind: "dispose_risk",
         issueId: "i",
@@ -40,8 +32,7 @@ const actions = [
         outputId: "o",
         statement: "done",
         rationale: "verified",
-        evidenceIds: ["v"],
-        decisionIds: ["d"]
+        evidenceIds: ["v"]
     },
     { kind: "change_completion_fact", factId: "f", status: "revoked", rationale: "invalid" }
 ];
@@ -101,7 +92,6 @@ describe("Captain trusted user authorization", () => {
             kind: "end_meeting",
             outcome: "partial",
             reason: "证据不足，当前参与者无法继续核验",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: []
@@ -153,7 +143,6 @@ describe("Captain trusted user authorization", () => {
                         kind: "end_meeting",
                         outcome: "cancelled",
                         reason: "用户明确中止",
-                        decisionIds: [],
                         completionFactIds: [],
                         unresolvedQuestionIds: [],
                         unresolvedIssueIds: []
@@ -251,26 +240,14 @@ const mapBusinessAction = (action) => ({
     ...action,
     ...(action.kind === "activate_agenda" ? { agendaId: "next" } : {}),
     ...(action.kind === "dispose_agenda_candidate" ? { candidateId: "candidate" } : {}),
-    ...(action.kind === "decide" ? { candidateId: "cand" } : {}),
     ...(action.kind === "abort_round" ? { roundId: "open-round" } : {}),
-    ...(action.kind === "change_decision" ? { decisionId: "dec" } : {}),
-    ...(action.kind === "record_completion_fact" ? { decisionIds: ["dec"] } : {}),
+    ...(action.kind === "record_completion_fact" ? {} : {}),
     ...(action.kind === "change_completion_fact" ? { factId: "fact" } : {})
 });
 
 const businessFixture = async (action, terminal = false) => {
     let state = completionReadyState();
     state.objective.requiredOutputs.push({ id: "pending", text: "remaining", status: "pending" });
-    if (action.kind === "decide") {
-        state.decisions = [];
-    }
-    if (action.kind === "change_decision" && action.status === "superseded") {
-        state.decisionCandidates.push({
-            ...state.decisionCandidates[0]!,
-            id: "replacement-candidate",
-            rationale: "new evidence"
-        });
-    }
     if (action.kind === "change_completion_fact") {
         const fact = recordCompletionFact(state, completionInput());
         if (fact.kind !== "accepted") {
@@ -357,7 +334,6 @@ const businessFixture = async (action, terminal = false) => {
             reason: "stop",
             actorId: captainActorIdFor(state.id),
             now: 5,
-            decisionIds: state.decisions.filter((d) => d.status === "accepted").map((d) => d.id),
             completionFactIds: state.completionFacts
                 .filter((f) => f.status === "active")
                 .map((f) => f.id),
@@ -450,15 +426,9 @@ describe("Captain business transactions", () => {
                     ...f.command,
                     action: {
                         ...f.command.action,
-                        ...(action.kind === "decide"
-                            ? { candidateId: "other" }
-                            : action.kind === "activate_agenda"
-                              ? { reason: "other" }
-                              : action.kind === "abort_round"
-                                ? { reason: "other" }
-                                : action.kind === "dispose_agenda_candidate"
-                                  ? { reason: "other" }
-                                  : { rationale: "other" })
+                        ...("reason" in f.command.action
+                            ? { reason: "other" }
+                            : { rationale: "other" })
                     }
                 })
             ).resolves.toMatchObject({ kind: "rejected", error: { code: "IDEMPOTENCY_CONFLICT" } });
@@ -498,14 +468,6 @@ describe("Captain business transactions", () => {
 
 it.each([
     {
-        kind: "change_decision",
-        decisionId: "dec",
-        status: "superseded",
-        rationale: "replace",
-        evidenceIds: ["v"],
-        replacementCandidateId: "replacement-candidate"
-    },
-    {
         kind: "change_completion_fact",
         factId: "fact",
         status: "superseded",
@@ -514,8 +476,7 @@ it.each([
             outputId: "o",
             statement: "reverified",
             rationale: "new evidence",
-            evidenceIds: ["v"],
-            decisionIds: ["dec"]
+            evidenceIds: ["v"]
         }
     }
 ])(
@@ -528,12 +489,10 @@ it.each([
             expect(result.kind).toBe("accepted");
             await f.reopen();
             const after = (await f.getRepository().read()).state;
-            const key = action.kind === "change_decision" ? "decisions" : "completionFacts";
+            const key = "completionFacts";
             expect(after[key][0]).toEqual({ ...before[key][0], status: "superseded" });
             expect(after[key]).toHaveLength(2);
-            expect(after[key][1].id).toMatch(
-                action.kind === "change_decision" ? /^decision-/ : /^completion_fact-/
-            );
+            expect(after[key][1].id).toMatch(/^completion_fact-/);
             const facts = await f.getRepository().readCommittedFacts();
             expect(facts).toHaveLength(1);
             expect(after[key][1].id).not.toBe(facts[0]!.factId);

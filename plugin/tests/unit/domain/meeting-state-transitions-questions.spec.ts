@@ -312,39 +312,6 @@ it("clears the final blocking issue and enters converging in the same transition
         }
     ];
     current.publications[0].finalReviewIds = ["review-1"];
-    current.proposals = [
-        {
-            id: "proposal-1",
-            proposalId: "proposal-group-1",
-            ordinal: 1,
-            actorId: "identity-1",
-            agendaId: "agenda-1",
-            summary: "x",
-            body: "x",
-            evidenceIds: ["version-1"],
-            createdAt: 0
-        }
-    ];
-    current.decisionCandidates = [
-        {
-            id: "candidate-1",
-            proposalRevisionId: "proposal-1",
-            actorId: "identity-1",
-            outcome: "adopt",
-            rationale: "x",
-            evidenceIds: ["version-1"],
-            positionIds: [],
-            createdAt: 0
-        }
-    ];
-    current.decisions = [
-        {
-            ...current.decisionCandidates[0],
-            id: "decision-1",
-            candidateId: "candidate-1",
-            status: "accepted"
-        }
-    ];
     current.completionFacts = [
         {
             id: "fact-1",
@@ -354,7 +321,6 @@ it("clears the final blocking issue and enters converging in the same transition
             statement: "done",
             rationale: "x",
             evidenceIds: ["version-1"],
-            decisionIds: ["decision-1"],
             createdAt: 0
         }
     ];

@@ -331,20 +331,6 @@ const mappingState = (): MeetingState => {
                 rationale: "rationale"
             }
         ],
-        decisions: [
-            {
-                id: "decision",
-                proposalRevisionId: "proposal",
-                actorId: "manager-v1",
-                outcome: "outcome",
-                rationale: "rationale",
-                evidenceIds: ["version"],
-                positionIds: [],
-                createdAt: 20,
-                candidateId: "candidate",
-                status: "accepted"
-            }
-        ],
         completionFacts: [
             {
                 id: "replacement",
@@ -352,7 +338,6 @@ const mappingState = (): MeetingState => {
                 statement: "updated",
                 rationale: "verified",
                 evidenceIds: ["version"],
-                decisionIds: ["decision"],
                 actorId: "contributor-v1",
                 status: "active",
                 supersedesFactId: "fact",
@@ -364,7 +349,6 @@ const mappingState = (): MeetingState => {
             outcome: "partial",
             reason: "ended",
             endedAt: 20,
-            decisionIds: ["decision"],
             completionFactIds: ["fact"],
             unresolvedQuestionIds: ["question"],
             unresolvedIssueIds: ["issue"],
@@ -609,34 +593,12 @@ const cases: MappingCase[] = [
         data: { action: "accept", scope: "bounded", rationale: "accepted" }
     },
     {
-        action: { kind: "decide", candidateId: "candidate" },
-        ids: ["decision"],
-        type: "decision.recorded",
-        subject: { kind: "decision", id: "decision" },
-        data: { status: "accepted" }
-    },
-    {
-        action: {
-            kind: "change_decision",
-            decisionId: "decision",
-            status: "superseded",
-            rationale: "replaced",
-            evidenceIds: ["version"],
-            replacementCandidateId: "replacement-candidate"
-        },
-        ids: ["decision", "replacement"],
-        type: "decision.changed",
-        subject: { kind: "decision", id: "decision" },
-        data: { status: "superseded", rationale: "replaced", replacementDecisionId: "replacement" }
-    },
-    {
         action: {
             kind: "record_completion_fact",
             outputId: "output-v1",
             statement: "done",
             rationale: "verified",
-            evidenceIds: ["version"],
-            decisionIds: ["decision"]
+            evidenceIds: ["version"]
         },
         ids: ["fact"],
         type: "completion_fact.recorded",
@@ -653,8 +615,7 @@ const cases: MappingCase[] = [
                 outputId: "output-v1",
                 statement: "updated",
                 rationale: "verified",
-                evidenceIds: ["version"],
-                decisionIds: ["decision"]
+                evidenceIds: ["version"]
             }
         },
         ids: ["fact", "replacement"],
@@ -667,7 +628,6 @@ const cases: MappingCase[] = [
             kind: "end_meeting",
             outcome: "partial",
             reason: "ended",
-            decisionIds: ["decision"],
             completionFactIds: ["fact"],
             unresolvedQuestionIds: ["question"],
             unresolvedIssueIds: ["issue"]
@@ -679,7 +639,7 @@ const cases: MappingCase[] = [
 ];
 
 describe("Action-specific occurrence data", () => {
-    it.each(["change_decision", "change_completion_fact"] as const)(
+    it.each(["change_completion_fact"] as const)(
         "records only the old object's change when %s revokes without replacement",
         (kind) => {
             const state = mappingState();
@@ -792,10 +752,6 @@ describe("Action-specific occurrence data", () => {
             publications: [],
             messages: [],
             evidenceBundles: [],
-            proposalRevisions: [],
-            positions: [],
-            decisionCandidates: [],
-            decisions: [],
             completionFacts: [],
             questions: [],
             issues: [],
@@ -848,13 +804,6 @@ describe("Action-specific occurrence data", () => {
         "maps $action.kind to $type",
         ({ action, ids = [], type, subject, data, relations }) => {
             const state = mappingState();
-            if (action.kind === "change_decision" && action.status === "superseded") {
-                state.decisions.push({
-                    ...state.decisions[0]!,
-                    id: "replacement",
-                    replacesDecisionId: "decision"
-                });
-            }
             const events = buildMeetingEvents({
                 action,
                 beforeState: structuredClone(state),

@@ -58,7 +58,6 @@ describe("identity admission recovery", () => {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "结束会议",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: [],

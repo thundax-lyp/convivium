@@ -70,12 +70,6 @@ const occurrences = [
         "risk_disposition",
         { action: "accept", scope: "output", rationale: "limited" }
     ],
-    ["decision.recorded", "decision", { status: "accepted" }],
-    [
-        "decision.changed",
-        "decision",
-        { status: "superseded", rationale: "replace", replacementDecisionId: "replacement" }
-    ],
     [
         "completion_fact.recorded",
         "completion_fact",
@@ -207,12 +201,6 @@ describe("Meeting occurrence event contracts", () => {
                 "identity_recommendation",
                 { status: "active", failureCode: "invented" }
             ],
-            ["decision.changed", "decision", { status: "superseded", rationale: "replace" }],
-            [
-                "decision.changed",
-                "decision",
-                { status: "revoked", rationale: "revoke", replacementDecisionId: "invented" }
-            ],
             [
                 "completion_fact.changed",
                 "completion_fact",
@@ -264,7 +252,6 @@ describe("Meeting occurrence event contracts", () => {
                 { decision: "reject", status: "rejected", rationale: "no" }
             ],
             ["identity.admission_recorded", "identity_recommendation", { status: "active" }],
-            ["decision.changed", "decision", { status: "revoked", rationale: "revoke" }],
             [
                 "completion_fact.changed",
                 "completion_fact",

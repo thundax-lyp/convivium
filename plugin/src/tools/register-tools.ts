@@ -238,7 +238,6 @@ const actionSchemas = {
             description: "Normal termination outcome; completed requires validated objective facts."
         },
         reason: requiredString("Evidence-based reason and unresolved limits for ending."),
-        decisionIds: requiredStringArray("Accepted decision identifiers from the current Meeting."),
         completionFactIds: requiredStringArray("Active completion fact identifiers."),
         unresolvedQuestionIds: requiredStringArray("Open or deferred question identifiers."),
         unresolvedIssueIds: requiredStringArray("Open or deferred issue identifiers.")

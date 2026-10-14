@@ -67,9 +67,6 @@ const endMeetingAction = (detail: MeetingView) => ({
     kind: "end_meeting" as const,
     outcome: "cancelled" as const,
     reason: "Cancelled from Meeting panel.",
-    decisionIds: detail.outcomes.decisions
-        .filter((item) => item.status === "accepted")
-        .map((item) => item.id),
     completionFactIds: detail.outcomes.completionFacts
         .filter((item) => item.status === "active")
         .map((item) => item.id),

@@ -120,25 +120,6 @@ const message = {
     relatedIds: ["bare-id"],
     createdAt: 28
 };
-const candidate = {
-    id: "candidate-1",
-    proposalRevisionId: "proposal-1",
-    actorId: "captain-v1",
-    outcome: "adopt",
-    rationale: "candidate rationale",
-    evidenceIds: ["version-1"],
-    positionIds: ["position-1"],
-    createdAt: 30
-};
-const decision = {
-    ...candidate,
-    id: "decision-1",
-    actorId: "multi-v1",
-    candidateId: "candidate-1",
-    replacesDecisionId: "decision-old",
-    status: "accepted",
-    createdAt: 31
-};
 const completion = {
     id: "completion-1",
     actorId: "contributor-v1",
@@ -147,7 +128,6 @@ const completion = {
     statement: "completion statement",
     rationale: "completion rationale",
     evidenceIds: ["version-1"],
-    decisionIds: ["decision-1"],
     createdAt: 32
 };
 const risk = {
@@ -165,14 +145,13 @@ const termination = {
     outcome: "partial",
     reason: "termination reason",
     endedAt: 37,
-    decisionIds: ["decision-1"],
     completionFactIds: ["completion-1"],
     unresolvedQuestionIds: ["question-1"],
     unresolvedIssueIds: ["issue-1"],
     unclosedContributionIds: []
 };
 
-export function activeTimelineFixture(): MeetingView {
+export const activeTimelineFixture = (): MeetingView => {
     const base = meetingProjectionFixture().view;
     return MeetingViewSchema.parse({
         ...base,
@@ -244,10 +223,8 @@ export function activeTimelineFixture(): MeetingView {
             }
         ],
         outcomes: {
-            decisions: [decision],
             completionFacts: [completion],
             riskDispositions: [risk],
-            pendingDecisionCandidates: [candidate],
             termination
         },
         managerPlans: [
@@ -263,11 +240,11 @@ export function activeTimelineFixture(): MeetingView {
             }
         ]
     });
-}
+};
 
-export function archiveTimelineFixture(
+export const archiveTimelineFixture = (
     status: "complete" | "pending" | "failed" = "complete"
-): MeetingView {
+): MeetingView => {
     const active = activeTimelineFixture();
     return MeetingViewSchema.parse({
         ...active,
@@ -295,33 +272,6 @@ export function archiveTimelineFixture(
                     review
                 }
             ],
-            proposalRevisions: [
-                {
-                    id: "proposal-1",
-                    proposalId: "proposal-root",
-                    ordinal: 1,
-                    actorId: "manager-v1",
-                    agendaId: "agenda-v1",
-                    summary: "proposal summary",
-                    body: "proposal body",
-                    evidenceIds: ["version-1"],
-                    supersedesRevisionId: "proposal-old",
-                    createdAt: 38
-                }
-            ],
-            positions: [
-                {
-                    id: "position-1",
-                    proposalRevisionId: "proposal-1",
-                    actorId: "contributor-v1",
-                    stance: "support",
-                    rationale: "position rationale",
-                    evidenceIds: ["version-1"],
-                    createdAt: 39
-                }
-            ],
-            decisionCandidates: [candidate],
-            decisions: [decision],
             completionFacts: [completion],
             questions: [],
             issues: [],
@@ -356,4 +306,4 @@ export function archiveTimelineFixture(
             exportMaterials: []
         }
     });
-}
+};
