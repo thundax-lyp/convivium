@@ -16,7 +16,7 @@
 - 在 DSH 中创建、运行、暂停、恢复和结束一场多 Agent 会议。
 - 让多个独立会议身份围绕明确目标和议题进行连续、有序的讨论。
 - 让后续发言者能够回应已经提交的前序发言。
-- 支持会议内短时发言与会议外异步任务协作。
+- 支持轮内并行取证与后续轮次的证据补充。
 - 支持议题控制、分歧保留、决策形成、完成判断和会议归档。
 - 支持崩溃恢复、迟到结果隔离和可审计的会议记录。
 
@@ -25,7 +25,7 @@
 - 不提供脱离 DSH 运行的独立桌面应用或独立 Agent Host。
 - 不要求所有 Agent 同时启动、同时完成或对每次 Transcript 更新都发言。
 - 不要求一次会议解决所有发现的问题。
-- 不把 MeetingTask 完成直接等同于会议目标完成。
+- 不把取证执行结束直接等同于会议目标完成。
 - 不共享 Agent 的隐藏推理、私有工具过程或与会议无关的 Session 历史。
 - 不规定、枚举或解释 Agent 内部的 Prompt、Skills、Tools、MCP、命令、推理、工作流或重试策略。
 - 不定义开放角色市场、人类席位托管、由 Manager 任意创建角色或跨 DSH 宿主协作。
@@ -67,7 +67,7 @@
 ### MO-FR-4：发言计划与选择
 
 1. 发言计划必须围绕当前议题和本次讨论目标形成。
-2. 显式点名、直接问题、必需复核、议题负责人、相关任务结果和阻塞异议必须优先获得处理。
+2. 显式点名、直接问题、必需复核、议题负责人、相关公开证据和阻塞异议必须优先获得处理。
 3. 主持机制可以在规则足以决定时使用确定性规则，在需要语义判断时请求独立主持 Agent 建议。
 4. 主持 Agent 的安排必须受到参与者资格、权限、议题、贡献任务与审核时限及会议预算约束；不得以预定发言顺序替代按问题安排。业务轮次的固定基线、收口与公开由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
 5. 主持 Agent 不得自行代表参与者接受决策、接受风险或宣布会议业务目标已经完成。
@@ -75,16 +75,14 @@
 7. 某项工作所必需的 Participant 不可调度时，停止依赖该身份的安排并向用户报告具体身份和原因，不得自动替换或豁免；无依赖的已授权工作可继续，必需贡献或审核未满足时不得宣布相应目标完成。
 8. 相同会议状态没有发生变化时，不得自动重复调度同一个不可用的必需 Participant。
 
-### MO-FR-5：异步任务与举手
+### MO-FR-5：并行取证与后续贡献
 
-1. 长时间构建、测试、调研或外部等待不得阻塞其他 Participant 的独立贡献。
-2. 参与者必须能够将长时间工作交由 Convivium-owned MeetingTask 承载并结束当前发言任务；状态通知不自动成为正式正文，任务实际执行复用该 Participant 的 meeting-owned 平级 DSH AgentSession。
-3. 异步任务完成或出现新证据时，相关参与者必须能够申请在后续讨论中发言。
+1. 长时间构建、测试、调研或外部等待不得阻塞其他 Participant 的独立贡献；工作在获接纳的 Contribution 内执行，仍受原准备期限与轮次收口规则约束。
+2. 参与者在自己的 meeting-owned 平级 DSH AgentSession 中执行取证；内部工作过程和状态通知不自动成为正式正文。
+3. 本轮无法提交时，按证据轮次规则记录退出、超时或执行失败，不生成空证据，也不绕过轮次收口。后续出现可执行的新证据机会时，由 Manager 规划新轮，参与者重新申请贡献并提交证据。
 4. 发言申请本身不是正式会议发言，不得直接形成决策或修改正式 transcript。
-5. 非阻塞任务运行期间，会议应能继续讨论其他相关内容。
-6. 当前目标确实依赖某项未完成任务时，会议可以进入等待，并在条件满足后恢复。
-7. 会议运行时必须验证请求者的会议身份、当前有效任务授权和所属上下文，再创建 MeetingTask；Participant 不因此获得 Captain 或其他 Participant 权限。
-8. MeetingTask 必须能够追溯到所属 Meeting、参与者和当时的正式发言上下文；其结果只有经 Meeting Runtime 授权的 projection 才能进入会议。
+5. 当前取证受阻时保留阻塞原因、影响和解除条件；轮次收口后推进其他可行的已授权议题，或按实质新增信息价值与结束条件等待或收口。
+6. Runtime 验证请求者的会议身份、Contribution 授权、所属议题与轮次及期限；结果只经正式证据提交、审核与公开进入会议，不建立独立的跨轮任务生命周期。
 
 ### MO-FR-6：议题范围与发散控制
 
@@ -117,8 +115,8 @@
 
 ### MO-FR-8：完成事实与会议结束
 
-1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免和风险处置；loopback 本地用户也可通过受控入口形成决策接受、替代、撤销和风险处置事实。结束命令记录结果，不自行创造完成事实。
-2. `MeetingTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
+1. 会议完成事实可以来自 Agent 的正式提交、已公开的 Evidence/Review、required review，以及 Captain 的明确接受、豁免和风险处置；loopback 本地用户也可通过受控入口形成决策接受、替代、撤销和风险处置事实。结束命令记录结果，不自行创造完成事实。
+2. 取证执行结束不得默认等同于 required output accepted、议题解决或会议完成。
 3. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 4. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 5. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
@@ -127,7 +125,7 @@
 8. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
 9. `dispose_risk`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，当前范围不撤销或替代 CompletionFact，也不隐式回到 `running`。
 
-Manager 在轮次收口后根据当前正式事实判断是否停止当前议题。先判断现有证据是否足以形成对原目标的有界答案，再按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 的实质新增信息价值门槛决定是否继续；不要求修复所有次要缺陷。`stop_agenda` 只记录停止判断，不指定后续任务，也不自动结束会议；成功提交后必须独立通知 Manager 重新读取会议，扫描待处理议题、候选议题、未完成任务及可执行的取证路径。若有路径，Manager 继续推进；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
+Manager 在轮次收口后根据当前正式事实判断是否停止当前议题。先判断现有证据是否足以形成对原目标的有界答案，再按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 的实质新增信息价值门槛决定是否继续；不要求修复所有次要缺陷。`stop_agenda` 只记录停止判断，不指定后续任务，也不自动结束会议；成功提交后必须独立通知 Manager 重新读取会议，扫描待处理议题、候选议题、可执行的取证路径。若有路径，Manager 继续推进；若没有，须明确以 `completed|partial|no_consensus` 之一结束会议。Captain 保留 `cancelled|failed` 异常终止权限，不代替 Manager 判断正常结束。正常与异常结束均须遵守完成条件、未解决项和归档契约。
 
 ### MO-FR-9：暂停、恢复与故障隔离
 
@@ -148,8 +146,8 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 2. 私聊、举手申请、隐藏推理和未公开的内部工具过程不得自动进入正式 transcript。
 3. 会议 Participant 之间必须能够使用 Convivium 的受控 mailbox 进行异步私聊；meeting-scoped mail 必须携带发送时可见的会议上下文快照。
 4. Agent 实际处理 meeting-scoped mail 前，必须在权限范围内补充快照之后新增的正式 transcript，并固化本次处理使用的上下文上界。
-5. 私聊处理结果不得直接修改正式 transcript、决策或完成状态；需要公开讨论时必须申请发言，长时间工作必须转为异步任务。
-6. 用户必须能够区分当前准备与待审任务、主持建议、异步任务、等待原因和正式决策。
+5. 私聊处理结果不得直接修改正式 transcript、决策或完成状态；需要公开讨论时必须申请发言，需要长时间取证时应结束私聊处理，并申请正式贡献。
+6. 用户必须能够区分当前准备与待审任务、主持建议、等待原因和正式决策。
 7. 会议结束后必须形成按值固化、内容完备且不可运行的归档包，不能依赖终态 MeetingState 的外部对象引用才能解释。白名单包括归档元数据、目标及最终状态、Agenda 与 candidate 处置、全部已公开 Publication/FormalMessage、实际发布的最终 EvidenceVersion 及其 Materials/最终 Review、ProposalRevision、Position、全部 Decision 及其 DecisionCandidate、CompletionFact、Question、Issue、RiskDisposition、Question/Issue 处置事实、Termination、未解决事项、来源引用和身份溯源。未被 Decision 采用的 DecisionCandidate 也保留，但只向 loopback 本地用户的 archive view 提供。
 8. 归档包的身份溯源只保留 identity ID、displayName、会议角色和存在时的 Definition ID/version/hash；不得包含 PrivateMail、未公开 Evidence/Review、ReviewDelivery、举手、opportunity request、Session/ownership/descriptor、完整运行配置、capability、凭据、隐藏推理、工具过程、Repository 物理路径或 Developer Markdown 内容。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
 9. 会议进入 `archiving` 后不得恢复讨论；只有全部会议专用 Session 已停止、关闭并失去继续参与该会议的权限后才能进入 `archived`。物理删除 Session 数据不是归档完成条件。
@@ -158,13 +156,13 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 12. 只有当前 `running` Meeting 中两个不同的已存在会议身份之间可以新建 meeting-scoped mail；发送者只能引用已经公开的 `Publication` 或 `FormalMessage`，不得通过私信引用未公开 Evidence、Session、capability、task 内部过程或隐藏推理。
 13. 新 mail 在发送提交时固定全部当前 `Publication` 作为发送上下文，并以 `createdAt + limits.taskDeadlineMs` 固定唯一 deadline。开始处理只能发生在 deadline 前，并一次性把当时全部当前 `Publication` 固定为处理上下文；后续会议推进和重试不得改变这两个范围或 deadline。
 14. 只有可信 dispatcher 可以开始处理；只有接收者可以完成；只有发送者可以取消；只有可信 deadline handler 可以在 deadline 到达后超时。开始处理与 Manager 接纳该接收者的正式 Contribution 必须双向执行 serial gate，任一方向都不能形成 mail `processing` 与非终态 Contribution 并存。
-15. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact 或 MeetingTask。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间工作由接收者另行进入 MeetingTask，不延长或替换原 mail deadline。
+15. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间取证由接收者结束私聊处理后另行申请正式贡献，不延长或替换原 mail deadline。
 
 <a id="fr-11可观察性与用户控制"></a>
 
 ### MO-FR-11：可观察性与用户控制
 
-1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 用户 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 用户 专属数组。
+1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、适用的消息、时长、任务及审核限制、结束结果，以及 用户 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 用户 专属数组。
 2. 当前面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
 3. 当前插件面板作为可信本地用户控制入口，显示当前状态允许的暂停、恢复、异常取消及 MO-FR-19 的会议删除入口；正常结束由 Manager 的受控命令执行；会议创建由 MO-FR-18 的聊天 Skill 提供。两者运行于单 loopback DSH Host，共享本地用户边界，不建立 Web 用户或 Team 权限。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
@@ -181,10 +179,10 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 2. Agent 可以在 DSH 授权范围内自行选择 Prompt、Skills、Tools、MCP 和内部工作方式。
 3. Convivium 不得依赖某个具体 Skill、内部 Tool Schema、工具调用顺序或隐藏推理才能正确运行会议。
 4. Agent 内部工具失败、重试或策略选择不得自动成为正式会议事实。
-5. 只有 Agent 明确提交的会议发言、结构化声明、发言申请，以及经授权暴露的 DSH 异步任务结果，才能进入会议协议。
+5. 只有 Agent 明确提交的会议发言、结构化声明、发言申请，才能进入会议协议。
 6. Convivium 可以限制自身会议操作的调用权限，并向 DSH 提供会议身份的授权上限；它不得扩大用户或 DSH 已授予的 Agent 权限。
 7. Agent 内部数据进入会议前必须经过公开提交、权限检查和必要的信息过滤。
-8. Participant 对后台任务的请求属于 Agent 与会议系统之间的公开操作；任务内部使用的 Skills、Tools、MCP 和执行过程仍由 DSH 管理。
+8. Participant 的取证申请与公开提交属于会议操作；取证内部使用的 Skills、Tools、MCP 和执行过程仍由 DSH 管理。
 9. 会议私聊的身份、可见上下文、串行处理和处理状态由会议系统保证；Agent 如何理解或回复 mail 仍属于 Agent 内部过程。
 
 ### MO-FR-13：Agent 角色目录与参会推荐
@@ -268,7 +266,7 @@ UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（
    Overview 和 Timeline 详情可用时，右下提供竖向 ButtonGroup，上方为“回到顶端”、下方为“去底端”图标按钮，与右上刷新按钮右侧对齐、按钮尺寸相同。悬停或键盘焦点进入 Workspace 时整个按钮组显示；无悬停能力的设备上保持可见。处于顶端时禁用向上按钮，处于底端时禁用向下按钮，内容无需滚动时两者均禁用；内容或视口尺寸变化后更新状态。点击只将当前 Workspace 滚动到对应边界，不改变会议选择或数据。按钮支持键盘操作及 zh/en 可访问名称。
 4. 首次选择 Meeting 后进入概览。选择不同 Meeting 时必须进入概览并清除旧 Meeting 的定位、时间线筛选和滚动；重复选择当前 Meeting 不改变模式或视口。摘要补读后选中 ID 消失时必须清除选择，不得自动选择其他 Meeting；详情读取失败或断线时必须保留原选择并只允许重试同一 ID。较早选择的迟到详情结果不得覆盖当前 Meeting。
 5. 共享 Header 显示 controls 允许的暂停、继续、异常取消；概览只展示已提交事实，列表除 MO-FR-19 的删除入口外只负责导航。会议创建使用 MO-FR-18 的聊天 Skill，Meetings View 不显示创建按钮或结构化操作表单。Contribution 授权仍只读；归档、陈旧、提交中或协议禁止状态禁写，Runtime 最终授权；已归档会议的整体删除仅按 MO-FR-19 执行，不授予修改归档事实的权限。
-6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review 和 MeetingTask。UI 不得生成当前投影不存在的综合结论、行动项或事实。
+6. 概览必须按语义展示当前议题与目标、当前进展与控制、Decision 与 CompletionFact、未决 Question/Issue/RiskDisposition、正式 Publication/Message、Evidence/Review。UI 不得生成当前投影不存在的综合结论、行动项或事实。
 7. 时间线必须是只读的可见事实时间视图，以按时间顺序左右交错的纵向卡片展示，保留 Captain、Manager、Contributor、Reviewer 和系统五类角色标识，展示当前 caller 可见且具有明确已发生时间的对象。它不得宣称为完整过程历史；时间空白、对象缺席或只有当前版本不得解释为期间没有会议活动。
 8. 时间线事件必须来自 Meeting 成功提交时原子追加的基础事件日志；一个 accepted command 按实际发生结果追加零条、一条或多条事件，每条事件只表达一个已经发生的事实，使用 Repository 分配的连续 `eventSeq`、该次 `meetingVersion` 和 Runtime 注入的同一个已发生时间，并携带明确 actor、主对象、带类型关联对象及重放该次发生所需的最小不可变数据。最小不可变数据可以包含正式 event contract 明确列出的发生时摘要、陈述、理由、范围和失败摘要，但不得复制完整领域对象、私信、Session、capability、凭据或隐藏推理。事件日志不包含 milestone、阶段实例、展示标题、lane、折叠状态或 Client 排序字段。读取、拒绝、receipt 重放、effect/outbox 重试、只更新内部 Session ownership 的提交和纯展示操作不得追加事件。
 9. 有明确 `actorId`、`authorId`、`reviewerId`、`managerId` 或 `contributorId` 的对象按当前视图的身份来源使用对应角色标识；没有明确行为者字段的对象使用系统角色标识。关联身份、assignee 或业务常识不得替代行为者字段；活动身份只从 `IdentityView` 解析，归档身份只从 `ArchiveView.identityProvenance` 解析。
@@ -282,7 +280,7 @@ UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（
 16. 列表、详情和刷新失败必须保留最近一次完整且已验证的数据并清楚标记陈旧状态；断线、陈旧和写请求提交期间禁用全部控制。列表不得把残缺结果与旧列表合并成新的选择来源，详情失败不得自动跳转到其他 Meeting。
 17. 首次列表读取尚未完成、失败或成功返回空列表且没有 last-good 摘要时，Meetings View 只显示占满主区域的 Navigator 页面状态，不显示搜索、Workspace 或分隔条；三种状态分别使用同一个 `Empty` 品牌图形和本地化 loading、error、empty text，不提供手动重试。取得非空完整列表后才显示 Navigator、Workspace 和宽屏分隔条，Workspace 使用尊重 `prefers-reduced-motion` 的轻量入场动画。刷新期间或失败后已有非空 last-good 摘要时继续保留双栏和当前 Workspace，不重新播放入场动画。
 18. 时间线必须把阶段性里程碑与事件分层展示：里程碑作为会议启动、每个议题轮次、完成判定以及结束归档等阶段的分组容器，关键事件按所属里程碑呈现，全部可见事件在组内默认展示，正文详情按需展开。里程碑以居中压在时间线主轴上的全宽、低高度且带浅背景的横向宽条展示阶段标题；仅完整事件序列中存在多个同名里程碑时显示序号，筛选不改变该判断。所有里程碑横框均不展示状态；不以外围边框或背景包住整组事件。阶段内事件卡片仍沿主轴左右排列，会议启动固定为首个里程碑，主轴不向其上方延伸；其余阶段保持既有排序，阶段分组与筛选语义不变。不单独展示“方案收敛”里程碑。主持计划、决策与风险等实际事件仍保留，有唯一明确轮次关联时归入对应轮次，其余作为未归属普通卡片，不按时间邻近猜测。里程碑不是新的领域事件，不得因分组生成会议事实、因果关系或完成结论；里程碑实例的开始、结束和状态只能由完整基础事件序列的 kind、顺序和带类型关联按确定规则派生，不能可靠归属时作为未归属普通卡片。会议明确离开后再次进入同类阶段时必须形成新的阶段实例，不得回写已经结束的里程碑。会议启动固定首位，其余里程碑组按组内最早的已发生时间排列，组内事件按 `occurredAt → eventSeq` 排列；显式筛选只能改变组内可见节点，不能改变里程碑实例、序号或状态；一个事件只进入一个主分组，跨组关联只用于高亮和定位，不复制事件。
-19. 每个真实里程碑首张可见卡片从左侧开始，轮次开启参与左右交替计数。会议启动、轮次开启与发布、关键证据与审核、决策、完成事实、问题与风险处置、会议结束、异常取消和归档完成作为默认关键事件；轮次中止、Contribution 执行失败、审核失败或送达失败及其它在当前投影中具有明确已发生时间的推进异常即使属于过程事件也必须保持可见。正式消息、提案、立场、候选决策、举手、发言机会请求、身份推荐、Manager 计划及正常任务事件默认展示，可通过参与者、内容类型和事件筛选缩小范围；正文详情可展开。当前 `TaskView` 不提供失败或阻塞状态及发生时间，不推测此类节点。不得为补齐时间线推测或新增不存在的历史事实。
+19. 每个真实里程碑首张可见卡片从左侧开始，轮次开启参与左右交替计数。会议启动、轮次开启与发布、关键证据与审核、决策、完成事实、问题与风险处置、会议结束、异常取消和归档完成作为默认关键事件；轮次中止、Contribution 执行失败、审核失败或送达失败及其它在当前投影中具有明确已发生时间的推进异常即使属于过程事件也必须保持可见。正式消息、提案、立场、候选决策、举手、发言机会请求、身份推荐、Manager 计划默认展示，可通过参与者、内容类型和事件筛选缩小范围；正文详情可展开。不得为补齐时间线推测或新增不存在的历史事实。
 20. 概览的轮次记录按贡献者展示已提交的过程事实：正式发言尚未生成时显示可见的 Contribution 或 EvidenceVersion 审核状态，不生成虚构 FormalMessage。已有可见 Review 时只显示 Review，不重复显示对应的 EvidenceVersion 审核状态；尚无 Review 时保留审核状态。证据入口打开模态对话框，完整展示当前 caller 投影中可见的 EvidenceVersion 内容、主张与参考资料；对话框标题使用当前轮次议题，副标题显示提交人；不显示证据版本号和失败次数。叙述字段按 Markdown 排版，渲染过滤原始 HTML 和不安全链接，并提供内部排版样式；不修改持久证据正文。关闭后返回原位置。入口和对话框不得请求或推断 caller 无权读取的未公开证据。
 21. 基础事件日志是追加历史，不是等待消费的队列：读取不确认、不删除，Client 不维护消费 offset，outbox delivery 状态也不得写入事件日志。`CommittedFactRecord` 继续承担命令审计与归档事实职责，不能被时间线事件替代；同一成功提交可以同时产生 fact、基础事件和 outbox，但三者语义不得混用。
 22. Meeting 必须从 `meeting.created` 起具有完整事件日志，Client 只走事件投影，不提供 DTO 时间字段兼容路径。缺少完整事件日志的既有测试数据应删除，不迁移、不回填、不猜测历史。清理仅针对已确认缺少完整日志的会议数据，不删除 DSH 对话、凭据或工作目录。
@@ -344,7 +342,7 @@ UI 角色名称统一为 Captain → 用户（User）、Manager → 主持人（
 
 ### BR-3：完成判断边界
 
-每次影响完成条件的合法公共事实更新后重新判断业务完成，包括已按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 公开的证据及审核意见、正式发布、授权任务结果和 用户 处置。未公开的轮内证据、待审公开内容及尚未生效的附带声明不参与公共完成判断；轮次收口本身不等于目标完成。
+每次影响完成条件的合法公共事实更新后重新判断业务完成，包括已按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 公开的证据及审核意见、正式发布和 用户 处置。未公开的轮内证据、待审公开内容及尚未生效的附带声明不参与公共完成判断；轮次收口本身不等于目标完成。
 
 预算边界检查不等待任何任务结束；先根据已生效公共事实判断完成，再决定是否允许继续工作。正常轮次公开仍须满足已接纳举手和最终审核的收口条件；预算提前耗尽或 Captain 异常终止时，记录未完成项及原因，不把异常终止当作正常收口。满足目标后不得因无关且不属于已接纳本轮的准备任务继续等待，也不得因有未审稿就视为完成。结束、暂停及撤销后，相关提交和审核须遵守生命周期与授权检查；终态后不能通过迟到结果追加正式事实。预算的具体字段与计数方式在后续协议中落实，不把旧 Turn 数直接解释为任务数。
 
@@ -387,18 +385,18 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 1. 创建包含至少三位 Agent 的会议后，至少两位可持有各自有效的贡献授权并独立工作；一人仍在准备不阻止另一人合法提交和接受审核，同一身份在待审时不会再启动第二项发言任务。举手资格及轮次收口另按 [ER-FR-2](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-2举手与-manager-安排) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 验收。
 2. 公开会议内容具有稳定版本、来源和顺序，后续贡献者能取得其有权查看的内容；本轮固定基线、同轮隔离及轮末新基线另按 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 验收。
 3. 指定贡献任务重新分配后，旧授权的迟到提交及审核不能发布；其他 Participant 的有效任务不受影响。
-4. 长时间工作交由 MeetingTask 后，不阻塞其他身份的独立贡献；任务完成后相关 Participant 可以申请后续贡献，其结果不绕过公开审核。
+4. 一位 Participant 长时间取证时，其他身份仍可独立提交和审核；本轮未完成的取证按期限退出，后续新证据经新轮贡献、审核和公开进入会议。
 5. 新出现但不影响目标验收的问题被记录为后续事项或待讨论事项，不阻止会议完成。
 6. 没有有效阻塞依据的问题不能阻止会议完成。
 7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态；候选不是正式 Decision，且普通 Participant 不获得 pending candidate projection。
 8. 新 proposal revision 的 `positions` 为空，不继承旧 revision 的立场、candidate、Decision 或 acceptance；接受事件统一为 `decision.accepted`，不存在 `decision.added` 兼容事件。
-9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
+9. 取证执行结束或证据审核完成均不自动使对应产出被 accepted，仍须满足正式成果接受条件。
 10. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
 11. 合法且已公开的事实更新同时满足完成条件和预算边界时，结果为正常完成；轮内已接纳的举手、证据及审核须先按轮次规则收口，不将未公开提交当作已完成事实。预算在轮内耗尽时显示待收口项和异常结束／人工处置原因，终态后的迟到提交、审核不能改变会议事实。
 12. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实；request identity 相同且 validated request serialization 相同的重试必须重放原 receipt/result，identity 相同但 serialization 不同必须拒绝。
 13. 会议创建中断后，已经产生的会议专用 Session 仍能被确定性归属和安全关闭，不会影响其他会议或团队的 Session。
 14. `archived` 对外可见时，所有会议专用 Session 已停止、关闭并失去会议 capability；归档包不包含可恢复 Session、完整 Agent 运行配置或私有 Session 历史，但底层已关闭数据可以按 DSH retention policy 保留。
-15. 用户可以观察当前议题、贡献安排、当前准备与待审任务、等待原因、阻塞项、异步任务、决策 history、当前 accepted decisions、按权限过滤的 pending candidates/risks 和结束原因；状态读取不得暴露 Session、capability 或 backend 物理细节。
+15. 用户可以观察当前议题、贡献安排、当前准备与待审任务、等待原因、阻塞项、决策 history、当前 accepted decisions、按权限过滤的 pending candidates/risks 和结束原因；状态读取不得暴露 Session、capability 或 backend 物理细节。
 16. 更换 Agent 的内部 Skills、Tools 或执行顺序，在其仍遵守相同会议协议时，不改变会议编排的正确性。
 17. Agent 内部工具失败但随后仍能合法提交发言时，会议不会因此增加会议级失败计数。
 18. Participant、Manager 和 Captain 只能调用其获授权的 Convivium 会议操作，但 Convivium 不枚举或接管其普通 DSH Tools。
@@ -406,7 +404,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 20. Meeting-scoped mail 保存发送时上下文范围；延迟处理时补充截至处理开始的可见 transcript，随后重试使用同一固定范围。
 21. 同一个会议身份不会同时处理私聊和正式发言请求；mail 回复不会自动进入 transcript 或取得发言权。
 22. 普通 TeamMember mailbox 不携带会议上下文时保持原有行为；会议参与者不需要复用或伪装成 TeamMember Session 即可收发会议私聊。
-23. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间工作必须转为 MeetingTask。
+23. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间取证应在结束私聊处理后申请正式贡献。
 24. 创建会议时，重复、缺失、相互矛盾或引用无权访问对象的参与者配置会使创建整体失败，且不产生部分可用的会议。
 25. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定 Issue，验证 `riskLevel <= acceptableRiskLevel`、hard constraints、状态、理由和本 Meeting 证据，生成可审计事实并触发确定性完成重算；旧 risk facts 不删除。
 26. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项、来源信息、全部 Decision history、全部 Issue 和全部 risk facts 已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
@@ -437,7 +435,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 51. DSH Conversation 只注册一个 Convivium `Meetings` View；进入后先显示完整 Meeting Navigator，未选择 Meeting 时不调用详情读取，也不显示当前 Meeting Header、模式切换器或内容。
 52. 选择 Meeting 后默认显示概览；切换到时间线时继续使用同一个 ID 和同一详情投影。选择另一个 Meeting 后回到概览且旧时间线本地状态被清除；旧 Meeting 的迟到读取结果不能覆盖新选择。详情失败、断线或选中项从新摘要列表消失时分别遵守 MO-FR-17.4，均不自动改选其他 Meeting。
 53. 活动、暂停、终态和归档 Meeting 的共享 Header 只显示各自 `controls` 允许的暂停、继续和异常取消 control；陈旧或提交中状态全部禁写。概览只读展示 Contribution 授权、Decision 和 Risk，时间线不产生任何写操作。
-54. 给定可信 local controller 返回的 `timelineEvents`，时间线按连续 `eventSeq` 展示左右交错节点，角色与行为者来自事件契约；用户、主持人、嘉宾、审核者、系统各有可区分的角色头像；卡片第一排左侧头像，右侧上方身份名称（无名称时使用角色文字），下方浅色小字时间，可访问文本保留角色信息；同一 Task 的不同已发生事件形成独立节点，不从当前 DTO 时间字段推导历史。
+54. 给定可信 local controller 返回的 `timelineEvents`，时间线按连续 `eventSeq` 展示左右交错节点，角色与行为者来自事件契约；用户、主持人、嘉宾、审核者、系统各有可区分的角色头像；卡片第一排左侧头像，右侧上方身份名称（无名称时使用角色文字），下方浅色小字时间，可访问文本保留角色信息；同一 Contribution 的不同已发生事件形成独立节点，不从当前 DTO 时间字段推导历史。
 55. 给定归档会议的 `timelineEvents`，时间线仍以基础事件日志为唯一来源，展示归档前过程及终止、归档事实；不得从 `ArchiveView` 或顶层运行对象回填节点，也不得重复节点。
 56. 普通 Participant、用户、Manager 和 Reviewer 的身份投影只暴露 caller-filtered 事实；完整事件时间线仅由可信 local controller 读取。概览、筛选数量和定位结果不得泄露当前入口不可见的对象。
 57. 在窄屏下 Navigator 通过按钮与抽屉操作同一个选择状态，Workspace 占满抽屉外内容区，时间线保持必要时可水平滚动的左右交错布局；键盘可以按时间访问节点，定位后焦点与可访问文本落在目标卡片。

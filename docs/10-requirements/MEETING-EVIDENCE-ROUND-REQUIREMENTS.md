@@ -31,7 +31,7 @@
 1. 每轮打开时，负责该 Agenda 的每位贡献者都须在选择期限前明确 `raise_hand` 或 `decline_hand`；选择期限为开轮时刻加 `taskDeadlineMs` 与 Round 自身 deadline 的较早值。期限内沉默由可信 deadline handler 记为 `no_response`，不能伪装为主动拒绝。愿意取证者向 Manager 举手，说明拟推进的当前问题及取证准备。Manager 可以安排其参与，或以“暂缓／拒绝”拒绝其本轮发言；此处“暂缓”不产生等待中的本轮发言资格。
 2. 举手在 Manager 处置前必须可定位和恢复；处置完成后，被拒绝或暂缓者不参与本轮对话，Manager 向本人返回理由，会议不保留该次待处置举手或 Contribution，但其已记录的 `raised` 选择仍可观察；不等待二次举手或回复。命令审计可保留申请与处置事实，但不得把它投影为已接纳参与。Manager 可以依据当前议题安排人选，但不得用该安排预判尚未提交证据的内容真伪。
 3. 获得安排后，贡献者整理一份准备公开的证据包并直接提交给 Meeting Runtime，不把私有草稿交给 Manager。已接纳的举手从接纳时起属于本轮待收口参与，即使尚无证据包；本人未主动选定和提交的私有取证材料不进入会议。若准备任务的适用期限届满或该身份不可用且仍未提交，记录为“未提交退出”及原因，不生成空证据包，不把该身份所需证据判为已满足；其他贡献者可继续工作。若 Runtime 已观察到承接该 Contribution 的 Contributor turn 以执行异常终止且尚未登记证据，则记录 `execution_failed` 退出及结构化失败事实；该事实不生成 EvidenceVersion 或 Review，也不需要 Evidence Reviewer 审核。
-4. 会议进入 running 后，没有 open Round 时，合格贡献者仍可就当前 active Agenda 申请取证机会，说明拟处理的问题；申请持久排队，不自动开轮或取得 Contribution。Manager 开轮后再接纳、拒绝或暂缓该举手。已有未结束贡献或任务的身份不能提出新的贡献申请；新 Round 不在原 Contribution 内补证；需要更多证据时由 Manager 规划下一轮。
+4. 会议进入 running 后，没有 open Round 时，合格贡献者仍可就当前 active Agenda 申请取证机会，说明拟处理的问题；申请持久排队，不自动开轮或取得 Contribution。Manager 开轮后再接纳、拒绝或暂缓该举手。已有未结束贡献的身份不能提出新的贡献申请；新 Round 不在原 Contribution 内补证；需要更多证据时由 Manager 规划下一轮。
 
 ### ER-FR-3：每人每轮唯一证据包及格式
 
@@ -92,7 +92,7 @@
 
 4. 单项取证、独立复核或资源访问无法完成时，Manager 必须记录局部阻塞的事实、原因、受影响结论及解除条件，不把该项判为已完成，也不把局部阻塞直接等同于无可执行的会议后续路径。未找到证据是证据缺口，不自动构成执行异常。已接纳贡献或审核在途时仍遵守轮次收口规则，不以继续其他工作绕过未审证据的隔离与发布条件。
 5. 轮次收口后，Manager 先对照原目标和验收条件，判断现有公开证据是否已足以给出有界、诚实的答案，再逐项检查剩余缺口、真实能力与资源、预算及新增信息价值。仅当可执行工作明确可能改变核心结论、置信程度或关键适用边界时，才继续当前 Agenda 内取证；开轮理由须说明当前判断、待改变的判断及预期证据如何改变它，并保留阻塞记录。未解决问题或负面 Review 不自动要求开轮；不影响核心判断的引用、措辞、展示缺陷保留为限制，不单独开轮。连续轮次核心判断不变时，须指出新的关键证据机会，不能仅以仍有可修缺陷继续。其他已授权 Agenda 可推进时，Manager 保留阻塞记录，自动激活后续 pending Agenda，重读后提交该议题的开轮计划，无需 Captain 再次确认；存在待 Captain 处置的有效后续路径时，不直接正常结束。不自动新增或提升 Agenda candidate，不要求固定轮数，不为重复已有证据开启新轮。
-6. 新增信息价值以对原目标判断的实质影响为准，不要求耗尽所有可修缺陷或取得全正面审核。只有影响目标判断的剩余路径均已完成、无上述实质新增信息价值或存在明确不可解除的阻塞，且没有待推进的授权议题、待处置的有效路径或未完成任务时，Manager 才能以相应正常 outcome 结束。停止理由逐项说明依据；局部阻塞与未解决限制保留在结束结果中，不转为目标完成事实。
+6. 新增信息价值以对原目标判断的实质影响为准，不要求耗尽所有可修缺陷或取得全正面审核。只有影响目标判断的剩余路径均已完成、无上述实质新增信息价值或存在明确不可解除的阻塞，且没有待推进的授权议题、待处置的有效路径或未收口贡献时，Manager 才能以相应正常 outcome 结束。停止理由逐项说明依据；局部阻塞与未解决限制保留在结束结果中，不转为目标完成事实。
 
 最终当前版本虽已审核但审核意见仅发送失败时，不可将该轮正常公开为已向作者反馈；须继续可观察地重试或按异常轮次路径报告，不能以作者沉默代替送达。
 
@@ -174,7 +174,7 @@ flowchart TD
     Activate --> Disposition["旧议题显式 deferred / closed / completed；阻塞不解除，目标不自动完成"]
     Disposition --> Fresh["等待激活成功；重读新 active Agenda 与版本"]
     Fresh --> Answer
-    Next -->|否| Work{"有未完成任务或影响判断的待用户处置路径？"}
+    Next -->|否| Work{"有影响判断的待用户处置路径？"}
     Work -->|是| Wait["记录等待原因与下一步，不结束；Captain 专属处置仍由用户执行"]
     Work -->|否| Exhausted{"影响原目标的路径均完成、无实质新增价值或明确不可解除？"}
     Current -.->|否：可选停止判断后独立通知再扫描| SubmitStop["stop_agenda 记录停止依据；不改变 Agenda 或 lifecycle"]
@@ -197,7 +197,7 @@ flowchart TD
 7. 局部复核缺少能力或凭据时，Manager 留下阻塞记录及其影响，仍可在新轮安排现有 Contributor 完成不依赖阻塞的工作；存在其他待推进的已授权 pending Agenda 时自动激活并规划新轮，不提升未授权 candidate、不因局部异常结束整场会议。真正无可执行路径时可以 partial/no_consensus 正常结束，且不能把受阻目标标为 completed。
 8. 轮次完成、证据登记、证据审核与正式成果接受可分别观察；某人超时、评分为负或已完成轮次均不自动满足会议目标。
 9. 审核员或 Manager 的必要处理逾期、意见持续无法发送时，未审版本不公开，会议显示受阻阶段和原因并交由召集人处理；强制结束或预算耗尽不得冒充正常轮次收口。没有已接纳举手的轮次可结束为空轮次，不生成证据或完成事实。
-10. Meeting 创建后，Manager、全部初始 Contributor 和 Evidence Reviewer 的 active meeting-owned Session 各收到一次 `meeting_started`，且都能以通知中的 `meetingId` 调用统一读取入口；Manager 由返回的 objective 与 active Agenda 形成 planning context 并规划首轮，不会因通知不复制议题正文而停在没有 ManagerPlan 和 open Round 的初始状态。Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束任务时不能申请新贡献。正式 Transcript 每新增一条，全部 active Meeting identity 收到公开更新，但通知本身不自动生成申请、发言、审核或证据。
+10. Meeting 创建后，Manager、全部初始 Contributor 和 Evidence Reviewer 的 active meeting-owned Session 各收到一次 `meeting_started`，且都能以通知中的 `meetingId` 调用统一读取入口；Manager 由返回的 objective 与 active Agenda 形成 planning context 并规划首轮，不会因通知不复制议题正文而停在没有 ManagerPlan 和 open Round 的初始状态。Meeting running 但无 open Round 时，闲置 Contributor 能申请并看到 pending 取证请求，Manager 开轮后再处置；请求不自动产生 Round 或 Contribution。自己的 Session 未 active 或已有未结束贡献时不能申请新贡献。正式 Transcript 每新增一条，全部 active Meeting identity 收到公开更新，但通知本身不自动生成申请、发言、审核或证据。
 11. 验证中的 Meeting 暂停后，对应版本显示 `validation_cancelled` 且失败次数不变；恢复后重新进入验证流程。旧 reviewer turn 的迟到提交不能写入 Review，恢复后的新 claim 可以独立完成验证。
 
 12. 连续公开轮次核心判断不变、仅剩不影响判断的引用或展示修正时，Manager 保留限制并收口，不为追求无缺陷继续开轮；出现会改变核心结论、置信程度或关键边界的新证据机会时，开轮计划明确当前判断、预期改变与可执行依据。收口后仍自动推进可行的已授权议题；无其他有效工作时按事实选择正常 outcome，不把有界答案自动标为 completed。
