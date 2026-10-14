@@ -429,6 +429,8 @@ Closure：分支已推送，PR 已创建并以 main 为目标，等待 review，
 
 Scope / Validated Contract：按已确认的退役决定，MO-FR-5 收敛为轮内并行取证与后续贡献；移除独立 MeetingTask 生命周期、task commands、状态/投影/时间线模型及其申请限制和附加 deadline。长时间工作继续受 Contribution 准备期限、Round deadline、证据审核和轮次统一公开约束；跨轮补证由新轮重新规划和申请。Manager 指令与指纹、架构、接口、设计及审查依据同步。本文较早记录中的 MeetingTask 未覆盖项属于当时范围，不再是当前交付缺口。
 
-Executed Validation：根 `pnpm lint` 通过；Host/Client/remote-test typecheck 通过；根 `pnpm test` 103 个文件、986 项通过；根 `pnpm build` 通过；修改的插件文件 Prettier 检查通过，文档本地链接 1150 项零错误。仅移除退役 fixture 字段及 task 时间线断言，保留其余行为测试；没有新增旧格式识别或兼容拒绝机制。
+Executed Validation：根 `pnpm lint` 通过；Host/Client/remote-test typecheck 通过；根 `pnpm test` 103 个文件、986 项通过；根 `pnpm build` 通过；修改的插件文件 Prettier 检查通过，文档本地链接 1150 项零错误。仅移除退役 fixture 字段及 task 时间线断言，保留其余行为测试；没有新增旧格式识别或兼容拒绝机制。发布前 `verify:contract` 与 `verify:package` 通过。[PR Verify](https://github.com/thundax-lyp/convivium/actions/runs/38508073011) 在 `b6a84feb` 上的 Governance、Plugin Format、Plugin Lint、Plugin Typecheck、Plugin Test、Plugin Build、Package Contract 七项检查全部通过；该结果对应两项退役提交，不将后续文档提交的 checks 提前记为通过。
 
-Not Covered：未刷新固定人工 DSH 环境，未运行 Browser 人工验收或新的真实模型会议；角色资源指纹更新后的既有会议冷恢复未作人工验证。
+Not Covered：未刷新固定人工 DSH 环境，未运行 Browser 人工验收或新的真实模型会议；角色资源指纹更新后的既有会议冷恢复未作人工验证。发布后曾观察到 Codex 自动 review 因额度限制未执行的提示；当前没有 completed review 或 reviewer finding，CI 不能替代代码评审。
+
+Closure：`codex/retire-meeting-task` 已推送，[PR #125](https://github.com/thundax-lyp/convivium/pull/125) 以 main 为目标，包含需求收敛 `8881dec4` 与代码退役 `b6a84feb`；等待 review，尚未合并。本次不声明整体会议能力或发布就绪。
