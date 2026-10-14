@@ -1,11 +1,13 @@
 import * as React from "react";
 import type { ReactElement } from "react";
 import type { MeetingView } from "@/protocol/index.ts";
-import { Ellipsis, List, ListItem } from "@/client/meeting/components/index.ts";
+import { List } from "@/client/meeting/components/index.ts";
 import { useMeetingTranslate } from "@/client/meeting/hooks/index.ts";
 import { knownEnum as known } from "@/client/meeting/shared/index.ts";
-import { Section } from "@/client/meeting/regions/workspace/overview/components/index.ts";
-import styles from "./objective.module.css";
+import {
+    OverviewItem,
+    Section
+} from "@/client/meeting/regions/workspace/overview/components/index.ts";
 
 type ObjectiveTarget =
     | MeetingView["objective"]["requiredOutputs"][number]
@@ -25,18 +27,14 @@ export const OverviewObjective = ({ detail }: { detail: MeetingView }): ReactEle
             ? detail.archive.objective
             : detail.objective;
     const objectiveItem = (item: ObjectiveTarget): ReactElement => (
-        <ListItem
+        <OverviewItem
             key={item.id}
-            className={styles.item}
-            data-overview-key={`objective:${item.id}`}
-            tabIndex={-1}
+            kind="objective"
+            id={item.id}
+            text={item.text}
+            sign={statusIcon[item.status]}
             accessibleLabel={`${item.text}: ${known("objectiveStatus", item.status, t)}`}
-        >
-            <span className={styles.sign} aria-hidden="true">
-                {statusIcon[item.status]}
-            </span>
-            <Ellipsis text={item.text} />
-        </ListItem>
+        />
     );
     const label = t("panel.overview.objective");
     return (
