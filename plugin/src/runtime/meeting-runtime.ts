@@ -120,7 +120,6 @@ const targetCreateState = (
         questions: [],
         issues: [],
         riskDispositions: [],
-        tasks: [],
         managerPlans: [],
         privateMails: [],
         completionFacts: [],

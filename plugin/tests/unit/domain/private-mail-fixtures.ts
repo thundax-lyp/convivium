@@ -98,7 +98,6 @@ export function privateMailState(): MeetingState {
         questions: [],
         issues: [],
         riskDispositions: [],
-        tasks: [],
         completionFacts: [],
         privateMails: [],
         managerPlans: [

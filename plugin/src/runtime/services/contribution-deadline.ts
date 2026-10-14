@@ -24,20 +24,10 @@ const dueExit = (state: MeetingState, now: number) => {
             if (!contribution) {
                 continue;
             }
-            const taskDeadlines = state.tasks
-                .filter(
-                    (task) =>
-                        task.assigneeId === contribution.contributorId &&
-                        task.agendaId === round.agendaId &&
-                        (task.status === "open" || task.status === "claimed") &&
-                        task.deadlineAt !== undefined
-                )
-                .map((task) => task.deadlineAt!);
             if (contribution.status === "preparing" && contribution.packageId === undefined) {
                 const deadline = Math.min(
                     contribution.acceptedAt + state.limits.taskDeadlineMs,
-                    round.deadlineAt ?? Infinity,
-                    ...taskDeadlines
+                    round.deadlineAt ?? Infinity
                 );
                 if (now >= deadline) {
                     return {

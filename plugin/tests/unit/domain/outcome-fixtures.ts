@@ -174,7 +174,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
         questions: [],
         issues: [],
         riskDispositions: [],
-        tasks: [],
         managerPlans: [
             {
                 id: "plan-r",

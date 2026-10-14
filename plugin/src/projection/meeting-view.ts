@@ -375,7 +375,6 @@ export const projectMeetingView = (
         },
         ...(state.archive ? { archive: projectArchiveView(state.archive, caller) } : {}),
         managerPlans: copy(state.managerPlans),
-        tasks: copy(state.tasks),
         privateMail: state.privateMails
             .filter(
                 ({ senderId, recipientId }) =>

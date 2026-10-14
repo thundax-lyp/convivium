@@ -61,19 +61,9 @@ export const closeContribution = (state: MeetingState, input: Input): MeetingTra
         if (input.exit !== "submission_missing" || contribution.packageId !== undefined) {
             return reject(state, "INVALID_STATE", "evidence was already submitted");
         }
-        const taskDeadlines = state.tasks
-            .filter(
-                (task) =>
-                    task.assigneeId === contribution.contributorId &&
-                    task.agendaId === round.agendaId &&
-                    (task.status === "open" || task.status === "claimed") &&
-                    task.deadlineAt !== undefined
-            )
-            .map((task) => task.deadlineAt!);
         const deadline = Math.min(
             contribution.acceptedAt + state.limits.taskDeadlineMs,
-            round.deadlineAt ?? Infinity,
-            ...taskDeadlines
+            round.deadlineAt ?? Infinity
         );
         if (!Number.isSafeInteger(deadline) || input.now < deadline) {
             return reject(state, "PRECONDITION_FAILED", "contribution deadline has not arrived");

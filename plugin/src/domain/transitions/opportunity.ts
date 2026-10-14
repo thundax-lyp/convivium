@@ -106,16 +106,6 @@ export const requestEvidenceOpportunity = (
     ) {
         return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished contribution");
     }
-    if (
-        state.tasks.some(
-            (task) =>
-                task.assigneeId === input.contributorId &&
-                (task.status === "open" || task.status === "claimed") &&
-                (task.agendaId === undefined || task.agendaId === input.agendaId)
-        )
-    ) {
-        return rejected(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
-    }
     if (state.opportunityRequests.some((request) => request.id === input.requestId)) {
         return rejected(state, "INVALID_ARGUMENT", "request id already exists", input.requestId);
     }

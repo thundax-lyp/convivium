@@ -88,7 +88,6 @@ const statusLabel = (node: TimelineNode, t: MeetingTranslate): string => {
         completion_fact: "completionStatus",
         risk_disposition: "riskAction",
         manager_plan: "managerPlanStatus",
-        task: "task",
         termination: "terminationOutcome",
         archive: "archive"
     };

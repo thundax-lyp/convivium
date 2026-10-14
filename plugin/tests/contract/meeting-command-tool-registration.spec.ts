@@ -120,7 +120,6 @@ describe("target Meeting tool registration", () => {
             issues: [],
             outcomes: {},
             managerPlans: [],
-            tasks: [],
             privateMail: [],
             controls: []
         }));

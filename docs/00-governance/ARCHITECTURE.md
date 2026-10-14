@@ -16,7 +16,7 @@
 | 边界             | 所有权与限制                                                                                                                                                                    |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DSH Host/profile | 提供插件加载、独立 AgentSession 创建与恢复、Reviewer 一次性 Subagent、Tools、Web/UI 宿主和原生 Session Event；拥有 Preset、Skills、MCP、Sandbox、Approval、模型配置及其安装执行 |
-| Meeting Runtime  | 插件后端内的会议领域执行者；拥有 Meeting/Participant/Turn/MeetingTask、发言 capability、Session ownership、持久化和投影，不脱离 DSH 运行                                        |
+| Meeting Runtime  | 插件后端内的会议领域执行者；拥有 Meeting/Participant/Round/Contribution、发言 capability、Session ownership、持久化和投影，不脱离 DSH 运行                                        |
 | Plugin Frontend  | 通过后端公开、类型化且受 Host/identity 边界约束的入口展示会议和执行用户控制；不直接管理 Session、介质、敏感配置或任意文件访问，不判定最终领域状态或权限                         |
 | DSH AgentSession | 独立运行主体，拥有独立上下文和能力；其内部推理、Prompt、Skills、Tools、工作流与重试过程由 DSH/Agent 管理，不是会议领域事实源                                                    |
 
@@ -39,7 +39,7 @@
 - Host/profile 拥有物理存储介质、数据库位置与 Domain 路由。Convivium 不携带物理存储实现、不覆盖 Host 默认介质，也不提供调用方可指定的存储路径。
 - 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源、存储与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。
 - 存储格式兼容、迁移和拒读语义由 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义；当前部署介质和安装流程由相应设计及操作文档维护。
-- MeetingTask 属于 MeetingState；领域只消费 Agent 明确提交的边界结果和授权投影，不能从内部 Tool Schema、调用顺序、隐藏推理或 DSH Session log 推导当前事实。
+- 领域只消费 Agent 明确提交的边界结果和授权投影，不能从内部 Tool Schema、调用顺序、隐藏推理或 DSH Session log 推导当前事实。
 - DSH 原生 tool/session events 由 DSH 定义和持久化；Convivium 不复制或扩展其语义，也不向 DSH Session 写入插件自定义持久化事件。会议领域事件保存在会议 commit 内。
 - Frontend 与开发者 Markdown 只能单向读取已提交投影。Markdown 不是产品接口，不参与恢复、授权、状态计算、Session 清理或归档完成；人工编辑、缺失或滞后不回写会议事实。边界见 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 

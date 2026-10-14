@@ -754,22 +754,6 @@ export const ManagerPlanViewSchema = z.object({
     status: z.enum(["active", "superseded", "completed"]),
     createdAt: epoch
 });
-export const TaskViewSchema = z.object({
-    id,
-    assigneeId: id,
-    agendaId: id.optional(),
-    title: text,
-    status: z.enum(["open", "claimed", "completed", "cancelled", "expired"]),
-    authorizationId: id,
-    authorizationStatus: z.enum(["active", "revoked", "expired"]),
-    attempt: z.number().int().nonnegative(),
-    reassignedFromTaskId: id.optional(),
-    deadlineAt: epoch.optional(),
-    result: text.optional(),
-    exitReason: text.optional(),
-    startedAt: epoch.optional(),
-    completedAt: epoch.optional()
-});
 export const PrivateMailViewSchema = z.object({
     id,
     senderId: id,
@@ -940,7 +924,6 @@ export const MeetingViewSchema = z.object({
     outcomes: OutcomeViewSchema,
     archive: ArchiveViewSchema.optional(),
     managerPlans: z.array(ManagerPlanViewSchema),
-    tasks: z.array(TaskViewSchema),
     privateMail: z.array(PrivateMailViewSchema),
     controls: z.array(AllowedControlSchema)
 });
@@ -982,7 +965,6 @@ export type ArchiveMaterialView = z.infer<typeof ArchiveMaterialViewSchema>;
 export type ContinuationMaterialView = z.infer<typeof ContinuationMaterialViewSchema>;
 export type ContinuationProvenanceView = z.infer<typeof ContinuationProvenanceViewSchema>;
 export type ManagerPlanView = z.infer<typeof ManagerPlanViewSchema>;
-export type TaskView = z.infer<typeof TaskViewSchema>;
 export type PrivateMailView = z.infer<typeof PrivateMailViewSchema>;
 export type IdentityView = z.infer<typeof IdentityViewSchema>;
 export type IdentityRecommendationView = z.infer<typeof IdentityRecommendationViewSchema>;

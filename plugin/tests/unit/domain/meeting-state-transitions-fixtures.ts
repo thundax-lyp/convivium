@@ -63,7 +63,6 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
         questions: [],
         issues: [],
         riskDispositions: [],
-        tasks: [],
         managerPlans: [],
         privateMails: [],
         completionFacts: [],

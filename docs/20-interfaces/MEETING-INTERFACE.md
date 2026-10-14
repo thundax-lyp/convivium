@@ -108,12 +108,6 @@ type MeetingAction =
   | RecordCompletionFact
   | ChangeCompletionFact
   | PlanNextStep
-  | CreateTask
-  | ClaimTask
-  | CompleteTask
-  | CancelTask
-  | ExpireTask
-  | ReassignTask
   | SendPrivateMail
   | StartPrivateMail
   | CompletePrivateMail
@@ -365,7 +359,7 @@ interface AbortRound {
 
 `SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。`summary` 必须是非空作者观点摘要，与完整证据同版本受审核；轮末以摘要原文生成 `FormalMessage.body`，不删除完整证据、不合并作者或改变消息预算。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
 
-`RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution/MeetingTask 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束任务时两种初次申请均返回 `PRECONDITION_FAILED`。
+`RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束贡献时两种初次申请均返回 `PRECONDITION_FAILED`。
 
 `Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。开轮前已经排队的取证申请原子记为 `raised`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。
 
@@ -444,7 +438,7 @@ worker 未 completed、version 不匹配或结构无效分别返回 `{kind: "fai
 
 Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `validation_cancelled` 并移除 claim，不增加 failureCount、不写 lastFailureReason；旧 review request 完成而不在暂停期间轮询。恢复时为这些 current、complete 版本重新创建 review request，重新领取后回到 `validating`。暂停前旧 turn 的迟到提交因 claim 已不存在返回 `REVIEWER_CONFLICT`。Outbox delivered/failed 只表示运输结果，不改变 EvidenceStatus，也不得提前耗尽 EvidenceVersion 的固定失败预算；ReviewDelivery 只描述已形成 Review 向作者的送达。
 
-已接纳但还没有登记证据的 Contribution 的准备期限为 acceptedAt + limits.taskDeadlineMs，并与存在的 Round.deadlineAt、该作者同 Agenda 未结束 MeetingTask.deadlineAt 取最早值；期限到达后可信 deadline handler 才能记录 submission_missing，绝不造空包。当前版审核或 ReviewDelivery 尚未成功时，不能据作者沉默正常 PublishRound；reviewDeadlineMs 到达须报告未审/未送达包并交由后续异常轮次处置，不把该包视为最终已审。
+已接纳但还没有登记证据的 Contribution 的准备期限为 acceptedAt + limits.taskDeadlineMs，并与存在的 Round.deadlineAt 取最早值；期限到达后可信 deadline handler 才能记录 submission_missing，绝不造空包。当前版审核或 ReviewDelivery 尚未成功时，不能据作者沉默正常 PublishRound；reviewDeadlineMs 到达须报告未审/未送达包并交由后续异常轮次处置，不把该包视为最终已审。
 
 `AbortRound` 只允许Captain（本地用户） 在 `running` Meeting 对 open Round 执行并提供非空 reason；`preparing|paused|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`，不得隐式 resume 或改变原 lifecycle。成功时原子把全部未终态 Contribution 关闭为 aborted exit、移除该 Round 的 pending hand raises 和消息预算预留、把 Round 置 `aborted`，不创建 Publication/FormalMessage；已登记 EvidenceVersion、Review、ReviewDelivery 保留为非公开审计事实。Meeting 保持 running 且预算允许时可再开 Round；预算已耗尽时 `OpenRound` 拒绝，只能 pause 或按明确 outcome end。
 
@@ -452,7 +446,7 @@ Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `va
 
 `sourceEffectId` 由 dispatcher 从当前 outbox effect 注入并持久化；只有该原始 effect 在有效期内重投时保持 retryable，覆盖同一 version 的其它 effect 直接去重完成。这样重复通知不会形成写竞争，而原 effect 在进程崩溃后仍能等到 claim 过期并重新认领。
 
-### Deliberation, outcome, task and mail
+### Deliberation, outcome and mail
 
 ```ts
 interface RecordProposalRevision {
@@ -527,40 +521,6 @@ interface PlanNextStep {
   rationale: string;
   blockingReason?: string;
 }
-interface CreateTask {
-  kind: "create_task";
-  assigneeId: OpaqueId;
-  agendaId?: OpaqueId;
-  title: string;
-  instructions: string;
-  deadlineAt?: EpochMs;
-}
-interface ClaimTask {
-  kind: "claim_task";
-  taskId: OpaqueId;
-}
-interface CompleteTask {
-  kind: "complete_task";
-  taskId: OpaqueId;
-  result: string;
-}
-interface CancelTask {
-  kind: "cancel_task";
-  taskId: OpaqueId;
-  reason: string;
-}
-interface ExpireTask {
-  kind: "expire_task";
-  taskId: OpaqueId;
-  reason: string;
-}
-interface ReassignTask {
-  kind: "reassign_task";
-  taskId: OpaqueId;
-  assigneeId: OpaqueId;
-  reason: string;
-  deadlineAt?: EpochMs;
-}
 interface SendPrivateMail {
   kind: "send_private_mail";
   recipientId: OpaqueId;
@@ -599,7 +559,7 @@ interface RecordArchiveSessionResult {
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate 与 task result；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -655,15 +615,15 @@ A DecisionCandidate is accepted only when it names the current ProposalRevision 
 
 `pendingDecisionCandidates` contains current-revision candidates without any Decision only while lifecycle is `running|paused`; `paused` preserves resumable work but does not permit acceptance. It is empty for `preparing|converging|ending|terminal|archiving|archived`. Caller filtering remains Captain/local-only.
 
-ContinuationInput is accepted only for a new Meeting when its authenticated Captain explicitly selects an immutable, caller-visible ArchivePackage and a distinct non-empty subset of exported material IDs whose kind is `published_evidence|formal_message|accepted_decision|active_completion_fact`. It imports read-only ContinuationMaterial copies with sourceArchiveId/sourceMaterialId provenance; selecting published evidence atomically includes its Materials, source locators and final Review as one evidence bundle. It never imports old Meeting ID, identity, Session, capability, full transcript, task, mail, authority, running state or a prior completion conclusion.
+ContinuationInput is accepted only for a new Meeting when its authenticated Captain explicitly selects an immutable, caller-visible ArchivePackage and a distinct non-empty subset of exported material IDs whose kind is `published_evidence|formal_message|accepted_decision|active_completion_fact`. It imports read-only ContinuationMaterial copies with sourceArchiveId/sourceMaterialId provenance; selecting published evidence atomically includes its Materials, source locators and final Review as one evidence bundle. It never imports old Meeting ID, identity, Session, capability, full transcript, mail, authority, running state or a prior completion conclusion.
 
-PlanNextStep is Manager-only and is rejected while a Round is open; a new plan supersedes the current active plan for its Agenda. CreateTask requires the caller's active authorization and matching context. ReassignTask is local-controller-only, atomically revokes the old authorization and creates a replacement task; all later commands against the revoked task return PRECONDITION_FAILED. ExpireTask and ExpirePrivateMail are deadline-handler-only and require the respective persisted deadline to be no later than Runtime clock. StartPrivateMail is a trusted dispatcher action and is rejected if the recipient owns a claimed formal Contribution or another processing mail. It fixes the processing-visible Publication range; retries never recompute it. StartArchive is runtime-recovery-only from terminal and atomically materializes the ArchivePackage before archiving; RecordArchiveSessionResult is trusted session-owner-only. Any failed Session close leaves lifecycle archiving and rejects discussion; archived is entered only after every meeting-owned Session reports closed.
+PlanNextStep is Manager-only and is rejected while a Round is open; a new plan supersedes the current active plan for its Agenda. ExpirePrivateMail is deadline-handler-only and requires its persisted deadline to be no later than Runtime clock. StartPrivateMail is a trusted dispatcher action and is rejected if the recipient owns a claimed formal Contribution or another processing mail. It fixes the processing-visible Publication range; retries never recompute it. StartArchive is runtime-recovery-only from terminal and atomically materializes the ArchivePackage before archiving; RecordArchiveSessionResult is trusted session-owner-only. Any failed Session close leaves lifecycle archiving and rejects discussion; archived is entered only after every meeting-owned Session reports closed.
 
 `SendPrivateMail` 只允许 `running` Meeting 中已认证的 Meeting identity 发给另一个已存在 identity；sender 由 caller binding 注入，不能等于 recipient。`relatedIds` 必须非空、无重复，并且每一项只能解析为本 Meeting 已公开的 `Publication.id` 或 `FormalMessage.id`；`agendaId` 若存在必须指向本 Meeting Agenda。Runtime 为 mail 分配唯一 `mailId` 并注入 `now`，Domain 固定 `createdAt=now`、`deadlineAt=now+limits.taskDeadlineMs`、`sendContextPublicationUpperBound=state.publications.map(item => item.id)`；和式不是非负 safe integer 时返回 `PRECONDITION_FAILED`。caller 不得提交这四个派生字段。
 
 `StartPrivateMail` 只允许可信 effect dispatcher 在 `running`、`createdAt <= now < deadlineAt` 且 mail 为 `queued` 时执行。它原子写 `status=processing`、`processingStartedAt=now`，并把当时 `state.publications.map(item => item.id)` 固定为 `processingContextPublicationUpperBound`；该数组必须以发送范围为前缀。recipient 存在任一非终态 Contribution，或已经是另一条 `processing` mail 的 recipient 时返回 `PRECONDITION_FAILED`。同理，Manager 接纳该 identity 的 pending hand 并创建 Contribution 前，若其正在处理 mail，也必须返回 `PRECONDITION_FAILED`；pending hand 保持不变。
 
-`CompletePrivateMail` 只允许目标 recipient 在 mail 为 `processing` 且 `processingStartedAt <= now < deadlineAt` 时执行，写 `status=completed` 与 `completedAt=now`。`CancelPrivateMail` 只允许 sender 对 `queued|processing` mail 执行，要求 `now >= createdAt` 且已开始时还要求 `now >= processingStartedAt`，写 `status=cancelled`、`completedAt=now` 与 trim 后非空 `failureReason=reason`。`ExpirePrivateMail` 只允许 deadline handler 对 `queued|processing` mail 在 `now >= deadlineAt` 时执行，写 `status=timed_out`、`completedAt=now` 与非空 `failureReason=reason`。send/start 只允许 `running`；complete/cancel/expire 允许 `running|paused|converging|ending` 以释放占用；`terminal|archiving|archived` 一律 `MEETING_TERMINAL`。已经终结的 mail 再操作返回 `INVALID_STATE`，时间早于创建/处理、早到 start/complete/expire 均返回 `PRECONDITION_FAILED`。`SendPrivateMail` 除状态变化外产生唯一 `{kind:"session_mail",mailId,recipientId,contextPublicationUpperBound:sendContextPublicationUpperBound}` Domain effect request；其它四个 action 的 effect request 为空。五个 action 均不生成 FormalMessage、Decision、CompletionFact 或 MeetingTask。
+`CompletePrivateMail` 只允许目标 recipient 在 mail 为 `processing` 且 `processingStartedAt <= now < deadlineAt` 时执行，写 `status=completed` 与 `completedAt=now`。`CancelPrivateMail` 只允许 sender 对 `queued|processing` mail 执行，要求 `now >= createdAt` 且已开始时还要求 `now >= processingStartedAt`，写 `status=cancelled`、`completedAt=now` 与 trim 后非空 `failureReason=reason`。`ExpirePrivateMail` 只允许 deadline handler 对 `queued|processing` mail 在 `now >= deadlineAt` 时执行，写 `status=timed_out`、`completedAt=now` 与非空 `failureReason=reason`。send/start 只允许 `running`；complete/cancel/expire 允许 `running|paused|converging|ending` 以释放占用；`terminal|archiving|archived` 一律 `MEETING_TERMINAL`。已经终结的 mail 再操作返回 `INVALID_STATE`，时间早于创建/处理、早到 start/complete/expire 均返回 `PRECONDITION_FAILED`。`SendPrivateMail` 除状态变化外产生唯一 `{kind:"session_mail",mailId,recipientId,contextPublicationUpperBound:sendContextPublicationUpperBound}` Domain effect request；其它四个 action 的 effect request 为空。五个 action 均不生成 FormalMessage、Decision、CompletionFact。
 
 
 
@@ -1093,7 +1053,6 @@ interface MeetingView {
   outcomes: OutcomeView;
   archive?: ArchiveView;
   managerPlans: ManagerPlanView[];
-  tasks: TaskView[];
   privateMail: PrivateMailView[];
   timelineEvents?: MeetingEventView[];
   controls: AllowedControl[];
@@ -1225,7 +1184,6 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
       | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: ContinuationAcceptedDecisionContentView }
       | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: ContinuationCompletionFactContentView };
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
-    interface TaskView { id: OpaqueId; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; status: "open" | "claimed" | "completed" | "cancelled" | "expired"; authorizationId: OpaqueId; authorizationStatus: "active" | "revoked" | "expired"; attempt: number; reassignedFromTaskId?: OpaqueId; deadlineAt?: EpochMs; result?: string; exitReason?: string; startedAt?: EpochMs; completedAt?: EpochMs }
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
     type AllowedControl = MeetingAction["kind"];
 

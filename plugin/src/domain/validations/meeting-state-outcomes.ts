@@ -375,44 +375,6 @@ const validateEffectiveCompletion = (parsedState: MeetingState): string | undefi
     return undefined;
 };
 
-const validateTasks = (parsedState: MeetingState): string | undefined => {
-    const identityIds = ids(parsedState.identities);
-    const agendaIds = ids(parsedState.agenda);
-    const publicationIds = ids(parsedState.publications);
-    const taskIds = ids(parsedState.tasks);
-    const tasks = parsedState.tasks;
-    for (let i = 0; i < tasks.length; i++) {
-        const item = tasks[i];
-        const path = `$.tasks[${i}]`;
-        for (const [key, values] of [
-            ["createdBy", identityIds],
-            ["assigneeId", identityIds]
-        ] as const) {
-            if (!ref(item[key], values)) {
-                return fail(`${path}.${key}`);
-            }
-        }
-        if (item.agendaId !== undefined && !ref(item.agendaId, agendaIds)) {
-            return fail(`${path}.agendaId`);
-        }
-        const p = checkRefs(
-            item.contextPublicationUpperBound,
-            publicationIds,
-            `${path}.contextPublicationUpperBound`
-        );
-        if (p) {
-            return fail(p);
-        }
-        if (
-            item.reassignedFromTaskId !== undefined &&
-            !taskIds.has(item.reassignedFromTaskId as string)
-        ) {
-            return fail(`${path}.reassignedFromTaskId`);
-        }
-    }
-    return undefined;
-};
-
 type PrivateMail = MeetingState["privateMails"][number];
 
 const validateMailReferences = (
@@ -764,7 +726,6 @@ export const validateMeetingStateOutcomes = (
         validatePlansAndRisk(parsedState) ??
         validateCompletionFacts(parsedState) ??
         validateEffectiveCompletion(parsedState) ??
-        validateTasks(parsedState) ??
         validatePrivateMail(parsedState) ??
         validateTerminalRecords(value, parsedState)
     );
