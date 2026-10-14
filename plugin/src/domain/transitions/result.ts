@@ -54,13 +54,7 @@ export type AgentNoticeEffectRequest =
 export type MeetingDomainEffectRequest =
     | AgentNoticeEffectRequest
     | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
-    | { kind: "materialize_archive"; terminationId: OpaqueId }
-    | {
-          kind: "session_mail";
-          mailId: OpaqueId;
-          recipientId: OpaqueId;
-          contextPublicationUpperBound: readonly OpaqueId[];
-      };
+    | { kind: "materialize_archive"; terminationId: OpaqueId };
 
 export type MeetingTransitionResult =
     | {

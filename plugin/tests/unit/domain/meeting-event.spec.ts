@@ -126,7 +126,7 @@ describe("Meeting occurrence event contracts", () => {
             expect(
                 MeetingEventViewSchema.safeParse({
                     ...valid,
-                    data: { ...data, privateMail: { body: "secret" } }
+                    data: { ...data, hiddenTrace: { body: "secret" } }
                 }).success
             ).toBe(false);
             expect(

@@ -30,7 +30,6 @@ const fields = [
     "issues",
     "riskDispositions",
     "managerPlans",
-    "privateMails",
     "completionFacts",
     "limits"
 ] as const;

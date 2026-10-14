@@ -13,7 +13,6 @@ export {
     type EvidenceReview,
     type Publication,
     type FormalMessage,
-    type PrivateMail,
     type ArchivePackage,
     type MeetingState,
     type ArchiveQuestionIssueDispositionFact,

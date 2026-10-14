@@ -120,7 +120,6 @@ const targetCreateState = (
         issues: [],
         riskDispositions: [],
         managerPlans: [],
-        privateMails: [],
         completionFacts: [],
         limits: action.limits
     };

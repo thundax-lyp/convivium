@@ -119,7 +119,6 @@ describe("target Meeting tool registration", () => {
             issues: [],
             outcomes: {},
             managerPlans: [],
-            privateMail: [],
             controls: []
         }));
         const execute = vi.fn(async () => ({

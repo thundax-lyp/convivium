@@ -185,7 +185,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                 status: "completed"
             }
         ],
-        privateMails: [],
         completionFacts: [],
         limits: {
             maxFormalMessages: 1,

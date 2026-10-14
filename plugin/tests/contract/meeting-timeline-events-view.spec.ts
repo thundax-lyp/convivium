@@ -60,7 +60,7 @@ it("projects every complete event for captain even if its subject no longer appe
         }
     ]);
     expect(JSON.stringify(view.timelineEvents)).not.toMatch(
-        /logVersion|turnId|attemptId|privateMail|session|capability/
+        /logVersion|turnId|attemptId|session|capability/
     );
     view.timelineEvents![1]!.subject.id = "reader mutation";
     expect(

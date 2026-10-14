@@ -101,7 +101,7 @@ Captain 或 loopback 本地召集人可以在轮次无法继续时通过结构�
 ### ER-FR-8：启动与 Transcript 通知
 
 1. 会议进入 running 后，`meeting_started` 作为公开 Meeting 事件投递给每个具有 active meeting-owned Session 的初始身份，不按 Manager、Contributor 或 Evidence Reviewer 角色筛选。各身份依据自己的职责和 caller-visible 状态自行决定处理或忽略；Manager 据此规划首轮，Contributor 等待开轮后自主判断是否举手，Evidence Reviewer 在没有有效审核请求时无需行动。收到启动事件不授予 Contribution，也不扩大任何命令权限。
-2. 此后每条新正式 Transcript 内容作为公开 Meeting 事件投递给全部具有 active meeting-owned Session 的会议身份，不因角色、Agenda responsibility 或当前任务状态筛除接收者。接收者可以处理或忽略；是否允许读取具体内容、轮内举手或提交命令，仍由 caller-filtered projection 与 Runtime 授权确定。私信、举手处置、审核请求、deadline 等具有明确工作归属或非公开内容的通知仍只投递给对应身份，不适用公开广播规则。
+2. 此后每条新正式 Transcript 内容作为公开 Meeting 事件投递给全部具有 active meeting-owned Session 的会议身份，不因角色、Agenda responsibility 或当前任务状态筛除接收者。接收者可以处理或忽略；是否允许读取具体内容、轮内举手或提交命令，仍由 caller-filtered projection 与 Runtime 授权确定。举手处置、审核请求、deadline 等具有明确工作归属或非公开内容的通知仍只投递给对应身份，不适用公开广播规则。
 3. 公开通知只携带可核对的会议、议题、事件和已公开内容标识。每个 Meeting identity 必须能通过统一的受控读取入口，以通知中的 `meetingId` 取得自己的 caller-visible Meeting 内容；Manager 至少能读取已提交的 objective、Agenda、当前进度、version 与允许操作，Contributor 和 Evidence Reviewer 读取同一事实源的各自权限投影。通知不得携带本轮他人未公开证据、私有 Session 历史或隐藏推理。投递成功、消息持久化、Agent turn 执行完成、举手获接纳和证据提交是不同结果。已接纳 Contributor 的工作通知与 Reviewer claim 通知必须观察实际承接该消息的 turn：前者异常且无登记证据时写入 Contribution 失败事实，后者异常时立即以 `review_interrupted` 消费 claim 并进入既有审核重试预算。未证明归属、Session 非 active、capability 已撤销或请求其它 Meeting 时不得读取或投递；通知失败须可重试并可观察，不能产生空 Contribution 或把未响应推定为放弃。
 
 ## Business Rules

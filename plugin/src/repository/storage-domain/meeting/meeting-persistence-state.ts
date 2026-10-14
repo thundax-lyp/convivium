@@ -393,7 +393,7 @@ export class MeetingPersistenceState<TState = JsonObject> {
                 "Meeting does not exist"
             );
         }
-        // A read must not serialize unrelated receipts, events, outbox or private mail.
+        // A read must not serialize unrelated receipts, events, or outbox.
         const result = PersistenceProjectionSchema.shape.snapshot
             .unwrap()
             .parse(decodeCanonicalJson(encodeCanonicalJson(snapshot)));

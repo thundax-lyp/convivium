@@ -544,31 +544,6 @@ const completionFactSchema = withDefinedOptionals(
     }),
     ["criterionId", "supersedesFactId"]
 );
-const privateMailSchema = withDefinedOptionals(
-    z.object({
-        id: opaqueIdSchema,
-        senderId: opaqueIdSchema,
-        recipientId: opaqueIdSchema,
-        agendaId: opaqueIdSchema.optional(),
-        body: textSchema,
-        relatedIds: uniqueIdArraySchema.min(1),
-        sendContextPublicationUpperBound: uniqueIdArraySchema,
-        processingContextPublicationUpperBound: uniqueIdArraySchema.optional(),
-        status: z.enum(["queued", "processing", "completed", "timed_out", "cancelled"]),
-        deadlineAt: epochSchema,
-        createdAt: epochSchema,
-        processingStartedAt: epochSchema.optional(),
-        completedAt: epochSchema.optional(),
-        failureReason: textSchema.optional()
-    }),
-    [
-        "agendaId",
-        "processingContextPublicationUpperBound",
-        "processingStartedAt",
-        "completedAt",
-        "failureReason"
-    ]
-);
 const terminationSchema = z.object({
     id: opaqueIdSchema,
     outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
@@ -767,7 +742,6 @@ const meetingStateSchema = withDefinedOptionals(
         issues: uniqueEntityArray(issueSchema),
         riskDispositions: uniqueEntityArray(riskDispositionSchema),
         completionFacts: uniqueEntityArray(completionFactSchema),
-        privateMails: uniqueEntityArray(privateMailSchema),
         managerPlans: uniqueEntityArray(managerPlanSchema),
         limits: limitsSchema,
         termination: terminationSchema.optional(),

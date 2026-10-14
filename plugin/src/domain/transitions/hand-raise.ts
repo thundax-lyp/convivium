@@ -197,13 +197,6 @@ export const disposeHandRaise = (
         ) {
             return reject(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
         }
-        if (
-            state.privateMails.some(
-                (mail) => mail.recipientId === input.contributorId && mail.status === "processing"
-            )
-        ) {
-            return reject(state, "PRECONDITION_FAILED", "contributor is processing private mail");
-        }
         const contribution: Contribution = {
             id: input.contributionId,
             roundId: round.id,

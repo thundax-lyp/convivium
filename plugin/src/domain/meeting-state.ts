@@ -434,23 +434,6 @@ export interface ManagerPlan {
     status: "active" | "superseded" | "completed";
 }
 
-export interface PrivateMail {
-    id: OpaqueId;
-    senderId: OpaqueId;
-    recipientId: OpaqueId;
-    agendaId?: OpaqueId;
-    body: string;
-    relatedIds: readonly OpaqueId[];
-    sendContextPublicationUpperBound: readonly OpaqueId[];
-    processingContextPublicationUpperBound?: readonly OpaqueId[];
-    status: "queued" | "processing" | "completed" | "timed_out" | "cancelled";
-    deadlineAt: EpochMs;
-    createdAt: EpochMs;
-    processingStartedAt?: EpochMs;
-    completedAt?: EpochMs;
-    failureReason?: string;
-}
-
 export interface Termination {
     id: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
@@ -611,7 +594,6 @@ export interface MeetingState {
     issues: readonly Issue[];
     riskDispositions: readonly RiskDisposition[];
     managerPlans: readonly ManagerPlan[];
-    privateMails: readonly PrivateMail[];
     completionFacts: readonly CompletionFact[];
     limits: MeetingLimits;
     termination?: Termination;

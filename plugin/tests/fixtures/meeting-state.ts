@@ -70,7 +70,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         issues: [],
         riskDispositions: [],
         managerPlans: [],
-        privateMails: [],
         completionFacts: [],
         limits: {
             maxFormalMessages: 100,

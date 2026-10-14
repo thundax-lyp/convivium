@@ -137,7 +137,6 @@ export interface CreateMeetingResult {
         id: string;
         kind:
             | "refresh"
-            | "session_mail"
             | "agent_notice"
             | "review_delivery"
             | "markdown_projection"

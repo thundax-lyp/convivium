@@ -63,7 +63,6 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
         issues: [],
         riskDispositions: [],
         managerPlans: [],
-        privateMails: [],
         completionFacts: [],
         limits: {
             maxFormalMessages: 0,

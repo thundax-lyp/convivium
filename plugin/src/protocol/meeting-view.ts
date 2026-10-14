@@ -747,22 +747,6 @@ export const ManagerPlanViewSchema = z.object({
     status: z.enum(["active", "superseded", "completed"]),
     createdAt: epoch
 });
-export const PrivateMailViewSchema = z.object({
-    id,
-    senderId: id,
-    recipientId: id,
-    agendaId: id.optional(),
-    body: text,
-    relatedIds: z.array(id),
-    sendContextPublicationUpperBound: z.array(id),
-    processingContextPublicationUpperBound: z.array(id).optional(),
-    status: z.enum(["queued", "processing", "completed", "timed_out", "cancelled"]),
-    deadlineAt: epoch,
-    createdAt: epoch,
-    processingStartedAt: epoch.optional(),
-    completedAt: epoch.optional(),
-    failureReason: text.optional()
-});
 
 export const ArchiveViewSchema = z
     .object({
@@ -916,7 +900,6 @@ export const MeetingViewSchema = z.object({
     outcomes: OutcomeViewSchema,
     archive: ArchiveViewSchema.optional(),
     managerPlans: z.array(ManagerPlanViewSchema),
-    privateMail: z.array(PrivateMailViewSchema),
     controls: z.array(AllowedControlSchema)
 });
 export const MeetingListResultSchema = z.object({ meetings: z.array(MeetingSummarySchema) });
@@ -956,7 +939,6 @@ export type ArchiveMaterialView = z.infer<typeof ArchiveMaterialViewSchema>;
 export type ContinuationMaterialView = z.infer<typeof ContinuationMaterialViewSchema>;
 export type ContinuationProvenanceView = z.infer<typeof ContinuationProvenanceViewSchema>;
 export type ManagerPlanView = z.infer<typeof ManagerPlanViewSchema>;
-export type PrivateMailView = z.infer<typeof PrivateMailViewSchema>;
 export type IdentityView = z.infer<typeof IdentityViewSchema>;
 export type IdentityRecommendationView = z.infer<typeof IdentityRecommendationViewSchema>;
 export type ManagerCatalogView = z.infer<typeof ManagerCatalogViewSchema>;
