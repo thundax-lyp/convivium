@@ -102,7 +102,6 @@ const targetCreateState = (
         })),
         agendaCandidates: [],
         rounds: [],
-        opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: reviewer.id,

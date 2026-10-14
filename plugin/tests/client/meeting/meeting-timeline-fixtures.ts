@@ -210,15 +210,6 @@ export function activeTimelineFixture(): MeetingView {
                 contributions: []
             }
         ],
-        opportunityRequests: [
-            {
-                id: "request-1",
-                agendaId: "agenda-v1",
-                contributorId: "contributor-v1",
-                purpose: "request purpose",
-                requestedAt: 23
-            }
-        ],
         evidencePackages: [
             {
                 id: "package-1",

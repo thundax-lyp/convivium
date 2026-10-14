@@ -109,7 +109,6 @@ describe("target Meeting tool registration", () => {
             lifecycle: { status: "running" as const, changedAt: 1 },
             identities: [],
             agenda: [],
-            opportunityRequests: [],
             rounds: [],
             publications: [],
             evidencePackages: [],

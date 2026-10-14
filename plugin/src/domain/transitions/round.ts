@@ -87,9 +87,6 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
     ) {
         return rejected(state, "PRECONDITION_FAILED", "an open round already exists");
     }
-    const opportunityRequests = state.opportunityRequests.filter(
-        (request) => request.agendaId === input.agendaId
-    );
     const invitedContributors = state.identities.filter(
         (identity) =>
             identity.roles.includes("contributor") &&
@@ -106,22 +103,9 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         status: "open",
         contributionIds: [],
         invitedContributorIds: invitedContributors.map((identity) => identity.id),
-        participationResponses: opportunityRequests.map((request) => ({
-            contributorId: request.contributorId,
-            status: "raised" as const,
-            recordedAt: input.now
-        })),
+        participationResponses: [],
         ...(input.deadlineAt === undefined ? {} : { deadlineAt: input.deadlineAt })
     };
-    const pendingHandRaises = [
-        ...state.pendingHandRaises,
-        ...opportunityRequests.map((request) => ({
-            roundId: input.roundId,
-            contributorId: request.contributorId,
-            purpose: request.purpose,
-            raisedAt: request.requestedAt
-        }))
-    ];
     const next: MeetingState = {
         ...state,
         version: state.version + 1,
@@ -129,11 +113,7 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         rounds: [...state.rounds, round],
         managerPlans: state.managerPlans.map((candidate) =>
             candidate.id === plan.id ? { ...candidate, status: "completed" as const } : candidate
-        ),
-        opportunityRequests: state.opportunityRequests.filter(
-            (request) => request.agendaId !== input.agendaId
-        ),
-        pendingHandRaises
+        )
     };
     return {
         kind: "accepted",

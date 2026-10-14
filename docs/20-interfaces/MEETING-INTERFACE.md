@@ -83,8 +83,6 @@ type MeetingAction =
   | ResolveQuestion
   | RecordIssue
   | DisposeIssue
-  | RequestEvidenceOpportunity
-  | DisposeEvidenceOpportunity
   | OpenRound
   | RaiseHand
   | DeclineHand
@@ -264,17 +262,6 @@ interface OpenRound {
   planId: OpaqueId;
   deadlineAt?: EpochMs;
 }
-interface RequestEvidenceOpportunity {
-  kind: "request_evidence_opportunity";
-  agendaId: OpaqueId;
-  purpose: string;
-}
-interface DisposeEvidenceOpportunity {
-  kind: "dispose_evidence_opportunity";
-  requestId: OpaqueId;
-  disposition: "rejected" | "deferred";
-  reason: string;
-}
 interface RaiseHand {
   kind: "raise_hand";
   roundId: OpaqueId;
@@ -359,9 +346,8 @@ interface AbortRound {
 
 `SubmitEvidence` 只由 Contribution 作者提交准备公开的内容。`summary` 必须是非空作者观点摘要，与完整证据同版本受审核；轮末以摘要原文生成 `FormalMessage.body`，不删除完整证据、不合并作者或改变消息预算。Runtime 原子校验结构、必填字段、引用、caller、Contribution 授权和期限；任一失败不写 EvidencePackage、EvidenceVersion、Registration、Review、receipt、outbox 或 Meeting version。首份合法提交创建 ordinal 1 和 complete Registration，已有登记版本不可在本轮更新。Manager 不接收草稿、hash 或证据正文，也没有格式审批 action。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 可使用 `CloseContribution` 或 `ExpireRoundParticipation`，Runtime 必须验证相应 deadline 已到。
 
-`RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束贡献时两种初次申请均返回 `PRECONDITION_FAILED`。
 
-`Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。开轮前已经排队的取证申请原子记为 `raised`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。
+`Round.invitedContributorIds` 固定开轮时负责该 Agenda 的全部 Contributor，`participationResponses` 记录每位受邀者一次 `raised|declined|no_response` 选择。举手或拒绝必须早于 `min(openedAt+taskDeadlineMs, deadlineAt?)`；可信 deadline handler 仅在期限到达后写 `no_response`。Manager/Captain 可读全部选择，Contributor 只读自己的选择。
 
 `RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending、本轮已记录选择或已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
 
@@ -559,7 +545,7 @@ interface RecordArchiveSessionResult {
 
 `RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 opportunity/hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -1040,7 +1026,6 @@ interface MeetingView {
   identityRecommendations?: IdentityRecommendationView[];
   managerCatalog?: ManagerCatalogView;
   agenda: AgendaView[];
-  opportunityRequests: EvidenceOpportunityRequestView[];
   rounds: RoundView[];
   publications: PublicationView[];
   evidencePackages: EvidencePackageView[];
@@ -1110,7 +1095,7 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 
 Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。缺少完整事件日志的既有测试会议应删除，不提供旧数据识别、兼容或迁移路径。
 
-各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
+各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取本轮全部 pending hand raises；普通 contributor 只读取自己的 pending hand raise，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
 Round 的受邀选择在 MeetingView 中向 Captain 和 Manager 显示全部受邀者及状态，普通 Contributor 仅显示自己；尚未选择者由受邀名单减去已记录响应派生。
 
@@ -1128,7 +1113,6 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface LifecycleView { status: "preparing" | "running" | "paused" | "converging" | "ending" | "terminal" | "archiving" | "archived"; changedAt: EpochMs; reason?: string }
     interface AgendaView { id: OpaqueId; title: string; question: string; status: "pending" | "active" | "blocked" | "completed" | "deferred" | "closed"; ownerId?: OpaqueId; requiredOutputIds: OpaqueId[] }
     interface AgendaCandidateView { id: OpaqueId; title: string; reason: string; sourceMessageId?: OpaqueId; status: "pending" | "promoted" | "parked" | "rejected" }
-    interface EvidenceOpportunityRequestView { id: OpaqueId; agendaId: OpaqueId; contributorId: OpaqueId; purpose: string; requestedAt: EpochMs }
     interface RoundView { id: OpaqueId; agendaId: OpaqueId; planId: OpaqueId; roundGoal: { question: string; evidenceGap: string; expectedOutput: string }; status: "open" | "published" | "aborted"; baselinePublicationIds: OpaqueId[]; openedAt: EpochMs; deadlineAt?: EpochMs; publicationId?: OpaqueId; abortReason?: string; abortedAt?: EpochMs; invitedContributorIds: OpaqueId[]; participationResponses: Array<{ contributorId: OpaqueId; status: "raised" | "declined" | "no_response"; recordedAt: EpochMs }>; pendingHandRaises: PendingHandRaiseView[]; contributions: ContributionView[] }
     interface PendingHandRaiseView { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; raisedAt: EpochMs }
     interface ContributionView { id: OpaqueId; contributorId: OpaqueId; status: "preparing" | "registered" | "under_review" | "withdrawn" | "submission_missing" | "execution_failed" | "aborted" | "closed"; packageId?: OpaqueId; exitReason?: string; failure?: ContributionFailure }
@@ -1319,16 +1303,6 @@ type AgentNoticePayload =
       publicMessageId: OpaqueId;
     })
   | (AgentNoticeBase & {
-      noticeKind: "opportunity_request";
-      requestId: OpaqueId;
-    })
-  | (AgentNoticeBase & {
-      noticeKind: "opportunity_disposition";
-      requestId: OpaqueId;
-      disposition: "rejected" | "deferred";
-      reason: string;
-    })
-  | (AgentNoticeBase & {
       noticeKind: "hand_request";
       requestKind: "initial";
       roundId: OpaqueId;
@@ -1366,7 +1340,7 @@ type AgentNoticePayload =
   | (AgentNoticeBase & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`opportunity_*`、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
+`meeting_started` 与 `transcript_update` 是公开 Meeting notice。producer 分别为创建提交和轮末公开提交中的每个 Meeting identity 生成独立 effect；dispatcher 不按 role、Agenda responsibility 或未结束任务筛选 recipient，但必须重新验证 Meeting/Agenda 状态、payload 引用、recipient identity、active meeting-owned Session ownership、精确 Session ID 与 active capability。接收者使用 notice 的 `meetingId` 调用 `convivium_read_meeting` 取得 caller-filtered 内容并自行决定是否行动，notice 不增加其 `AllowedControl` 或数据可见范围。私信、`hand_*`、`review_request`、review delivery 与 deadline 类效果仍按明确 recipient 和各自可见性规则定向投递。公开 notice payload 只含定位已提交公开事实所需的 ID，不复制 Evidence 正文、私有 Session 历史或隐藏推理。
 
 `round_ready` 是定向 Manager notice，由使非空 open Round 首次满足正常收口条件的提交生成；payload 仅含 `roundId`、`agendaId` 和接收方 ID。dispatcher 重新验证接收方为该 Agenda 的 active Manager、Round 仍 open 且可收口后才投递。该通知不自动公开证据或代替 Manager 的 `publish_round` 决定。
 

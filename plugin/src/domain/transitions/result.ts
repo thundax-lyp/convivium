@@ -21,13 +21,6 @@ export type AgentNoticeEffectRequest =
     | (AgentNoticeEffectBase & { noticeKind: "meeting_started" })
     | (AgentNoticeEffectBase & { noticeKind: "agenda_stopped"; planId: OpaqueId })
     | (AgentNoticeEffectBase & { noticeKind: "round_opened"; roundId: OpaqueId })
-    | (AgentNoticeEffectBase & { noticeKind: "opportunity_request"; requestId: OpaqueId })
-    | (AgentNoticeEffectBase & {
-          noticeKind: "opportunity_disposition";
-          requestId: OpaqueId;
-          disposition: "rejected" | "deferred";
-          reason: string;
-      })
     | (AgentNoticeEffectBase & {
           noticeKind: "hand_request";
           requestKind: "initial";

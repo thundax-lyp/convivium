@@ -70,7 +70,6 @@ export function privateMailState(): MeetingState {
                 publicationId: "pub-1"
             }
         ],
-        opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "sender",

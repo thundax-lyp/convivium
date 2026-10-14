@@ -293,13 +293,6 @@ export const AgendaCandidateViewSchema = z.object({
     sourceMessageId: id.optional(),
     status: z.enum(["pending", "promoted", "parked", "rejected"])
 });
-export const EvidenceOpportunityRequestViewSchema = z.object({
-    id,
-    agendaId: id,
-    contributorId: id,
-    purpose: text,
-    requestedAt: epoch
-});
 export const PendingHandRaiseViewSchema = z.object({
     roundId: id,
     contributorId: id,
@@ -911,7 +904,6 @@ export const MeetingViewSchema = z.object({
     identityRecommendations: z.array(IdentityRecommendationViewSchema).optional(),
     managerCatalog: ManagerCatalogViewSchema.optional(),
     agenda: z.array(AgendaViewSchema),
-    opportunityRequests: z.array(EvidenceOpportunityRequestViewSchema),
     rounds: z.array(RoundViewSchema),
     publications: z.array(PublicationViewSchema),
     evidencePackages: z.array(EvidencePackageViewSchema),
@@ -939,7 +931,6 @@ export type ObjectiveView = z.infer<typeof ObjectiveViewSchema>;
 export type LifecycleView = z.infer<typeof LifecycleViewSchema>;
 export type AgendaView = z.infer<typeof AgendaViewSchema>;
 export type AgendaCandidateView = z.infer<typeof AgendaCandidateViewSchema>;
-export type EvidenceOpportunityRequestView = z.infer<typeof EvidenceOpportunityRequestViewSchema>;
 export type PendingHandRaiseView = z.infer<typeof PendingHandRaiseViewSchema>;
 export type ContributionView = z.infer<typeof ContributionViewSchema>;
 export type RoundView = z.infer<typeof RoundViewSchema>;

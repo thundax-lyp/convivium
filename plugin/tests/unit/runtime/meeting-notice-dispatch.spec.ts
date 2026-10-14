@@ -326,56 +326,11 @@ describe("meeting notice dispatcher v1", () => {
             expect(deliver).not.toHaveBeenCalled();
         }
     );
-
-    it("accepts a committed disposition after its pending source was removed", async () => {
-        const { state, ownership } = fixture();
-        const deliver = vi.fn().mockResolvedValue(true);
-        const dispatcher = createMeetingNoticeDispatcher({
-            owner: { deliver, resume: vi.fn(async () => {}) },
-            definitions: [{ agentDefinitionId: "fixture" }],
-            repository: {
-                recover: async () => ({
-                    snapshot: {
-                        meetingId: state.id,
-                        version: 2,
-                        state,
-                        createdAt: 0,
-                        updatedAt: 1
-                    },
-                    sessionOwnership: ownership
-                })
-            } as never
-        });
-
-        await dispatcher.dispatch({
-            outboxItem: item({
-                kind: "agent_notice",
-                noticeKind: "opportunity_disposition",
-                recipientId: "contributor-v1",
-                agendaId: "agenda-v1",
-                requestId: "request-1",
-                disposition: "rejected",
-                reason: "Out of scope"
-            }),
-            signal: new AbortController().signal
-        });
-
-        expect(deliver).toHaveBeenCalledOnce();
-    });
 });
 
 describe("committed meeting notice shapes", () => {
     it("validates and delivers the remaining committed notice shapes", async () => {
         const { state, ownership } = fixture();
-        state.opportunityRequests = [
-            {
-                id: "request-1",
-                agendaId: "agenda-v1",
-                contributorId: "contributor-v1",
-                purpose: "Need evidence",
-                requestedAt: 1
-            }
-        ];
         state.rounds = [
             {
                 id: "round-1",
@@ -443,11 +398,6 @@ describe("committed meeting notice shapes", () => {
             } as never
         });
         const notices = [
-            {
-                noticeKind: "opportunity_request",
-                recipientId: "manager-v1",
-                requestId: "request-1"
-            },
             {
                 noticeKind: "hand_request",
                 recipientId: "manager-v1",

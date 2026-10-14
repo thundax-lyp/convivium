@@ -101,7 +101,7 @@ export const recalculateMeetingCompletion = (
         ...state,
         objective,
         lifecycle,
-        ...(enteringConverging ? { pendingHandRaises: [], opportunityRequests: [] } : {})
+        ...(enteringConverging ? { pendingHandRaises: [] } : {})
     };
 };
 

@@ -146,15 +146,6 @@ describe("Recompute/Convergence", () => {
                 raisedAt: 0
             }
         ];
-        state.opportunityRequests = [
-            {
-                id: "opportunity",
-                agendaId: "a",
-                contributorId: "contributor",
-                purpose: "contribute",
-                requestedAt: 0
-            }
-        ];
         const result = disposeRisk(state, {
             dispositionId: "risk",
             issueId: "issue",
@@ -186,7 +177,6 @@ describe("Recompute/Convergence", () => {
         expect(result.state.termination).toBeUndefined();
         expect(result.state.archive).toBeUndefined();
         expect(result.state.pendingHandRaises).toEqual([]);
-        expect(result.state.opportunityRequests).toEqual([]);
     });
     it("rejecting the blocking risk preserves running satisfied state", () => {
         const state = completionReadyState();

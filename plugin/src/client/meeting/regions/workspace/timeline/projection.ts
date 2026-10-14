@@ -9,7 +9,6 @@ export type TimelineObjectKind =
     | MeetingEventView["subject"]["kind"]
     | "lifecycle"
     | "round"
-    | "opportunity_request"
     | "hand_raise"
     | "evidence_version"
     | "evidence_review"
@@ -397,10 +396,6 @@ const resolveEarlyContent = (
                     detail: item.abortReason ?? item.roundGoal.evidenceGap
                 }
             );
-        }
-        case "opportunity_request": {
-            const item = archive ? undefined : unique(view.opportunityRequests, (x) => x.id === id);
-            return item && { title: item.purpose };
         }
         case "hand_raise": {
             const item = archive

@@ -1,7 +1,6 @@
 import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
-import { requestEvidenceOpportunity } from "@/domain/transitions/opportunity.ts";
 import {
     abortRound,
     isRoundClosable,
@@ -45,7 +44,7 @@ const openRoundWithPlan = (
 };
 
 describe("round transitions", () => {
-    it("opens with all current publications as baseline and transfers queued requests to hands", () => {
+    it("opens with all current publications as baseline and waits for invited contributors", () => {
         const initial = makeRunningMeetingStateV1();
         const state = {
             ...initial,
@@ -82,18 +81,7 @@ describe("round transitions", () => {
                 }
             ]
         };
-        const queued = requestEvidenceOpportunity(state, {
-            requestId: "request-v1",
-            agendaId: "agenda-v1",
-            contributorId: "contributor-v1",
-            purpose: "补充证据",
-            now: 10
-        });
-        expect(queued.kind).toBe("accepted");
-        if (queued.kind !== "accepted") {
-            return;
-        }
-        const result = openRoundWithPlan(queued.state, {
+        const result = openRoundWithPlan(state, {
             roundId: "round-v1",
             agendaId: "agenda-v1",
             managerId: "manager-v1",
@@ -115,21 +103,11 @@ describe("round transitions", () => {
                 status: "open",
                 contributionIds: [],
                 invitedContributorIds: ["contributor-v1"],
-                participationResponses: [
-                    { contributorId: "contributor-v1", status: "raised", recordedAt: 20 }
-                ],
+                participationResponses: [],
                 deadlineAt: 100
             }
         ]);
-        expect(result.state.opportunityRequests).toEqual([]);
-        expect(result.state.pendingHandRaises).toEqual([
-            {
-                roundId: "round-v1",
-                contributorId: "contributor-v1",
-                purpose: "补充证据",
-                raisedAt: 10
-            }
-        ]);
+        expect(result.state.pendingHandRaises).toEqual([]);
         expect(result.effectRequests).toEqual([
             {
                 kind: "agent_notice",

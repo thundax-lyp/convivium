@@ -228,13 +228,6 @@ const managerPlanSchema = z.object({
 });
 const handRaiseSchema = z.object({ raisedAt: epochSchema, purpose: textSchema });
 const textWithReasonSchema = z.object({ value: textSchema, reason: textSchema.optional() });
-const opportunityRequestSchema = z.object({
-    id: opaqueIdSchema,
-    agendaId: opaqueIdSchema,
-    contributorId: opaqueIdSchema,
-    purpose: textSchema,
-    requestedAt: epochSchema
-});
 const pendingHandRaiseSchema = z.object({
     roundId: opaqueIdSchema,
     contributorId: opaqueIdSchema,
@@ -757,7 +750,6 @@ const meetingStateSchema = withDefinedOptionals(
         agenda: uniqueEntityArray(agendaSchema),
         agendaCandidates: uniqueEntityArray(candidateSchema),
         rounds: uniqueEntityArray(roundSchema),
-        opportunityRequests: uniqueEntityArray(opportunityRequestSchema),
         pendingHandRaises: z.array(pendingHandRaiseSchema),
         contributions: uniqueEntityArray(contributionSchema),
         evidencePackages: uniqueEntityArray(evidencePackageSchema),

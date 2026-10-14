@@ -12,8 +12,6 @@ const supported = new Set([
     "meeting_started",
     "agenda_stopped",
     "round_opened",
-    "opportunity_request",
-    "opportunity_disposition",
     "hand_request",
     "hand_disposition",
     "round_ready",
@@ -134,28 +132,6 @@ const assertNoticeReferences = (
             return agendaStoppedDetails(state, identity, payload, agendaId);
         case "round_opened":
             return roundOpenedDetails(state, identity, payload, agendaId);
-        case "opportunity_request": {
-            assertRole(identity, "manager", agendaId);
-            const requestId = stringField(payload, "requestId");
-            if (
-                !state.opportunityRequests.some(
-                    (request) => request.id === requestId && request.agendaId === agendaId
-                )
-            ) {
-                fail("NOTICE_VISIBILITY_INVALID");
-            }
-            return { requestId };
-        }
-        case "opportunity_disposition": {
-            assertRole(identity, "contributor", agendaId);
-            const requestId = stringField(payload, "requestId");
-            const disposition = stringField(payload, "disposition");
-            const reason = stringField(payload, "reason");
-            if (disposition !== "rejected" && disposition !== "deferred") {
-                fail("NOTICE_PAYLOAD_INVALID");
-            }
-            return { requestId, disposition, reason };
-        }
         case "hand_request": {
             assertRole(identity, "manager", agendaId);
             const requestKind = stringField(payload, "requestKind");

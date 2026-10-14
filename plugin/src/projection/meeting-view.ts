@@ -273,12 +273,6 @@ export const projectMeetingView = (
             : {}),
         agenda: copy(state.agenda),
         agendaCandidates: copy(state.agendaCandidates),
-        opportunityRequests: state.opportunityRequests.filter(
-            ({ contributorId }) =>
-                caller.kind === "captain" ||
-                manager ||
-                (caller.kind === "identity" && contributorId === caller.identityId)
-        ),
         rounds: state.rounds.map((round) => ({
             id: round.id,
             agendaId: round.agendaId,

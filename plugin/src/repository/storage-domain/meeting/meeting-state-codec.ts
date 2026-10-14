@@ -12,7 +12,6 @@ const fields = [
     "agenda",
     "agendaCandidates",
     "rounds",
-    "opportunityRequests",
     "pendingHandRaises",
     "contributions",
     "evidenceReviewerId",

@@ -79,7 +79,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
                 publicationId: "pub"
             }
         ],
-        opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [
             {
