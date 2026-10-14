@@ -51,7 +51,7 @@ description: Review the complete current implementation of a Convivium plugin mo
 - caller identity、Speaker、Controller、委托范围和 capability 是否来自受控 DSH 上下文，而非客户端显示字段。
 - `requestId + commandKind + callerBinding` 幂等、expected version、receipt、event 和 outbox 是否在同一事务语义下成立。
 - DSH 副作用是否只发生在事务提交之后；重复投递、超时、失败和重试是否不会重复正式会议事实。
-- MeetingTask 结果是否只经授权 projection 进入会议上下文；Agent 内部工具过程、私聊和隐藏推理是否被错误写入 transcript 或完成状态。
+- 取证结果是否只经授权提交、审核和公开进入会议上下文；Agent 内部工具过程、私聊和隐藏推理是否被错误写入 transcript 或完成状态。
 - 完成判断是否遵守“业务完成优先于硬限制”，required review、风险处置、少数意见和未解决事项是否保持语义。
 - 恢复、orphan Session、租约、archive、capability revoke、Activation drain 的顺序和会议边界。
 - Markdown 是否只能从已提交 Meeting projection 单向派生，不能成为状态、授权、恢复或归档完成的事实源。

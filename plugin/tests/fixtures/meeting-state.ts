@@ -70,7 +70,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         questions: [],
         issues: [],
         riskDispositions: [],
-        tasks: [],
         managerPlans: [],
         privateMails: [],
         completionFacts: [],

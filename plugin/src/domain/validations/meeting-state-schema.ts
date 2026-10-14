@@ -551,38 +551,6 @@ const completionFactSchema = withDefinedOptionals(
     }),
     ["criterionId", "supersedesFactId"]
 );
-const taskSchema = withDefinedOptionals(
-    z.object({
-        id: opaqueIdSchema,
-        createdBy: opaqueIdSchema,
-        assigneeId: opaqueIdSchema,
-        agendaId: opaqueIdSchema.optional(),
-        title: textSchema,
-        instructions: textSchema,
-        contextPublicationUpperBound: uniqueIdArraySchema,
-        status: z.enum(["open", "claimed", "completed", "cancelled", "expired"]),
-        deadlineAt: epochSchema.optional(),
-        result: textSchema.optional(),
-        exitReason: textSchema.optional(),
-        createdAt: epochSchema,
-        updatedAt: epochSchema,
-        authorizationId: opaqueIdSchema,
-        authorizationStatus: z.enum(["active", "revoked", "expired"]),
-        attempt: integerSchema,
-        reassignedFromTaskId: opaqueIdSchema.optional(),
-        startedAt: epochSchema.optional(),
-        completedAt: epochSchema.optional()
-    }),
-    [
-        "agendaId",
-        "deadlineAt",
-        "result",
-        "exitReason",
-        "reassignedFromTaskId",
-        "startedAt",
-        "completedAt"
-    ]
-);
 const privateMailSchema = withDefinedOptionals(
     z.object({
         id: opaqueIdSchema,
@@ -806,7 +774,6 @@ const meetingStateSchema = withDefinedOptionals(
         questions: uniqueEntityArray(questionSchema),
         issues: uniqueEntityArray(issueSchema),
         riskDispositions: uniqueEntityArray(riskDispositionSchema),
-        tasks: uniqueEntityArray(taskSchema),
         completionFacts: uniqueEntityArray(completionFactSchema),
         privateMails: uniqueEntityArray(privateMailSchema),
         managerPlans: uniqueEntityArray(managerPlanSchema),

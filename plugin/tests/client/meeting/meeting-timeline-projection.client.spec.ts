@@ -313,7 +313,6 @@ describe("Timeline object details", () => {
             ["completion_fact", "completion-1"],
             ["risk_disposition", "risk-1"],
             ["manager_plan", "plan-1"],
-            ["task", "task-1"],
             ["termination", "termination-1"]
         ].map(([objectKind, objectId]) => ({
             key: objectId!,
@@ -340,7 +339,6 @@ describe("Timeline object details", () => {
             completion_fact: { title: "completion statement", detail: "completion rationale" },
             risk_disposition: { title: "accept", detail: "risk rationale" },
             manager_plan: { title: "open_round", detail: "plan rationale" },
-            task: { title: "task title", detail: "task result" },
             termination: { title: "partial", detail: "termination reason" }
         };
         for (const node of nodes) {

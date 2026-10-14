@@ -25,7 +25,6 @@ export type TimelineObjectKind =
     | "risk_disposition"
     | "disposition_fact"
     | "manager_plan"
-    | "task"
     | "termination"
     | "archive";
 
@@ -511,10 +510,6 @@ const resolveLateContent = (
         case "manager_plan": {
             const item = archive ? undefined : unique(view.managerPlans, (x) => x.id === id);
             return item && { title: item.kind, detail: item.blockingReason ?? item.rationale };
-        }
-        case "task": {
-            const item = archive ? undefined : unique(view.tasks, (x) => x.id === id);
-            return item && { title: item.title, detail: item.result ?? item.exitReason };
         }
         case "termination": {
             const item = archive?.termination ?? view.outcomes.termination;

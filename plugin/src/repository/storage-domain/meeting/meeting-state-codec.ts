@@ -30,7 +30,6 @@ const fields = [
     "questions",
     "issues",
     "riskDispositions",
-    "tasks",
     "managerPlans",
     "privateMails",
     "completionFacts",

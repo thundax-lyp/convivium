@@ -424,28 +424,6 @@ export interface CompletionFact {
     createdAt: EpochMs;
 }
 
-export interface MeetingTask {
-    id: OpaqueId;
-    createdBy: OpaqueId;
-    assigneeId: OpaqueId;
-    agendaId?: OpaqueId;
-    title: string;
-    instructions: string;
-    contextPublicationUpperBound: readonly OpaqueId[];
-    status: "open" | "claimed" | "completed" | "cancelled" | "expired";
-    deadlineAt?: EpochMs;
-    result?: string;
-    exitReason?: string;
-    createdAt: EpochMs;
-    updatedAt: EpochMs;
-    authorizationId: OpaqueId;
-    authorizationStatus: "active" | "revoked" | "expired";
-    attempt: number;
-    reassignedFromTaskId?: OpaqueId;
-    startedAt?: EpochMs;
-    completedAt?: EpochMs;
-}
-
 export interface ManagerPlan {
     id: OpaqueId;
     agendaId: OpaqueId;
@@ -641,7 +619,6 @@ export interface MeetingState {
     questions: readonly Question[];
     issues: readonly Issue[];
     riskDispositions: readonly RiskDisposition[];
-    tasks: readonly MeetingTask[];
     managerPlans: readonly ManagerPlan[];
     privateMails: readonly PrivateMail[];
     completionFacts: readonly CompletionFact[];

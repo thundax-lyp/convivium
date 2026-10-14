@@ -103,16 +103,6 @@ export const raiseHand = (state: MeetingState, input: RaiseInput): MeetingTransi
             "contributor already has an unfinished contribution"
         );
     }
-    if (
-        state.tasks.some(
-            (task) =>
-                task.assigneeId === input.contributorId &&
-                (task.status === "open" || task.status === "claimed") &&
-                (task.agendaId === undefined || task.agendaId === round.agendaId)
-        )
-    ) {
-        return reject(state, "PRECONDITION_FAILED", "contributor has an unfinished task");
-    }
     const next = {
         ...state,
         version: state.version + 1,

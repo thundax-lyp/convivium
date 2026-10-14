@@ -270,20 +270,6 @@ export function activeTimelineFixture(): MeetingView {
                 status: "active",
                 createdAt: 34
             }
-        ],
-        tasks: [
-            {
-                id: "task-1",
-                assigneeId: "contributor-v1",
-                title: "task title",
-                status: "completed",
-                authorizationId: "auth-1",
-                authorizationStatus: "active",
-                attempt: 0,
-                startedAt: 35,
-                completedAt: 36,
-                result: "task result"
-            }
         ]
     });
 }
