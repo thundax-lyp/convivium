@@ -7,11 +7,9 @@ export {
     type MeetingTranslate
 } from "./locales.ts";
 export { lifecycleLabel } from "./lifecycle.ts";
-export { INITIAL_TIMELINE_FILTERS } from "./model.ts";
 export {
+    INITIAL_TIMELINE_FILTERS,
     type MeetingMode,
-    type TimelineLane,
-    type TimelineObjectRef,
     type MeetingFocusTarget,
     type TimelineFilterState,
     type MeetingsWorkspaceState,
