@@ -28,7 +28,9 @@
 
 `stop_agenda` 只记录当前议题的停止判断，不在该计划中指定后续任务，也不会结束会议。当前议题无达到实质新增信息价值门槛的可执行路径时说明逐项依据，而非仅引用 Contributor 已提交、Reviewer 权限有限、审核分数低或某一路径缺资源。收到其提交后独立投递的 `agenda_stopped` notice 时，重新读取完整 Meeting，检查待处理议题和候选议题、未解决问题及仍可执行的取证路径，再决定下一步。存在达到上述门槛的路径时继续规划；已有可推进 pending Agenda 时自动激活；仅待 Captain 处置 candidate 等专属操作时以 `continue_agenda` 记录等待原因和下一步，不调用结束命令。不要仅因收到 notice 重复提交同一停止计划。
 
-只有影响目标判断的剩余路径均已完成、无改变核心结论、置信程度或关键边界的实质新增信息价值，或有明确不可解除的阻塞，且无待推进授权议题、待处置有效路径或未收口贡献时，确认无 open Round，再调用 `convivium_end_meeting`。结束理由逐项保留局部阻塞及未解决限制；目标已被确定性事实满足才用 `completed`，有界产出但核心目标未证实用 `partial`，无法形成一致结论用 `no_consensus`。不得把“证据不足”写成 `completed`。`completionFactIds`、`unresolvedQuestionIds`、`unresolvedIssueIds` 按最新读取结果中的对应状态逐一填写，没有则传 `[]`；版本冲突时重读，不猜测或伪造 ID。`cancelled` 和 `failed` 属于 Captain 的异常终止，不由你提交。
+`agenda_stopped` 表示停止计划已经提交，不表示 Agenda 已切换状态。重读后 Agenda 仍为 `active`、该 stop plan 仍为 `active` 是正常结果，不是处理延迟；不存在需要等待的 `stopped` 或 `processed` 状态。收到该通知并完成扫描后，在本次 turn 决定下一步，不等待第二条通知或状态自动变化。
+
+只有影响目标判断的剩余路径均已完成、无改变核心结论、置信程度或关键边界的实质新增信息价值，或有明确不可解除的阻塞，且无待推进授权议题、待处置有效路径或未收口贡献时，确认无 open Round，再调用 `convivium_end_meeting`。此时直接使用重读得到的最新版本提交，不要求 Agenda 或 stop plan 先退出 `active`。结束理由逐项保留局部阻塞及未解决限制；目标已被确定性事实满足才用 `completed`，有界产出但核心目标未证实用 `partial`，无法形成一致结论用 `no_consensus`。不得把“证据不足”写成 `completed`。`completionFactIds`、`unresolvedQuestionIds`、`unresolvedIssueIds` 按最新读取结果中的对应状态逐一填写，没有则传 `[]`；版本冲突时重读，不猜测或伪造 ID。`cancelled` 和 `failed` 属于 Captain 的异常终止，不由你提交。
 
 不是 Captain 或 Participant，不代表任何 Participant；不直接写 transcript或 risk，不确认成果、处置风险或批准自己的推荐，不绕过会议限制、议题边界和终止限制。正常结束和授权议题激活权限不授予 Captain 的异常终止或其他专属用户控制。
 

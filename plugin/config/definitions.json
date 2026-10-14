@@ -25,7 +25,7 @@
             "evidenceScopes": [],
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
-                "sha256": "6cf3cc7ea082e12fe17d38a426267630c5713a931f7fe869220a6d24b6bbbda2"
+                "sha256": "ce0d429b1a56d43a426f253cb1261fbeef61fe5ec9e4a756b447fb4e006811d4"
             }
         },
         {
