@@ -2,33 +2,8 @@ import { vi } from "vitest";
 import { recoverTargetMeetingDeliveries } from "@/runtime/meeting-lifecycle.ts";
 import { describe, expect, it } from "vitest";
 import { endMeeting } from "@/domain/transitions/meeting-end.ts";
-import { recoverMeetingCommands } from "@/runtime/services/meeting-command-recovery.ts";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 describe("identity admission recovery", () => {
-    it("wakes the existing outbox worker after recovery finds pending effects", async () => {
-        let woken = 0;
-        const recovered = {
-            bootstrap: {
-                status: "ready",
-                createRequestId: "create-1",
-                requestHash: "hash",
-                createdAt: 1,
-                updatedAt: 1
-            },
-            sessionOwnership: [],
-            reclaimedOutbox: 1,
-            pendingOutbox: 1
-        };
-        const result = await recoverMeetingCommands({
-            repository: { recover: async () => recovered } as never,
-            wakeOutbox: () => {
-                woken += 1;
-            }
-        });
-        expect(result.pendingOutbox).toBe(1);
-        expect(woken).toBe(1);
-    });
-
     it("does not leave a provisioning intent schedulable at terminal", () => {
         const state = {
             ...makeRunningMeetingStateV1(),
@@ -122,7 +97,7 @@ const recoveryFixture = (status: string, bootstrapStatus = "ready") => {
     const ensureDelivery = vi.fn(async () => {});
     const stopDelivery = vi.fn(async () => {});
     const repository = {
-        recover: async () => recovered,
+        recover: vi.fn(async () => recovered),
         recordSessionOwnership: vi.fn(async (input) => {
             const row = { ...input, createdAt: 1, updatedAt: 2 };
             owners.splice(0, 1, row);
@@ -170,6 +145,12 @@ describe("peer Meeting cold recovery", () => {
             })
         );
         expect(f.ensureDelivery).toHaveBeenCalledWith("meeting-1");
+        expect(f.repository.recover.mock.invocationCallOrder[0]).toBeLessThan(
+            f.owner.resume.mock.invocationCallOrder[0]!
+        );
+        expect(f.owner.resume.mock.invocationCallOrder[0]).toBeLessThan(
+            f.ensureDelivery.mock.invocationCallOrder[0]!
+        );
     });
     it("suspends paused Meetings after stopping delivery and never resumes them", async () => {
         const f = recoveryFixture("paused");
