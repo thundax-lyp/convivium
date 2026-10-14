@@ -18,10 +18,6 @@ export {
     type ArchiveQuestionIssueDispositionFact,
     type IdentityRecommendation,
     type CompletionFact,
-    type Position,
-    type DecisionCandidate,
-    type ProposalRevision,
-    type Decision,
     type Issue
 } from "./meeting-state.ts";
 export {
@@ -47,9 +43,6 @@ export {
     recommendIdentity,
     recordIdentityAdmissionResult,
     type IdentityAdmissionResultContext,
-    pendingDecisionCandidates,
-    decide,
-    changeDecision,
     disposeRisk,
     recordCompletionFact,
     changeCompletionFact,

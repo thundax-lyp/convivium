@@ -34,26 +34,14 @@ export const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     });
 const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     evidenceOk(s, ids) && requiredReviewOk(s, ids);
-export const currentRevision = (s: MeetingState, proposalId: string) =>
-    s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
 
 export const recalculateMeetingCompletion = (
     state: MeetingState,
     actorId: OpaqueId,
     now: EpochMs
 ): MeetingState => {
-    const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
-    const validDecision = (id: string) => {
-        const d = state.decisions.find((x) => x.id === id);
-        if (!d || d.status !== "accepted" || d.outcome !== "adopt") {
-            return false;
-        }
-        return current.has(d.proposalRevisionId);
-    };
     const validFact = (f: CompletionFact) =>
-        f.status === "active" &&
-        f.decisionIds.every(validDecision) &&
-        factEvidenceOk(state, f.evidenceIds);
+        f.status === "active" && factEvidenceOk(state, f.evidenceIds);
     const facts = state.completionFacts.filter(validFact);
     const outputs = state.objective.requiredOutputs.map(
         (t) =>

@@ -2,8 +2,6 @@ import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import {
     captainActorIdFor,
     abortRound,
-    decide,
-    changeDecision,
     disposeRisk,
     recordCompletionFact,
     changeCompletionFact,
@@ -264,8 +262,6 @@ const runUserControlTransition = (
                 | "pause_meeting"
                 | "resume_meeting"
                 | "abort_round"
-                | "decide"
-                | "change_decision"
                 | "dispose_risk"
                 | "record_completion_fact"
                 | "change_completion_fact"
@@ -317,30 +313,6 @@ const runUserControlTransition = (
                 reason: action.reason,
                 actor: { kind: "captain_user", id: actorId },
                 now
-            });
-            break;
-        case "decide":
-            transition = decide(snapshot.state, {
-                decisionId: generated("decision"),
-                candidateId: action.candidateId,
-                actor: { kind: "captain_user", id: actorId },
-                now
-            });
-            break;
-        case "change_decision":
-            transition = changeDecision(snapshot.state, {
-                decisionId: action.decisionId,
-                rationale: action.rationale,
-                evidenceIds: action.evidenceIds,
-                actor: { kind: "captain_user", id: actorId },
-                now,
-                ...(action.status === "superseded"
-                    ? {
-                          status: "superseded",
-                          replacementCandidateId: action.replacementCandidateId!,
-                          replacementDecisionId: generated("decision")
-                      }
-                    : { status: "revoked" })
             });
             break;
         case "dispose_risk":
@@ -612,8 +584,6 @@ export const runMeetingActionTransition = (input: TransitionInput): CommandTrans
         case "pause_meeting":
         case "resume_meeting":
         case "abort_round":
-        case "decide":
-        case "change_decision":
         case "dispose_risk":
         case "record_completion_fact":
         case "change_completion_fact":

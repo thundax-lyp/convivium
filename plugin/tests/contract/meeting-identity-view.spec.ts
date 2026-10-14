@@ -6,7 +6,7 @@ import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import { projectMeetingView } from "@/projection/meeting-view.ts";
 import { endMeeting, startMeetingArchive } from "@/domain/index.ts";
 describe("Meeting event protocol parity", () => {
-    it("keeps Domain, public schemas and the formal data contract on the same 31 kinds", () => {
+    it("keeps Domain, public schemas and the formal data contract on the same current kinds", () => {
         const contract = readFileSync(
             new URL("../../../docs/20-interfaces/MEETING-INTERFACE.md", import.meta.url),
             "utf8"
@@ -16,8 +16,8 @@ describe("Meeting event protocol parity", () => {
                 .split("interface MeetingEventDataByKind {")[1]
                 ?.split("type MeetingEventView =")[0] ?? "";
         const documentedKinds = [...mapping.matchAll(/^ {2}"([^"]+)":/gm)].map((match) => match[1]);
-        expect(MEETING_EVENT_KINDS).toHaveLength(31);
-        expect(new Set(MEETING_EVENT_KINDS).size).toBe(31);
+        expect(MEETING_EVENT_KINDS).toHaveLength(29);
+        expect(new Set(MEETING_EVENT_KINDS).size).toBe(29);
         expect(MeetingEventKindSchema.options).toEqual([...MEETING_EVENT_KINDS]);
         expect(documentedKinds).toEqual([...MEETING_EVENT_KINDS]);
     });
@@ -201,66 +201,6 @@ describe("identity filtered view and archive provenance", () => {
         );
         expect(manager.identityRecommendations).toHaveLength(1);
         expect(manager.managerCatalog).toBeDefined();
-    });
-
-    it("projects only currently actionable decision candidates to Captain and local callers", () => {
-        const state = makeRunningMeetingStateV1();
-        state.proposals = [
-            {
-                id: "revision-current",
-                proposalId: "proposal-1",
-                ordinal: 2,
-                actorId: "contributor-v1",
-                agendaId: "agenda-v1",
-                summary: "current",
-                body: "current",
-                evidenceIds: [],
-                supersedesRevisionId: "revision-old",
-                createdAt: 2
-            }
-        ];
-        const candidate = (id: string, proposalRevisionId: string) => ({
-            id,
-            proposalRevisionId,
-            actorId: "contributor-v1",
-            outcome: "adopt" as const,
-            rationale: "rationale",
-            evidenceIds: [],
-            positionIds: [],
-            createdAt: 3
-        });
-        state.decisionCandidates = [
-            candidate("candidate-pending", "revision-current"),
-            candidate("candidate-old", "revision-old"),
-            candidate("candidate-used", "revision-current")
-        ];
-        state.decisions = [
-            {
-                ...candidate("decision-1", "revision-current"),
-                candidateId: "candidate-used",
-                status: "accepted"
-            }
-        ];
-        const snapshot = {
-            meetingId: state.id,
-            version: state.version,
-            state,
-            createdAt: 0,
-            updatedAt: 3
-        };
-
-        for (const caller of [{ kind: "captain" as const }]) {
-            expect(
-                projectMeetingView(snapshot, caller).outcomes.pendingDecisionCandidates?.map(
-                    ({ id }) => id
-                )
-            ).toEqual(["candidate-pending"]);
-        }
-
-        state.lifecycle = { status: "terminal", changedAt: 4 };
-        expect(
-            projectMeetingView(snapshot, { kind: "captain" }).outcomes.pendingDecisionCandidates
-        ).toEqual([]);
     });
 
     it("keeps unpublished evidence private while exposing an author version only to its author", () => {
@@ -474,7 +414,6 @@ describe("archive provenance", () => {
             terminationId: "termination-1",
             outcome: "partial",
             reason: "done",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: [],

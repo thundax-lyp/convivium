@@ -1,7 +1,6 @@
 import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import {
-    changeDecision,
     disposeRisk,
     isObjectiveSatisfied,
     recalculateMeetingCompletion
@@ -24,63 +23,11 @@ describe("Recompute/Convergence", () => {
                 statement: "done",
                 rationale: "why",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];
         return state;
     };
-    it("revoke decision invalidates active fact basis and returns target pending", () => {
-        const state = completedFactState();
-        const before = structuredClone(state);
-        const result = changeDecision(state, {
-            decisionId: "dec",
-            status: "revoked",
-            rationale: "revoke",
-            evidenceIds: ["v"],
-            actor: { kind: "captain_user", id: captainActorIdFor("m") },
-            now: 2
-        });
-        expect(result).toMatchObject({
-            kind: "accepted",
-            relatedIds: ["dec", "v"],
-            effectRequests: []
-        });
-        if (result.kind !== "accepted") {
-            return;
-        }
-        expect(result.state.decisions[0].status).toBe("revoked");
-        expect(result.state.completionFacts[0].status).toBe("active");
-        expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
-        expect(result.state.lifecycle.status).toBe("running");
-        expect(state).toEqual(before);
-    });
-    it("superseding decision basis returns target pending while retaining fact history", () => {
-        const state = completedFactState();
-        state.objective.hardConstraints[0].status = "satisfied";
-        state.decisionCandidates.push({
-            ...state.decisionCandidates[0],
-            id: "replacement",
-            rationale: "replacement"
-        });
-        const result = changeDecision(state, {
-            decisionId: "dec",
-            status: "superseded",
-            replacementCandidateId: "replacement",
-            replacementDecisionId: "new",
-            rationale: "replace",
-            evidenceIds: ["v"],
-            actor: { kind: "captain_user", id: captainActorIdFor("m") },
-            now: 2
-        });
-        expect(result).toMatchObject({ kind: "accepted", effectRequests: [] });
-        if (result.kind !== "accepted") {
-            return;
-        }
-        expect(result.state.decisions.map((d) => d.status)).toEqual(["superseded", "accepted"]);
-        expect(result.state.completionFacts[0].status).toBe("active");
-        expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
-    });
     const blockingIssue = () => ({
         id: "issue",
         actorId: "contributor",
@@ -111,7 +58,6 @@ describe("Recompute/Convergence", () => {
                 statement: "done",
                 rationale: "why",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];
@@ -193,7 +139,6 @@ describe("Recompute/Convergence", () => {
                 statement: "done",
                 rationale: "why",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];
@@ -231,7 +176,6 @@ describe("Recompute/Convergence", () => {
                 statement: "done",
                 rationale: "why",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];

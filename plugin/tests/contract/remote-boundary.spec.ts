@@ -62,7 +62,7 @@ describe("target Remote boundary", () => {
                     meetingId: "meeting-1",
                     expectedMeetingVersion: 1,
                     requestId: "request-1",
-                    action: { kind: "decide", candidateId: "candidate-1" }
+                    action: { kind: "pause_meeting", reason: "pause" }
                 }
             })
         ).resolves.toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
@@ -172,14 +172,6 @@ it("routes Captain controls through the application with a fixed trusted caller"
             evidenceIds: ["v"]
         },
         { kind: "abort_round", roundId: "r", reason: "stop" },
-        { kind: "decide", candidateId: "c" },
-        {
-            kind: "change_decision",
-            decisionId: "d",
-            status: "revoked",
-            rationale: "invalid",
-            evidenceIds: ["v"]
-        },
         {
             kind: "dispose_risk",
             issueId: "i",
@@ -193,8 +185,7 @@ it("routes Captain controls through the application with a fixed trusted caller"
             outputId: "o",
             statement: "done",
             rationale: "verified",
-            evidenceIds: ["v"],
-            decisionIds: ["d"]
+            evidenceIds: ["v"]
         },
         { kind: "change_completion_fact", factId: "f", status: "revoked", rationale: "invalid" }
     ];
@@ -205,7 +196,6 @@ it("routes Captain controls through the application with a fixed trusted caller"
             kind: "end_meeting",
             outcome: "cancelled",
             reason: "end",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: []
@@ -311,7 +301,7 @@ it("routes Captain controls through the application with a fixed trusted caller"
             expect.anything(),
             expect.any(AbortSignal)
         );
-        expect(execute).toHaveBeenCalledTimes(15);
+        expect(execute).toHaveBeenCalledTimes(13);
         await expect(
             gateway.invoke("control", {
                 command: {
@@ -329,7 +319,7 @@ it("routes Captain controls through the application with a fixed trusted caller"
             kind: "rejected",
             error: { code: "PRECONDITION_FAILED" }
         });
-        expect(execute).toHaveBeenCalledTimes(15);
+        expect(execute).toHaveBeenCalledTimes(13);
         expect(registry.openMeeting).not.toHaveBeenCalled();
         await expect(
             gateway.invoke("control", { command: { action: { kind: "decide" } } })
@@ -345,7 +335,7 @@ it("routes Captain controls through the application with a fixed trusted caller"
                 }
             })
         ).rejects.toMatchObject({ code: "gateway/input-invalid" });
-        expect(execute).toHaveBeenCalledTimes(15);
+        expect(execute).toHaveBeenCalledTimes(13);
         await expect(
             gateway.invoke("control", {
                 command: {
@@ -362,7 +352,7 @@ it("routes Captain controls through the application with a fixed trusted caller"
                 }
             })
         ).rejects.toMatchObject({ code: "convivium/invalid-request" });
-        expect(execute).toHaveBeenCalledTimes(15);
+        expect(execute).toHaveBeenCalledTimes(13);
     } finally {
         await gateway.dispose();
         await dispose();

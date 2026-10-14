@@ -80,7 +80,6 @@ it("atomically records multiple occurrences with the fact's time/version and doe
             kind: "end_meeting",
             outcome: "cancelled",
             reason: "cancel",
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: []

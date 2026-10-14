@@ -124,7 +124,6 @@ describe("Meeting panel local controls", () => {
                     kind: "end_meeting",
                     outcome: "cancelled",
                     reason: "Cancelled from Meeting panel.",
-                    decisionIds: [],
                     completionFactIds: [],
                     unresolvedQuestionIds: [],
                     unresolvedIssueIds: []

@@ -151,7 +151,6 @@ describe("target Meeting business-loop protocol", () => {
                 kind: "end_meeting",
                 outcome: "completed",
                 reason: "done",
-                decisionIds: [],
                 completionFactIds: [],
                 unresolvedQuestionIds: [],
                 unresolvedIssueIds: []

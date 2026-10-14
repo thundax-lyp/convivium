@@ -1,9 +1,9 @@
 import { captainActorIdFor } from "@/domain/control-actor.ts";
-import { expect } from "vitest";
 import type { MeetingState } from "@/domain/meeting-state.ts";
-import { recordPosition } from "@/domain/transitions/outcome.ts";
 
-export function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
+export const validState = (
+    status: MeetingState["lifecycle"]["status"] = "running"
+): MeetingState => {
     const state = {
         id: "m",
         version: 1,
@@ -166,10 +166,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             }
         ],
         messages: [],
-        proposals: [],
-        positions: [],
-        decisionCandidates: [],
-        decisions: [],
         questions: [],
         issues: [],
         riskDispositions: [],
@@ -199,7 +195,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             outcome: "completed",
             reason: "done",
             endedAt: 0,
-            decisionIds: [],
             completionFactIds: [],
             unresolvedQuestionIds: [],
             unresolvedIssueIds: [],
@@ -219,10 +214,6 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
             publications: [],
             messages: [],
             evidenceBundles: [],
-            proposalRevisions: [],
-            positions: [],
-            decisionCandidates: [],
-            decisions: [],
             completionFacts: [],
             questions: [],
             issues: [],
@@ -239,7 +230,7 @@ export function validState(status: MeetingState["lifecycle"]["status"] = "runnin
         };
     }
     return state;
-}
+};
 
 export function addUnpublishedEvidence(state: MeetingState, versionId = "v2"): void {
     const round = state.rounds[0];
@@ -293,134 +284,24 @@ export function addUnpublishedEvidence(state: MeetingState, versionId = "v2"): v
     state.limits.maxFormalMessages = Math.max(state.limits.maxFormalMessages, 2);
 }
 
-export function completionReadyState(): MeetingState {
+export const completionReadyState = (): MeetingState => {
     const state = validState();
-    state.proposals = [
-        {
-            id: "rev",
-            proposalId: "prop",
-            ordinal: 1,
-            actorId: "contributor",
-            agendaId: "a",
-            summary: "proposal",
-            body: "body",
-            evidenceIds: ["v"],
-            createdAt: 0
-        }
-    ];
-    state.positions = [
-        {
-            id: "pos",
-            proposalRevisionId: "rev",
-            actorId: "contributor",
-            stance: "support",
-            rationale: "support",
-            evidenceIds: ["v"],
-            createdAt: 0
-        }
-    ];
-    state.decisionCandidates = [
-        {
-            id: "cand",
-            proposalRevisionId: "rev",
-            actorId: "contributor",
-            outcome: "adopt",
-            rationale: "adopt",
-            evidenceIds: ["v"],
-            positionIds: ["pos"],
-            createdAt: 0
-        }
-    ];
-    state.decisions = [
-        {
-            id: "dec",
-            candidateId: "cand",
-            proposalRevisionId: "rev",
-            actorId: "contributor",
-            outcome: "adopt",
-            rationale: "adopt",
-            evidenceIds: ["v"],
-            positionIds: ["pos"],
-            createdAt: 0,
-            status: "accepted"
-        }
-    ];
     return state;
-}
+};
 
-export function completionInput(
+export const completionInput = (
     actor: { kind: "identity" | "captain_user"; id: string } = {
         kind: "captain_user",
         id: captainActorIdFor("m")
     }
-) {
+) => {
     return {
         factId: "fact",
         outputId: "o",
         statement: "complete",
         rationale: "basis",
         evidenceIds: ["v"],
-        decisionIds: ["dec"],
         actor,
         now: 1
     } as const;
-}
-
-export function proposalState(): MeetingState {
-    return validState();
-}
-
-export function expectRejected(
-    result: ReturnType<typeof recordPosition>,
-    state: MeetingState,
-    code: string
-) {
-    expect(result).toMatchObject({
-        kind: "rejected",
-        error: { code },
-        state,
-        relatedIds: [],
-        effectRequests: []
-    });
-}
-
-export function decisionReadyState() {
-    const state = validState();
-    state.proposals = [
-        {
-            id: "rev",
-            proposalId: "prop",
-            ordinal: 1,
-            actorId: "contributor",
-            agendaId: "a",
-            summary: "s",
-            body: "b",
-            evidenceIds: ["v"],
-            createdAt: 0
-        }
-    ];
-    state.positions = [
-        {
-            id: "pos",
-            proposalRevisionId: "rev",
-            actorId: "contributor",
-            stance: "support",
-            rationale: "x",
-            evidenceIds: ["v"],
-            createdAt: 0
-        }
-    ];
-    state.decisionCandidates = [
-        {
-            id: "cand",
-            proposalRevisionId: "rev",
-            actorId: "contributor",
-            outcome: "adopt",
-            rationale: "x",
-            evidenceIds: ["v"],
-            positionIds: ["pos"],
-            createdAt: 0
-        }
-    ];
-    return state;
-}
+};

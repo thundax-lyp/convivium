@@ -21,7 +21,6 @@ describe("CompletionFact change", () => {
                 statement: "old",
                 rationale: "old",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 createdAt: 0
             }
         ];
@@ -33,8 +32,7 @@ describe("CompletionFact change", () => {
         criterionId: "criterion",
         statement: "new",
         rationale: "new",
-        evidenceIds: ["v"],
-        decisionIds: ["dec"]
+        evidenceIds: ["v"]
     };
     const change = (state: MeetingState, overrides: Record<string, unknown> = {}) =>
         changeCompletionFact(state, {
@@ -99,7 +97,7 @@ describe("CompletionFact change", () => {
         const result = change(state);
         expect(result).toMatchObject({
             kind: "accepted",
-            relatedIds: ["old", "new", "o", "criterion", "dec", "v"],
+            relatedIds: ["old", "new", "o", "criterion", "v"],
             effectRequests: []
         });
         if (result.kind !== "accepted") {
@@ -114,7 +112,6 @@ describe("CompletionFact change", () => {
                 statement: "new",
                 rationale: "new",
                 evidenceIds: ["v"],
-                decisionIds: ["dec"],
                 status: "active",
                 actorId: captainActorIdFor("m"),
                 supersedesFactId: "old",
@@ -128,7 +125,6 @@ describe("CompletionFact change", () => {
     it.each([
         ["missing output", { outputId: "missing" }, "NOT_FOUND", "missing"],
         ["missing criterion", { criterionId: "missing" }, "NOT_FOUND", "missing"],
-        ["missing decision", { decisionIds: ["missing"] }, "NOT_FOUND", "missing"],
         ["missing evidence", { evidenceIds: ["missing"] }, "NOT_FOUND", "missing"],
         ["unpublished evidence", { evidenceIds: ["v2"] }, "PRECONDITION_FAILED", undefined]
     ] as const)("replacement typed ref %s", (_name, overrides, code, targetId) => {

@@ -16,10 +16,6 @@ export type TimelineObjectKind =
     | "publication"
     | "formal_message"
     | "identity_recommendation"
-    | "proposal_revision"
-    | "position"
-    | "decision_candidate"
-    | "decision"
     | "completion_fact"
     | "risk_disposition"
     | "disposition_fact"
@@ -151,8 +147,6 @@ const coordinationEvents = new Set<MeetingEventView["kind"]>([
     "manager_plan.recorded",
     "question.disposed",
     "issue.disposed",
-    "decision.recorded",
-    "decision.changed",
     "risk.disposed"
 ]);
 
@@ -450,25 +444,6 @@ const resolveMiddleContent = (
                 ? undefined
                 : unique(view.identityRecommendations ?? [], (x) => x.id === id);
             return item && { title: item.rationale, detail: item.status };
-        }
-        case "proposal_revision": {
-            const item = unique(archive?.proposalRevisions ?? [], (x) => x.id === id);
-            return item && { title: item.summary, detail: item.body };
-        }
-        case "position": {
-            const item = unique(archive?.positions ?? [], (x) => x.id === id);
-            return item && { title: item.stance, detail: item.rationale };
-        }
-        case "decision_candidate": {
-            const item = unique(
-                archive?.decisionCandidates ?? view.outcomes.pendingDecisionCandidates ?? [],
-                (x) => x.id === id
-            );
-            return item && { title: item.outcome, detail: item.rationale };
-        }
-        case "decision": {
-            const item = unique(archive?.decisions ?? view.outcomes.decisions, (x) => x.id === id);
-            return item && { title: item.outcome, detail: item.rationale };
         }
         case "completion_fact": {
             const item = unique(

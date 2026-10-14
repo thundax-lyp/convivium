@@ -97,11 +97,6 @@ type MeetingAction =
   | CloseContribution
   | PublishRound
   | AbortRound
-  | RecordProposalRevision
-  | RecordPosition
-  | RecordDecisionCandidate
-  | Decide
-  | ChangeDecision
   | DisposeRisk
   | RecordCompletionFact
   | ChangeCompletionFact
@@ -147,7 +142,6 @@ interface EndMeeting {
   kind: "end_meeting";
   outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
   reason: string;
-  decisionIds: OpaqueId[];
   completionFactIds: OpaqueId[];
   unresolvedQuestionIds: OpaqueId[];
   unresolvedIssueIds: OpaqueId[];
@@ -227,7 +221,7 @@ interface RecordIdentityAdmissionResult {
 }
 ```
 
-`EndMeeting` 由当前 Manager 以 `completed|partial|no_consensus` 正常收口，或由可信 loopback Captain 以 `cancelled|failed` 异常终止；已消费显式取消授权的 Skill 入口只能提交 `cancelled`。其它 actor/outcome 组合返回 `UNAUTHORIZED` 且不写入。`stop_agenda` 只是 Manager 的计划事实，不指定后续任务，也不隐式触发 `EndMeeting`；其提交另行生成面向 Manager 的 `agenda_stopped` notice，供其重新读取当前会议并扫描后续工作。各路径均要求没有 open Round、非空理由、四组 ID 与当前 accepted Decision、active CompletionFact、open/deferred Question 和 Issue 的顺序与内容精确一致，并只写一次 Termination 和归档 effect。`completed` 还要求确定性目标条件满足且没有未收口贡献或未决 Question/Issue；证据不足应以明确限制的 `partial` 或 `no_consensus` 记录，不得伪装完成。
+`EndMeeting` 由当前 Manager 以 `completed|partial|no_consensus` 正常收口，或由可信 loopback Captain 以 `cancelled|failed` 异常终止；已消费显式取消授权的 Skill 入口只能提交 `cancelled`。其它 actor/outcome 组合返回 `UNAUTHORIZED` 且不写入。`stop_agenda` 只是 Manager 的计划事实，不指定后续任务，也不隐式触发 `EndMeeting`；其提交另行生成面向 Manager 的 `agenda_stopped` notice，供其重新读取当前会议并扫描后续工作。各路径均要求没有 open Round、非空理由、三组 ID 与当前 active CompletionFact、open/deferred Question 和 Issue 的顺序与内容精确一致，并只写一次 Termination 和归档 effect。`completed` 还要求确定性目标条件满足且没有未收口贡献或未决 Question/Issue；证据不足应以明确限制的 `partial` 或 `no_consensus` 记录，不得伪装完成。
 
 `create_meeting` 仅允许上述可信 loopback 用户入口或已消费当前 turn 一次性创建授权的 Skill 入口，且 Runtime 已完成 role definition/session preflight。`recommend_identity` 仅当前 `running` Meeting Manager 可用；Runtime 在同一 Host Catalog producer 重读 snapshot，要求 catalog/candidate/Definition 引用一致、candidate `available`、Agenda 属于本 Meeting 且 Manager 不能接纳自己。`reject` 原子提交 rejected 事实，不创建 Session。candidate 在本 Meeting 没有 active identity 时，`admit` 原子提交不可调度的 provisioning 意图和一次 `identity_provision` effect；`record_identity_admission_result` 仅由 Runtime outbox/recovery 在验证该意图和 Session owner 结果后使用，不能由 Agent 或 loopback caller 提交。该结果只有在 Definition/preflight、Session 和 durable ownership 都成功时才能原子激活普通可选 identity；失败原子记载安全 failureCode 且无 identity。candidate 已有 active identity 时，另一 Agenda 的合法 `admit` 原子新增独立 active recommendation，复用原 recommendation 的 identityId、sessionId、definitionId 和 definitionHash，并以本次决定的 Runtime now 写入 createdAt/resolvedAt；不产生 `identity_provision` effect，不新增 identity，也不改变角色、授权或 capability。复用请求的 Definition provenance 必须与既有 active recommendation 精确一致，否则返回 `PRECONDITION_FAILED`。两个动作均使用原 Meeting version/idempotency/终态拒写边界；同一 `candidateId + agendaId` 已有 provisioning 或 active recommendation 时不能再次准入，同一 candidate 尚有 provisioning recommendation 时其他 Agenda 也不能准入。`end_meeting` 在自身终态提交中把尚在 provisioning 的意图标为 `failed/ADMISSION_CONFLICT`，effect dispatcher 在创建前后重验 lifecycle 并清理已创建但未激活的 Session；不得在终态激活身份。
 
@@ -430,42 +424,6 @@ Meeting 从 running 暂停时，所有 `submitted | validating` 版本转为 `va
 ### Deliberation, outcome
 
 ```ts
-interface RecordProposalRevision {
-  kind: "record_proposal_revision";
-  proposalId?: OpaqueId;
-  supersedesRevisionId?: OpaqueId;
-  agendaId: OpaqueId;
-  summary: string;
-  body: string;
-  evidenceIds: OpaqueId[];
-}
-interface RecordPosition {
-  kind: "record_position";
-  proposalRevisionId: OpaqueId;
-  stance: "support" | "oppose" | "abstain" | "conditional";
-  rationale: string;
-  evidenceIds: OpaqueId[];
-}
-interface RecordDecisionCandidate {
-  kind: "record_decision_candidate";
-  proposalRevisionId: OpaqueId;
-  outcome: "adopt" | "reject" | "defer";
-  rationale: string;
-  evidenceIds: OpaqueId[];
-  positionIds: OpaqueId[];
-}
-interface Decide {
-  kind: "decide";
-  candidateId: OpaqueId;
-}
-interface ChangeDecision {
-  kind: "change_decision";
-  decisionId: OpaqueId;
-  status: "superseded" | "revoked";
-  rationale: string;
-  evidenceIds: OpaqueId[];
-  replacementCandidateId?: OpaqueId;
-}
 interface DisposeRisk {
   kind: "dispose_risk";
   issueId: OpaqueId;
@@ -481,7 +439,6 @@ interface RecordCompletionFact {
   statement: string;
   rationale: string;
   evidenceIds: OpaqueId[];
-  decisionIds: OpaqueId[];
 }
 interface ChangeCompletionFact {
   kind: "change_completion_fact";
@@ -513,9 +470,9 @@ interface RecordArchiveSessionResult {
 }
 ```
 
-`RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
+`DisposeRisk|RecordCompletionFact|ChangeCompletionFact` 只在 lifecycle=`running` 接受。它们在 `paused|preparing|converging|ending` 返回 `INVALID_STATE`，在 `terminal|archiving|archived` 返回 `MEETING_TERMINAL`；当前契约不通过这些 action 从 `converging` 重新打开 Meeting。
 
-Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、Decision、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence、proposal revision、position、decision candidate；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
+Captain 是当前单 Host 的本地用户，负责创建、候选议题处置/手工议题激活、Question/Issue 处置、RiskDisposition、CompletionFact、abort Round 及暂停/恢复/异常终止。原 local controller 是同一用户入口的实现名称，不是另一个权限角色。Manager 可通过 `activate_agenda` 激活已有 pending Agenda，并打开/发布正常 Round、处置 hand、推荐并判断正常结束，不读取 evidence draft、代作者提交 evidence 或审核正文。Contributor 提交自己的 evidence；Captain 不提交 Contributor 贡献。唯一专职 reviewer 只读取待审证据并逐版本提交 Review。
 
 ### Captain Control Surface
 
@@ -529,8 +486,6 @@ type CaptainMeetingAction =
   | ResolveQuestion
   | DisposeIssue
   | AbortRound
-  | Decide
-  | ChangeDecision
   | DisposeRisk
   | RecordCompletionFact
   | ChangeCompletionFact
@@ -551,8 +506,6 @@ type CaptainMeetingAction =
 | 解决问题          | ResolveQuestion                   | loopback 本地用户 |
 | 处置 Issue        | DisposeIssue                      | loopback 本地用户 |
 | 中止轮次          | AbortRound                        | loopback 本地用户 |
-| 接受决策          | Decide                            | loopback 本地用户 |
-| 替换/撤销决策     | ChangeDecision                    | loopback 本地用户 |
 | 处置风险          | DisposeRisk                       | loopback 本地用户 |
 | 记录完成事实      | RecordCompletionFact              | loopback 本地用户 |
 | 替换/撤销完成事实 | ChangeCompletionFact              | loopback 本地用户 |
@@ -565,13 +518,12 @@ type CaptainMeetingAction =
 
 `resolve_question` 仅从 `open|deferred` 进入 `answered|withdrawn|deferred`：`answered|withdrawn` 置 `blocking=false`，`deferred` 保留旧 blocking。`dispose_issue` 仅在 Meeting `running` 时从 `open|deferred` 进入 `resolved|deferred|out_of_scope`：`resolved|out_of_scope` 置 `blocking=false`，`deferred` 保留旧 blocking；其它非终态 lifecycle 返回 `INVALID_STATE`，终态、`archiving` 和 `archived` 返回 `MEETING_TERMINAL`。这保证清除最后 blocking Issue 与完成重算在同一次 running transition 中完成，不在 paused 期间制造无法合法进入 converging 的快照。终结处置后的重复处置拒绝；暂缓不等于解决或接受风险，未接受 high Issue 不能借 `deferred` 清除阻塞。处置 actor、时间、理由、证据、目标旧/新 status 与 blocking 只写入一次不可变 committed fact payload；当前 Question/Issue 只保存 status/blocking，不复制处置历史。receipt 仅用于幂等，不是唯一审计来源。
 
-A DecisionCandidate is accepted only when it names the current ProposalRevision and its evidence/positions are visible, valid and meeting-local. Each Candidate may be used by at most one Decision and each ProposalRevision may have at most one accepted Decision. Decide accepts exactly one unused Candidate and rejects a second accepted Decision on the same revision. Supersede requires replacementCandidateId naming an unused Candidate on the same proposal's current revision and atomically accepts it, creates its Decision and marks the old accepted Decision superseded; revoke must not contain replacementCandidateId. Candidate reject/revoke does not exist. Risk accept/reject only accepts an exact `status=open` Issue and checks its riskLevel against acceptableRiskLevel, every hard constraint named by that Issue's `affectedConstraintIds`, lifecycle, non-empty rationale and meeting-local evidence; `resolved|deferred|out_of_scope` is rejected. Accept requires those constraints to be satisfied and updates only that Issue to accepted_risk and non-blocking. Reject is not limited by acceptableRiskLevel and keeps the Issue open and blocking.
+Risk accept/reject only accepts an exact `status=open` Issue and checks its riskLevel against acceptableRiskLevel, every hard constraint named by that Issue's `affectedConstraintIds`, lifecycle, non-empty rationale and meeting-local evidence; `resolved|deferred|out_of_scope` is rejected. Accept requires those constraints to be satisfied and updates only that Issue to accepted_risk and non-blocking. Reject is not limited by acceptableRiskLevel and keeps the Issue open and blocking.
 
-`RecordCompletionFact` 独立验证自己的 output/criterion, nonempty published evidence with the required final Review and sent delivery, and a nonempty Decision basis whose Decisions are accepted `adopt` outcomes on current ProposalRevisions. ChangeCompletionFact only targets an active fact: revoke marks only that fact revoked; supersede atomically marks it superseded and appends one active replacement whose `supersedesFactId` is fixed to the old fact ID.
+`RecordCompletionFact` 由 Captain 在 running Meeting 中提交，独立验证 output/criterion、非空已公开证据及其最终 Review 与成功送达记录；不携带独立提案或决策依据字段。`ChangeCompletionFact` 只处置 active fact：revoke 仅标记目标 revoked；supersede 原子标记旧 fact 为 superseded，并追加一个依据同样完整的新 active fact，其 `supersedesFactId` 固定为旧 fact ID。
 
-`pendingDecisionCandidates` contains current-revision candidates without any Decision only while lifecycle is `running|paused`; `paused` preserves resumable work but does not permit acceptance. It is empty for `preparing|converging|ending|terminal|archiving|archived`. Caller filtering remains Captain/local-only.
 
-ContinuationInput is accepted only for a new Meeting when its authenticated Captain explicitly selects an immutable, caller-visible ArchivePackage and a distinct non-empty subset of exported material IDs whose kind is `published_evidence|formal_message|accepted_decision|active_completion_fact`. It imports read-only ContinuationMaterial copies with sourceArchiveId/sourceMaterialId provenance; selecting published evidence atomically includes its Materials, source locators and final Review as one evidence bundle. It never imports old Meeting ID, identity, Session, capability, full transcript, mail, authority, running state or a prior completion conclusion.
+ContinuationInput is accepted only for a new Meeting when its authenticated Captain explicitly selects an immutable, caller-visible ArchivePackage and a distinct non-empty subset of exported material IDs whose kind is `published_evidence|formal_message|active_completion_fact`. It imports read-only ContinuationMaterial copies with sourceArchiveId/sourceMaterialId provenance; selecting published evidence atomically includes its Materials, source locators and final Review as one evidence bundle. It never imports old Meeting ID, identity, Session, capability, full transcript, mail, authority, running state or a prior completion conclusion.
 
 PlanNextStep is Manager-only and is rejected while a Round is open; a new plan supersedes the current active plan for its Agenda. StartArchive is runtime-recovery-only from terminal and atomically materializes the ArchivePackage before archiving; RecordArchiveSessionResult is trusted session-owner-only. Any failed Session close leaves lifecycle archiving and rejects discussion; archived is entered only after every meeting-owned Session reports closed.
 
@@ -784,8 +736,6 @@ type MeetingEventKind =
   | "question.disposed"
   | "issue.disposed"
   | "risk.disposed"
-  | "decision.recorded"
-  | "decision.changed"
   | "completion_fact.recorded"
   | "completion_fact.changed"
   | "meeting.ended"
@@ -807,7 +757,6 @@ type MeetingEventObjectKind =
   | "identity"
   | "question"
   | "issue"
-  | "decision"
   | "completion_fact"
   | "risk_disposition"
   | "termination"
@@ -921,14 +870,6 @@ interface MeetingEventDataByKind {
     scope: string;
     rationale: string;
   };
-  "decision.recorded": { status: "accepted" };
-  "decision.changed":
-    | {
-        status: "superseded";
-        rationale: string;
-        replacementDecisionId: OpaqueId;
-      }
-    | { status: "revoked"; rationale: string };
   "completion_fact.recorded": {
     outputId: OpaqueId;
     statement: string;
@@ -1044,8 +985,6 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 | `question.disposed`            | question                | `MeetingEventDataByKind["question.disposed"]`            |
 | `issue.disposed`               | issue                   | `MeetingEventDataByKind["issue.disposed"]`               |
 | `risk.disposed`                | risk_disposition        | `MeetingEventDataByKind["risk.disposed"]`                |
-| `decision.recorded`            | decision                | `MeetingEventDataByKind["decision.recorded"]`            |
-| `decision.changed`             | decision                | `MeetingEventDataByKind["decision.changed"]`             |
 | `completion_fact.recorded`     | completion_fact         | `MeetingEventDataByKind["completion_fact.recorded"]`     |
 | `completion_fact.changed`      | completion_fact         | `MeetingEventDataByKind["completion_fact.changed"]`      |
 | `meeting.ended`                | termination             | `MeetingEventDataByKind["meeting.ended"]`                |
@@ -1054,7 +993,7 @@ Agent 侧通过 DSH tool `convivium_read_meeting` 读取，arguments 为 `{input
 
 Meeting 的首条 `meeting.created` 持久事件 payload 必须含 `{logVersion:1,actor,subject,relatedObjects,data}`；这是事件历史完整标记。该标记存在时，local controller 的 `timelineEvents` 必须包含从 eventSeq 1 到当前最大序号的完整映射；任一序号缺失、kind 未知或 payload 非法使读取返回不可重试的 `RECOVERY_UNAVAILABLE`，不得返回部分数组。缺少完整事件日志的既有测试会议应删除，不提供旧数据识别、兼容或迁移路径。
 
-各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取本轮全部 pending hand raises；普通 contributor 只读取自己的 pending hand raise，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取未审版本、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
+各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取本轮全部 pending hand raises；普通 contributor 只读取自己的 pending hand raise，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery 状态；作者只读取自己 EvidenceVersion 的 delivery，唯一 evidence reviewer 读取自己提交的全部 Review delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取未审版本、Session/ownership/capability、Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
 Round 的受邀选择在 MeetingView 中向 Captain 和 Manager 显示全部受邀者及状态，普通 Contributor 仅显示自己；尚未选择者由受邀名单减去已记录响应派生。
 
@@ -1085,23 +1024,17 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface EvidenceReviewView { id: OpaqueId; versionId: OpaqueId; reviewerId: OpaqueId; baselinePublicationIds: OpaqueId[]; scope: string; dimensions: ReviewDimensionsInput; createdAt: EpochMs }
     interface ReviewDeliveryView { id: OpaqueId; reviewId: OpaqueId; authorId: OpaqueId; status: "sent" | "failed"; sentAt?: EpochMs; failedAt?: EpochMs; failureReason?: string }
     interface FormalMessageView { id: OpaqueId; seq: number; actorId: OpaqueId; agendaId: OpaqueId; kind: string; body: string; publicationId: OpaqueId; relatedIds: OpaqueId[]; createdAt: EpochMs }
-    interface DecisionCandidateView { id: OpaqueId; proposalRevisionId: OpaqueId; actorId: OpaqueId; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; createdAt: EpochMs }
-    interface DecisionView { id: OpaqueId; candidateId: OpaqueId; proposalRevisionId: OpaqueId; actorId: OpaqueId; status: "accepted" | "superseded" | "revoked"; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; replacesDecisionId?: OpaqueId; createdAt: EpochMs }
-    interface ProposalRevisionView { id: OpaqueId; proposalId: OpaqueId; ordinal: number; actorId: OpaqueId; agendaId: OpaqueId; summary: string; body: string; evidenceIds: OpaqueId[]; supersedesRevisionId?: OpaqueId; createdAt: EpochMs }
-    interface PositionView { id: OpaqueId; proposalRevisionId: OpaqueId; actorId: OpaqueId; stance: "support" | "oppose" | "abstain" | "conditional"; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
-    interface QuestionView { id: OpaqueId; actorId: OpaqueId; agendaId: OpaqueId; text: string; blocking: boolean; status: "open" | "answered" | "withdrawn" | "deferred"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[] }
+                    interface QuestionView { id: OpaqueId; actorId: OpaqueId; agendaId: OpaqueId; text: string; blocking: boolean; status: "open" | "answered" | "withdrawn" | "deferred"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[] }
     interface IssueView { id: OpaqueId; actorId: OpaqueId; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; requiresEvidenceReview: boolean; blocking: boolean; status: "open" | "resolved" | "deferred" | "out_of_scope"; rationale: string }
-    interface OutcomeView { decisions: DecisionView[]; completionFacts: CompletionFactView[]; riskDispositions: RiskDispositionView[]; pendingDecisionCandidates?: DecisionCandidateView[]; termination?: TerminationView }
-    interface CompletionFactView { id: OpaqueId; actorId: OpaqueId; outputId: OpaqueId; criterionId?: OpaqueId; status: "active" | "superseded" | "revoked"; statement: string; rationale: string; evidenceIds: OpaqueId[]; decisionIds: OpaqueId[]; createdAt: EpochMs }
+    interface OutcomeView { completionFacts: CompletionFactView[]; riskDispositions: RiskDispositionView[]; termination?: TerminationView }
+    interface CompletionFactView { id: OpaqueId; actorId: OpaqueId; outputId: OpaqueId; criterionId?: OpaqueId; status: "active" | "superseded" | "revoked"; statement: string; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
     interface RiskDispositionView { id: OpaqueId; actorId: OpaqueId; issueId: OpaqueId; action: "accept" | "reject"; scope: string; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
-    interface TerminationView { id: OpaqueId; outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
+    interface TerminationView { id: OpaqueId; outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
     interface ArchiveView {
       id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number; terminationId: OpaqueId;
       objective: ObjectiveView; agenda: AgendaView[]; agendaCandidates: AgendaCandidateView[];
       publications: PublicationView[]; messages: FormalMessageView[];
       evidenceBundles: Array<{ packageId: OpaqueId; authorIdentityId: OpaqueId; agendaId: OpaqueId; version: EvidenceVersionView; review: EvidenceReviewView }>;
-      proposalRevisions: ProposalRevisionView[]; positions: PositionView[];
-      decisionCandidates: DecisionCandidateView[]; decisions: DecisionView[]; completionFacts: CompletionFactView[];
       questions: QuestionView[]; issues: IssueView[]; riskDispositions: RiskDispositionView[];
       questionIssueDispositionFacts: CommittedFactView[]; termination: TerminationView; unresolvedItemIds: OpaqueId[];
       unclosedContributions: UnclosedContributionView[];
@@ -1114,17 +1047,14 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
       | (CommittedFactViewBase & { kind: "resolve_question"; payload: Extract<CommittedFactPayload, { kind: "question_disposition" }> })
       | (CommittedFactViewBase & { kind: "dispose_issue"; payload: Extract<CommittedFactPayload, { kind: "issue_disposition" }> });
     interface UnclosedContributionView { contributionId: OpaqueId; contributorIdentityId: OpaqueId; agendaId: OpaqueId; status: ContributionView["status"]; exitReason?: string }
-    interface ArchiveMaterialView { id: OpaqueId; kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact"; title: string; sourceObjectIds: OpaqueId[] }
     interface ContinuationProvenanceView { sourceArchiveId: OpaqueId; selectedMaterialIds: OpaqueId[]; materials: ContinuationMaterialView[] }
     interface ContinuationFormalMessageContentView { kind: string; body: string; createdAt: EpochMs }
-    interface ContinuationAcceptedDecisionContentView { outcome: "adopt" | "reject" | "defer"; rationale: string; createdAt: EpochMs }
     interface ContinuationCompletionFactContentView { statement: string; rationale: string; createdAt: EpochMs }
     interface ContinuationReviewDimensionView { score: 0 | 1 | 2 | 3 | "unable_to_assess"; scope: string; reason: string }
     interface ContinuationEvidenceReviewContentView { scope: string; dimensions: { source: ContinuationReviewDimensionView; credibility: ContinuationReviewDimensionView; completeness: ContinuationReviewDimensionView; support: ContinuationReviewDimensionView }; createdAt: EpochMs }
     type ContinuationMaterialView =
       | { kind: "published_evidence"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; evidence: { version: EvidenceVersionView; review: ContinuationEvidenceReviewContentView } }
       | { kind: "formal_message"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; message: ContinuationFormalMessageContentView }
-      | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: ContinuationAcceptedDecisionContentView }
       | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: ContinuationCompletionFactContentView };
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
     type AllowedControl = MeetingAction["kind"];
@@ -1133,7 +1063,7 @@ evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Public
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 
-ArchiveView 仅从完整 ArchivePackage 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message、accepted_decision 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|proposalRevisionId|evidenceIds|positionIds|outputId|criterionId|decisionIds` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和最终 Review 的内容 DTO，不保留旧 `reviewerId|id|versionId|baselinePublicationIds|baselineEvidenceIds` 引用。
+ArchiveView 仅从完整 ArchivePackage 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|evidenceIds|outputId|criterionId` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和最终 Review 的内容 DTO，不保留旧 `reviewerId|id|versionId|baselinePublicationIds|baselineEvidenceIds` 引用。
 
 ```ts
 interface MarkdownProjectionInput {
@@ -1141,7 +1071,6 @@ interface MarkdownProjectionInput {
   committedVersion: number;
   publicPublications: PublicationView[];
   formalMessages: FormalMessageView[];
-  decisions: DecisionView[];
   questions: QuestionView[];
   issues: IssueView[];
   termination?: TerminationView;

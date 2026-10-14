@@ -3,14 +3,11 @@ import { describe, expect, it } from "vitest";
 import { transitionMeetingState } from "@/domain/meeting-state-transitions.ts";
 import { abortRound } from "@/domain/transitions/round.ts";
 import {
-    decide,
-    changeDecision,
     disposeRisk,
     recordCompletionFact,
-    changeCompletionFact,
-    recordPosition
+    changeCompletionFact
 } from "@/domain/transitions/outcome.ts";
-import { decisionReadyState, completionReadyState, completionInput } from "./outcome-fixtures.ts";
+import { completionReadyState, completionInput } from "./outcome-fixtures.ts";
 import { state } from "./meeting-state-transitions-fixtures.ts";
 
 const captain = (id: string) => ({
@@ -59,28 +56,7 @@ describe("external Captain control", () => {
             transitionMeetingState(s, action, { kind: "identity", id: "identity-1" }, 10, "fact")
         ).toMatchObject({ kind: "rejected", code: "UNAUTHORIZED" });
     });
-    it("keeps decisions and completion facts controlled by the user outside the identity set", () => {
-        const s = decisionReadyState();
-        const d = decide(s, {
-            decisionId: "decision-user",
-            candidateId: "cand",
-            actor: captain(s.id),
-            now: 10
-        });
-        expect(d.kind).toBe("accepted");
-        if (d.kind !== "accepted") {
-            return;
-        }
-        expect(
-            changeDecision(d.state, {
-                decisionId: "decision-user",
-                status: "revoked",
-                rationale: "retract",
-                evidenceIds: ["v"],
-                actor: captain(s.id),
-                now: 11
-            }).kind
-        ).toBe("accepted");
+    it("keeps completion facts controlled by the user outside the identity set", () => {
         const c = completionReadyState();
         c.objective.requiredOutputs.push({ id: "o2", text: "pending", status: "pending" });
         const f = recordCompletionFact(c, { ...completionInput(), actor: captain(c.id), now: 10 });
@@ -97,20 +73,9 @@ describe("external Captain control", () => {
                 now: 11
             }).kind
         ).toBe("accepted");
-        expect(
-            recordPosition(s, {
-                positionId: "p-user",
-                proposalRevisionId: "rev",
-                stance: "support",
-                rationale: "why",
-                evidenceIds: ["v"],
-                actor: captain(s.id),
-                now: 10
-            })
-        ).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
     });
     it("aborts rounds and disposes risk as the user, preserving contributor authority boundaries", () => {
-        const s = decisionReadyState();
+        const s = completionReadyState();
         s.rounds[0].status = "open";
         delete s.rounds[0].publicationId;
         const aborted = abortRound(s, {
@@ -128,7 +93,7 @@ describe("external Captain control", () => {
                 now: 10
             })
         ).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
-        const risk = decisionReadyState();
+        const risk = completionReadyState();
         risk.issues = [
             {
                 id: "issue",

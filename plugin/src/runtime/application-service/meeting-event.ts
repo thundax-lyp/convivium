@@ -610,60 +610,6 @@ const converters: EventConverters = {
         });
         return events;
     },
-    decide: (action, mapping) => {
-        const { after, now, unique, idAt, ref, refs, payload } = mapping;
-        const events: MeetingEventInput[] = [];
-        const decision = unique(after.decisions, idAt(0), "decision");
-        events.push({
-            type: "decision.recorded",
-            occurredAt: now,
-            payload: {
-                ...payload(
-                    ref("decision", decision.id),
-                    refs("evidence_version", decision.evidenceIds)
-                ),
-                data: { status: "accepted" }
-            }
-        });
-        return events;
-    },
-    change_decision: (action, mapping) => {
-        const { after, now, unique, idAt, ref, refs, payload } = mapping;
-        const events: MeetingEventInput[] = [];
-        events.push({
-            type: "decision.changed",
-            occurredAt: now,
-            payload: {
-                ...payload(ref("decision", action.decisionId), [
-                    ...(action.status === "superseded" ? [ref("decision", idAt(1))] : []),
-                    ...refs("evidence_version", action.evidenceIds)
-                ]),
-                data:
-                    action.status === "superseded"
-                        ? {
-                              status: action.status,
-                              rationale: action.rationale,
-                              replacementDecisionId: idAt(1)
-                          }
-                        : { status: action.status, rationale: action.rationale }
-            }
-        });
-        if (action.status === "superseded") {
-            const replacement = unique(after.decisions, idAt(1), "replacement decision");
-            events.push({
-                type: "decision.recorded",
-                occurredAt: now,
-                payload: {
-                    ...payload(ref("decision", replacement.id), [
-                        ref("decision", action.decisionId),
-                        ...refs("evidence_version", replacement.evidenceIds)
-                    ]),
-                    data: { status: "accepted" }
-                }
-            });
-        }
-        return events;
-    },
     record_completion_fact: (action, mapping) => {
         const { now, idAt, ref, refs, payload } = mapping;
         const events: MeetingEventInput[] = [];
@@ -672,8 +618,7 @@ const converters: EventConverters = {
             occurredAt: now,
             payload: {
                 ...payload(ref("completion_fact", idAt(0)), [
-                    ...refs("evidence_version", action.evidenceIds),
-                    ...refs("decision", action.decisionIds)
+                    ...refs("evidence_version", action.evidenceIds)
                 ]),
                 data: {
                     outputId: action.outputId,
@@ -701,8 +646,7 @@ const converters: EventConverters = {
                         ? []
                         : [
                               ref("completion_fact", idAt(1)),
-                              ...refs("evidence_version", replacement.evidenceIds),
-                              ...refs("decision", replacement.decisionIds)
+                              ...refs("evidence_version", replacement.evidenceIds)
                           ]
                 ),
                 data:
@@ -723,8 +667,7 @@ const converters: EventConverters = {
                 payload: {
                     ...payload(ref("completion_fact", fact.id), [
                         ref("completion_fact", action.factId),
-                        ...refs("evidence_version", fact.evidenceIds),
-                        ...refs("decision", fact.decisionIds)
+                        ...refs("evidence_version", fact.evidenceIds)
                     ]),
                     data: {
                         outputId: fact.outputId,
@@ -745,7 +688,6 @@ const converters: EventConverters = {
             occurredAt: now,
             payload: {
                 ...payload(ref("termination", termination.id), [
-                    ...refs("decision", termination.decisionIds),
                     ...refs("completion_fact", termination.completionFactIds),
                     ...refs("question", termination.unresolvedQuestionIds),
                     ...refs("issue", termination.unresolvedIssueIds),

@@ -24,7 +24,6 @@ const controlCall: Promise<RemoteResult<MeetingCommandResult>> = remote.conviviu
         kind: "end_meeting",
         outcome: "partial",
         reason: "done",
-        decisionIds: [],
         completionFactIds: [],
         unresolvedQuestionIds: [],
         unresolvedIssueIds: []

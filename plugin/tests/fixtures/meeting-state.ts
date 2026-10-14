@@ -1,6 +1,6 @@
 import type { MeetingState } from "@/domain/meeting-state.ts";
 
-export function makeRunningMeetingStateV1(): MeetingState {
+export const makeRunningMeetingStateV1 = (): MeetingState => {
     return {
         id: "meeting-v1",
         version: 1,
@@ -62,10 +62,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
         reviewDeliveries: [],
         publications: [],
         messages: [],
-        proposals: [],
-        positions: [],
-        decisionCandidates: [],
-        decisions: [],
         questions: [],
         issues: [],
         riskDispositions: [],
@@ -78,4 +74,4 @@ export function makeRunningMeetingStateV1(): MeetingState {
             reviewDeadlineMs: 600000
         }
     };
-}
+};

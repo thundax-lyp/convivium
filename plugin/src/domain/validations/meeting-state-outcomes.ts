@@ -169,14 +169,6 @@ const validateIssues = (parsedState: MeetingState): string | undefined => {
     return undefined;
 };
 
-const proposalGroups = (state: MeetingState): Map<string, { ordinal: number; id: string }> => {
-    const groups = new Map<string, { ordinal: number; id: string }>();
-    for (const proposal of state.proposals) {
-        groups.set(proposal.proposalId, { ordinal: proposal.ordinal, id: proposal.id });
-    }
-    return groups;
-};
-
 const validatePlansAndRisk = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
@@ -246,7 +238,6 @@ const validateCompletionFacts = (parsedState: MeetingState): string | undefined 
     const publishedVersionIds = new Set(
         parsedState.publications.flatMap((item) => item.finalVersionIds)
     );
-    const decisionIds = ids(parsedState.decisions);
     const outputIds = ids(parsedState.objective.requiredOutputs);
     const criterionIds = ids(parsedState.objective.acceptanceCriteria);
     const completionFactIds = ids(parsedState.completionFacts);
@@ -264,10 +255,7 @@ const validateCompletionFacts = (parsedState: MeetingState): string | undefined 
         if (item.actorId !== captainActorIdFor(parsedState.id)) {
             return fail(`${path}.actorId`);
         }
-        for (const [key, values] of [
-            ["evidenceIds", publishedVersionIds],
-            ["decisionIds", decisionIds]
-        ] as const) {
+        for (const [key, values] of [["evidenceIds", publishedVersionIds]] as const) {
             const p = checkRefs(item[key], values, `${path}.${key}`);
             if (p) {
                 return fail(p);
@@ -296,35 +284,12 @@ const validateCompletionFacts = (parsedState: MeetingState): string | undefined 
 const validateEffectiveCompletion = (parsedState: MeetingState): string | undefined => {
     const identityById = indexById(parsedState.identities);
     const publications = parsedState.publications;
-    const proposals = parsedState.proposals;
-    const groups = proposalGroups(parsedState);
-    const decisions = parsedState.decisions;
     const reviews = parsedState.reviews;
     const deliveries = parsedState.reviewDeliveries;
     const versionOwnerById = indexVersionOwners(parsedState);
     const facts = parsedState.completionFacts;
-    const currentRevisionIds = new Set<string>();
-    for (const proposal of proposals) {
-        const current = groups.get(proposal.proposalId);
-        if (current?.id === proposal.id) {
-            currentRevisionIds.add(proposal.id as string);
-        }
-    }
     const effectiveFact = (fact: (typeof facts)[number]) => {
         if (fact.status !== "active") {
-            return false;
-        }
-        if (
-            !fact.decisionIds.every((id) => {
-                const decision = decisions.find((candidate) => candidate.id === id);
-                return (
-                    !!decision &&
-                    decision.status === "accepted" &&
-                    decision.outcome === "adopt" &&
-                    currentRevisionIds.has(decision.proposalRevisionId as string)
-                );
-            })
-        ) {
             return false;
         }
         return fact.evidenceIds.every((versionId) => {
@@ -380,7 +345,6 @@ const validateTerminalRecords = (
     parsedState: MeetingState
 ): string | undefined => {
     const { lifecycle } = parsedState;
-    const decisionIds = ids(parsedState.decisions);
     const completionFactIds = ids(parsedState.completionFacts);
     const questionIds = ids(parsedState.questions);
     const issueIds = ids(parsedState.issues);
@@ -394,7 +358,6 @@ const validateTerminalRecords = (
     if (own(value, "termination")) {
         const termination = parsedState.termination!;
         for (const [values, refs, path] of [
-            [termination.decisionIds, decisionIds, "$.termination.decisionIds"],
             [termination.completionFactIds, completionFactIds, "$.termination.completionFactIds"],
             [termination.unresolvedQuestionIds, questionIds, "$.termination.unresolvedQuestionIds"],
             [termination.unresolvedIssueIds, issueIds, "$.termination.unresolvedIssueIds"],
@@ -420,7 +383,6 @@ const validateTerminalRecords = (
         }
         for (const [values, refs, path] of [
             [archive.publications.map((item) => item.id), publicationIds, "$.archive.publications"],
-            [archive.decisions.map((item) => item.id), decisionIds, "$.archive.decisions"],
             [
                 archive.completionFacts.map((item) => item.id),
                 completionFactIds,

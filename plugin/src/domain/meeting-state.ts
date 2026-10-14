@@ -351,46 +351,6 @@ export interface FormalMessage {
     createdAt: EpochMs;
 }
 
-export interface ProposalRevision {
-    id: OpaqueId;
-    proposalId: OpaqueId;
-    ordinal: number;
-    actorId: OpaqueId;
-    agendaId: OpaqueId;
-    summary: string;
-    body: string;
-    evidenceIds: readonly OpaqueId[];
-    supersedesRevisionId?: OpaqueId;
-    createdAt: EpochMs;
-}
-
-export interface Position {
-    id: OpaqueId;
-    proposalRevisionId: OpaqueId;
-    actorId: OpaqueId;
-    stance: "support" | "oppose" | "abstain" | "conditional";
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    createdAt: EpochMs;
-}
-
-export interface DecisionCandidate {
-    id: OpaqueId;
-    proposalRevisionId: OpaqueId;
-    actorId: OpaqueId;
-    outcome: "adopt" | "reject" | "defer";
-    rationale: string;
-    evidenceIds: readonly OpaqueId[];
-    positionIds: readonly OpaqueId[];
-    createdAt: EpochMs;
-}
-
-export interface Decision extends DecisionCandidate {
-    candidateId: OpaqueId;
-    status: "accepted" | "superseded" | "revoked";
-    replacesDecisionId?: OpaqueId;
-}
-
 export interface RiskDisposition {
     id: OpaqueId;
     issueId: OpaqueId;
@@ -411,7 +371,6 @@ export interface CompletionFact {
     statement: string;
     rationale: string;
     evidenceIds: readonly OpaqueId[];
-    decisionIds: readonly OpaqueId[];
     supersedesFactId?: OpaqueId;
     createdAt: EpochMs;
 }
@@ -439,7 +398,6 @@ export interface Termination {
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     reason: string;
     endedAt: EpochMs;
-    decisionIds: readonly OpaqueId[];
     completionFactIds: readonly OpaqueId[];
     unresolvedQuestionIds: readonly OpaqueId[];
     unresolvedIssueIds: readonly OpaqueId[];
@@ -495,7 +453,7 @@ export interface ArchiveIdentityProvenance {
 
 export interface ArchiveMaterial {
     id: OpaqueId;
-    kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact";
+    kind: "published_evidence" | "formal_message" | "active_completion_fact";
     title: string;
     sourceObjectIds: readonly OpaqueId[];
 }
@@ -530,10 +488,6 @@ export interface ArchivePackage {
     publications: readonly Publication[];
     messages: readonly FormalMessage[];
     evidenceBundles: readonly ArchiveEvidenceBundle[];
-    proposalRevisions: readonly ProposalRevision[];
-    positions: readonly Position[];
-    decisionCandidates: readonly DecisionCandidate[];
-    decisions: readonly Decision[];
     completionFacts: readonly CompletionFact[];
     questions: readonly Question[];
     issues: readonly Issue[];
@@ -586,10 +540,6 @@ export interface MeetingState {
     reviewDeliveries: readonly ReviewDelivery[];
     publications: readonly Publication[];
     messages: readonly FormalMessage[];
-    proposals: readonly ProposalRevision[];
-    positions: readonly Position[];
-    decisionCandidates: readonly DecisionCandidate[];
-    decisions: readonly Decision[];
     questions: readonly Question[];
     issues: readonly Issue[];
     riskDispositions: readonly RiskDisposition[];

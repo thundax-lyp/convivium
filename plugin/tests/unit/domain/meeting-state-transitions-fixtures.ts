@@ -1,7 +1,7 @@
 import { captainActorIdFor } from "@/domain/control-actor.ts";
 import type { MeetingState } from "@/domain/meeting-state.ts";
 
-export function state(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
+export const state = (status: MeetingState["lifecycle"]["status"] = "running"): MeetingState => {
     return {
         id: "meeting-1",
         version: 3,
@@ -55,10 +55,6 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
         reviewDeliveries: [],
         publications: [],
         messages: [],
-        proposals: [],
-        positions: [],
-        decisionCandidates: [],
-        decisions: [],
         questions: [],
         issues: [],
         riskDispositions: [],
@@ -71,7 +67,7 @@ export function state(status: MeetingState["lifecycle"]["status"] = "running"): 
             reviewDeadlineMs: 0
         }
     };
-}
+};
 
 export const local = { kind: "captain_user", id: captainActorIdFor("meeting-1") } as const;
 export const identity = { kind: "identity", id: "identity-1" } as const;
@@ -98,14 +94,13 @@ export const resolveQuestion = (overrides: Record<string, unknown> = {}) => ({
     ...overrides
 });
 
-export function terminalState(status: "terminal" | "archiving" | "archived"): MeetingState {
+export const terminalState = (status: "terminal" | "archiving" | "archived"): MeetingState => {
     const current = state(status);
     current.termination = {
         id: "termination-1",
         outcome: "completed",
         reason: "done",
         endedAt: 3,
-        decisionIds: [],
         completionFactIds: [],
         unresolvedQuestionIds: [],
         unresolvedIssueIds: [],
@@ -124,10 +119,6 @@ export function terminalState(status: "terminal" | "archiving" | "archived"): Me
             publications: [],
             messages: [],
             evidenceBundles: [],
-            proposalRevisions: [],
-            positions: [],
-            decisionCandidates: [],
-            decisions: [],
             completionFacts: [],
             questions: [],
             issues: [],
@@ -144,7 +135,7 @@ export function terminalState(status: "terminal" | "archiving" | "archived"): Me
         };
     }
     return current;
-}
+};
 
 export function candidateState(): MeetingState {
     const current = state();

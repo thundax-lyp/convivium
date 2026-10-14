@@ -447,12 +447,16 @@ describe("Meeting timeline presentation", () => {
                         {
                             eventSeq: 1,
                             meetingVersion: 1,
-                            occurredAt: 31,
-                            kind: "decision.recorded",
-                            actor: { kind: "system" },
-                            subject: { kind: "decision", id: "decision-1" },
+                            kind: "completion_fact.recorded",
+                            occurredAt: 32,
+                            actor: { kind: "captain", actorId: "captain-v1" },
+                            subject: { kind: "completion_fact", id: "completion-1" },
                             relatedObjects: [],
-                            data: { status: "accepted" }
+                            data: {
+                                outputId: "output-v1",
+                                statement: "completion statement",
+                                rationale: "completion rationale"
+                            }
                         }
                     ])}
                     filters={INITIAL_TIMELINE_FILTERS}
@@ -468,7 +472,7 @@ describe("Meeting timeline presentation", () => {
             .getAllByTestId("timeline-node")
             .find((node) => node.dataset.nodeKey === "event:1");
         expect(decision).toBeDefined();
-        expect(within(decision!).getByText("已接受")).toBeTruthy();
+        expect(within(decision!).getByText("completion statement")).toBeTruthy();
         expect(decision!.querySelector("time")?.textContent).toBeTruthy();
     });
 });
@@ -496,7 +500,7 @@ describe("Meeting overview location", () => {
         expect(onFocusConsumed).toHaveBeenCalledOnce();
     });
 
-    it("focuses a displayed decision and reports an undisplayed position as unavailable", () => {
+    it("focuses a displayed completion fact and reports an undisplayed round as unavailable", () => {
         const detail = archiveTimelineFixture("complete");
         const onFocusConsumed = vi.fn();
         const props = {
@@ -509,8 +513,8 @@ describe("Meeting overview location", () => {
                     {...props}
                     focusTarget={{
                         meetingId: detail.meetingId,
-                        objectKind: "decision",
-                        objectId: "decision-1"
+                        objectKind: "completion_fact",
+                        objectId: "completion-1"
                     }}
                 />,
                 "en"
@@ -518,9 +522,9 @@ describe("Meeting overview location", () => {
         );
         expect(document.activeElement?.tagName).toBe("LI");
         expect(document.activeElement?.getAttribute("data-overview-key")).toBe(
-            "decision:decision-1"
+            "completion_fact:completion-1"
         );
-        expect(document.activeElement?.textContent).not.toContain("decision-1");
+        expect(document.activeElement?.textContent).not.toContain("completion-1");
         expect(screen.queryByRole("navigation", { name: "Timeline" })).toBeNull();
 
         rerender(
@@ -529,15 +533,15 @@ describe("Meeting overview location", () => {
                     {...props}
                     focusTarget={{
                         meetingId: detail.meetingId,
-                        objectKind: "position",
-                        objectId: "position-1"
+                        objectKind: "round",
+                        objectId: "missing-round"
                     }}
                 />,
                 "en"
             )
         );
         expect(screen.getByRole("status").textContent).toBe("The target is currently unavailable.");
-        expect(screen.queryByRole("button", { name: /position-1/ })).toBeNull();
+        expect(screen.queryByRole("button", { name: /missing-round/ })).toBeNull();
         expect(onFocusConsumed).toHaveBeenCalledTimes(2);
     });
 });

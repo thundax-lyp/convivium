@@ -133,8 +133,6 @@ const authorizedRole = (action: MeetingAction, scope: ResolvedCallerScope): bool
             "resolve_question",
             "dispose_issue",
             "abort_round",
-            "decide",
-            "change_decision",
             "dispose_risk",
             "record_completion_fact",
             "change_completion_fact",

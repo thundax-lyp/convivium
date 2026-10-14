@@ -110,13 +110,7 @@ describe("Meeting panel localized presentation", () => {
         expect(within(objective).queryByLabelText("会议结果: 部分完成")).toBeNull();
         expect(within(conclusion).getByLabelText("会议结果: 部分完成")).toBeTruthy();
         expect(within(conclusion).getByText("termination reason")).toBeTruthy();
-        expect(
-            within(conclusion).getByText("采纳: candidate rationale").closest("li")?.textContent
-        ).toContain("✅");
-        expect(
-            within(conclusion).getByText("采纳: 已接受: candidate rationale").closest("li")
-                ?.textContent
-        ).toContain("✅");
+
         expect(
             within(conclusion)
                 .getByText("completion statement: 有效: completion rationale")
@@ -167,10 +161,6 @@ describe("Meeting panel localized presentation", () => {
             ...base,
             archive: {
                 ...base.archive!,
-                decisions: base.archive!.decisions.map((item) => ({
-                    ...item,
-                    status: "revoked" as const
-                })),
                 completionFacts: base.archive!.completionFacts.map((item) => ({
                     ...item,
                     status: "superseded" as const
@@ -184,10 +174,7 @@ describe("Meeting panel localized presentation", () => {
         render(withMeetingTranslation(createElement(MeetingPanelOverview, { detail: view }), "zh"));
         const conclusion = screen.getByRole("region", { name: "结论" });
         const openItems = screen.getByRole("region", { name: "开放项" });
-        expect(
-            within(conclusion).getByText("采纳: 已撤销: candidate rationale").closest("li")
-                ?.textContent
-        ).toContain("🚫");
+
         expect(
             within(conclusion)
                 .getByText("completion statement: 已取代: completion rationale")

@@ -116,9 +116,6 @@ export const createMeetingCancelCommand = (
             kind: "end_meeting",
             outcome: "cancelled",
             reason: grant.reason,
-            decisionIds: view.outcomes.decisions
-                .filter((item) => item.status === "accepted")
-                .map((item) => item.id),
             completionFactIds: view.outcomes.completionFacts
                 .filter((item) => item.status === "active")
                 .map((item) => item.id),
