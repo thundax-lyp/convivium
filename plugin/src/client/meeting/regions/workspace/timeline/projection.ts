@@ -1,9 +1,12 @@
 import type { MeetingView, MeetingEventView } from "@/protocol/index.ts";
-import type {
-    TimelineFilterState,
-    TimelineLane,
-    TimelineObjectRef
-} from "@/client/meeting/shared/index.ts";
+import type { TimelineFilterState } from "@/client/meeting/shared/index.ts";
+
+type TimelineLane = "captain" | "manager" | "contributor" | "reviewer" | "system";
+
+interface TimelineObjectRef {
+    objectKind: string;
+    objectId: string;
+}
 
 export type TimelineObjectKind =
     | MeetingEventView["subject"]["kind"]

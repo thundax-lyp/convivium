@@ -3,16 +3,9 @@ import type { MeetingReadResult, MeetingSummary } from "@/protocol/index.ts";
 
 export type MeetingMode = "overview" | "timeline";
 
-export type TimelineLane = "captain" | "manager" | "contributor" | "reviewer" | "system";
-
 export type DataFreshness = "idle" | "loading" | "fresh" | "stale";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
-
-export interface TimelineObjectRef {
-    objectKind: string;
-    objectId: string;
-}
 
 export interface MeetingFocusTarget {
     meetingId: string;
@@ -24,6 +17,11 @@ export interface TimelineFilterState {
     participantIds: readonly string[];
     objectKinds: readonly string[];
 }
+
+export const INITIAL_TIMELINE_FILTERS: TimelineFilterState = {
+    participantIds: [],
+    objectKinds: []
+};
 
 export interface MeetingsWorkspaceState {
     selectedMeetingId?: string;
