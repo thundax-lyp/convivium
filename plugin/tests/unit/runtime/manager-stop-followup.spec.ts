@@ -4,8 +4,9 @@ import { projectMeetingView } from "@/projection/meeting-view.ts";
 import type { MeetingCommand } from "@/protocol/index.ts";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
 import { runMeetingActionTransition } from "@/runtime/application-service/meeting-action-transition.ts";
+import { endMeeting } from "@/domain/transitions/meeting-end.ts";
 
-it("queues one Manager follow-up after committing stop_agenda", () => {
+it("queues one Manager follow-up without requiring a stopped agenda before normal termination", () => {
     const state = makeRunningMeetingStateV1();
     const result = runMeetingActionTransition({
         snapshot: { state, version: state.version },
@@ -37,8 +38,11 @@ it("queues one Manager follow-up after committing stop_agenda", () => {
     if (result.kind === "accepted") {
         expect(result.state.managerPlans.at(-1)).toMatchObject({
             id: "plan-stop",
-            kind: "stop_agenda"
+            kind: "stop_agenda",
+            status: "active"
         });
+        expect(result.state.agenda).toEqual(state.agenda);
+        expect(result.state.lifecycle).toEqual(state.lifecycle);
         expect(result.effectRequests).toEqual([
             {
                 kind: "agent_notice",
@@ -48,6 +52,19 @@ it("queues one Manager follow-up after committing stop_agenda", () => {
                 planId: "plan-stop"
             }
         ]);
+        const ended = endMeeting(result.state, {
+            terminationId: "termination-stop",
+            outcome: "partial",
+            reason: "Evidence paths are exhausted; the objective remains unproven.",
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            actorId: "manager-v1",
+            now: 11
+        });
+        expect(ended.kind).toBe("accepted");
+        expect(ended.state.lifecycle.status).toBe("terminal");
+        expect(ended.state.termination?.outcome).toBe("partial");
     }
 });
 

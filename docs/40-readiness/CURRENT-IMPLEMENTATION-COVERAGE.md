@@ -77,6 +77,14 @@ Manager 自动推进的结构边界由命令权限、pending Agenda 与 open Rou
 
 ## Executed Validation
 
+### 2026-10-14：停止计划后的 Manager 收口误判修正
+
+Scope / Validated Contract：`codex/fix-manager-stop-followup` 工作区。人工会议停在 version 32；Manager 已收到 `agenda_stopped` 并完成扫描，却将 Agenda 和 stop plan 的 `active` 误读为尚未处理，等待不存在的 `stopped/processed` 状态。按 ER-FR-7 的既有语义补清 Manager AGENTS 与 meeting-facilitation Skill：停止计划不改变控制状态，收到独立通知后在该 turn 决定继续、等待合法用户处置或正常结束，不等待第二次通知。同步 Manager 身份资源指纹；不新增状态或自动终止逻辑。
+
+Executed Validation：增强既有停止后续流程 case，确认计划和议题仍 active、lifecycle 保持 running 时可正常以 partial 结束；该既有领域行为直接通过，不宣称观察到确定性代码的 RED。停止后续流程及通知投递 2 文件/22 测试 PASS；七角色资源及指纹校验、受影响测试 ESLint 和格式检查 PASS。人工恢复通过原 Manager Session 的用户消息补充语义，Manager 重新读取原会议并调用 `convivium_end_meeting`，原会议从 version 32 推进到 version 38，outcome=partial、lifecycle=archived；未直接改写数据库或冻结资源。源码构建、打包和固定人工环境 dev-refresh 安装通过，Host 已重启；新 release 的 Manager 指纹与源码一致。重启后的 Browser 重新打开原会议，显示「已归档」、version 38 与「部分完成」。
+
+Not Covered / Closure：人工恢复证明该次澄清后能够收口，不等于新打包指令在全新会议中无需干预即可稳定收敛；未做多次模型对照或完整套件复跑。旧会议保持其原有角色绑定，不以源码刷新覆盖冻结资源。
+
 ### 2026-10-13：退役历史轮次补证与送达后响应
 
 Scope / Validated Contract：工作分支 `codex/domain-dead-code-boundary` 的 `6daa47ec`、`0bfe6346`。每个 EvidencePackage 只登记一份 EvidenceVersion；观点摘要在首次提交时形成，审核送达后关闭 Contribution，不再进入等待回应、同轮补证或响应超时分支。移除对应 Domain transition、命令/事件/持久格式字段、deadline 与 notice 分支、测试及 Client 历史观点原文回退。Round 的受邀名单与参与响应改为当前必填字段；不兼容旧持久数据，不另设历史输入识别或迁移路径。新证据通过后续 Round 的独立 Contribution 与 EvidencePackage 表达。
