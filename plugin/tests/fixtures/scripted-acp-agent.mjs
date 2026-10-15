@@ -63,10 +63,13 @@ for await (const line of createInterface({ input: process.stdin })) {
             join(process.env.CODEX_HOME, "scripted-rpc.jsonl"),
             JSON.stringify({
                 method: message.method,
-                sessionId: message.params?.sessionId ?? null
+                sessionId: message.params?.sessionId ?? null,
+                mcpCount: message.params?.mcpServers?.length ?? null
             }) + "\n"
         );
     }
+    const faultPath = provider ? join(process.env.CODEX_HOME, "scripted-fault") : undefined;
+    const fault = faultPath && existsSync(faultPath) ? readFileSync(faultPath, "utf8") : undefined;
     if (message.method === "initialize") {
         if (mode === "hang") {
             continue;
@@ -94,6 +97,10 @@ for await (const line of createInterface({ input: process.stdin })) {
         endpoints.set(sessionId, message.params.mcpServers[0]);
         write({ id: message.id, result: { sessionId, configOptions: configurations() } });
     } else if (message.method === "session/load") {
+        if (fault === "load-fail") {
+            write({ id: message.id, error: { code: -32602, message: "scripted load failure" } });
+            continue;
+        }
         if (!sessions.has(message.params.sessionId)) {
             write({ id: message.id, error: { code: -32602, message: "unknown session" } });
             continue;
@@ -119,7 +126,10 @@ for await (const line of createInterface({ input: process.stdin })) {
     } else if (message.method === "session/set_config_option") {
         write({ id: message.id, result: { configOptions: configurations() } });
     } else if (message.method === "session/prompt") {
-        if (mode === "pending") {
+        if (fault === "kill-after-prompt") {
+            process.exit(3);
+        }
+        if (mode === "pending" || fault === "pending") {
             active = message;
             continue;
         }

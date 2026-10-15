@@ -96,7 +96,8 @@ interface Lease {
     bridge: CodexToolBridge;
     connection: CodexAcpConnection;
     buffer?: { requestId: string; text: string };
-    active?: { done: Promise<void>; release: () => void };
+    active?: { done: Promise<void>; release: () => void; cancel: () => void };
+    closing?: Promise<void>;
 }
 
 export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort {
@@ -798,12 +799,7 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         this.checkpoints.set(sessionId, next);
         return next;
     };
-    reconcileSession = async (sessionId: string, signal: AbortSignal): Promise<void> => {
-        this.usable();
-        const binding = this.store.binding(sessionId);
-        if (!binding) {
-            throw error("ACP_CODEX_RECOVERY_REQUIRED", "Missing ACP recovery binding");
-        }
+    private reconcileRequests = async (sessionId: string, signal: AbortSignal): Promise<void> => {
         await this.checkpoint(sessionId, signal);
         const pending = this.store
             .requests(sessionId)
@@ -816,20 +812,58 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
                     : "ACP_CODEX_RECOVERY_REQUIRED"
             );
         }
+        const requests = this.store.requests(sessionId);
+        const ids = new Set(requests.flatMap((request) => [...request.inputMessageIds]));
+        const events = await this.read(sessionId, signal);
+        const missing = events.some((event) => {
+            if (event.type === "user/message") {
+                return !ids.has(event.data.id);
+            }
+            if (
+                event.type === "request/header" &&
+                event.data.header.config.provider === "acp-codex" &&
+                !requests.length
+            ) {
+                return true;
+            }
+            if (
+                event.type !== "assistant/message" ||
+                event.data.message.source.kind !== "model" ||
+                event.data.message.source.provider !== "acp-codex"
+            ) {
+                return false;
+            }
+            const replay = event.data.message.source.replayState;
+            const response = isObject(replay) ? replay.response : undefined;
+            if (!isObject(response) || !isObject(response.conviviumAcp)) {
+                return true;
+            }
+            const receiptId = response.conviviumAcp.requestId;
+            return !requests.some((request) => request.requestId === receiptId);
+        });
+        if (missing) {
+            await this.block(sessionId, "ACP_CODEX_RECOVERY_REQUIRED");
+            throw error(
+                this.blockFor(sessionId)?.code ?? "ACP_CODEX_RECOVERY_REQUIRED",
+                "Consumed DSH input or receipt lacks an ACP request record"
+            );
+        }
+    };
+    reconcileSession = async (sessionId: string, signal: AbortSignal): Promise<void> => {
+        this.usable();
+        const binding = this.store.binding(sessionId);
+        if (!binding) {
+            throw error("ACP_CODEX_RECOVERY_REQUIRED", "Missing ACP recovery binding");
+        }
+        await this.reconcileRequests(sessionId, signal);
         for (const delivery of this.store.deliveries(sessionId)) {
             if (delivery.state !== "completed") {
                 await this.finishDelivery(sessionId, delivery.deliveryId, signal);
             }
         }
         for (const child of this.store.bindings()) {
-            if (
-                child.rootSessionId === binding.rootSessionId &&
-                child.sessionId !== sessionId &&
-                this.store
-                    .requests(child.sessionId)
-                    .some((request) => request.phase !== "committed")
-            ) {
-                await this.block(child.sessionId, "ACP_CODEX_OUTCOME_UNKNOWN");
+            if (child.rootSessionId === binding.rootSessionId && child.sessionId !== sessionId) {
+                await this.reconcileRequests(child.sessionId, signal);
             }
         }
         const blocked = this.blockFor(sessionId);
@@ -857,7 +891,7 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         const done = new Promise<void>((resolve) => {
             release = resolve;
         });
-        lease.active = { done, release };
+        lease.active = { done, release, cancel: () => deadline.abort() };
         let sent = false;
         let deliveredFinish = false;
         let callSignal: AbortSignal | undefined;
@@ -1129,7 +1163,7 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         ) {
             await this.block(sessionId, "ACP_CODEX_RECOVERY_REQUIRED");
             throw error(
-                "ACP_CODEX_RECOVERY_REQUIRED",
+                this.blockFor(sessionId)?.code ?? "ACP_CODEX_RECOVERY_REQUIRED",
                 "Original delivery turn is not durably complete"
             );
         }
@@ -1147,38 +1181,39 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
             this.listeners.delete(listener);
         };
     };
-    private stopLease = async (sessionId: string, lease: Lease) => {
-        lease.bridge.setRequest(undefined);
-        const active = lease.active;
-        const failures: unknown[] = [];
-        if (active) {
-            const binding = this.store.binding(sessionId);
-            if (binding?.acpSessionId) {
-                try {
-                    await lease.connection.client.cancel({ sessionId: binding.acpSessionId });
-                } catch (cause) {
-                    failures.push(cause);
+    private stopLease = (sessionId: string, lease: Lease): Promise<void> => {
+        if (lease.closing) {
+            return lease.closing;
+        }
+        lease.closing = (async () => {
+            const active = lease.active;
+            // The active request owns cancellation. Its bridge remains live until its
+            // finally block has cleared the request and released the settlement latch.
+            if (active) {
+                active.cancel();
+                await active.done;
+            }
+            lease.bridge.setRequest(undefined);
+            lease.lifetime.abort();
+            const failures: unknown[] = [];
+            for (const result of await Promise.allSettled([
+                lease.bridge.close(),
+                lease.connection.close()
+            ])) {
+                if (result.status === "rejected") {
+                    failures.push(result.reason);
                 }
             }
-        }
-        lease.lifetime.abort();
-        for (const result of await Promise.allSettled([
-            lease.bridge.close(),
-            lease.connection.close()
-        ])) {
-            if (result.status === "rejected") {
-                failures.push(result.reason);
+            if (failures.length) {
+                throw new AggregateError(failures, "ACP Session did not drain");
             }
-        }
-        await active?.done;
-        if (failures.length) {
-            throw new AggregateError(failures, "ACP Session did not drain");
-        }
-        this.leases.delete(sessionId);
-        const binding = this.store.binding(sessionId);
-        if (binding) {
-            this.diagnostic(binding, "closed");
-        }
+            this.leases.delete(sessionId);
+            const binding = this.store.binding(sessionId);
+            if (binding) {
+                this.diagnostic(binding, "closed");
+            }
+        })();
+        return lease.closing;
     };
     stopSession = async (sessionId: string): Promise<void> => {
         const descendants = new Set([sessionId]);
