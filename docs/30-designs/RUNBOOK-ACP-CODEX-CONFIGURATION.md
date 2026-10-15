@@ -16,34 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C1：扩展 Definition 并固定原身份 hash
-
-前置状态：A3 PASS。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/role-composition/model.ts`
-- `plugin/src/role-composition/resolve.ts`
-- `plugin/tests/unit/role-composition/resolve.spec.ts`
-- `plugin/tests/fixtures/role-composition.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. Definition 新增 strict/冻结的完整 agentOptions；不在此步启用第二个 runtime 配置入口。
-2. definitionHash 显式枚举原十个身份字段（含 roleDefinitionId），只沿原 canonical/skill/toolFilter 排序；排除 agentOptions。固定旧 hash 由原基线生成并作为常量对比，不用新函数同时算 actual/expected。
-3. 先测缺字段/未知字段/hash 不变的行为；临时仍保留的旧消费入口由 C2 一次删除，不发布这个中间状态。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/role-composition/resolve.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：新 schema 与旧身份 hash 断言成立，已有消费者仍可编译；本步实际变更路径 2–10 个且均在清单内。
-STOP：将 agentOptions 混入身份 hash 或为过门禁修改原七角色资源；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C2：一次切换模型配置与所有消费者
 
 前置状态：C1 PASS。

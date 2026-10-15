@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { packagedDefinitionHashes } from "../../fixtures/role-composition.ts";
 import { describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.ts";
 import {
+    definitionHash,
     resolveMeetingRoles,
     resolveDynamicMeetingDefinition
 } from "@/role-composition/resolve.ts";
@@ -39,6 +42,64 @@ const resolve = (value: unknown) =>
     );
 
 describe("meeting role definitions", () => {
+    it("keeps all packaged identity hashes when execution defaults change", () => {
+        const input = JSON.parse(
+            readFileSync(new URL("../../../config/definitions.json", import.meta.url), "utf8")
+        ).definitions.filter((d: Record<string, string>) =>
+            Object.hasOwn(packagedDefinitionHashes, d.agentDefinitionId)
+        );
+        const original = parseAgentDefinitions(input);
+        expect(original).toHaveLength(7);
+        for (const d of original) {
+            expect(definitionHash(d)).toBe(packagedDefinitionHashes[d.agentDefinitionId]);
+        }
+        const selected = parseAgentDefinitions(
+            input.map((d: Record<string, unknown>) => ({
+                ...d,
+                agentOptions: {
+                    provider: "acp-codex",
+                    model: "codex-model",
+                    reasoningEffort: "high"
+                }
+            }))
+        );
+        for (const d of selected) {
+            expect(definitionHash(d)).toBe(packagedDefinitionHashes[d.agentDefinitionId]);
+        }
+    });
+    it("snapshots a trimmed complete execution selection without inheriting fields", () => {
+        const input = {
+            provider: " acp-codex ",
+            model: " codex-model ",
+            reasoningEffort: " high "
+        };
+        const [d] = parseAgentDefinitions([{ ...participant, agentOptions: input }]);
+        input.model = "changed";
+        expect(d.agentOptions).toEqual({
+            provider: "acp-codex",
+            model: "codex-model",
+            reasoningEffort: "high"
+        });
+        expect(Object.isFrozen(d.agentOptions)).toBe(true);
+        const [withoutReasoning] = parseAgentDefinitions([
+            { ...participant, agentOptions: { provider: "host", model: "model" } }
+        ]);
+        expect(withoutReasoning.agentOptions).not.toHaveProperty("reasoningEffort");
+    });
+    it.each([
+        {},
+        { provider: "host" },
+        { model: "model" },
+        { provider: " ", model: "model" },
+        { provider: "host", model: " " },
+        { provider: "host", model: "model", reasoningEffort: " " },
+        { provider: "host", model: "model", env: {} },
+        { provider: "host", model: "model", maxTokens: 1 }
+    ])("rejects incomplete or unsupported execution selection: %j", (agentOptions) => {
+        expect(() => parseAgentDefinitions([{ ...participant, agentOptions }])).toThrow(
+            "Invalid meeting agent definitions."
+        );
+    });
     it("accepts explicit identity references and snapshots the role without inline persona", async () => {
         const input = structuredClone(participant);
         const result = await resolve([input]);

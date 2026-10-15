@@ -68,7 +68,14 @@ export const resolveDynamicMeetingDefinition = (
 export const definitionHash = (d: MeetingAgentDefinition): string =>
     sha256Hex(
         encodeCanonicalJson({
-            ...d,
+            agentDefinitionId: d.agentDefinitionId,
+            roleDefinitionId: d.roleDefinitionId,
+            displayName: d.displayName,
+            summary: d.summary,
+            agentInstructions: d.agentInstructions,
+            dshPresetId: d.dshPresetId,
+            expertiseTags: d.expertiseTags,
+            evidenceScopes: d.evidenceScopes,
             requiredSkillNames: [...d.requiredSkillNames].sort(),
             ...(d.toolFilter === undefined
                 ? {}
