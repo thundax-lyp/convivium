@@ -918,6 +918,12 @@ interface ManagerCatalogView {
   }>;
 }
 interface MeetingView {
+  executionBlocks?: readonly {
+    identityId: string;
+    code: "ACP_CODEX_OUTCOME_UNKNOWN" | "ACP_CODEX_RECOVERY_REQUIRED";
+    since: number;
+    allowedActions: readonly ["pause_meeting", "end_meeting"];
+  }[];
   meetingId: OpaqueId;
   version: number;
   objective: ObjectiveView;
@@ -1258,3 +1264,9 @@ Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` �
 - [Meeting Design](../30-designs/MEETING-DESIGN.md)
 - [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [DSH Role Interface](./DSH-ROLE-INTERFACE.md)
+
+## ACP Execution Diagnostics
+
+`MeetingView.executionBlocks` 为可选技术诊断，由 Runtime 将 provider 技术记录与当前 Meeting ownership 关联生成；空时省略，按 identityId 排序。仅公开该读取入口有权查看的身份、稳定 code、安全非负整数毫秒 since 和固定 allowedActions，不暴露 Session ID、模型、路径、凭据或隐藏推理。不是领域状态或权限授予，不增加 Meeting version、领域事件、receipt 或 Archive 事实。精确技术状态见 [ACP Execution Interface](./DSH-ACP-EXECUTION-INTERFACE.md)。
+
+provider 持久阻断后通知 Runtime 的 refreshListeners，用当前 committedVersion 发刷新；Client 即使 version 相同也重新读取技术诊断。提示受影响身份、已停止自动执行以及可暂停/异常结束；复用现有 Captain 控制，仍按真实 caller/lifecycle 校验，不自动暂停、不增加清锁动作，resume 不解除阻断。原生非 ACP 路径保持原行为。
