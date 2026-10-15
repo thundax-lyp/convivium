@@ -14,34 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P2：实现 Session MCP 工具桥
-
-前置状态：P1 PASS。
-允许修改（5 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/dsh/acp-codex/tool-bridge.ts`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/dsh/acp-codex/index.ts`
-- `plugin/tests/integration/dsh/acp-codex-tool-bridge.spec.ts`
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 按 MCP 合同建立 Session HTTP lease；Bearer/Origin/Host/大小校验早于SDK；只暴露交集schemas，调用重新检查，真实ToolRuntime执行。
-2. 验 tools/result 捕获structured_output；同RPC去重、异参数拒绝、additionalContexts原ID经DSH队列恰一次、concludesTurn后无额外副作用；两个Session互不阻塞、token跨Session拒绝、scope撤销后旧连接拒绝、取消后drain。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-tool-bridge.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：真实MCP→ToolRuntime→tools/result/caller成立，context不丢、RPC不双执行、旧token/撤权拒绝；本步实际变更路径 2–10 个且均在清单内。
-STOP：需要伪造caller、解析模型JSON或绕过工具pipeline；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### P3：实现 provider 技术存储合同
 
 前置状态：P2 PASS。
