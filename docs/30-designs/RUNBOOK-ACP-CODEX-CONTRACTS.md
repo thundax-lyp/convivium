@@ -223,33 +223,6 @@ dispatchers 固定顺序：重读正式事实，已有合法 Review/Evidence 按
 
 ## Mechanical Steps
 
-### A2：迁移跨边界契约
-
-前置状态：A1 PASS。
-允许修改（3 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `docs/20-interfaces/DSH-ROLE-INTERFACE.md`
-- `docs/20-interfaces/MEETING-INTERFACE.md`
-- `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. DSH Role Interface 写入完整 Definition.agentOptions、解析后 reasoning、排除模型的身份 hash、不可变准入快照、五分钟 descriptor 和 active 恢复区别。
-2. 新建 ACP interface，迁入 Migration Input 的 Host/公开 API、精确签名、三表与写序、MCP/stream、receipt、错误/重放、stop 子树和进程内诊断事件；producer/consumer/可选字段/时间/ID 均保留，不简化成概念说明。
-3. Meeting Interface 只加入 executionBlocks DTO 和技术状态不增加领域 version 的语义；不增控制动作或领域状态。
-
-验证：
-
-```bash
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：所有字段和分支逐项有唯一正式落点，新 interface 存在且可作为后续编码依据；本步实际变更路径 2–10 个且均在清单内。
-STOP：遗漏公开消费签名、未知/真实 deadline 区分或引入跨表原子性假设；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### A3：迁入稳定设计并删除草稿
 
 前置状态：A2 PASS；逐段覆盖表已完成。
