@@ -2,14 +2,14 @@
 
 ## Status And Execution Entry
 
-2026-10-15；Execute；契约迁移 A1–A3 已通过，下一入口为 C1。本次仅迁移正式文档，未改产品代码、安装依赖或调用模型。产品基线 `d96ae903c440dadec5b6785c02e78db87ba7106f` / DSH 0.2.0-rc.2；执行分支 `codex/acp-codex-reviewer-web-analyzer`。产品基线 verify 已通过；不代表 ACP 实现或真实专项通过。
+2026-10-15；Execute；契约迁移 A1–A3 与配置角色 C1–C7 已通过，下一入口为 P1。执行分支 `codex/acp-configuration-roles`，仅使用普通分支，不创建 worktree。正式文档与配置/角色代码共同交付；未安装官方 bridge 或调用真实模型。全量插件 verify 已通过，不代表 ACP provider 或真实专项完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |
 | ---- | ------------------------------------------------------ | ---------------------------- | -------------------------------------- |
 | A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | 已迁移 / 无剩余任务          | 正式依据齐备，完整迁移后删除草稿       |
-| C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | C1–C7 / 4、10、2、4、7、7、7 | Definition/快照/八角色资源聚焦验证通过 |
+| C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | 已实现 / 无剩余任务 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
 | D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | D1–D5 / 4、5、4、9、8        | 身份/投递/审核/可见阻断通过            |
 | E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 2、7、9              | 官方预检、真实专项、完整门禁、删除六册 |
@@ -73,4 +73,4 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 阶段完成只交接下一册，不单独删除RUNBOOK。全局完成须所有scope与固定验证集合齐全、正式长期来源无遗漏、Not Covered准确；E3一次删除六册并做删除后检查，失败恢复。真实外部运行适用；跨用户/发布/物理介质迁移/UI重设计Not Applicable，其它OS、生产Catalog和长会话压缩Not Covered。
 
-本次 A1–A3 仅完成文档契约迁移：基线 verify、各步本地文档链接和 git diff --check 已通过，任务逐项删除并单独提交。草稿不存在，临时 Migration Input 已移除。正式设计明确未实现/未运行边界；后续 C/P/D/E 全部尚未执行。未安装官方 bridge、未执行真实 Codex/互联网专项；Executable 只代表计划决策完备。
+A1–A3 完成文档契约迁移：基线 verify、各步本地文档链接和 git diff --check 已通过，任务逐项删除并单独提交。草稿不存在，临时 Migration Input 已移除。正式设计明确未实现/未运行边界；C1–C7 已实现且任务段落已删除，后续 P/D/E 尚未执行。未安装官方 bridge、未执行真实 Codex/互联网专项；C 册聚焦 118 项测试及完整 verify（95 文件、809 项测试）通过；P/D/E 的 Executable 只代表计划决策完备。

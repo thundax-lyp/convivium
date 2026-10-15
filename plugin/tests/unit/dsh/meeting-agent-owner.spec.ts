@@ -79,7 +79,7 @@ const fixture = async () => {
         return handle;
     };
     const ctx = {
-        llm: { resolveCallConfig: async (config) => config },
+        llm: { resolveCallConfig: async (config) => config, resolveModelInfo: async () => ({}) },
         agentPresets: {
             acquireScope: async () => ({ key: {}, [Symbol.asyncDispose]: async () => {} }),
             mount: vi.fn(async () => {})
