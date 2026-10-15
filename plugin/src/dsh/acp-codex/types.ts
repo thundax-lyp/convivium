@@ -79,3 +79,37 @@ export interface CodexAcpStore {
     putDelivery(record: CodexAcpDelivery): Promise<void>;
     close(): Promise<void>;
 }
+
+export interface CodexAcpProviderPort {
+    prepareSession(
+        agent: import("@deepseek-ai/dsh-agent").Agent,
+        purpose: "provisioning" | "delivery" | "cleanup",
+        signal: AbortSignal
+    ): Promise<void>;
+    reconcileSession(sessionId: string, signal: AbortSignal): Promise<void>;
+    deliveryState(
+        sessionId: string,
+        deliveryId: string
+    ): "unseen" | "pending" | "completed" | "blocked";
+    beginDelivery(input: { sessionId: string; deliveryId: string; text: string }): Promise<void>;
+    markDeliveryQueued(sessionId: string, deliveryId: string): Promise<void>;
+    finishDelivery(sessionId: string, deliveryId: string, signal: AbortSignal): Promise<void>;
+    checkpoint(sessionId: string, signal: AbortSignal): Promise<void>;
+    blockFor(sessionId: string): CodexAcpBlock | undefined;
+    subscribeBlocks(listener: (rootSessionId: string) => void): () => void;
+    stopSession(sessionId: string): Promise<void>;
+    close(): Promise<void>;
+}
+
+declare module "@deepseek-ai/cordis" {
+    interface Events {
+        "convivium/acp-checkpoint"(payload: {
+            sessionId: string;
+            rootSessionId: string;
+            phase: "bound" | "loaded" | "committed" | "delivery-completed" | "closed";
+            bindingSha256: string;
+            requestId?: string;
+            deliveryId?: string;
+        }): void;
+    }
+}

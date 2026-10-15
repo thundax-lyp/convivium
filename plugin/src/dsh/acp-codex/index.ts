@@ -1,1 +1,2 @@
-export type { CodexAcpConfig, CodexAcpConnection } from "./types.ts";
+export { createCodexAcpProvider } from "./provider.ts";
+export type { CodexAcpProviderPort, CodexAcpConfig, CodexAcpBlock } from "./types.ts";

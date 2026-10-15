@@ -14,40 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P4：实现 provider 正常调用与持久 checkpoint
-
-前置状态：P3b PASS。
-允许修改（9 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/dsh/acp-codex/provider.ts`
-- `plugin/src/dsh/acp-codex/compaction.ts`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/dsh/acp-codex/connection.ts`
-- `plugin/src/dsh/acp-codex/prompt.ts`
-- `plugin/src/dsh/acp-codex/tool-bridge.ts`
-- `plugin/src/dsh/acp-codex/index.ts`
-- `plugin/tests/integration/dsh/acp-codex-provider.spec.ts`
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. createCodexAcpProvider/CodexAcpProvider 实现正式公开port、精确目录/prepareCall/stream、每Session串行、生命周期MCP lease；先写sending再prompt，responded/原生receipt/flush/committed顺序不能反转。
-2. 以 SessionPersistence read handle核对receipt；进程内checkpoint只在持久写之后发脱敏事件。默认model/reasoning来自官方configOptions；不虚构usage，不泄露thought/native工具权限。
-3. 正常无未决记录时load原acpSessionId并重建lease，hydration不执行工具、不newSession兜底；通过 agentPresets.serviceFor 核对已装配的 CodexCompactionBoundary（不再注册 Service）、实现辅助请求拒绝和关闭子树。
-4. 对外只有符合全部门禁的正常路径可用；初始错误路径先统一保守block，无自动重发。P5用故障注入证明各crash分支。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-provider.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：持久屏障前prompt=0；正常同绑定load、真实caller、receipt/finish/关闭成立，非ACP压缩不变；本步实际变更路径 2–10 个且均在清单内。
-STOP：用临时stream当持久证据、自动retry或依赖第三方sidecar；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### P5：验证未知阻断和跨进程故障边界
 
 前置状态：P4 PASS。

@@ -9,7 +9,8 @@ import {
     type NewSessionRequest,
     type LoadSessionRequest,
     type SetSessionConfigOptionRequest,
-    type PromptRequest
+    type PromptRequest,
+    type CancelNotification
 } from "@agentclientprotocol/sdk";
 import { LlmError } from "@deepseek-ai/dsh-llm";
 import pkg from "@convivium/dsh-plugin/package.json" with { type: "json" };
@@ -130,6 +131,8 @@ export const openCodexAcpConnection = async (
             this.timed(() => super.setSessionConfigOption(params), 30000);
         override prompt = (params: PromptRequest) =>
             this.timed(() => super.prompt(params), 120000, "ACP_CODEX_OUTCOME_UNKNOWN");
+        override cancel = (params: CancelNotification) =>
+            this.timed(() => super.cancel(params), 30000, "ACP_CODEX_OUTCOME_UNKNOWN");
     }
     const client = new CodexClient(
         () => ({
