@@ -296,19 +296,3 @@ Client 先生成展示块和左右位置，再渲染：未归属事件直接输�
 时间线配色使用 DSH 语义 token：事件卡片以 bg-layer-1 为底，关键事件叠加 interactive-bg-hover 并使用 border-l3，异常事件使用 state-warn-primary 边框；查看链接与键盘焦点使用 link，姓名/正文使用 label-primary，时间使用 label-tertiary。头像保留已确认的品牌插画配色。
 
 角色头像的 SVG 视口收紧到彩色圆底内（394×394），圆形容器裁切后不露出母版的米白外背景，浅色和深色主题共用同一头像。
-
-## Codex Provider Composition
-
-本节为待实现设计。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
-
-`plugin/src/plugin-entry.ts::apply/meetingConsumerPlugin` 在 acpCodex 缺省时保持现有组合，不注册新 route、探测或进程。启用时通过显式 ctx.inject 取得原 meetingServices、subprocess 与 storageDomain，先 createCodexAcpProvider 打开技术 domain 并注册 LlmAdapter，再调用 `activateTargetMeetingApplication`。缺服务、路由冲突或创建失败拒绝本次启动。保持会议工具先注册、owner/Session 再恢复的现有顺序。
-
-`plugin/src/dsh/acp-codex/` 负责 connection/process、prompt、MCP bridge、store、provider 和 compaction；不执行 Meeting command。provider factory 统一持有 route/domain/连接生命周期。`plugin/src/runtime/meeting-lifecycle.ts::activateTargetMeetingApplication` 显式把可选 CodexAcpProviderPort 传给 owner、review dispatcher、notice dispatcher、review tool 和 read projection，不读取 ctx.acpRecovery 等虚构服务。不新增顶层工程、通用 adapter registry、installer 或跨表事务。Host 安装并登录 bridge，发行包不内置它。
-
-关闭先拒绝新的会议投递并停止 owner，再 provider.close：禁止新请求，取消并 drain 所有 MCP/进程，关闭技术 domain 并注销 route。route 关闭不删除 binding/request/delivery 历史；cleanup 失败保留现有 archiving 语义，不关闭其它会议或用户输入 Session。启动配置 reload 走插件重新装载，核对旧 launchFingerprint，不能热改已绑定会话。
-
-Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView executionBlocks](../20-interfaces/MEETING-INTERFACE.md#acp-execution-diagnostics)。subscribeBlocks 在持久阻断后触发 refreshListeners，以当前 committedVersion 通知；Client 同版本也重读。`plugin/src/client/meeting/panel.tsx::ConviviumMeetingPanel` 详情显示本地化 role=alert，说明身份、停止自动执行及现有暂停/异常结束操作。DTO 只含安全字段，不把模型、路径、凭据或原 ACP ID 发到远端/归档；不写领域 version/event、不自动暂停、不增清锁 UI。
-
-## ACP 实施与验证边界
-
-本次只合并设计，尚未安装 ACP SDK/bridge、实现上述模块或执行真实专项。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
