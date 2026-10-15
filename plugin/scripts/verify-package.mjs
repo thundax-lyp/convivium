@@ -32,6 +32,8 @@ const clientBundle = readText("lib/client.js");
 const files = Array.isArray(manifest?.files) ? manifest.files : [];
 const requiredArtifacts = [
     "lib/index.js",
+    "lib/acp-compaction.js",
+    "lib/types/dsh/acp-codex/compaction.d.ts",
     "lib/types/index.d.ts",
     "lib/client.js",
     "lib/types/client/index.d.ts",
@@ -66,6 +68,10 @@ const expectedExports = {
     "./remote-types": {
         types: "./lib/types/remote/types.d.ts",
         default: "./lib/remote/types.js"
+    },
+    "./acp-compaction": {
+        types: "./lib/types/dsh/acp-codex/compaction.d.ts",
+        default: "./lib/acp-compaction.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",

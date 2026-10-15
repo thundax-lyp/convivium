@@ -31,6 +31,10 @@
             "types": "./lib/types/remote/types.d.ts",
             "default": "./lib/remote/types.js"
         },
+        "./acp-compaction": {
+            "types": "./lib/types/dsh/acp-codex/compaction.d.ts",
+            "default": "./lib/acp-compaction.js"
+        },
         "./cordis.patch.yml": "./cordis.patch.yml",
         "./package.json": "./package.json",
         "./config/cordis.patch.yml": "./config/cordis.patch.yml"
@@ -107,7 +111,10 @@
         "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
         "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
         "react": "^18.0.0",
-        "react-dom": "^18.0.0"
+        "react-dom": "^18.0.0",
+        "@deepseek-ai/dsh-subprocess": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-compaction-basic": "0.2.0-rc.2"
     },
     "peerDependenciesMeta": {
         "@deepseek-ai/dsh-api-gateway": {
@@ -175,6 +182,15 @@
         },
         "@deepseek-ai/dsh-agent-default-model": {
             "optional": true
+        },
+        "@deepseek-ai/dsh-subprocess": {
+            "optional": true
+        },
+        "@deepseek-ai/dsh-compaction": {
+            "optional": true
+        },
+        "@deepseek-ai/dsh-compaction-basic": {
+            "optional": true
         }
     },
     "dependencies": {
@@ -203,7 +219,9 @@
         "shiki": "^4.3.1",
         "simple-icons": "16.31.0",
         "zod": "^4.4.3",
-        "zustand": "~4.4.7"
+        "zustand": "~4.4.7",
+        "@agentclientprotocol/sdk": "1.5.1",
+        "@modelcontextprotocol/sdk": "1.26.0"
     },
     "devDependencies": {
         "@deepseek-ai/cordis": "4.0.4",
@@ -269,7 +287,18 @@
         "typescript": "6.0.3",
         "typescript-eslint": "8.62.0",
         "vitest": "4.1.8",
-        "ws": "8.18.3"
+        "ws": "8.18.3",
+        "@deepseek-ai/dsh-subprocess": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-subprocess-local": "0.2.0-rc.2",
+        "@agentclientprotocol/codex-acp": "1.11.0",
+        "@openai/codex": "0.161.0",
+        "@deepseek-ai/dsh-compaction-basic": "0.2.0-rc.2"
     },
-    "packageManager": "pnpm@10.7.0"
+    "packageManager": "pnpm@10.7.0",
+    "pnpm": {
+        "overrides": {
+            "@agentclientprotocol/codex-acp>@openai/codex": "0.161.0"
+        }
+    }
 }
