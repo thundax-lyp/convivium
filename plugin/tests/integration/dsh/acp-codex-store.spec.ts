@@ -97,14 +97,12 @@ describe("Codex ACP technical Storage Domain", () => {
         const f = await fixture();
         const store = await openCodexAcpStore(f.ctx);
         await store.close();
-        const raw = await f.ctx.storage.backend
-            .get("sqlite")
-            .kv.open({
-                name: "convivium_acp_codex",
-                version: 1,
-                tables: ["bindings", "requests", "deliveries"],
-                hasGlobal: false
-            });
+        const raw = await f.ctx.storage.backend.get("sqlite").kv.open({
+            name: "convivium_acp_codex",
+            version: 1,
+            tables: ["bindings", "requests", "deliveries"],
+            hasGlobal: false
+        });
         await raw.putRecord("bindings", "damaged", { invalid: true });
         await raw.close();
         await expect(openCodexAcpStore(f.ctx)).rejects.toMatchObject({ code: "invalid-record" });
