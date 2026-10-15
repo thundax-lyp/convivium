@@ -65,6 +65,15 @@
             name: '@deepseek-ai/cordis-plugin-include'
             config:
               path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-verification-reviewer/agent.cordis.yml
+    - id: preset-convivium-web-research-analyst
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: convivium-web-research-analyst
+        plugins:
+          - id: composition
+            name: '@deepseek-ai/cordis-plugin-include'
+            config:
+              path: ./node_modules/@convivium/dsh-plugin/config/presets/convivium-web-research-analyst/agent.cordis.yml
 - id: convivium
   config:
     provider: spawn

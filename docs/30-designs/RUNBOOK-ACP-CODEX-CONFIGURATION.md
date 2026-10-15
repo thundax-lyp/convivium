@@ -16,38 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C6：原子发布八角色集合及 preset
-
-前置状态：C5 PASS。
-允许修改（7 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/config/definitions.json`
-- `plugin/config/cordis.patch.yml`
-- `plugin/scripts/verify-agent-definition-samples.mjs`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/tests/unit/host-plugin-lifecycle.spec.ts`
-- `plugin/tests/contract/meeting-roles-target.spec.ts`
-- `plugin/tests/contract/meeting-roles-deployment.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. Definition 末尾添加 Web，requiredSkillNames/evidenceScopes=[web]，tags=[web-research,source-verification,information-analysis]；deny 集合沿 GitHub。AGENTS SHA256 由最终字节计算。
-2. patch 增第八 preset，lifecycle 的精确七角色长度/集合门禁改精确八，发行校验器按八角色/六能力及 optional strict agentOptions 检查。
-3. 同步部署/资源/Host 生命周期断言；此步不改发行默认初始两个 contributor，下一步一并修改创建入口。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-roles-target.spec.ts tests/contract/meeting-roles-deployment.spec.ts tests/unit/host-plugin-lifecycle.spec.ts
-pnpm --dir plugin verify:agent-definitions
-pnpm --dir plugin typecheck:host
-```
-
-PASS：发行、preset、Host 精确集合均为八，原资源 hash 不变；本步实际变更路径 2–10 个且均在清单内。
-STOP：放宽精确集合检查为任意角色，或用假 hash 通过；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C7：接入 Web 创建入口并完成配置阶段验证
 
 前置状态：C6 PASS。

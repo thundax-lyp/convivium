@@ -174,6 +174,32 @@
                 "roleDefinitionId": "arxiv_research_analyst",
                 "sha256": "d6f86605fa544cf822aad1f166a75dfdf6c7d3004811a5b59aba674fe0ca0e0a"
             }
+        },
+        {
+            "agentDefinitionId": "convivium.web_research_analyst",
+            "roleDefinitionId": "web_research_analyst",
+            "displayName": "WEB ANALYZER",
+            "summary": "搜索、读取并交叉核验公开互联网资料，区分事实、推断、时效与来源限制。",
+            "dshPresetId": "convivium-web-research-analyst",
+            "requiredSkillNames": ["web"],
+            "toolFilter": {
+                "deny": [
+                    "convivium_submit_manager_plan",
+                    "convivium_activate_agenda",
+                    "convivium_open_round",
+                    "convivium_dispose_hand_raise",
+                    "convivium_publish_round",
+                    "convivium_end_meeting",
+                    "convivium_run_review_worker",
+                    "convivium_recommend_identity"
+                ]
+            },
+            "expertiseTags": ["web-research", "source-verification", "information-analysis"],
+            "evidenceScopes": ["web"],
+            "agentInstructions": {
+                "roleDefinitionId": "web_research_analyst",
+                "sha256": "50f0e0e187f631db47d10dc13d5e20a730c35a94906781dbe9745774c727fef3"
+            }
         }
     ]
 }

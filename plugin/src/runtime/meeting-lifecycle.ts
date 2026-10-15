@@ -373,14 +373,15 @@ const assertTargetLifecycle = (config: Config, ctx: Pick<Context, "subagents">):
         "protocol_ui_engineer",
         "verification_reviewer",
         "github_research_analyst",
-        "arxiv_research_analyst"
+        "arxiv_research_analyst",
+        "web_research_analyst"
     ]);
     if (
-        definitions.length !== 7 ||
-        new Set(definitions.map((item) => item.roleDefinitionId)).size !== 7 ||
+        definitions.length !== 8 ||
+        new Set(definitions.map((item) => item.roleDefinitionId)).size !== 8 ||
         definitions.some((item) => !expected.has(item.roleDefinitionId))
     ) {
-        throw new Error("Convivium requires the exact seven packaged Meeting role definitions.");
+        throw new Error("Convivium requires the exact eight packaged Meeting role definitions.");
     }
 };
 

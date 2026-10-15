@@ -12,9 +12,10 @@ const expected = {
     protocol_ui_engineer: ["repository-analysis"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
-    arxiv_research_analyst: ["arxiv"]
+    arxiv_research_analyst: ["arxiv"],
+    web_research_analyst: ["web"]
 };
-it("binds seven packaged identities to isolated native Presets and capability directories", async () => {
+it("binds eight packaged identities to isolated native Presets and capability directories", async () => {
     const root = new URL("../../config/", import.meta.url);
     const definitions = parseAgentDefinitions(
         JSON.parse(await readFile(new URL("definitions.json", root), "utf8")).definitions

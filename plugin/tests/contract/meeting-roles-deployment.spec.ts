@@ -11,7 +11,7 @@ const deployed = JSON.parse(
     readFileSync(new URL("../../config/definitions.json", import.meta.url), "utf8")
 );
 
-it("publishes one Manager, one Evidence Reviewer and five Contributor definitions", () => {
+it("publishes one Manager, one Evidence Reviewer and six Contributor definitions", () => {
     const definitions = parseAgentDefinitions(deployed.definitions);
     expect(definitions.map(({ roleDefinitionId }) => roleDefinitionId)).toEqual([
         "meeting_manager",
@@ -20,7 +20,8 @@ it("publishes one Manager, one Evidence Reviewer and five Contributor definition
         "protocol_ui_engineer",
         "verification_reviewer",
         "github_research_analyst",
-        "arxiv_research_analyst"
+        "arxiv_research_analyst",
+        "web_research_analyst"
     ]);
 });
 
@@ -82,7 +83,8 @@ it("publishes only the current contribution tools for Manager", () => {
         "runtime_engineer",
         "protocol_ui_engineer",
         "github_research_analyst",
-        "arxiv_research_analyst"
+        "arxiv_research_analyst",
+        "web_research_analyst"
     ].map((role) =>
         readFileSync(new URL(`../../config/agents/${role}/AGENTS.md`, import.meta.url), "utf8")
     );

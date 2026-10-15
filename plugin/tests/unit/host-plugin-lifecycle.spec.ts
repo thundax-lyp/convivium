@@ -157,7 +157,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         }
     });
 
-    it("requires the exact seven packaged role definitions without resolving their capabilities", async () => {
+    it("requires the exact eight packaged role definitions without resolving their capabilities", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
@@ -165,9 +165,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         await expect(
             host("127.0.0.1", {
                 ...config,
-                agentDefinitions: roleResources.definitions.slice(0, 6)
+                agentDefinitions: roleResources.definitions.slice(0, 7)
             })
-        ).rejects.toThrow("exact seven packaged Meeting role definitions");
+        ).rejects.toThrow("exact eight packaged Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );
