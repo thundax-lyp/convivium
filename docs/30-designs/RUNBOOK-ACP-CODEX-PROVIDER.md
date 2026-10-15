@@ -14,9 +14,77 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
+### P3a：在 Preset 隔离组提供按 Agent 判断的压缩 backend
+
+前置状态：P3 PASS；已复现 Agent scope 不隔离 Service，同名安装冲突；正式接口已确认 Preset 装配修订。
+允许修改（7 个文件；含本册共 8 个）：
+
+- `plugin/package.json`
+- `plugin/pnpm-lock.yaml`
+- `plugin/tsdown.config.ts`
+- `plugin/scripts/verify-package.mjs`
+- `plugin/scripts/verify-plugin-contract.mjs`
+- `plugin/src/dsh/acp-codex/compaction.ts`（新增）
+- `plugin/tests/integration/dsh/acp-codex-compaction.spec.ts`（新增）
+
+禁止修改：不安装到人工环境，不修改第三方代码、全局 compaction、Agent.ctx 或隔离 map；不接入 provider。
+
+执行：
+
+1. package 增加 optional peer 与 dev `@deepseek-ai/dsh-compaction-basic:0.2.0-rc.2`，安装并冻结 lock；新增 subpath `./acp-compaction`，types 指向 `./lib/types/dsh/acp-codex/compaction.d.ts`，default 指向 `./lib/acp-compaction.js`；tsdown Node entry 增加 `acp-compaction:src/dsh/acp-codex/compaction.ts`。
+2. 按正式接口实现 CodexCompactionBoundary，保留默认导出供 Loader 使用；参数类型来自真实 BasicCompactionEngine 的方法，不强转 Agent。先写行为 RED：ACP root/worker 自动无写、显式两入口拒绝；非 ACP 原参数委派原 backend；在不同 Cordis compaction 隔离组装载不冲突，自动事件确实调用覆盖方法。
+3. 使用真实 DSH Agent loop 与隔离组测试，不以模拟 backend 替代 ACP 分支；非 ACP 委派允许 spy super 观察参数及结果。build 后 import 包 subpath，验证 Loader 能取得默认 class；同步 verify-package 的 exports/requiredArtifacts 和 verify-plugin-contract 的 subpath 闭集，只增加本入口，不放宽其它断言。
+
+验证：
+
+```bash
+pnpm --dir plugin install --frozen-lockfile
+pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-compaction.spec.ts
+pnpm --dir plugin typecheck:host
+pnpm --dir plugin build
+pnpm --dir plugin verify:package
+pnpm --dir plugin verify:contract
+pnpm lint
+```
+
+PASS：上述行为与打包验证通过；不重复注册根 compaction，不修改第三方实例；实际变更 2–10 文件且在清单内。
+STOP：默认 backend 自动 hook 不动态派发覆盖方法、需要访问私有字段或打包验证要求未列出的文件，报告证据，不绕过约束。
+
+### P3b：八个 Preset 接入同一压缩边界
+
+前置状态：P3a PASS。
+允许修改（9 个文件；含本册共 10 个）：
+
+- `plugin/config/presets/convivium-manager/agent.cordis.yml`
+- `plugin/config/presets/convivium-domain-architect/agent.cordis.yml`
+- `plugin/config/presets/convivium-runtime-engineer/agent.cordis.yml`
+- `plugin/config/presets/convivium-protocol-ui-engineer/agent.cordis.yml`
+- `plugin/config/presets/convivium-verification-reviewer/agent.cordis.yml`
+- `plugin/config/presets/convivium-github-research-analyst/agent.cordis.yml`
+- `plugin/config/presets/convivium-arxiv-research-analyst/agent.cordis.yml`
+- `plugin/config/presets/convivium-web-research-analyst/agent.cordis.yml`
+- `plugin/tests/contract/meeting-roles-target.spec.ts`
+
+禁止修改：不改 Definition、工具权限、Skill、toolResultPruner 或其它 Preset 参数。
+
+执行：
+
+1. 八个 Preset 仅把 compaction-basic 行的 name 换成 `@convivium/dsh-plugin/acp-compaction`；原 id、隔离组和其它配置不变。
+2. 增强已有 roles target contract，解析每个真实 YAML，断言 backend name、唯一性及 compaction/toolResultPruner 隔离；root/worker 行为由 P3a 证明，实际 spawn 继承与 provider.serviceFor 核查由 P4/D4 组合验证。
+
+验证：
+
+```bash
+pnpm --dir plugin exec vitest run tests/contract/meeting-roles-target.spec.ts tests/contract/meeting-roles-deployment.spec.ts tests/integration/dsh/acp-codex-compaction.spec.ts
+pnpm --dir plugin verify:agent-definitions
+```
+
+PASS：八个 Preset 均使用独立隔离组内唯一 backend，原角色资源契约和行为测试通过；实际 2–10 文件且在清单内。
+STOP：需要修改角色模型、权限或其它资源，以及超出文件预算时立即停止。
+
 ### P4：实现 provider 正常调用与持久 checkpoint
 
-前置状态：P3 PASS。
+前置状态：P3b PASS。
 允许修改（9 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/src/dsh/acp-codex/provider.ts`
@@ -35,7 +103,7 @@
 
 1. createCodexAcpProvider/CodexAcpProvider 实现正式公开port、精确目录/prepareCall/stream、每Session串行、生命周期MCP lease；先写sending再prompt，responded/原生receipt/flush/committed顺序不能反转。
 2. 以 SessionPersistence read handle核对receipt；进程内checkpoint只在持久写之后发脱敏事件。默认model/reasoning来自官方configOptions；不虚构usage，不泄露thought/native工具权限。
-3. 正常无未决记录时load原acpSessionId并重建lease，hydration不执行工具、不newSession兜底；实现ACP scope专用compaction边界/辅助请求拒绝和关闭子树。
+3. 正常无未决记录时load原acpSessionId并重建lease，hydration不执行工具、不newSession兜底；通过 agentPresets.serviceFor 核对已装配的 CodexCompactionBoundary（不再注册 Service）、实现辅助请求拒绝和关闭子树。
 4. 对外只有符合全部门禁的正常路径可用；初始错误路径先统一保守block，无自动重发。P5用故障注入证明各crash分支。
 
 验证：
@@ -68,7 +136,7 @@ STOP：用临时stream当持久证据、自动retry或依赖第三方sidecar；�
 验证：
 
 ```bash
-pnpm --dir plugin exec vitest run tests/recovery/acp-codex.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/integration/dsh/acp-codex-store.spec.ts tests/integration/dsh/acp-codex-tool-bridge.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/unit/dsh/acp-codex-prompt.spec.ts
+pnpm --dir plugin exec vitest run tests/recovery/acp-codex.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/integration/dsh/acp-codex-store.spec.ts tests/integration/dsh/acp-codex-tool-bridge.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/integration/dsh/acp-codex-compaction.spec.ts
 pnpm --dir plugin lint
 pnpm --dir plugin typecheck:host
 ```
