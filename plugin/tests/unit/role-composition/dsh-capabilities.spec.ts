@@ -47,7 +47,10 @@ const fixture = async (role = "domain_architect") => {
         get: vi.fn(async (name: string) => (name === skill.name ? skill : undefined))
     };
     const ctx = {
-        llm: { resolveCallConfig: vi.fn(async (config) => config) },
+        llm: {
+            resolveCallConfig: vi.fn(async (config) => config),
+            resolveModelInfo: vi.fn(async () => ({ name: "model", provider: "host", id: "model" }))
+        },
         agentPresets: {
             acquireScope: vi.fn(async () => ({ key: scope, [Symbol.asyncDispose]: async () => {} }))
         },
@@ -73,6 +76,70 @@ const fixture = async (role = "domain_architect") => {
     return { input, skills, scope, path };
 };
 describe("role resource preflight", () => {
+    it("binds provider-resolved reasoning before fingerprinting and ignores later defaults", async () => {
+        const f = await fixture();
+        f.input.ctx.llm.resolveCallConfig.mockImplementation(async (config) => ({
+            ...config,
+            provider: "resolved",
+            model: "canonical",
+            reasoningEffort: "medium"
+        }));
+        const result = await preflightMeetingIdentity(f.input);
+        expect(result).toMatchObject({
+            kind: "ready",
+            descriptor: {
+                agentOptions: {
+                    provider: "resolved",
+                    model: "canonical",
+                    reasoningEffort: "medium"
+                }
+            }
+        });
+        if (result.kind !== "ready") {
+            throw new Error("preflight rejected");
+        }
+        expect(result.descriptor.resources).toEqual(
+            await resolveResourceBinding({
+                ...f.input,
+                agentOptions: {
+                    provider: "resolved",
+                    model: "canonical",
+                    reasoningEffort: "medium"
+                }
+            })
+        );
+        f.input.ctx.llm.resolveCallConfig.mockImplementation(async (config) => ({
+            ...config,
+            reasoningEffort: "low"
+        }));
+        expect(result.descriptor.agentOptions.reasoningEffort).toBe("medium");
+    });
+    it("rejects unresolved reasoning defaults but accepts explicit unsupported-control metadata", async () => {
+        const f = await fixture();
+        f.input.ctx.llm.resolveModelInfo.mockResolvedValue({
+            name: "model",
+            provider: "host",
+            id: "model",
+            reasoning: { efforts: [{ id: "high", label: "High" }] }
+        });
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({
+            kind: "rejected",
+            error: { code: "CAPABILITY_MISSING" }
+        });
+        f.input.ctx.llm.resolveModelInfo.mockRejectedValue(new Error("metadata unavailable"));
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({ kind: "rejected" });
+    });
+    it("rejects an illegal reasoning selection without creating a descriptor", async () => {
+        const f = await fixture();
+        f.input.ctx.llm.resolveCallConfig.mockRejectedValue(
+            new Error("UNSUPPORTED_REASONING_EFFORT")
+        );
+        expect(await preflightMeetingIdentity(f.input)).toMatchObject({
+            kind: "rejected",
+            error: { code: "CAPABILITY_MISSING" }
+        });
+        expect(f.input.ctx.agentPresets.acquireScope).not.toHaveBeenCalled();
+    });
     it("rejects an unavailable model route before preparing role scopes", async () => {
         const f = await fixture();
         f.input.ctx.llm.resolveCallConfig.mockRejectedValue(new Error("unavailable model"));

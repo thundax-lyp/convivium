@@ -14,6 +14,7 @@ import {
     type MeetingAgentDefinition,
     type PreparedDescriptor
 } from "./model.ts";
+import { resolveEffectiveAgentOptions } from "./model-options.ts";
 import { definitionHash } from "./resolve.ts";
 import { readRoleResource, resolveResourceBinding } from "./resource-binding.ts";
 
@@ -73,7 +74,7 @@ export const validateRoleSkills = async (input: {
 
 export const preflightMeetingIdentity = async (input: {
     ctx: {
-        llm: Pick<LlmRuntime, "resolveCallConfig">;
+        llm: Pick<LlmRuntime, "resolveCallConfig" | "resolveModelInfo">;
         agentPresets: Pick<Context["agentPresets"], "acquireScope">;
         skills: Pick<Skills, "snapshot" | "get">;
     };
@@ -90,32 +91,55 @@ export const preflightMeetingIdentity = async (input: {
 }): Promise<PreflightIdentityResult> => {
     try {
         input.signal.throwIfAborted();
-        const { meetingId, identityId, sessionId, definition, binding, agentOptions, now } = input;
+        const { meetingId, identityId, sessionId, definition, binding, now } = input;
+        const requestedOptions = { ...input.agentOptions };
         if (
             !Number.isSafeInteger(now) ||
             now < 0 ||
             !Number.isSafeInteger(now + 300000) ||
-            ![meetingId, identityId, sessionId, agentOptions.provider, agentOptions.model].every(
-                (value) => value.trim()
-            ) ||
+            ![
+                meetingId,
+                identityId,
+                sessionId,
+                requestedOptions.provider,
+                requestedOptions.model
+            ].every((value) => value.trim()) ||
             binding.agentDefinitionId !== definition.agentDefinitionId ||
             binding.definitionHash !== definitionHash(definition)
         ) {
             throw new Error("Invalid preflight binding.");
         }
-        await input.ctx.llm.resolveCallConfig(
+        const resolved = await input.ctx.llm.resolveCallConfig(
             {
-                provider: agentOptions.provider,
-                model: agentOptions.model,
-                ...(agentOptions.reasoningEffort === undefined
+                provider: requestedOptions.provider,
+                model: requestedOptions.model,
+                ...(requestedOptions.reasoningEffort === undefined
                     ? {}
                     : {
-                          reasoningEffort: ReasoningEffortId(agentOptions.reasoningEffort)
+                          reasoningEffort: ReasoningEffortId(requestedOptions.reasoningEffort)
                       })
             },
             input.signal
         );
-        const resources = await resolveResourceBinding(input);
+        const agentOptions = resolveEffectiveAgentOptions({
+            provider: resolved.provider,
+            model: resolved.model,
+            ...(resolved.reasoningEffort === undefined
+                ? {}
+                : { reasoningEffort: resolved.reasoningEffort })
+        });
+        if (agentOptions.reasoningEffort === undefined) {
+            const info = await input.ctx.llm.resolveModelInfo(
+                agentOptions.provider,
+                agentOptions.model,
+                input.signal
+            );
+            if (info.reasoning !== undefined) {
+                throw new Error("Reasoning default cannot be bound.");
+            }
+        }
+        const preparedInput = { ...input, agentOptions };
+        const resources = await resolveResourceBinding(preparedInput);
         const lease = await input.ctx.agentPresets.acquireScope(definition.dshPresetId);
         try {
             await validateRoleSkills({
@@ -129,7 +153,10 @@ export const preflightMeetingIdentity = async (input: {
         }
         input.signal.throwIfAborted();
         // Standing mount and reads may yield; refuse files changed during preflight.
-        if ((await resolveResourceBinding(input)).compositionHash !== resources.compositionHash) {
+        if (
+            (await resolveResourceBinding(preparedInput)).compositionHash !==
+            resources.compositionHash
+        ) {
             throw new Error("Role resources changed during preflight.");
         }
         const descriptor = {

@@ -16,32 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C3：固化 provider 公开解析后的有效选择
-
-前置状态：C2 PASS。
-允许修改（2 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/role-composition/dsh-capabilities.ts`
-- `plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. preflightMeetingIdentity 从 resolveCallConfig 返回值抽取 provider/model/reasoning，再生成资源/descriptor；缺省 reasoning 按所选 provider 的公开默认固化，无值且无法证明不支持 reasoning 则拒绝。
-2. acp-codex 的精确目录验证由其 adapter 承担，不能向所有原生 provider 强加目录可枚举要求；保存的有效选择继续参与 compositionHash。
-3. RED/GREEN 覆盖解析返回值与输入不同、默认漂移、非法推理和资源绑定反例。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/role-composition/dsh-capabilities.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：descriptor 使用解析后选择，之后改变默认不污染原绑定；本步实际变更路径 2–10 个且均在清单内。
-STOP：编造 none 或只等待成功而丢弃解析结果；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C4：不可变准入快照与 descriptor 到期
 
 前置状态：C3 PASS。
