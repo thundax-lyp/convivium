@@ -16,33 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C4：不可变准入快照与 descriptor 到期
-
-前置状态：C3 PASS。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/runtime/services/meeting-identity-provision.ts`
-- `plugin/tests/contract/meeting-identity-provision.spec.ts`
-- `plugin/tests/recovery/meeting-identity.spec.ts`
-- `plugin/tests/integration/dsh/meeting-creation.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 一次 provisioning 异步预检前只捕获一份完整选择；首份 descriptor/ownership 原子提交后只读原绑定，不实现 Host 配置 CAS。
-2. 覆盖捕获前/后与提交中变更、无持久绑定失败可重新捕获、同值幂等/异值冲突。
-3. 超过或恰等 expiresAt 的 provisioning 撤权/清理/记 PREFLIGHT_EXPIRED，不刷新；同样时间 active 仍按原绑定恢复。无生产 Catalog producer 继续 CATALOG_UNAVAILABLE。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-identity-provision.spec.ts tests/recovery/meeting-identity.spec.ts tests/integration/dsh/meeting-creation.spec.ts
-```
-
-PASS：快照/原子冲突/边界/冷恢复断言通过，不宣称生产动态目录已上线；本步实际变更路径 2–10 个且均在清单内。
-STOP：延长期限、重选原绑定或新增跨 Host CAS；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C5：准备 Web 静态资源与类型闭集
 
 前置状态：C4 PASS；不发布新 Definition。

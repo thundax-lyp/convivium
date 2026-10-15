@@ -72,7 +72,7 @@ const fixture = async (
         agentDefaultModel: {
             currentSelection: vi.fn(() => ({ provider: "fixture", model: "original" }))
         },
-        llm: { resolveCallConfig: async (c) => c },
+        llm: { resolveCallConfig: async (c) => c, resolveModelInfo: async () => ({}) },
         agentPresets: {
             acquireScope: vi.fn(async (id) => ({ key: id, [Symbol.asyncDispose]: async () => {} }))
         },
@@ -290,6 +290,33 @@ it("serializes concurrent identical creates without duplicate factories", async 
         const results = await Promise.all([f.run(), f.run()]);
         expect(results[0]).toEqual(results[1]);
         expect(f.owner.create).toHaveBeenCalledTimes(4);
+    } finally {
+        await f.repository.close();
+    }
+});
+
+it("replays equal durable bindings and rejects changed model choices atomically", async () => {
+    const f = await fixture();
+    try {
+        expect(await f.run()).toMatchObject({ kind: "accepted" });
+        const before = await f.repository.recover();
+        const {
+            createdAt: _createdAt,
+            updatedAt: _updatedAt,
+            ...ownership
+        } = before.sessionOwnership[0];
+        await expect(
+            f.repository.recordSessionOwnership(ownership, Date.now())
+        ).resolves.toMatchObject({ agentOptions: ownership.agentOptions });
+        await expect(
+            f.repository.recordSessionOwnership(
+                { ...ownership, agentOptions: { provider: "other", model: "other" } },
+                Date.now()
+            )
+        ).rejects.toBeDefined();
+        const after = await f.repository.recover();
+        expect(after.sessionOwnership).toEqual(before.sessionOwnership);
+        expect(after.preparedDescriptors).toEqual(before.preparedDescriptors);
     } finally {
         await f.repository.close();
     }

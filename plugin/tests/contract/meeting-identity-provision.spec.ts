@@ -366,7 +366,10 @@ describe("dynamic peer identity provisioning", () => {
             agentDefaultModel: {
                 currentSelection: vi.fn(() => ({ provider: "fixture", model: "model" }))
             },
-            llm: { resolveCallConfig: async (config) => config },
+            llm: {
+                resolveCallConfig: async (config) => config,
+                resolveModelInfo: async () => ({})
+            },
             agentPresets: {
                 acquireScope: vi.fn(async () => ({
                     key: {},
@@ -413,10 +416,75 @@ describe("dynamic peer identity provisioning", () => {
             definitions,
             packageRoot,
             cwd: packageRoot,
-            now: Date.now
+            now: vi.fn(() => 100)
         };
         return { ctx, agents, owner, input, dependencies };
     };
+    it("keeps the preflight snapshot through configuration changes and persisted replay", async () => {
+        const f = await fixture();
+        const selection = { provider: "fixture", model: "captured" };
+        f.ctx.agentDefaultModel.currentSelection.mockReturnValue(selection);
+        f.ctx.agentPresets.acquireScope.mockImplementation(async () => {
+            selection.model = "changed-during-preflight";
+            return { key: {}, [Symbol.asyncDispose]: async () => {} };
+        });
+        f.owner.putProvisioning.mockImplementationOnce(async (ownership, descriptor) => {
+            selection.model = "changed-during-commit";
+            return f.owner.putProvisioning.getMockImplementation()(ownership, descriptor);
+        });
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toMatchObject({
+            kind: "admitted"
+        });
+        expect(f.agents.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ownership: expect.objectContaining({
+                    agentOptions: { provider: "fixture", model: "captured" }
+                })
+            })
+        );
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toMatchObject({
+            kind: "admitted"
+        });
+        expect(f.ctx.agentDefaultModel.currentSelection).toHaveBeenCalledTimes(1);
+    });
+    it("can capture new defaults after failed preflight with no durable binding", async () => {
+        const f = await fixture();
+        f.ctx.skills.snapshot.mockResolvedValueOnce({ complete: true, skills: [] });
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toMatchObject({
+            kind: "rejected"
+        });
+        expect(f.owner.putProvisioning).not.toHaveBeenCalled();
+        f.ctx.agentDefaultModel.currentSelection.mockReturnValue({
+            provider: "fixture",
+            model: "new-default"
+        });
+        expect(await provisionMeetingIdentity(f.input, f.dependencies)).toMatchObject({
+            kind: "admitted"
+        });
+        expect(f.agents.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ownership: expect.objectContaining({
+                    agentOptions: { provider: "fixture", model: "new-default" }
+                })
+            })
+        );
+    });
+    it.each([300100, 300101])(
+        "revokes provisioning at activation expiry %s without renewing proof",
+        async (now) => {
+            const f = await fixture();
+            f.agents.create.mockImplementation(async () => {
+                f.dependencies.now.mockReturnValue(now);
+            });
+            expect(await provisionMeetingIdentity(f.input, f.dependencies)).toEqual({
+                kind: "rejected",
+                failureCode: "PREFLIGHT_EXPIRED"
+            });
+            expect(f.owner.revokeAndDrainOwned).toHaveBeenCalledOnce();
+            expect(f.owner.markActive).not.toHaveBeenCalled();
+            expect(f.owner.putProvisioning).toHaveBeenCalledOnce();
+        }
+    );
     it("refuses a missing Skill before storing ownership or creating a Session", async () => {
         const f = await fixture();
         f.ctx.skills.snapshot.mockResolvedValue({ complete: true, skills: [] });

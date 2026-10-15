@@ -156,6 +156,10 @@ export const provisionMeetingIdentity = async (
                     signal
                 });
             }
+            if (dependencies.now() >= descriptor.expiresAt) {
+                await dependencies.owner.revokeAndDrainOwned(ownership);
+                return { kind: "rejected", failureCode: "PREFLIGHT_EXPIRED" };
+            }
             ownership = await dependencies.owner.markActive(ownership, descriptor);
         }
         return {
