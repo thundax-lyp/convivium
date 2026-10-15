@@ -1,10 +1,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
 import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
-import {
-    resolveEffectiveAgentOptions,
-    type MeetingAgentModelOverrides
-} from "@/role-composition/index.ts";
+import { resolveEffectiveAgentOptions } from "@/role-composition/index.ts";
 import { resolveDynamicMeetingDefinition } from "@/role-composition/index.ts";
 import { preflightMeetingIdentity } from "@/role-composition/index.ts";
 import { encodeMeetingIdentitySessionLabel, type MeetingAgentOwner } from "@/dsh/index.ts";
@@ -17,7 +14,6 @@ export type IdentityProvisionResult =
     | { kind: "rejected"; failureCode: string };
 export interface MeetingIdentityProvisionDependencies {
     readonly definitions: readonly MeetingAgentDefinition[];
-    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly ctx: Context;
     readonly packageRoot: string;
     readonly cwd: string;
@@ -100,7 +96,7 @@ export const provisionMeetingIdentity = async (
             binding: resolved.binding,
             agentOptions: resolveEffectiveAgentOptions(
                 dependencies.ctx.agentDefaultModel.currentSelection(),
-                dependencies.agentModelOverrides?.[recommendation.definitionId]
+                resolved.definition.agentOptions
             ),
             now: dependencies.now(),
             signal

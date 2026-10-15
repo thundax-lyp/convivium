@@ -206,16 +206,12 @@ describe("meeting role definitions", () => {
             )
         ).rejects.toThrow();
         expect(validate).not.toHaveBeenCalled();
-        await expect(
-            resolveMeetingRoles(
-                {
-                    definitions,
-                    agentModelOverrides: { unknown: { model: "secret" } },
-                    participants: []
-                },
-                validate
-            )
-        ).rejects.toThrow();
+    });
+    it("resolves the Definition complete execution selection", async () => {
+        const input = { provider: "acp-codex", model: "codex" };
+        const result = await resolve([{ ...participant, agentOptions: input }]);
+        expect(result.participants.__proto__.agentOptions).toEqual(input);
+        expect(Object.isFrozen(result.participants.__proto__.agentOptions)).toBe(true);
     });
     it("rejects duplicates and excessive configuration and freezes snapshots", () => {
         expect(() => parseAgentDefinitions([manager, manager])).toThrow();

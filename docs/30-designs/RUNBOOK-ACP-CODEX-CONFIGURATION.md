@@ -16,40 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C2：一次切换模型配置与所有消费者
-
-前置状态：C1 PASS。
-允许修改（10 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/config.ts`
-- `plugin/src/role-composition/model-options.ts`
-- `plugin/src/role-composition/resolve.ts`
-- `plugin/src/role-composition/index.ts`
-- `plugin/src/runtime/meeting-runtime.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/src/runtime/services/meeting-identity-provision.ts`
-- `plugin/tests/unit/config.spec.ts`
-- `plugin/tests/unit/role-composition/model-options.spec.ts`
-- `plugin/tests/unit/role-composition/resolve.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 删除 agentModelOverrides/旧类型/parseAgentModelOverrides 与所有生产调用；resolveEffectiveAgentOptions 改为完整选择，显式对象不与 Host 默认逐字段合并。
-2. Config 添加可选 strict acpCodex 连接配置，未知字段统一拒绝；不另建旧配置识别器。现有持久模型绑定不改写。
-3. runtime/lifecycle/provision 仅传 Definition 完整选择；保持既有函数归属与业务状态。同步旧入口测试到新语义，退役专用兼容测试直接删掉。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/role-composition/model-options.spec.ts tests/unit/role-composition/resolve.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：生产旧入口清零、无双入口或部分继承，三组行为测试/编译通过；本步实际变更路径 2–10 个且均在清单内。
-STOP：必须保留双入口或修改未列生产文件；不得分批部署中间配置；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C3：固化 provider 公开解析后的有效选择
 
 前置状态：C2 PASS。

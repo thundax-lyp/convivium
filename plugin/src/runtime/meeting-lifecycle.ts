@@ -586,7 +586,6 @@ const createDeliveryManager = (input: {
             provision: (input) =>
                 provisionMeetingIdentity(input, {
                     definitions,
-                    agentModelOverrides: config.agentModelOverrides,
                     ctx,
                     packageRoot: rolePackageRoot,
                     cwd: process.cwd(),
@@ -719,7 +718,6 @@ export const activateTargetMeetingApplication = async (
         creation: createMeetingCreationCoordinator({
             registry,
             definitions,
-            agentModelOverrides: config.agentModelOverrides,
             ctx,
             owner: agentOwner,
             packageRoot: rolePackageRoot,

@@ -53,25 +53,18 @@ describe("Convivium runtime config", () => {
             evidenceScopes: []
         };
         const config = Config({ ...validConfig, agentDefinitions: [definition] });
-        const overrides = { a: { model: "model-a", reasoningEffort: "high" } };
+        const selection = { provider: "acp-codex", model: "model-a" };
         const bound = Config({
             ...validConfig,
-            agentDefinitions: [definition],
-            agentModelOverrides: overrides
+            agentDefinitions: [{ ...definition, agentOptions: selection }]
         });
-        overrides.a.model = "changed";
-        expect(bound.agentModelOverrides?.a.model).toBe("model-a");
-        expect(Object.isFrozen(bound.agentModelOverrides?.a)).toBe(true);
-        expect(Object.getPrototypeOf(bound.agentModelOverrides)).toBeNull();
+        selection.model = "changed";
+        expect(bound.agentDefinitions?.[0].agentOptions).toEqual({
+            provider: "acp-codex",
+            model: "model-a"
+        });
+        expect(Object.isFrozen(bound.agentDefinitions?.[0].agentOptions)).toBe(true);
         expect(Object.isFrozen(bound)).toBe(true);
-        for (const agentModelOverrides of [{ unknown: { model: "private" } }, null]) {
-            expect(() =>
-                Config({ ...validConfig, agentDefinitions: [definition], agentModelOverrides })
-            ).toThrow(
-                expect.objectContaining({ message: "Invalid meeting agent model overrides." })
-            );
-        }
-        expect(Config({ ...validConfig, agentModelOverrides: {} }).agentModelOverrides).toEqual({});
         definition.agentInstructions.sha256 = "b".repeat(64);
         expect(config.agentDefinitions?.[0].agentInstructions.sha256).toBe("a".repeat(64));
         expect(Object.isFrozen(config.agentDefinitions)).toBe(true);
@@ -81,6 +74,28 @@ describe("Convivium runtime config", () => {
         expect(() => Config({ ...validConfig, agentDefinitions: null })).toThrow(
             expect.objectContaining({ message: "Invalid meeting agent definitions." })
         );
+    });
+
+    it("validates and freezes explicit ACP launch configuration and rejects unknown fields", () => {
+        const args = ["--flag"];
+        const result = Config({ ...validConfig, acpCodex: { command: process.execPath, args } });
+        args.push("changed");
+        expect(result.acpCodex).toEqual({ command: process.execPath, args: ["--flag"] });
+        expect(Object.isFrozen(result.acpCodex)).toBe(true);
+        expect(Object.isFrozen(result.acpCodex?.args)).toBe(true);
+        expect(
+            Config({ ...validConfig, acpCodex: { command: process.execPath, args: [] } }).acpCodex
+                ?.args
+        ).toEqual([]);
+        for (const acpCodex of [
+            { command: "relative", args: [] },
+            { command: process.execPath },
+            { command: process.execPath, args: [], env: {} },
+            { command: "/missing-convivium-command", args: [] }
+        ]) {
+            expect(() => Config({ ...validConfig, acpCodex })).toThrow();
+        }
+        expect(() => Config({ ...validConfig, unexpected: true })).toThrow();
     });
 
     it("accepts a non-empty Developer Markdown workspace id", () => {

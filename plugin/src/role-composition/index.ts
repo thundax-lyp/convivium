@@ -7,8 +7,7 @@ export type {
     PreparedDescriptor,
     ResourceBinding
 } from "./model.ts";
-export { parseAgentModelOverrides, resolveEffectiveAgentOptions } from "./model-options.ts";
-export type { MeetingAgentModelOverrides } from "./model-options.ts";
+export { resolveEffectiveAgentOptions } from "./model-options.ts";
 export {
     matchesPreparedDescriptor,
     preflightMeetingIdentity,

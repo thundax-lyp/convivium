@@ -1,5 +1,6 @@
-import { parseAgentModelOverrides } from "./role-composition/index.ts";
-import type { MeetingAgentModelOverrides } from "./role-composition/index.ts";
+import { accessSync, constants, statSync } from "node:fs";
+import { isAbsolute } from "node:path";
+import { z } from "zod";
 import Schema from "@deepseek-ai/schemastery";
 
 import { contributorRoleDefinitionIds, parseAgentDefinitions } from "./role-composition/index.ts";
@@ -10,7 +11,7 @@ import type {
 
 export interface Config {
     provider: string;
-    agentModelOverrides?: MeetingAgentModelOverrides;
+    acpCodex?: Readonly<{ command: string; args: readonly string[] }>;
     agentDefinitions?: readonly MeetingAgentDefinition[];
     initialContributorRoleIds: readonly ContributorRoleDefinitionId[];
     developerMarkdownWorkspaceId?: string;
@@ -20,7 +21,7 @@ export interface Config {
 }
 
 const runtimeConfig: Schema<Config> = Schema.object({
-    agentModelOverrides: Schema.any<MeetingAgentModelOverrides>(),
+    acpCodex: Schema.any<Config["acpCodex"]>(),
     agentDefinitions: Schema.any<readonly MeetingAgentDefinition[]>(),
     initialContributorRoleIds: Schema.any<readonly ContributorRoleDefinitionId[]>().required(),
     provider: Schema.string().pattern(/\S/).required(),
@@ -47,13 +48,33 @@ export const Config: Schema<Config> = Schema.transform(
             throw new TypeError("Invalid initial Meeting contributor roles.");
         }
         const definitions = parseAgentDefinitions(value?.agentDefinitions);
-        const overrides = parseAgentModelOverrides(value?.agentModelOverrides, definitions);
+        if (Object.keys(value).some((key) => !Object.hasOwn(runtimeConfig.dict!, key))) {
+            throw new TypeError("Unknown Convivium configuration field.");
+        }
+        let acpCodex: Config["acpCodex"];
+        if (value.acpCodex !== undefined) {
+            try {
+                const parsed = z
+                    .strictObject({
+                        command: z.string().refine(isAbsolute),
+                        args: z.array(z.string())
+                    })
+                    .parse(value.acpCodex);
+                accessSync(parsed.command, constants.X_OK);
+                if (!statSync(parsed.command).isFile()) {
+                    throw new TypeError();
+                }
+                acpCodex = Object.freeze({ ...parsed, args: Object.freeze(parsed.args) });
+            } catch {
+                throw new TypeError("Invalid ACP Codex configuration.");
+            }
+        }
         const config = runtimeConfig(value);
         return Object.freeze({
             ...config,
             initialContributorRoleIds: Object.freeze([...roleIds]),
             ...(value?.agentDefinitions === undefined ? {} : { agentDefinitions: definitions }),
-            ...(value?.agentModelOverrides === undefined ? {} : { agentModelOverrides: overrides })
+            ...(acpCodex === undefined ? {} : { acpCodex })
         });
     },
     true
