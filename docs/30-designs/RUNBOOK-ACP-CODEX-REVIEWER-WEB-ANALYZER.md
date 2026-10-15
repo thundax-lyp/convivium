@@ -2,13 +2,13 @@
 
 ## Status And Execution Entry
 
-2026-10-15；Author / Audit；**Executable（分阶段实施计划，尚未执行）**。本轮只重组文档，不改代码、安装依赖或调用模型。产品基线 `d96ae903c440dadec5b6785c02e78db87ba7106f`（允许其后仅提交本组六册与草稿，A1核对精确路径）/ DSH 0.2.0-rc.2，计划分支 `codex/acp-codex-reviewer-web-analyzer`。
+2026-10-15；Execute；契约迁移 A1–A3 已通过，下一入口为 C1。本次仅迁移正式文档，未改产品代码、安装依赖或调用模型。产品基线 `d96ae903c440dadec5b6785c02e78db87ba7106f` / DSH 0.2.0-rc.2；执行分支 `codex/acp-codex-reviewer-web-analyzer`。产品基线 verify 已通过；不代表 ACP 实现或真实专项通过。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |
 | ---- | ------------------------------------------------------ | ---------------------------- | -------------------------------------- |
-| A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | A1–A3 / 3、3、5              | 正式依据齐备，完整迁移后删除草稿       |
+| A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | 已迁移 / 无剩余任务          | 正式依据齐备，完整迁移后删除草稿       |
 | C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | C1–C7 / 4、10、2、4、7、7、7 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
 | D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | D1–D5 / 4、5、4、9、8        | 身份/投递/审核/可见阻断通过            |
@@ -26,7 +26,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 ## Executor Contract And File Budget
 
-- 仅用户授权Execute后从A1开始；不commit/push/PR/merge，不git clean/reset，不改固定人工dsh-workspace。保留当前全部六册与草稿，A3按明确门禁删除草稿。
+- 仅用户授权 Execute 后从第一项未完成任务开始；本次用户明确要求每项完成、删除该任务段落后单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
 - **每步实际仓库交付文件变更2–10个**；源码、测试、文档、lockfile、新增和删除全部计数，rename按旧/新两路径计。清单是固定允许上限，不是可顺便改动的文件池。相同文件在不同步骤再次修改分别计入；不得以拆补丁、先临时文件再搬回绕过计数。
 - ignored构建物与仓库外临时profile/脱敏日志不计为交付文件，但必须执行Restore；不能把它们拿来凑2个。生成声明只由指定build/generate脚本更新，若出现新的非ignored交付文件也计入并须在清单内。
 - 每步前记录工作树文件内容快照，完成后按**该步前后内容差异**列实际路径（包括当时已存在的未跟踪文件），与白名单/2–10核对；不能用相对HEAD累计diff当本步计数。范围外变化、实际不足2或超过10均STOP，由作者调整步骤，不人为改无关文件凑数。
@@ -37,7 +37,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 必读 [Architecture](../00-governance/ARCHITECTURE.md)、[Architecture Rules](../00-governance/ARCHITECTURE-RULES.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md)、[Document Rules](../00-governance/DOCUMENT-RULES.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Test Rules](../00-governance/TEST-RULES.md) 与当前册的requirements/interfaces/designs；RUNBOOK不是产品真相源。
 
-当前[设计草稿](../60-human/ACP-CONTRIBUTOR-CONFIGURATION-DESIGN-DRAFT.md)只保存背景。A1先正式需求/架构，A2正式接口，A3稳定设计与覆盖核对；**A3删除草稿及全部指向它的链接，再开始C册代码**。尚未实际执行迁移，所以本轮保留草稿。后续只消费正式依据；A册临时Migration Input也在A3移除，避免重复当前契约。长期实现证据迁readiness、操作迁operations；E3全部门禁通过后删除本组六册。
+长期依据已迁入 [Architecture](../00-governance/ARCHITECTURE.md)、[Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)、[Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)、[ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md) 与 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md)。草稿及 A 册 Migration Input 已删除，后续只消费这些正式来源。长期实现证据迁 readiness、操作迁 operations；六册文件仍按 E3 全局门禁删除，本次只逐项删除已完成任务段落，不提前改变六册生命周期。
 
 ## Current Breakpoints And Verification Map
 
@@ -73,6 +73,4 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 阶段完成只交接下一册，不单独删除RUNBOOK。全局完成须所有scope与固定验证集合齐全、正式长期来源无遗漏、Not Covered准确；E3一次删除六册并做删除后检查，失败恢复。真实外部运行适用；跨用户/发布/物理介质迁移/UI重设计Not Applicable，其它OS、生产Catalog和长会话压缩Not Covered。
 
-本轮Author只验证文档、分册依赖/文件预算/路径/链接与空白，不执行A1–E3。当前未安装官方bridge、未运行产品baseline或真实模型；Executable只代表决策完备。上一轮只读源码/registry/tarball核查可复用，不能当本次运行验收。实际本轮检查结果见最终交付记录。
-
-Author 本轮验证记录：六册共23步；每步完整字段/验证命令、精确白名单去重计数全部通过，上限2–10个，A3为5个、E3为9个（含六册删除）；没有零文件独立步骤。未来测试命令目标均为现存文件或明确声明新增位置。Prettier、未跟踪文档空白、1192个本地文件链接（0错误，不查锚点）、git diff --check通过。草稿当前仍存在，A3尚未执行；没有修改产品代码或运行模型。
+本次 A1–A3 仅完成文档契约迁移：基线 verify、各步本地文档链接和 git diff --check 已通过，任务逐项删除并单独提交。草稿不存在，临时 Migration Input 已移除。正式设计明确未实现/未运行边界；后续 C/P/D/E 全部尚未执行。未安装官方 bridge、未执行真实 Codex/互联网专项；Executable 只代表计划决策完备。
