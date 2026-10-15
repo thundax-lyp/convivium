@@ -16,37 +16,6 @@
 
 C1 是 schema/hash 行为，C2 一次切换当前公开配置与所有消费方；不得在阶段中间部署。C5 先准备资源，C6 才原子发布八角色集合，C7 接入创建入口；未发布的新资源不宣称可用。
 
-### C5：准备 Web 静态资源与类型闭集
-
-前置状态：C4 PASS；不发布新 Definition。
-允许修改（7 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/config/agents/web_research_analyst/AGENTS.md`
-- `plugin/config/skills/web/SKILL.md`
-- `plugin/config/presets/convivium-web-research-analyst/preset.yml`
-- `plugin/config/presets/convivium-web-research-analyst/agent.cordis.yml`
-- `plugin/src/role-skills/role-skill-names.ts`
-- `plugin/src/role-composition/model.ts`
-- `plugin/src/repository/storage-domain/format/schemas.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 按正式 Web 合同创建四份资源：身份 web_research_analyst / convivium.web_research_analyst / WEB ANALYZER / convivium-web-research-analyst；web Skill 真搜索/读原文/核验与来源时间，不编造。
-2. 增第六能力 web、第八 role 枚举及持久校验。Preset 沿 GitHub 只换 Skill 路径；不改原七 AGENTS，不增加会议权限或物理存储版本。
-3. 当前发行 definitions/patch 仍保持七角色，资源尚不可被默认创建；C6 是唯一集合发布点。当前发行校验器严格拒绝额外资源，因此此步不运行尚未更新的精确文件集合校验，不把它记成已通过；C6 在同一次变更中更新发布与门禁。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/role-composition/dsh-capabilities.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：新资源/schema 可构建，原角色的 Skill 预检仍通过；精确发行文件集合检查留在 C6 发布后执行；本步实际变更路径 2–10 个且均在清单内。
-STOP：提前发布部分八角色、向其它角色泄露 web 或改变旧持久格式；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### C6：原子发布八角色集合及 preset
 
 前置状态：C5 PASS。

@@ -14,14 +14,16 @@ const role = z.enum([
     "protocol_ui_engineer",
     "verification_reviewer",
     "github_research_analyst",
-    "arxiv_research_analyst"
+    "arxiv_research_analyst",
+    "web_research_analyst"
 ]);
 export const contributorRoleDefinitionIds = [
     "domain_architect",
     "runtime_engineer",
     "protocol_ui_engineer",
     "github_research_analyst",
-    "arxiv_research_analyst"
+    "arxiv_research_analyst",
+    "web_research_analyst"
 ] as const;
 export type ContributorRoleDefinitionId = (typeof contributorRoleDefinitionIds)[number];
 export type AbilityName = (typeof abilityNames)[number];

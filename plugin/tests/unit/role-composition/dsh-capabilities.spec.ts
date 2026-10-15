@@ -178,7 +178,8 @@ describe("role resource preflight", () => {
             "evidence-review",
             "github",
             "meeting-facilitation",
-            "repository-analysis"
+            "repository-analysis",
+            "web"
         ]);
     });
     it("accepts a Skill resource root that resolves to the same installed directory", async () => {
