@@ -14,41 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P1：锁定依赖并实现连接及文本投影
-
-前置状态：C7 PASS。
-允许修改（9 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/package.json`
-- `plugin/pnpm-lock.yaml`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/dsh/acp-codex/connection.ts`
-- `plugin/src/dsh/acp-codex/prompt.ts`
-- `plugin/src/dsh/acp-codex/index.ts`
-- `plugin/tests/unit/dsh/acp-codex-connection.spec.ts`
-- `plugin/tests/unit/dsh/acp-codex-prompt.spec.ts`
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 按 Dependency 增加精确 dependencies/dev/optional peers/override；pnpm install生成完整lock，不手填integrity。
-2. 连接通过DSH subprocess+官方SDK，只声明本期能力；fixture用独立子进程实现 initialize/new/load/set_config_option/prompt/cancel 与可控断连， stdout仅JSON-RPC。
-3. prompt纯函数验证新输入/历史前缀/身份文本和拒绝参数；测试连接真实NDJSON/超时/cancel/进程退出，不对fixture本身写测试。
-
-验证：
-
-```bash
-pnpm --dir plugin install
-pnpm --dir plugin install --frozen-lockfile
-pnpm --dir plugin exec vitest run tests/unit/dsh/acp-codex-connection.spec.ts tests/unit/dsh/acp-codex-prompt.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：锁定SDK/bridge/CLI和传递依赖，NDJSON/取消/文本前缀测试通过，无推理请求；本步实际变更路径 2–10 个且均在清单内。
-STOP：版本/公开SDK不支持固定契约；禁止latest、安装第三方adapter或复制其实现；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### P2：实现 Session MCP 工具桥
 
 前置状态：P1 PASS。
