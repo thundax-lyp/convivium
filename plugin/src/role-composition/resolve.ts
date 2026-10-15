@@ -1,19 +1,15 @@
-import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
-import { parseAgentModelOverrides } from "./model-options.ts";
-import type { MeetingAgentModelOverrides } from "./model-options.ts";
 import { parseAgentDefinitions } from "./model.ts";
 import type { AgentDefinitionBinding, MeetingAgentDefinition } from "./model.ts";
 
 export interface ResolvedRoleComposition {
     readonly agentInstructions: MeetingAgentDefinition["agentInstructions"];
     readonly toolFilter?: ToolRestriction;
-    readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
+    readonly agentOptions?: MeetingAgentDefinition["agentOptions"];
     readonly agentDefinition: AgentDefinitionBinding;
 }
 export interface ResolveMeetingRolesInput {
-    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly managerAgentDefinitionId?: string;
     readonly participants: readonly {
@@ -68,7 +64,14 @@ export const resolveDynamicMeetingDefinition = (
 export const definitionHash = (d: MeetingAgentDefinition): string =>
     sha256Hex(
         encodeCanonicalJson({
-            ...d,
+            agentDefinitionId: d.agentDefinitionId,
+            roleDefinitionId: d.roleDefinitionId,
+            displayName: d.displayName,
+            summary: d.summary,
+            agentInstructions: d.agentInstructions,
+            dshPresetId: d.dshPresetId,
+            expertiseTags: d.expertiseTags,
+            evidenceScopes: d.evidenceScopes,
             requiredSkillNames: [...d.requiredSkillNames].sort(),
             ...(d.toolFilter === undefined
                 ? {}
@@ -91,10 +94,8 @@ export const resolveMeetingRoles = async (
     validate: (selected: readonly MeetingAgentDefinition[]) => Promise<void>
 ): Promise<ResolvedMeetingRoles> => {
     let definitions: readonly MeetingAgentDefinition[];
-    let overrides: MeetingAgentModelOverrides;
     try {
         definitions = parseAgentDefinitions(input.definitions);
-        overrides = parseAgentModelOverrides(input.agentModelOverrides, definitions);
     } catch {
         throw new RoleCompositionError();
     }
@@ -117,7 +118,7 @@ export const resolveMeetingRoles = async (
         return Object.freeze({
             agentInstructions: d.agentInstructions,
             ...(d.toolFilter === undefined ? {} : { toolFilter: d.toolFilter }),
-            ...(overrides[id] === undefined ? {} : { agentOptions: overrides[id] }),
+            ...(d.agentOptions === undefined ? {} : { agentOptions: d.agentOptions }),
             agentDefinition: Object.freeze({
                 agentDefinitionId: d.agentDefinitionId,
                 definitionHash: definitionHash(d)

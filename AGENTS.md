@@ -42,4 +42,5 @@ Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。项目边界以 [
 - 行为、接口、架构或流程变化时，按 Document Rules 同步对应文档；只提升已确认结论，未决内容留在 `TODO.md` 或 `docs/60-human/`。
 - 使用最窄的相关验证，明确未验证边界，不把未执行检查描述为通过。
 - 开发改动通过独立分支和 PR 进入 `main`；不自动合并 PR，除非用户明确要求。
+- 禁止创建或使用 Git worktree；所有开发工作只使用当前仓库中的普通分支。
 - 面向仓库协作者的 review comment、PR review summary 与 review reply 使用中文；代码、协议、类型、字段、错误码、命令和工具名称保留英文原文。

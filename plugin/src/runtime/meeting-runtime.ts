@@ -2,10 +2,7 @@ import { captainActorIdFor } from "@/domain/index.ts";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-agent-default-model";
 import { SessionPersistenceNotFoundError } from "@deepseek-ai/dsh-session-persistence";
-import {
-    resolveEffectiveAgentOptions,
-    type MeetingAgentModelOverrides
-} from "@/role-composition/index.ts";
+import { resolveEffectiveAgentOptions } from "@/role-composition/index.ts";
 import type { MeetingAgentDefinition, PreparedDescriptor } from "@/role-composition/index.ts";
 import { definitionHash, RoleCompositionError } from "@/role-composition/index.ts";
 import { preflightMeetingIdentity } from "@/role-composition/index.ts";
@@ -25,7 +22,6 @@ import {
 export interface TargetMeetingCreationDependencies {
     readonly registry: StorageDomainRepositoryRegistry<MeetingState>;
     readonly definitions: readonly MeetingAgentDefinition[];
-    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly ctx: Context;
     readonly owner: MeetingAgentOwner;
     readonly packageRoot: string;
@@ -379,9 +375,7 @@ export const createMeetingCreationCoordinator = (
                         },
                         agentOptions: resolveEffectiveAgentOptions(
                             selection!,
-                            dependencies.agentModelOverrides?.[
-                                identity.definition.agentDefinitionId
-                            ]
+                            identity.definition.agentOptions
                         ),
                         now,
                         signal

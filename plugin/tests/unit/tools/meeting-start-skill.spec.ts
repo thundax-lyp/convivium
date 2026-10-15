@@ -19,7 +19,8 @@ describe("chat Meeting start", () => {
     it("fills the initial Meeting contract from a direct objective", () => {
         const command = createMeetingStartCommand("调查TypeSafe JEV的最新进展", "skill:input-1", [
             "github_research_analyst",
-            "arxiv_research_analyst"
+            "arxiv_research_analyst",
+            "web_research_analyst"
         ]);
         expect(command).toMatchObject({
             meetingId: "new",
@@ -40,7 +41,8 @@ describe("chat Meeting start", () => {
             "meeting_manager",
             "verification_reviewer",
             "github_research_analyst",
-            "arxiv_research_analyst"
+            "arxiv_research_analyst",
+            "web_research_analyst"
         ]);
         expect(command.action.identities.every((identity) => identity.required)).toBe(true);
         expect(command.action.initialAgenda).toHaveLength(1);

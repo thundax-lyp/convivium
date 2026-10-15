@@ -7,7 +7,7 @@
 ## Product Boundary
 
 - Convivium 是使用 TypeScript 独立实现的纯 DSH 插件，只有 `plugin/` 一个可构建、测试和交付的工程；不建立独立 Meeting Server、应用壳、backend 发布单元或根 workspace/monorepo。新增顶层工程前必须在本文明确职责、依赖方向和验证入口。
-- 外部项目仅作只读调研，不作为源码基线、运行依赖或兼容目标；不得复制其源码、文档、品牌、协议命名和持久化格式进入产品。
+- 外部应用项目仅作只读调研，不作为源码基线或兼容目标，不复制其源码、文档、品牌或持久化格式。ACP Codex 接入由插件自行实现专用 `acp-codex` provider，允许使用 ACP 官方项目的 `@agentclientprotocol/codex-acp` bridge、ACP/MCP SDK 和 Codex CLI；不安装或依赖 `dsh-acp-adapter`，不建立通用 ACP 平台。
 - 当前产品仅服务单个本地 DSH Host 的一位用户。Meeting Web 只在本地用户边界内开放，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约；具体入口条件见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md#captain-caller-and-audit)。
 - 插件依赖 DSH 公开能力，不绕过宿主权限或生命周期接口。装配和能力边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
@@ -40,6 +40,7 @@
 - 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源、存储与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。
 - 存储格式兼容、迁移和拒读语义由 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义；当前部署介质和安装流程由相应设计及操作文档维护。
 - 领域只消费 Agent 明确提交的边界结果和授权投影，不能从内部 Tool Schema、调用顺序、隐藏推理或 DSH Session log 推导当前事实。
+- ACP provider 的绑定、发送与交付防重放记录使用 Host Storage Domain 的独立技术 domain；不是 Meeting 事实源，不指定物理存储路径，不假设与 Meeting 或 DSH Session 跨存储原子提交。
 - DSH 原生 tool/session events 由 DSH 定义和持久化；Convivium 不复制或扩展其语义，也不向 DSH Session 写入插件自定义持久化事件。会议领域事件保存在会议 commit 内。
 - Frontend 与开发者 Markdown 只能单向读取已提交投影。Markdown 不是产品接口，不参与恢复、授权、状态计算、Session 清理或归档完成；人工编辑、缺失或滞后不回写会议事实。边界见 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 

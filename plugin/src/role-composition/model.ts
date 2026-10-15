@@ -14,14 +14,16 @@ const role = z.enum([
     "protocol_ui_engineer",
     "verification_reviewer",
     "github_research_analyst",
-    "arxiv_research_analyst"
+    "arxiv_research_analyst",
+    "web_research_analyst"
 ]);
 export const contributorRoleDefinitionIds = [
     "domain_architect",
     "runtime_engineer",
     "protocol_ui_engineer",
     "github_research_analyst",
-    "arxiv_research_analyst"
+    "arxiv_research_analyst",
+    "web_research_analyst"
 ] as const;
 export type ContributorRoleDefinitionId = (typeof contributorRoleDefinitionIds)[number];
 export type AbilityName = (typeof abilityNames)[number];
@@ -30,6 +32,13 @@ const instruction = z.strictObject({
     sha256: z.string().regex(/^[a-f0-9]{64}$/)
 });
 export type AgentInstructionRef = z.infer<typeof instruction>;
+const agentOptions = z
+    .strictObject({
+        provider: z.string().trim().min(1),
+        model: z.string().trim().min(1),
+        reasoningEffort: z.string().trim().min(1).optional()
+    })
+    .readonly();
 const definition = z
     .strictObject({
         agentDefinitionId: text,
@@ -42,6 +51,7 @@ const definition = z
             .array(z.enum(abilityNames))
             .refine((values) => new Set(values).size === values.length),
         toolFilter: filter.optional(),
+        agentOptions: agentOptions.optional(),
         expertiseTags: names.refine((value) => value.length > 0),
         evidenceScopes: z
             .array(z.enum(["repository", "github", "arxiv", "web"]))

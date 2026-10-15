@@ -292,7 +292,8 @@ export const ResourceBindingSchema = z.strictObject({
             "protocol_ui_engineer",
             "verification_reviewer",
             "github_research_analyst",
-            "arxiv_research_analyst"
+            "arxiv_research_analyst",
+            "web_research_analyst"
         ]),
         sha256: sha
     }),

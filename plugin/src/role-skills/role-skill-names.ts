@@ -3,5 +3,6 @@ export const abilityNames = [
     "repository-analysis",
     "evidence-review",
     "github",
-    "arxiv"
+    "arxiv",
+    "web"
 ] as const;

@@ -10,6 +10,14 @@
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
+## ACP Configuration And Web Role Validation
+
+2026-10-15 配置与角色代码：Definition.agentOptions 为完整可选执行选择，agentModelOverrides 生产入口已删除；预检绑定解析后的模型/reasoning，原七角色身份 hash 保持不变。不可变准入选择、descriptor 激活到期检查、八角色/六能力发行闭集及默认 GitHub/arXiv/Web 贡献者创建入口已实现。
+
+固定聚焦集合 12 个测试文件、118 项测试通过；八角色真实 DSH Preset/Session 组合覆盖角色指令、Skill 列表/按名称加载隔离与原绑定恢复，不发送真实模型请求。全量 `pnpm --dir plugin verify` 通过：95 个测试文件、809 项测试，以及格式、lint、Host/Client/Remote 类型、构建、环境、定义和包契约检查。文档链接检查通过；未改固定人工环境。
+
+Not Covered：ACP provider 尚未实现，未安装/运行 codex-acp，未执行 Codex/MCP、跨进程 ACP 恢复、Web 实际互联网取证或生产动态 Catalog 验收。下面矩阵中原七角色真实 smoke 属于既有历史证据，不覆盖新增 Web 或 Codex 专项。
+
 ## Feature Coverage
 
 | 需求编号                              | 功能                                          | 状态     | 版本证据           | 当前覆盖                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 缺口                                                                                                                                                                                                                                                                      |

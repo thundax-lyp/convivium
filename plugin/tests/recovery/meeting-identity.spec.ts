@@ -186,6 +186,16 @@ describe("peer Meeting cold recovery", () => {
         expect(f.owner.stop).toHaveBeenCalledTimes(1);
         expect(f.repository.completeCreate).not.toHaveBeenCalled();
     });
+    it("rejects provisioning exactly at the expiry boundary without creating new proof", async () => {
+        const f = recoveryFixture("running", "creating");
+        f.owners[0].lifecycleStatus = "provisioning";
+        f.recovered.preparedDescriptors[0].expiresAt = 50;
+        await f.run();
+        expect(f.owner.resume).not.toHaveBeenCalled();
+        expect(f.owner.stop).toHaveBeenCalledOnce();
+        expect(f.repository.completeCreate).not.toHaveBeenCalled();
+        expect(f.recovered.preparedDescriptors[0].expiresAt).toBe(50);
+    });
     it("recovers a provisional Session then publishes the saved creation", async () => {
         const f = recoveryFixture("running", "creating");
         f.owners[0]!.lifecycleStatus = "provisioning";

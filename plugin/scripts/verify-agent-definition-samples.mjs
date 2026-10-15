@@ -16,7 +16,8 @@ const roles = [
         ["arxiv", "evidence-review", "github", "repository-analysis"]
     ],
     ["github_research_analyst", "github-research-analyst", ["github"]],
-    ["arxiv_research_analyst", "arxiv-research-analyst", ["arxiv"]]
+    ["arxiv_research_analyst", "arxiv-research-analyst", ["arxiv"]],
+    ["web_research_analyst", "web-research-analyst", ["web"]]
 ];
 const skills = [...new Set(roles.flatMap(([, , assigned]) => assigned))].sort();
 export const definitionAssetFiles = [
@@ -110,7 +111,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                 !same(Object.keys(doc).sort(), ["definitions", "schemaVersion"]) ||
                 doc.schemaVersion !== 1 ||
                 !Array.isArray(doc.definitions) ||
-                doc.definitions.length !== 7
+                doc.definitions.length !== 8
             ) {
                 add("DEFINITION_INVALID", "definitions.json");
             } else {
@@ -150,9 +151,27 @@ export async function verifyMeetingAgentDefinitions(root) {
                                     ]
                                 }
                               : { deny: contributorDeny };
-                    const expectedFields = [...fields, "toolFilter"].sort();
+                    const expectedFields = [
+                        ...fields,
+                        "toolFilter",
+                        ...(Object.hasOwn(d ?? {}, "agentOptions") ? ["agentOptions"] : [])
+                    ].sort();
+                    const selection = d?.agentOptions;
+                    const validSelection =
+                        selection === undefined ||
+                        (selection !== null &&
+                            typeof selection === "object" &&
+                            !Array.isArray(selection) &&
+                            Object.keys(selection).every((key) =>
+                                ["provider", "model", "reasoningEffort"].includes(key)
+                            ) &&
+                            nonempty(selection.provider) &&
+                            nonempty(selection.model) &&
+                            (selection.reasoningEffort === undefined ||
+                                nonempty(selection.reasoningEffort)));
                     if (
                         !d ||
+                        !validSelection ||
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
@@ -251,6 +270,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         }
         process.exitCode = 1;
     } else {
-        console.log("PASS 7 packaged Meeting Agent Definition deployment roles");
+        console.log("PASS 8 packaged Meeting Agent Definition deployment roles");
     }
 }

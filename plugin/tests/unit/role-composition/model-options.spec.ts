@@ -1,69 +1,33 @@
 import { describe, expect, it } from "vitest";
-import {
-    parseAgentModelOverrides,
-    resolveEffectiveAgentOptions
-} from "@/role-composition/model-options.ts";
-import { roleCompositionDefinitions } from "../../fixtures/role-composition.ts";
-
-describe("meeting role Host model overrides", () => {
-    it("accepts omitted and empty maps as immutable maps with no inherited entries", () => {
-        for (const value of [undefined, {}]) {
-            const result = parseAgentModelOverrides(value, roleCompositionDefinitions);
-            expect(Object.keys(result)).toEqual([]);
-            expect(Object.getPrototypeOf(result)).toBeNull();
-            expect(Object.isFrozen(result)).toBe(true);
-        }
-    });
-    it("preserves prototype-named role IDs and snapshots caller-owned entries", () => {
-        const definitions = ["__proto__", "constructor", "toString"].map((agentDefinitionId) => ({
-            ...roleCompositionDefinitions[0],
-            agentDefinitionId
-        }));
-        const input = Object.fromEntries(
-            definitions.map((d) => [d.agentDefinitionId, { model: "original" }])
-        );
-        const result = parseAgentModelOverrides(input, definitions);
-        expect(Object.keys(result)).toEqual(definitions.map((d) => d.agentDefinitionId));
-        input.__proto__.model = "changed";
-        expect(result.__proto__.model).toBe("original");
-        expect(Object.isFrozen(result.__proto__)).toBe(true);
-        expect(Object.isFrozen(result)).toBe(true);
-    });
-    it.each([
-        null,
-        [],
-        "private",
-        { unknown: { model: "private" } },
-        { "fr14-manager": null },
-        { "fr14-manager": {} },
-        { "fr14-manager": { maxTokens: 1 } },
-        { "fr14-manager": { model: " " } },
-        { "fr14-manager": { provider: "" } },
-        { "fr14-manager": { reasoningEffort: " " } },
-        { "fr14-manager": { model: "private", apiKey: "secret" } }
-    ])("rejects invalid or unbound overrides with a fixed error", (value) => {
-        expect(() => parseAgentModelOverrides(value, roleCompositionDefinitions)).toThrow(
-            expect.objectContaining({ message: "Invalid meeting agent model overrides." })
-        );
-    });
-});
+import { resolveEffectiveAgentOptions } from "@/role-composition/model-options.ts";
 
 describe("effective meeting model binding", () => {
-    it("freezes the resolved Host selection and rejects incomplete bindings", () => {
-        const selection = { provider: "host", model: "original", reasoningEffort: "high" };
-        const result = resolveEffectiveAgentOptions(selection, { model: "selected" });
-        selection.model = "changed";
-        expect(result).toEqual({ provider: "host", model: "selected", reasoningEffort: "high" });
+    it("snapshots the complete Host selection only when Definition selection is omitted", () => {
+        const host = { provider: "host", model: "original", reasoningEffort: "high" };
+        const result = resolveEffectiveAgentOptions(host);
+        host.model = "changed";
+        expect(result).toEqual({ provider: "host", model: "original", reasoningEffort: "high" });
         expect(Object.isFrozen(result)).toBe(true);
-        for (const invalid of [
-            {},
-            { provider: "host" },
-            { model: "model" },
-            { provider: " ", model: "model" }
-        ]) {
-            expect(() => resolveEffectiveAgentOptions(invalid)).toThrow(
-                "Meeting model selection is unavailable."
-            );
-        }
     });
+    it("uses the complete Definition selection without inheriting Host reasoning", () => {
+        const explicit = { provider: "acp-codex", model: "codex" };
+        const result = resolveEffectiveAgentOptions(
+            { provider: "host", model: "host-model", reasoningEffort: "high" },
+            explicit
+        );
+        explicit.model = "changed";
+        expect(result).toEqual({ provider: "acp-codex", model: "codex" });
+        expect(Object.isFrozen(result)).toBe(true);
+    });
+    it.each([{}, { provider: "host" }, { model: "model" }, { provider: " ", model: "model" }])(
+        "rejects incomplete selection instead of merging it: %j",
+        (invalid) => {
+            expect(() =>
+                resolveEffectiveAgentOptions(
+                    { provider: "host", model: "model", reasoningEffort: "high" },
+                    invalid
+                )
+            ).toThrow("Meeting model selection is unavailable.");
+        }
+    );
 });

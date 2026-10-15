@@ -373,14 +373,15 @@ const assertTargetLifecycle = (config: Config, ctx: Pick<Context, "subagents">):
         "protocol_ui_engineer",
         "verification_reviewer",
         "github_research_analyst",
-        "arxiv_research_analyst"
+        "arxiv_research_analyst",
+        "web_research_analyst"
     ]);
     if (
-        definitions.length !== 7 ||
-        new Set(definitions.map((item) => item.roleDefinitionId)).size !== 7 ||
+        definitions.length !== 8 ||
+        new Set(definitions.map((item) => item.roleDefinitionId)).size !== 8 ||
         definitions.some((item) => !expected.has(item.roleDefinitionId))
     ) {
-        throw new Error("Convivium requires the exact seven packaged Meeting role definitions.");
+        throw new Error("Convivium requires the exact eight packaged Meeting role definitions.");
     }
 };
 
@@ -539,7 +540,7 @@ const createDeliveryManager = (input: {
     definitions: ReturnType<typeof parseAgentDefinitions>;
     application: MeetingCommandApplication;
 }) => {
-    const { ctx, config, rolePackageRoot, registry, agentOwner, definitions, application } = input;
+    const { ctx, rolePackageRoot, registry, agentOwner, definitions, application } = input;
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const deadlinePollers = new Map<string, { stop(): Promise<void> }>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {
@@ -586,7 +587,6 @@ const createDeliveryManager = (input: {
             provision: (input) =>
                 provisionMeetingIdentity(input, {
                     definitions,
-                    agentModelOverrides: config.agentModelOverrides,
                     ctx,
                     packageRoot: rolePackageRoot,
                     cwd: process.cwd(),
@@ -719,7 +719,6 @@ export const activateTargetMeetingApplication = async (
         creation: createMeetingCreationCoordinator({
             registry,
             definitions,
-            agentModelOverrides: config.agentModelOverrides,
             ctx,
             owner: agentOwner,
             packageRoot: rolePackageRoot,

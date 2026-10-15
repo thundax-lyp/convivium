@@ -6,13 +6,13 @@
 
 ## Scope And Non-goals
 
-覆盖结构化 Captain 按显示名称选择可选初始 Contributor、Skill 按 Host 配置补齐默认 Contributor、既有七身份会议的恢复、动态普通 Contributor、五项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
+覆盖结构化 Captain 按显示名称选择可选初始 Contributor、Skill 按 Host 配置补齐默认 Contributor、既有七身份会议的恢复、动态普通 Contributor、六项能力 Skill、各角色 Preset、Meeting-owned AgentSession、outbox 投递、暂停/结束/归档/冷恢复和用户 Captain 鉴权。Reviewer 每份 EvidenceVersion 的 one-shot worker 保持 DSH Subagent。当前版本门禁只支持 DSH `0.2.0-rc.2`、单 Host/profile 和已确认的 loopback local 权限。无 Agent Teams、直接同伴消息、跨 Host、旧 schema 迁移或自动清理人工冒烟数据。
 
 ## Responsibilities And Dependencies
 
-角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。七份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 负责议题内计划、开轮、举手处置、发布、推荐和正常结束判断；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub 与 arXiv 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
+角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。八份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 负责议题内计划、开轮、举手处置、发布、推荐和正常结束判断；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub、arXiv 与 Web 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
 
-五项 Skill 的工作方法固定为：`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
+六项 Skill 的工作方法固定为：`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。`web` 实际搜索、读取原始资料、跨来源核验，记录时间窗口、来源定位、事实/推断与限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
 
 | 责任                | 唯一 owner                        | 输入与输出                                                               |
 | ------------------- | --------------------------------- | ------------------------------------------------------------------------ |
@@ -58,7 +58,7 @@ Captain 是本地用户，当前部署只有单 Host 单用户，不设置 Capta
 
 ## Delivery, Pause, Recovery And Archive
 
-outbox dispatcher 每次按 Meeting、目标 identity、Session ownership、capability、当前可见事实及 lifecycle 重验，取得该 Meeting 的 owner handle，向 `Agent.followup` 提交带稳定 deliveryId 的 `UserMessage`，再经 `ctx.sessions.flush(session)` 等待持久化 listener，最后把 effect 标为 delivered。worker 在等待目标 Agent turn 和其它长投递期间持续续约当前 outbox lease；若续约或完成写入返回 `LEASE_LOST`，旧 worker 不再使用失效 token 写 retry/failed，而是放弃该项并继续轮询，由当前持有者或恢复流程处理持久 effect。flush 未成功或 effect 完成提交未成功时保留可重试；重复投递可能出现，Agent 文本和 inbox acceptance 均不能形成 Meeting 事实。已接纳 Contributor 的 hand disposition 用 `deliverObserved`：若其目标 turn 异常且尚未登记 package，dispatcher 通过 `runtime_recovery` 提交 `record_contribution_failure`，由 Domain 生成 `execution_failed` 与必要的 `round_ready`。Reviewer request 同样观察目标 turn；异常立即以 `review_interrupted` 消费 claim，再使用原有 EvidenceVersion 失败预算重派，不等待 claim 到期。Reviewer claim、Meeting requestId/version 和 outbox ID 继续各自去重。Agent 间只经 Meeting Runtime 的正式操作交流。
+outbox dispatcher 每次按 Meeting、目标 identity、Session ownership、capability、当前可见事实及 lifecycle 重验，取得该 Meeting 的 owner handle，向 `Agent.followup` 提交带稳定 deliveryId 的 `UserMessage`，再经 `ctx.sessions.flush(session)` 等待持久化 listener，最后把 effect 标为 delivered。worker 在等待目标 Agent turn 和其它长投递期间持续续约当前 outbox lease；若续约或完成写入返回 `LEASE_LOST`，旧 worker 不再使用失效 token 写 retry/failed，而是放弃该项并继续轮询，由当前持有者或恢复流程处理持久 effect。以下重投和执行异常计失败仅适用于非 ACP 路径；ACP 的持久接收门禁见下述 Codex Session Integration。非 ACP 路径 flush 未成功或 effect 完成提交未成功时保留可重试；重复投递可能出现，Agent 文本和 inbox acceptance 均不能形成 Meeting 事实。已接纳 Contributor 的 hand disposition 用 `deliverObserved`：若其目标 turn 异常且尚未登记 package，dispatcher 通过 `runtime_recovery` 提交 `record_contribution_failure`，由 Domain 生成 `execution_failed` 与必要的 `round_ready`。Reviewer request 同样观察目标 turn；异常立即以 `review_interrupted` 消费 claim，再使用原有 EvidenceVersion 失败预算重派，不等待 claim 到期。Reviewer claim、Meeting requestId/version 和 outbox ID 继续各自去重。Agent 间只经 Meeting Runtime 的正式操作交流。
 
 用户输入 Session 关闭不影响 owner Map 中已创建身份的 handle、outbox 或动态准入。Host 冷启动先恢复 Meeting Repository，再从 active/provisioning ownership 逐个读取精确 Definition ID/hash、资源指纹和固化 `EffectiveAgentOptions`；验证 DSH persisted Session 的 ID/header 后调用 `ctx.agents.resume`，使用同一 scoped setup。资源缺失/变更、Session 或 ownership 不可证明时只标记 `RECOVERY_UNAVAILABLE`，不读取当前默认配置代替。发现已由其他 owner 持有的 live Agent 时拒绝收养裸 handle。
 
@@ -81,6 +81,56 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 该 scenario 结果的 JSON 根字段精确为 `ok:true`、`scenario:"peer-meeting-agents"`、`meetingId:string`、`assertions:string[]`、`observed`。`assertions` 精确按序为 `four-peer-sessions,role-skill-isolation,input-session-independent-delivery,user-control-authorization,github-source,arxiv-source,reviewer-worker,cold-recovery`。`observed` 精确包含 `sessionIds:Record<AgentRoleDefinitionId,string>`、`presetIds:Record<AgentRoleDefinitionId,string>`、`skills:Record<AgentRoleDefinitionId,AbilityName[]>`、`userControl:{inputSessionIndependent:boolean,agentRejected:boolean,reconnectedUserAccepted:boolean}`、`github:{url:string,ref:string}`、`arxiv:{url:string,id:string,version:string}`、`review:{versionId:string,reviewId:string}`、`coldRecovery:boolean`；三个 Record 的键集合精确为 Manager、Reviewer、GitHub Research Analyst、arXiv Research Analyst 四角色，Session ID 值互异，Preset 值精确为 `convivium-<role 去掉 meeting_ 前缀后下划线替换为连字符>`，Skill 数组按名称排序且与角色分配表相等。`assertions` 是验证清单，不由 probe 自报通过代替 `result.mjs` 对 `observed` 的逐字段校验；URL/ID/ref/version 非空，结果不保存 API key、prompt 全文或隐藏推理。
 
 该场景的当前 `observed` 只保存 Session/Preset/Skill 集合、用户控制结果、来源标识、一次 Review 和冷恢复布尔值。资源与模型的恢复检查通过 Repository ownership 的绑定哈希比较；它不直接读取恢复后 Agent 的有效模型、角色身份指令或 `toolFilter`，也不验证 Reviewer 并发审核。`result.mjs` 只能校验结果结构和值，真实工具读取、notice、授权拒绝和恢复行为仍须由 probe 执行并由运行记录证明。完整 MO-FR-14 验收还须覆盖这些未被该场景直接观察的条件，不能由八个结果字段或一次专项 PASS 推断完成。
+
+## Codex Session Integration
+
+本节是待实现的稳定装配方案，精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
+
+`plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 核验并加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。
+
+provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，准备独立 ACP Session，再安装 compaction boundary。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
+
+`deliverToHandle` 对 ACP 的 deliver/deliverObserved 统一走 observed 流程，以原 outbox deliveryId 做持久接收门禁；首次 admitting 后才 followup，flush 后 queued，原 turn 正常结束且所有 request 有持久 receipt/checkpoint 后 completed。重复 completed 返回原 durable 结果；pending 只等待原进程 Promise。无 Promise 的重启未完成项只阻断，不再次入队、不 steer/wake。非 ACP 继续原路径。
+
+owner.resume 先复核原 ownership、身份资源、模型和 Session header/cwd，再 reconcileSession，只有可证明空闲完成才 load 原外部 ID。hydration 不执行工具或提交新事实。旧 sending、缺 receipt、丢失技术记录或 load/指纹失败均保留原绑定并 fail closed。正常冷恢复不依赖不存在的 DSH 自动续执行服务；不能凭日志或 outbox lease 推定可以重发。
+
+`plugin/src/runtime/services/evidence-review-dispatch.ts::createEvidenceReviewDispatcher` 与 `meeting-notice-dispatch.ts::createMeetingNoticeDispatcher` 先核对正式 Review/Evidence，再运行真实 deadline/撤权检查，再查 root block，最后才领取/投递。未知不派 replacement 或合成失败；真正 review_timeout 仍幂等计预算。`plugin/src/tools/register-tools.ts::registerReviewWorkerTool` 每个真实 exec.agent 只复用同一 active claim 的原 Promise，每次重新授权；start 前、result 后检查根阻断，finally dispose。合法已提交事实保留，不能被迟到错误改判。
+
+暂停、异常结束和归档仍用既有 Captain 控制与 revoke/drain/dispose。stopSession(Reviewer) 停其子树，stopSession(worker) 只停该 worker；不反向停父或别根。provider 阻断不等于保持进程运行；停止必须 drain 原进程/MCP/DSH 工具后才记 cleanup 成功，保留技术历史，不做 GC。
+
+## Web Analyzer Resource Composition
+
+| 字段               | 唯一目标                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| roleDefinitionId   | web_research_analyst                                                                          |
+| agentDefinitionId  | convivium.web_research_analyst                                                                |
+| displayName        | WEB ANALYZER                                                                                  |
+| Meeting role       | contributor；ownership role 为 participant                                                    |
+| dshPresetId        | convivium-web-research-analyst                                                                |
+| summary            | 搜索、读取并交叉核验公开互联网资料，区分事实、推断、时效与来源限制。                          |
+| requiredSkillNames | 精确 `["web"]`；新能力名 web                                                                  |
+| expertiseTags      | `["web-research","source-verification","information-analysis"]`                               |
+| evidenceScopes     | 精确 `["web"]`                                                                                |
+| toolFilter         | 复制当前 github_research_analyst 的 contributor deny 集合，不增 Captain/Manager/Reviewer 工具 |
+| agentOptions       | 发行默认省略，沿用 Host 完整默认选择；测试也不改为 Codex                                      |
+
+唯一新增资源：`plugin/config/agents/web_research_analyst/AGENTS.md`、`plugin/config/skills/web/SKILL.md`、`plugin/config/presets/convivium-web-research-analyst/preset.yml`、`plugin/config/presets/convivium-web-research-analyst/agent.cordis.yml`。
+
+AGENTS 只声明身份、职责、允许会议入口和公共会议边界；沿用 Github 角色的先 read、raise/decline、获准后一次最终证据、审核后不补证、不得冒充/直接互发消息规则。Skill 固定方法：明确查询与时间窗口；实际搜索；打开原始来源；跨来源核对；记录 URL、标题、发布/更新时间（缺失记未知）、访问时间和事实/推断/不确定性；提交含来源定位的 materials/claims/summary，不把搜索摘要当成已读正文，不绕过登录/付费限制。搜索无结果、抓取失败时报告限制，不伪造资料。
+
+Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替换 skill providerName、分配目录为 web；保留 persona、平台 shell、fs/search、tool-skill、tool-web 和既有 compaction 组。preset.yml 为 name WEB ANALYZER、上述 summary、order 1。Definitions 末尾追加该项，AGENTS sha256 由最终原始字节生成，不手填假值。八个 Preset 通过发行 patch 注册；不把角色加入静态 agent-loop.config.agents。
+
+## 实施与验证边界
+
+当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 尚未实现，Codex 恢复/MCP 执行及 Web 互联网专项仍为后续设计，不宣称已通过；验证事实见 Current Implementation Coverage。
+
+先以确定性 ACP 子进程结合真实 DSH AgentLoop/ToolRuntime/Storage Domain 验证身份字节、真实 caller、structured_output、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
+
+新专项为一场会议两轮、五个平级身份，Reviewer 主 Session 为 acp-codex，spawn worker 默认继承；Web 用 Host 默认。每轮三份 Evidence/三份合法 Review，失败重试另计；Web 每轮实际 search 并读取 agentclientprotocol.com 与 deepseek-harness.github.io 两域原始页面。定位起点为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 和 [DSH Reference](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，后者域根 404，不能作读取目标。20 分钟软时限不是费用上限，超限停止。
+
+第一轮发布且所有 request/delivery 正常结算后暂停，关闭隔离 Host，以原数据重启；必须观察新的 loaded 与第二轮真实审核，最后撤权归档。probe 订阅公开进程内 checkpoint 事件，并与 DSH 工具/Session 事件及 Repository 正式事实交叉核对，不读取 provider 私有 store/owner。事件订阅须先就绪，不能补造历史。
+
+生产 Catalog producer 未提供；只验证 provisioning 快照与期限，不宣称动态目录上线。未知结果自动恢复、远端结果自动核对、长会话压缩、其它 bridge/OS/模型组合均 Not Covered 或 Non-goals。身份 text 到达不等于模型遵循；cwd 分离不等于 OS 隔离；目录探测不等于推理认证。本次复用产品基线 verify，不安装 bridge、不执行真实模型或互联网专项。
 
 ## Related Documents
 
