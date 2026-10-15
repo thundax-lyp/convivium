@@ -1,6 +1,7 @@
 import { Context } from "@deepseek-ai/cordis";
 import LocalSubprocess from "@deepseek-ai/dsh-subprocess-local";
 import { fileURLToPath } from "node:url";
+import { Writable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openCodexAcpConnection } from "@/dsh/acp-codex/connection.ts";
 const contexts: Context[] = [];
@@ -114,5 +115,28 @@ describe("Codex ACP subprocess connection", () => {
         await response;
         await connection.close();
         expect(connection.client.signal.aborted).toBe(true);
+    });
+    it("rejects a broken stdin pipe without an unhandled stream error", async () => {
+        const ctx = new Context();
+        contexts.push(ctx);
+        await ctx.plugin(LocalSubprocess);
+        const spawn = ctx.subprocess.spawn.bind(ctx.subprocess);
+        vi.spyOn(ctx.subprocess, "spawn").mockImplementation((spec) => ({
+            ...spawn(spec),
+            stdin: new Writable({
+                write: (_chunk, _encoding, callback) => {
+                    callback(Object.assign(new Error("broken pipe"), { code: "EPIPE" }));
+                }
+            })
+        }));
+        await expect(
+            openCodexAcpConnection(
+                ctx,
+                { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
+                process.cwd(),
+                new AbortController().signal,
+                async () => {}
+            )
+        ).rejects.toThrow();
     });
 });

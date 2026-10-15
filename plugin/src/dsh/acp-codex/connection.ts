@@ -1,3 +1,4 @@
+import { Writable } from "node:stream";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-subprocess";
 import {
@@ -71,16 +72,7 @@ export const openCodexAcpConnection = async (
     const stdout = child.stdout;
     const iterator = stdout[Symbol.asyncIterator]();
     const stream = ndJsonStream(
-        new WritableStream<Uint8Array>({
-            write: (bytes) =>
-                new Promise<void>((resolve, reject) =>
-                    stdin.write(bytes, (error) => (error ? reject(error) : resolve()))
-                ),
-            close: () => new Promise<void>((resolve) => stdin.end(resolve)),
-            abort: () => {
-                stdin.destroy();
-            }
-        }),
+        Writable.toWeb(stdin),
         new ReadableStream<Uint8Array>({
             pull: async (controller) => {
                 const next = await iterator.next();
