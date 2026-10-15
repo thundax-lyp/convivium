@@ -58,6 +58,14 @@ it("binds eight packaged identities to isolated native Presets and capability di
             )
         );
         expect(rows.some((row) => row.id === "tool-subagent")).toBe(false);
+        const compaction = rows.filter((row) => row.id === "compaction");
+        expect(compaction).toHaveLength(1);
+        expect(compaction[0].isolate).toEqual({ compaction: true, toolResultPruner: true });
+        expect(
+            compaction[0].config
+                .filter((row) => row.id === "compaction-basic")
+                .map((row) => row.name)
+        ).toEqual(["@convivium/dsh-plugin/acp-compaction"]);
         for (const name of definition.requiredSkillNames) {
             const text = await readFile(new URL(`skills/${name}/SKILL.md`, root), "utf8");
             expect(text).toContain(`name: ${name}\n`);

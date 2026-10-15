@@ -14,38 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P3b：八个 Preset 接入同一压缩边界
-
-前置状态：P3a PASS。
-允许修改（9 个文件；含本册共 10 个）：
-
-- `plugin/config/presets/convivium-manager/agent.cordis.yml`
-- `plugin/config/presets/convivium-domain-architect/agent.cordis.yml`
-- `plugin/config/presets/convivium-runtime-engineer/agent.cordis.yml`
-- `plugin/config/presets/convivium-protocol-ui-engineer/agent.cordis.yml`
-- `plugin/config/presets/convivium-verification-reviewer/agent.cordis.yml`
-- `plugin/config/presets/convivium-github-research-analyst/agent.cordis.yml`
-- `plugin/config/presets/convivium-arxiv-research-analyst/agent.cordis.yml`
-- `plugin/config/presets/convivium-web-research-analyst/agent.cordis.yml`
-- `plugin/tests/contract/meeting-roles-target.spec.ts`
-
-禁止修改：不改 Definition、工具权限、Skill、toolResultPruner 或其它 Preset 参数。
-
-执行：
-
-1. 八个 Preset 仅把 compaction-basic 行的 name 换成 `@convivium/dsh-plugin/acp-compaction`；原 id、隔离组和其它配置不变。
-2. 增强已有 roles target contract，解析每个真实 YAML，断言 backend name、唯一性及 compaction/toolResultPruner 隔离；root/worker 行为由 P3a 证明，实际 spawn 继承与 provider.serviceFor 核查由 P4/D4 组合验证。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-roles-target.spec.ts tests/contract/meeting-roles-deployment.spec.ts tests/integration/dsh/acp-codex-compaction.spec.ts
-pnpm --dir plugin verify:agent-definitions
-```
-
-PASS：八个 Preset 均使用独立隔离组内唯一 backend，原角色资源契约和行为测试通过；实际 2–10 文件且在清单内。
-STOP：需要修改角色模型、权限或其它资源，以及超出文件预算时立即停止。
-
 ### P4：实现 provider 正常调用与持久 checkpoint
 
 前置状态：P3b PASS。
