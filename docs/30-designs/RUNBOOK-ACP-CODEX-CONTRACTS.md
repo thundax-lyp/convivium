@@ -223,40 +223,6 @@ dispatchers 固定顺序：重读正式事实，已有合法 Review/Evidence 按
 
 ## Mechanical Steps
 
-### A1：建立基线并确认正式产品边界
-
-前置状态：全组第一步；尚无产品修改。
-允许修改（3 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `docs/00-governance/ARCHITECTURE.md`
-- `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
-- `docs/10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 先核对 HEAD、工作树和分支。产品基线固定为 d96ae903c440dadec5b6785c02e78db87ba7106f；其后已提交差异仅允许本组六份 RUNBOOK 与原草稿七个文件，HEAD 不必等于旧提交。工作树只允许这七份已审阅文档的改动或未跟踪状态；其它既有改动 STOP。用 git diff 的文件名清单逐项核对这七个精确路径，不以 docs/ 前缀一概放行。读取 PR Rules；分支不存在才创建。先跑未修改产品 baseline，失败不改文档掩盖。
-2. 按 Migration Ownership 固定自研边界、允许官方 bridge、八角色/默认三 contributors、Reviewer 主模型/spawn worker、保守恢复及真实期限；历史验收数字不改。此步不链接尚未创建的 ACP interface。
-3. 后续步骤继续在同一工作树，不重复建分支或重跑无变化 baseline。
-
-验证：
-
-```bash
-git status --short
-git rev-parse HEAD
-git merge-base --is-ancestor d96ae903c440dadec5b6785c02e78db87ba7106f HEAD
-git diff --name-only d96ae903c440dadec5b6785c02e78db87ba7106f HEAD
-git diff --exit-code d96ae903c440dadec5b6785c02e78db87ba7106f HEAD -- plugin package.json .github
-git switch -c codex/acp-codex-reviewer-web-analyzer
-pnpm --dir plugin verify
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：HEAD 等于产品基线或其后仅增加本组七份文档，产品与工程配置差异为空；baseline 与文档门禁退出 0，三个正式来源已准确反映确认范围；本步实际变更路径 2–10 个且均在清单内。
-STOP：基线/分支/用户改动不符、baseline 失败或出现未确认产品取舍；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### A2：迁移跨边界契约
 
 前置状态：A1 PASS。
