@@ -31,6 +31,10 @@
             "types": "./lib/types/remote/types.d.ts",
             "default": "./lib/remote/types.js"
         },
+        "./acp-compaction": {
+            "types": "./lib/types/dsh/acp-codex/compaction.d.ts",
+            "default": "./lib/acp-compaction.js"
+        },
         "./cordis.patch.yml": "./cordis.patch.yml",
         "./package.json": "./package.json",
         "./config/cordis.patch.yml": "./config/cordis.patch.yml"
@@ -109,7 +113,8 @@
         "react": "^18.0.0",
         "react-dom": "^18.0.0",
         "@deepseek-ai/dsh-subprocess": "0.2.0-rc.2",
-        "@deepseek-ai/dsh-compaction": "0.2.0-rc.2"
+        "@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-compaction-basic": "0.2.0-rc.2"
     },
     "peerDependenciesMeta": {
         "@deepseek-ai/dsh-api-gateway": {
@@ -182,6 +187,9 @@
             "optional": true
         },
         "@deepseek-ai/dsh-compaction": {
+            "optional": true
+        },
+        "@deepseek-ai/dsh-compaction-basic": {
             "optional": true
         }
     },
@@ -284,7 +292,8 @@
         "@deepseek-ai/dsh-compaction": "0.2.0-rc.2",
         "@deepseek-ai/dsh-subprocess-local": "0.2.0-rc.2",
         "@agentclientprotocol/codex-acp": "1.11.0",
-        "@openai/codex": "0.161.0"
+        "@openai/codex": "0.161.0",
+        "@deepseek-ai/dsh-compaction-basic": "0.2.0-rc.2"
     },
     "packageManager": "pnpm@10.7.0",
     "pnpm": {

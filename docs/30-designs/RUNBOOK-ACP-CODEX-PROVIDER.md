@@ -14,42 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P3a：在 Preset 隔离组提供按 Agent 判断的压缩 backend
-
-前置状态：P3 PASS；已复现 Agent scope 不隔离 Service，同名安装冲突；正式接口已确认 Preset 装配修订。
-允许修改（7 个文件；含本册共 8 个）：
-
-- `plugin/package.json`
-- `plugin/pnpm-lock.yaml`
-- `plugin/tsdown.config.ts`
-- `plugin/scripts/verify-package.mjs`
-- `plugin/scripts/verify-plugin-contract.mjs`
-- `plugin/src/dsh/acp-codex/compaction.ts`（新增）
-- `plugin/tests/integration/dsh/acp-codex-compaction.spec.ts`（新增）
-
-禁止修改：不安装到人工环境，不修改第三方代码、全局 compaction、Agent.ctx 或隔离 map；不接入 provider。
-
-执行：
-
-1. package 增加 optional peer 与 dev `@deepseek-ai/dsh-compaction-basic:0.2.0-rc.2`，安装并冻结 lock；新增 subpath `./acp-compaction`，types 指向 `./lib/types/dsh/acp-codex/compaction.d.ts`，default 指向 `./lib/acp-compaction.js`；tsdown Node entry 增加 `acp-compaction:src/dsh/acp-codex/compaction.ts`。
-2. 按正式接口实现 CodexCompactionBoundary，保留默认导出供 Loader 使用；参数类型来自真实 BasicCompactionEngine 的方法，不强转 Agent。先写行为 RED：ACP root/worker 自动无写、显式两入口拒绝；非 ACP 原参数委派原 backend；在不同 Cordis compaction 隔离组装载不冲突，自动事件确实调用覆盖方法。
-3. 使用真实 DSH Agent loop 与隔离组测试，不以模拟 backend 替代 ACP 分支；非 ACP 委派允许 spy super 观察参数及结果。build 后 import 包 subpath，验证 Loader 能取得默认 class；同步 verify-package 的 exports/requiredArtifacts 和 verify-plugin-contract 的 subpath 闭集，只增加本入口，不放宽其它断言。
-
-验证：
-
-```bash
-pnpm --dir plugin install --frozen-lockfile
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-compaction.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin build
-pnpm --dir plugin verify:package
-pnpm --dir plugin verify:contract
-pnpm lint
-```
-
-PASS：上述行为与打包验证通过；不重复注册根 compaction，不修改第三方实例；实际变更 2–10 文件且在清单内。
-STOP：默认 backend 自动 hook 不动态派发覆盖方法、需要访问私有字段或打包验证要求未列出的文件，报告证据，不绕过约束。
-
 ### P3b：八个 Preset 接入同一压缩边界
 
 前置状态：P3a PASS。
