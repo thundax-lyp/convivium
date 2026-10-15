@@ -14,34 +14,6 @@
 
 读取 A2 新建的 `docs/20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md` 全部 Fixed Contracts；读取 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的 Codex provider 装配。数据精确结构、函数签名与新文件唯一位置以这两份正式文档为准，不重新从第三方源码选择方案。模块目录入口仅导出本步已经存在的符号。
 
-### P3：实现 provider 技术存储合同
-
-前置状态：P2 PASS。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/dsh/acp-codex/store.ts`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/dsh/acp-codex/index.ts`
-- `plugin/tests/integration/dsh/acp-codex-store.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. openCodexAcpStore 通过既有 Host storageDomain 打开 convivium_acp_codex 三张 strict 表；保持正式字段、键、时间和phase规则，无物理路径或跨表事务假设。
-2. 只实现本目录消费的 get/list/put/close；不可原地修改记录。真实 SQLite Storage Domain 验证落盘再读、拒读损坏、写入失败与关闭屏障。
-3. 新增集成测试只测生产store与真实Host存储，不测fixture/helper自身；此步不创建provider进程。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-store.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：三表严格校验、持久写与冷读一致，失败无内存假提交；本步实际变更路径 2–10 个且均在清单内。
-STOP：需要第二份Meeting事实源、绕过schema或自选数据库路径；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
-
 ### P4：实现 provider 正常调用与持久 checkpoint
 
 前置状态：P3 PASS。
