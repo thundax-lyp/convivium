@@ -540,7 +540,7 @@ const createDeliveryManager = (input: {
     definitions: ReturnType<typeof parseAgentDefinitions>;
     application: MeetingCommandApplication;
 }) => {
-    const { ctx, config, rolePackageRoot, registry, agentOwner, definitions, application } = input;
+    const { ctx, rolePackageRoot, registry, agentOwner, definitions, application } = input;
     const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const deadlinePollers = new Map<string, { stop(): Promise<void> }>();
     const ensureDelivery = async (meetingId: string): Promise<void> => {

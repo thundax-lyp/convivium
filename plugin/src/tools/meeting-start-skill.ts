@@ -28,7 +28,8 @@ const roles = [
     ["protocol_ui_engineer", "Protocol and UI Engineer", "contributor"],
     ["verification_reviewer", "Evidence Reviewer", "evidence_reviewer"],
     ["github_research_analyst", "GitHub Research Analyst", "contributor"],
-    ["arxiv_research_analyst", "arXiv Research Analyst", "contributor"]
+    ["arxiv_research_analyst", "arXiv Research Analyst", "contributor"],
+    ["web_research_analyst", "WEB ANALYZER", "contributor"]
 ] as const;
 
 export class MeetingStartGate {

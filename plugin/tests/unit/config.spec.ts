@@ -36,6 +36,27 @@ describe("Convivium runtime config", () => {
         ).toMatchObject({ initialContributorRoleIds: ["runtime_engineer"] });
     });
 
+    it("accepts the deployed GitHub/arXiv/Web contributor selection", () => {
+        expect(
+            Config({
+                ...validConfig,
+                maxParticipants: 8,
+                initialContributorRoleIds: [
+                    "github_research_analyst",
+                    "arxiv_research_analyst",
+                    "web_research_analyst"
+                ]
+            })
+        ).toMatchObject({
+            maxParticipants: 8,
+            initialContributorRoleIds: [
+                "github_research_analyst",
+                "arxiv_research_analyst",
+                "web_research_analyst"
+            ]
+        });
+    });
+
     it("validates inline definitions and keeps configuration errors safe", () => {
         const definition = {
             agentDefinitionId: "a",

@@ -18,7 +18,7 @@ import { definitionHash } from "@/role-composition/resolve.ts";
 import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts";
 import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 
-it("isolates seven role scopes through native Presets and unpublished Agent factories", async () => {
+it("isolates eight role scopes through native Presets and unpublished Agent factories", async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "convivium-owner-")));
     const ctx = new Context();
     ctx.baseUrl = new URL("../../../", import.meta.url).href;
@@ -167,6 +167,22 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
                     .map((skill) => skill.name)
                     .sort()
             ).toEqual(definition.requiredSkillNames);
+            for (const name of [
+                "meeting-facilitation",
+                "repository-analysis",
+                "evidence-review",
+                "github",
+                "arxiv",
+                "web"
+            ]) {
+                const skill = await ctx.skills.get(name, { scope: first, cwd: root });
+                if (definition.requiredSkillNames.includes(name)) {
+                    expect(skill?.name).toBe(name);
+                } else {
+                    expect(skill).toBeUndefined();
+                }
+            }
+
             expect(
                 (await ctx.systemPrompt.assemble({ scope: first })).sections.find(
                     (section) => section.name === "convivium:role-identity"
@@ -207,7 +223,7 @@ it("isolates seven role scopes through native Presets and unpublished Agent fact
             await owner.suspend({ ownership, reason: "pause" });
             expect(ctx.agents.get(SessionId(ownership.sessionId))).toBeUndefined();
         }
-        expect(new Set(publications).size).toBe(7);
+        expect(new Set(publications).size).toBe(8);
     } finally {
         await owner.disposeAll();
         await ctx.fiber.dispose();

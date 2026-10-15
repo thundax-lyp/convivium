@@ -207,7 +207,8 @@ describe("role resource preflight", () => {
         "protocol_ui_engineer",
         "verification_reviewer",
         "github_research_analyst",
-        "arxiv_research_analyst"
+        "arxiv_research_analyst",
+        "web_research_analyst"
     ])("checks the exact allocation of %s", async (role) => {
         const f = await fixture(role);
         const allocated = await Promise.all(
