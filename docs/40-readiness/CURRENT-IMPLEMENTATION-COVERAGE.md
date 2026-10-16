@@ -60,6 +60,14 @@ Executed Validation：非法输出后的第二次 dispatch 在修复前重复抛
 
 Not Covered / Closure：未执行真实冷恢复或付费模型；快照路径仅经静态检查，审核重试为确定性证据，不扩大真实验收结论。
 
+## 2026-10-16：归档消息引用完整性
+
+Scope / Validated Contract：处理 PR #136 的 comment #4292499927。archive.messages 的 actorId、agendaId、publicationId 分别按 archive.identityProvenance、archive.agenda、archive.publications 校验；不使用顶层合法消息替代归档校验，损坏引用由统一状态校验拒读。
+
+Executed Validation：三项归档悬空引用反例修复前返回 valid、修复后拒绝并定位对应字段；状态校验文件16项通过。完整 plugin verify 通过103文件904项测试及格式/lint/类型/构建/环境/契约/八角色/package 检查；文档链接1175项零错误、git diff --check通过。
+
+Not Covered / Closure：未执行人工归档界面或真实模型；不提供损坏归档修复或历史格式迁移。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。
