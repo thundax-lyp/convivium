@@ -88,7 +88,7 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 
 `plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 核验并加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。
 
-provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，准备独立 ACP Session，再安装 compaction boundary。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
+provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，先经公开 agentPresets.serviceFor 核查由父 Preset composeFrom 继承的 CodexCompactionBoundary，再准备独立 ACP Session；该 hook 不安装或替换 compaction Service。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
 
 `deliverToHandle` 对 ACP 的 deliver/deliverObserved 统一走 observed 流程，以原 outbox deliveryId 做持久接收门禁；首次 admitting 后才 followup，flush 后 queued，原 turn 正常结束且所有 request 有持久 receipt/checkpoint 后 completed。重复 completed 返回原 durable 结果；pending 只等待原进程 Promise。无 Promise 的重启未完成项只阻断，不再次入队、不 steer/wake。非 ACP 继续原路径。
 

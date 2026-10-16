@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，下一入口为 D1。执行分支 `codex/acp-meeting-integration`，仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；本次复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。尚未会议接线或真实 Codex 验收。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1 已通过，下一入口为 D2。执行分支 `codex/acp-meeting-integration`，仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；本次复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期已接线；owner/dispatcher/诊断及真实 Codex 验收尚未完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -73,4 +73,4 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 阶段完成只交接下一册，不单独删除RUNBOOK。全局完成须所有scope与固定验证集合齐全、正式长期来源无遗漏、Not Covered准确；E3一次删除六册并做删除后检查，失败恢复。真实外部运行适用；跨用户/发布/物理介质迁移/UI重设计Not Applicable，其它OS、生产Catalog和长会话压缩Not Covered。
 
-A1–A3 与 C1–C7 的既有证据保持原边界；P1–P5 已实现，任务段落已删除，确定性复核证据见 Current Implementation Coverage。D/E 尚未执行，Executable 只代表计划决策完备。真实 Codex/互联网专项未执行。
+A1–A3 与 C1–C7 的既有证据保持原边界；P1–P5 已实现，任务段落已删除，确定性复核证据见 Current Implementation Coverage。D1 已执行；D2–D5/E 尚未执行，Executable 只代表计划决策完备。真实 Codex/互联网专项未执行。
