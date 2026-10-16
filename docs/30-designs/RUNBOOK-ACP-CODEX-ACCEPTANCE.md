@@ -22,6 +22,18 @@
 
 2026-10-16 用户授权修复阻断并继续。上次 E2 在创建前被 `CaptainMeetingCommandSchema` 拒绝，无 Meeting 身份或待判定外部执行；保留原失败记录目录，不覆盖。本轮用户授权继续修复；两个既有失败目录均保留，当前固定命令使用新 evidence-definition-snapshot 目录。修订只涉及临时 smoke 创建请求与角色别名，不改变产品接口；E2 白名单增补 business-loop 场景文件，共 10 个允许文件。文档链接/diff 检查通过后审计 Executable；真实验收仍未通过。
 
+## STORAGE_UNAVAILABLE 诊断与修复边界
+
+2026-10-16 用户授权先捕获创建原始异常、定位并修复，再验证真实创建并继续 E2/E3。本前置修复阶段允许：`plugin/src/runtime/meeting-runtime.ts`、`plugin/tests/integration/dsh/meeting-creation.spec.ts`、`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/index.mjs`、本册和总入口；不修改公开错误 Schema，不放宽 Storage Domain/ownership/发送门禁。创建 coordinator 在异常映射前记录 error.name/message/code/cause，message 限长并脱敏 Bearer、token 参数和 sk- 凭据，不记录 command、上下文、环境或 prompt；原异常仍原样抛出，日志故障不改变结果。固定验证：meeting-creation integration、Host typecheck、改动文件 lint/format、build、文档链接与 diff。probe 通过公开 ctx.logger.exporter 仅将该已脱敏的创建错误日志导出到 stderr，沿 fiber 自动卸载，不输出其它日志。首轮诊断原始持久记录核对为 ready、五 active ownership、ACP requests=0/deliveries=0，异常发生在提交后 delivery scope 装配，不把 STORAGE_UNAVAILABLE 推定为未创建。原根保留且不重放。原始异常复现属于诊断，不作为 E2 成功；只允许复现原 STORAGE_UNAVAILABLE 以取证，任何未知外部结果立即 STOP。若异常发生在预检/持久创建之前，核对无模型输入和无持久发送记录后允许修复并使用新隔离环境验证；不能重放已消费输入。失败时停稳本次 Host 并保留原临时根，记录精确位置，不自动删除数据库/Session/技术门禁。本次使用新 `evidence-storage-diagnostic` 目录，历史三个目录保留。实际根因需要新增生产文件时，先在作者阶段固定允许文件与直接验证再实现。
+
+## 未发送输入的 ACP 首次激活修复
+
+原始诊断已定位为提交后的 provisioning→delivery 切换关闭 bridge 后 load 原会话失败。官方锁定 1.11.0/0.161.0 实测 newSession 后不发 prompt、关闭进程再 load 返回 -32603 Internal error。两个保留诊断根的 ACP requests/deliveries 均为 0，不重放或清锁。诊断代码的 12 项测试、Host typecheck、build、lint/format、文档检查通过，先单独提交。
+
+随后修复阶段固定 8 文件：`plugin/src/dsh/meeting-agent-owner.ts`、`plugin/src/dsh/acp-codex/provider.ts`、`plugin/tests/unit/dsh/meeting-agent-owner.spec.ts`、`plugin/tests/integration/dsh/acp-reviewer.spec.ts`、ACP Interface、Peer Meeting Agents Design、本册、总入口。只对同 owner 已持有的 ACP provisioning Agent，在 durable ownership 已 active 且 capability active、原 header/options/资源/Skill 全部同值时，原地移除 provisioning 的独立 allow=[] restriction。setup 保存该 restriction 的 disposer 到 WeakMap<Agent,()=>void>；角色原 toolFilter 不移除。先 await provider.prepareSession(agent,delivery)，成功后才解除 gate 并标记 owner purpose=delivery。provider 对同一 Agent 的无 active request 的 warm provisioning lease，仅在既有绑定/模型/指纹/reconcile/block 校验后把 purpose 升级为 delivery，不关闭进程/MCP、不 load、不 new、不改任何 durable ID。非 ACP、cleanup、cold resume 保持原机制；冷恢复仍只能 load 原 ID，禁止 fallback、清锁或自动重放。失败保持 restriction，记录原错误并 STOP。
+
+固定验证：owner unit、ACP Reviewer MCP integration、provider integration、ACP recovery、Host typecheck、改动文件 lint/format、build、文档链接和 diff。反例：未 active 提前放权、prepare 失败解除 gate、误移除角色 filter、首发前重启导致原空会话无法 load、冷恢复换新 ID。全部通过后单独提交该修复，之后 E2 使用新 evidence-warm-activation 目录先确认真实创建 accepted，再进入两轮专项；原失败根全部保留。
+
 ## Formal Inputs And Evidence
 
 读取 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)、A2 的 ACP interface 与 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。官方binary/model选择沿正式ACP interface；本次专项结果JSON/来源断言见E2，不升为产品公开接口；不再从已删除草稿取值。权限/恢复确定性证据复用P/D册；真实专项不能用fixture替代。
@@ -61,8 +73,8 @@
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-definition-snapshot
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-definition-snapshot CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-storage-diagnostic-logger
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-storage-diagnostic-logger CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/六Review、真实搜索/两域正文、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

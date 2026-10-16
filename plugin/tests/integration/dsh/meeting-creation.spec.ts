@@ -68,7 +68,9 @@ const fixture = async (
                     };
                 })
         );
+    const diagnostic = vi.fn();
     const ctx = {
+        logger: () => ({ error: diagnostic }),
         agentDefaultModel: {
             currentSelection: vi.fn(() => ({ provider: "fixture", model: "original" }))
         },
@@ -167,7 +169,18 @@ const fixture = async (
     const coordinator = createMeetingCreationCoordinator(dependencies);
     const run = (caller = context) =>
         coordinator.create(command, caller, "meeting", Date.now(), new AbortController().signal);
-    return { run, repository, registry, ctx, owner, active, command, context, dependencies };
+    return {
+        run,
+        repository,
+        registry,
+        ctx,
+        owner,
+        active,
+        command,
+        context,
+        dependencies,
+        diagnostic
+    };
 };
 
 it("commits four peer bindings before factories and publishes only after all activations", async () => {
@@ -317,6 +330,26 @@ it("replays equal durable bindings and rejects changed model choices atomically"
         const after = await f.repository.recover();
         expect(after.sessionOwnership).toEqual(before.sessionOwnership);
         expect(after.preparedDescriptors).toEqual(before.preparedDescriptors);
+    } finally {
+        await f.repository.close();
+    }
+});
+
+it("retains the original creation exception while logging a redacted diagnostic", async () => {
+    const f = await fixture();
+    const failure = new TypeError(
+        "factory failed Bearer private-token token=private-query sk-privateapikey123456789"
+    );
+    f.owner.create.mockRejectedValue(failure);
+    try {
+        await expect(f.run()).rejects.toBe(failure);
+        expect(f.diagnostic).toHaveBeenCalledOnce();
+        const log = JSON.stringify(f.diagnostic.mock.calls);
+        expect(log).toContain("TypeError");
+        expect(log).toContain("factory failed");
+        expect(log).not.toContain("private-token");
+        expect(log).not.toContain("private-query");
+        expect(log).not.toContain("sk-privateapikey");
     } finally {
         await f.repository.close();
     }

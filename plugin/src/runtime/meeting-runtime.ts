@@ -541,5 +541,50 @@ export const createMeetingCreationCoordinator = (
             return MeetingCommandResultSchema.parse(result);
         }
     };
-    return serializeMeetingCreation(coordinator);
+    const describeError = (error: unknown, depth = 0): object => {
+        if (!(error instanceof Error)) {
+            return { name: "NonError" };
+        }
+        const redact = (text: string) =>
+            text
+                .replace(/Bearer\s+[^\s"\x27]+/gi, "Bearer [REDACTED]")
+                .replace(/token=[^\s"\x27&]+/gi, "token=[REDACTED]")
+                .replace(/sk-[a-zA-Z0-9_-]+/g, "[REDACTED]")
+                .slice(0, 1024);
+        const code =
+            "code" in error &&
+            typeof error.code === "string" &&
+            /^[A-Z0-9_-]{1,64}$/.test(error.code)
+                ? error.code
+                : undefined;
+        return {
+            name: error.name,
+            message: redact(error.message),
+            ...(code ? { code } : {}),
+            frames: error.stack
+                ?.split("\n")
+                .filter((line) => line.trimStart().startsWith("at "))
+                .slice(0, 4)
+                .map(redact),
+            ...(depth < 2 && error.cause !== undefined
+                ? { cause: describeError(error.cause, depth + 1) }
+                : {})
+        };
+    };
+    return serializeMeetingCreation({
+        create: async (...args) => {
+            try {
+                return await coordinator.create(...args);
+            } catch (error) {
+                try {
+                    dependencies.ctx
+                        .logger("convivium:meeting")
+                        .error("Meeting creation failed: %s", JSON.stringify(describeError(error)));
+                } catch {
+                    /* Diagnostics cannot replace the original exception. */
+                }
+                throw error;
+            }
+        }
+    });
 };
