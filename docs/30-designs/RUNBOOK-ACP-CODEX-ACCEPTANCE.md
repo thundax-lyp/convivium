@@ -134,6 +134,8 @@ CONVIVIUM_SMOKE_ACP_COLD_ROOT=/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/c
 
 H5 前置修复已 PASS（43 项聚焦测试、Host 类型/lint/format/build/link/diff）；任务段落已删除，单独提交，不混入 E2。用户已授权补齐恢复后的 Manager 持久续行通知；唯一实现/测试白名单和精确判据见 D 册 H5，不能混入 E2 脚本。H5 PASS 后仅由 E2 恢复阶段在停止的原临时 profile 更新产品发布物，先逐文件固定/核对新旧职责范围，保持原 Definition/角色资源/模型/cwd/SQLite/Session 和技术门禁；再通过新的用户 pause/resume 生命周期动作续接原 checkpoint，禁止重做第一轮或重放输入。E2 恢复装配与唯一命令在 H5 PASS 后作者核对原现场再固定，不让机械执行者猜测；在此之前不启动现场。
 
+C0 PASS：已授权只读导出纳入精确公开导出清单；契约检查、ESLint、Prettier 和 diff 检查通过，未放宽集合相等门禁。
+
 ### C1：按人工验收交接关闭临时任务
 
 前置状态：2026-10-16 用户确认一轮核心冒烟成功，剩余真实验收改为人工冒烟与日志调试；H1–H5 PASS，H5 提交 c920a4ab。E2 完整验收未通过，不标 PASS；原 E3 的自动三场景真实复验取消，本次不新增付费调用。正式权限、SSRF、取消与防重放门禁不变。

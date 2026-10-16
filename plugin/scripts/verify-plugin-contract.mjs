@@ -9,7 +9,14 @@ const patch = await readFile(join(root, "cordis.patch.yml"), "utf8");
 const failures = [];
 const runtime = await import(join(root, "lib/index.js"));
 const publicExports = Object.keys(runtime).sort();
-const expectedPublicExports = ["Config", "ConviviumRemoteService", "apply", "inject", "name"];
+const expectedPublicExports = [
+    "Config",
+    "ConviviumRemoteService",
+    "apply",
+    "inject",
+    "name",
+    "readMeetingOutboxForAcceptance"
+];
 if (JSON.stringify(publicExports) !== JSON.stringify(expectedPublicExports)) {
     failures.push(`public exports mismatch: ${publicExports.join(",")}`);
 }
