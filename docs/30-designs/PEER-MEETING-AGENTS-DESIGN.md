@@ -84,21 +84,15 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 
 ## Codex Session Integration
 
-2026-10-16 ACP 目标已变更为 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。本节 MCP bridge、one-shot driver `structured_output` 及模型调用会议工具的描述仅记录旧实现；宿主适配尚未实现，不能据此继续 E2。DSH 原生路径保持原设计。新的职责链为 Host 读取可信会议事实 → 构造 ACP 审核输入 → 外部 Agent 使用自身原生能力 → Host 校验结果并通过原 Runtime 提交；worker 启动、取消、回收归 Host。具体接口和完成/恢复顺序尚未固定，不得先以 provider 合成会议工具调用或模型自报成功替代宿主适配。
+ACP root/worker 只使用外部 Agent 自身原生工具和 Skills，会议读取、审核提交与 worker 生命周期由宿主适配；契约和防重放边界唯一见 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。DSH 原生执行路径保持前文设计。
 
-本节的 D1–D5 装配已实现并通过确定性验证，E 阶段真实验收与全组收口尚未完成；精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
+`createMeetingAgentOwner` 继续校验 Definition/资源/Skill/options/header/cwd、装配 Preset 和持久交付门禁，首次 warm 激活保留原 Agent/进程/绑定；provider 仅用 ACP 空 mcpServers 和原连接。宿主 Role/Skill 完整性校验不意味着向外部投影这些方法；provider 的 prompt projection 不传 system/developer。
 
-`plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 首次 warm 激活核验并保留原 Agent/进程/MCP/绑定，冷恢复才加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。
+`createEvidenceReviewDispatcher` 为 ACP 分支持有一次执行 Promise，通知原 root 后通过 `runAcpReviewWorker` 启动无 outputSchema 的原生 DSH spawn。原 worker parent/model、取消、checkpoint 和 disposer 由 DSH adapter 管理；Runtime 校验完整 JSON、Schema/version 后，使用原 claim/caller/application 提交，并发出只读 accepted 事件。既有工具 Reviewer 流程只供非 ACP。已消费原交付且无持久 Review/原 Promise 时持久阻断，不复活或替换 worker；正常空闲点保留原 ID 冷 load。
 
-provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，先经公开 agentPresets.serviceFor 核查由父 Preset composeFrom 继承的 CodexCompactionBoundary，再准备独立 ACP Session；该 hook 不安装或替换 compaction Service。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
+provider 的 agent/created hook 仍只准备已准备 root 下的 fresh spawn，核查继承的 CodexCompactionBoundary；不新增全局默认 ACP 用户 Session，不安装第二个 compaction Service。未知结果继续传播到所属根、保持真实 deadline、不自动暂停。stopSession(root) 停所属子树，stopSession(worker) 不反向停父；cleanup 不 load，不做 GC。
 
-`deliverToHandle` 对 ACP 的 deliver/deliverObserved 统一走 observed 流程，以原 outbox deliveryId 做持久接收门禁；首次 admitting 后才 followup，flush 后 queued，原 turn 正常结束且所有 request 有持久 receipt/checkpoint 后 completed。重复 completed 返回原 durable 结果；pending 只等待原进程 Promise。无 Promise 的重启未完成项只阻断，不再次入队、不 steer/wake。非 ACP 继续原路径。
-
-owner.resume 先复核原 ownership、身份资源、模型和 Session header/cwd，再 reconcileSession，只有可证明空闲完成才 load 原外部 ID。hydration 不执行工具或提交新事实。旧 sending、缺 receipt、丢失技术记录或 load/指纹失败均保留原绑定并 fail closed。正常冷恢复不依赖不存在的 DSH 自动续执行服务；不能凭日志或 outbox lease 推定可以重发。
-
-`plugin/src/runtime/services/evidence-review-dispatch.ts::createEvidenceReviewDispatcher` 与 `meeting-notice-dispatch.ts::createMeetingNoticeDispatcher` 先核对正式 Review/Evidence，再运行真实 deadline/撤权检查，再查 root block，最后才领取/投递。未知不派 replacement 或合成失败；真正 review_timeout 仍幂等计预算。`plugin/src/tools/register-tools.ts::registerReviewWorkerTool` 每个真实 exec.agent 只复用同一 active claim 的原 Promise，每次重新授权；start 前、result 后检查根阻断，finally dispose。合法已提交事实保留，不能被迟到错误改判。
-
-暂停、异常结束和归档仍用既有 Captain 控制与 revoke/drain/dispose。stopSession(Reviewer) 停其子树，stopSession(worker) 只停该 worker；不反向停父或别根。provider 阻断不等于保持进程运行；停止必须 drain 原进程/MCP/DSH 工具后才记 cleanup 成功，保留技术历史，不做 GC。
+真实模型用量沿用已有授权；不重放已消费输入，不修改固定人工 profile。旧 MCP 确定性验证是历史证据；新路径须重新验证宿主接纳、非法输出、取消、消费后崩溃和正常冷恢复。
 
 ## Web Analyzer Resource Composition
 
@@ -126,7 +120,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 
 当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 已实现并通过确定性恢复/MCP 组合测试；会议 owner/worker、dispatcher 与诊断接线已完成并通过确定性验证；真实 Codex/Web 互联网专项尚未执行，不宣称真实验收已通过；验证事实见 Current Implementation Coverage。
 
-先以确定性 ACP 子进程结合真实 DSH AgentLoop/ToolRuntime/Storage Domain 验证身份字节、真实 caller、structured_output、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
+先以确定性 ACP 子进程结合真实 DSH AgentLoop/Storage Domain 验证原生 prompt 边界、宿主 caller、完整 JSON 接纳、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
 
 新专项为一场会议两轮、五个平级身份，Reviewer 主 Session 为 acp-codex，spawn worker 默认继承；Web 用 Host 默认。每轮三份 Evidence/三份合法 Review，失败重试另计；Web 每轮实际 search 并读取 agentclientprotocol.com 与 deepseek-harness.github.io 两域原始页面。定位起点为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 和 [DSH Reference](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，后者域根 404，不能作读取目标。20 分钟软时限不是费用上限，超限停止。
 

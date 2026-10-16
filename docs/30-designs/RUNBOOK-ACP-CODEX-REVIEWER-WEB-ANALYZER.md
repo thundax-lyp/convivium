@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Author；**Not Executable，E2/E3 STOP**。用户已确认 ACP root/worker 只使用自身原生工具和 Skills，会议读取、审核提交及 worker 生命周期由宿主适配。原 MCP Reviewer/structured_output 目标与当前需求冲突；旧 A/C/P/D 验证只证明旧实现，E1 预检已 PASS，warm activation 修复已 PASS，真实创建已成功，但 E2/E3 尚未 PASS。执行分支 `codex/acp-acceptance`，基线 `69ff4424`，当前最近已提交源码 `0d1518ba`。仍仅使用普通分支；不重放已消费输入、不修改固定人工环境、不 push/PR/merge。
+2026-10-16；Author/Audit；**Executable，下一入口 H1→H2→H3→E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；原 E2 未 PASS，E3 未执行。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -11,14 +11,14 @@
 | A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | 已迁移 / 无剩余任务          | 正式依据齐备，完整迁移后删除草稿       |
 | C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | 已实现 / 无剩余任务 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
-| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | 已实现 / 无剩余任务        | 身份/投递/审核/可见阻断通过            |
+| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | H1/H2/H3 / 8、7、10 | 原生执行、宿主审核和持久门禁 |
 | E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 4、10、9              | 官方预检、真实专项、完整门禁、删除六册 |
 
 ## Scope And Invariants
 
 自研Codex专用provider注册acp-codex，禁止安装dsh-acp-adapter，仅参考机制；允许官方codex-acp。Definition.agentOptions为唯一新建选择，退役外部overrides；不可变准入快照/descriptor到期不变。Reviewer独立主Session选择Codex，worker仍spawn且模型默认继承；Web独立Session使用Host默认模型。支持正常空闲点原会话冷load；未知结果持久阻断，不重发/空白重绑，真实deadline继续。
 
-目标业务链：创建→五平级Session→Web搜索/读取→Evidence→Host构造可信审核输入→Reviewer/worker ACP原生执行→Host校验输出→原Runtime提交Review→发布→安全暂停/冷load→第二轮→撤权归档。宿主调用接口、输出载体和接纳/恢复顺序未完成设计与审计前，不执行该链路。
+目标业务链：创建→五平级Session→Web搜索/读取→Evidence→Host构造可信审核输入→Reviewer/worker ACP原生执行→Host校验输出→原Runtime提交Review→发布→安全暂停/冷load→第二轮→撤权归档。宿主调用、完整 JSON 输出接纳与消费后阻断已由 ACP Interface 和 H1–H3 固定。
 
 Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、自动恢复未知/人工清锁、热换已有会议模型、凭据UI、长会话压缩认证、生产动态Catalog producer、远程多用户、物理存储迁移、固定人工环境部署、提交/发布/合并。
 

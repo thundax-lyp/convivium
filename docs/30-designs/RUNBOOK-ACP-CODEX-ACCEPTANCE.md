@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Author；**Not Executable；E1 已 PASS；E2/E3 STOP**。用户已确认 ACP Agent 仅使用自身原生工具和 Skills，会议读取、审核提交和 worker 生命周期由宿主适配。原 E2 的 MCP/structured_output 验收前提失效，须先按 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary) 完成宿主适配设计、文件白名单和重新审计。既有真实用量及逐步提交授权保留；本状态不授权重放已消费输入、push/PR/merge 或固定人工环境安装。
+2026-10-16；Author/Audit；**Executable，等待 H1–H3 PASS 后执行 E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -12,7 +12,7 @@
 
 每步 PASS 后先保存仓库外脱敏执行记录，删除本册该步完整任务段落并更新本册/总入口的下一入口，执行文档链接和 diff 检查，阅读完整待提交 diff 后单独 commit；失败保留任务段落且不提交失败步骤。E3 以删除六册代替删除单个段落。E1/E2 的 RUNBOOK 更新已列入允许文件。
 
-## 2026-10-16 ACP 边界变更 STOP
+## 2026-10-16 ACP 边界变更与作者修订
 
 最后 PASS：`0d1518ba` 的 warm activation 聚焦门禁；最新真实专项确认会议创建成功，未得到合法 Review，不能记为 E2 PASS。原现场 `/tmp/convivium-acp-codex-evidence-warm-activation/convivium-smoke-record-x8FrbR/acp-codex-reviewer-web` 与 `/tmp/convivium-acp-acceptance-records/e2-warm-activation-stop.json` 保留，输入已消费，不再次投递。
 
@@ -26,7 +26,7 @@ rg -n 'reviewWorkers.start|result.structured' plugin/src/tools/register-tools.ts
 rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 ```
 
-实际输出分别命中现有投递指令、spawn/structured 接纳和 new/load MCP 注入。恢复条件：先固定宿主调用/输出接纳与防重放契约，补齐唯一文件和 symbol 白名单及正反例验证，审计为 Executable 后才进入实现，再以全新隔离环境执行 E2。用户已完成产品边界决定，无须重复询问授权；未完成技术设计不交给机械执行者选择。下文 E2/E3 任务段落保留用于作者修订，不得执行或删除为已完成。
+实际输出分别命中现有投递指令、spawn/structured 接纳和 new/load MCP 注入。恢复条件：先固定宿主调用/输出接纳与防重放契约，补齐唯一文件和 symbol 白名单及正反例验证，审计为 Executable 后才进入实现，再以全新隔离环境执行 E2。用户已完成产品边界决定，无须重复询问授权；未完成技术设计不交给机械执行者选择。本轮作者已在 D 册固定 H1–H3，审计 Executable；原 STOP 现场保留，H1–H3 全部 PASS 才执行以下 E2/E3。
 
 ## 2026-10-16 E2 Author Audit
 
@@ -56,7 +56,7 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
-前置状态：E1 PASS；真实测试用量已获Execute授权。
+前置状态：E1、H1–H3 PASS；真实测试用量沿用既有授权；不重放已消费输入。
 允许修改（10 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/scripts/smoke-profile/index.mjs`
@@ -75,11 +75,11 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 执行：
 
 1. 修正创建契约漂移：`support.mjs::peerCreateCommand` 仅构造 CaptainCreateMeeting，`index.mjs::writeSmokePatch` 将同一 targetDefinitions 数组写入 patch.agentDefinitions 和临时根 smoke-definitions.json，返回该 JSON 的绝对路径；runScenario 通过 CONVIVIUM_SMOKE_DEFINITIONS_PATH 传给 probe，hot/cold 共用同一路径。`support.mjs::peerCreateCommand` 必须从该路径读取，使用临时 Definition 的 displayName 形成 participantRoleNames，不回退发行资源，不提交 identities/managerIdentityKey/evidenceReviewerIdentityKey；Manager/Reviewer 由 Runtime 选取。`index.mjs::writeSmokePatch` 对 peer/identity/ACP 场景将临时 Definition.displayName 固定为 roleDefinitionId，business-loop 场景将四角色分别固定为 manager/reviewer/contributor-a/contributor-b；仅影响临时 profile。`meeting-business-loop.mjs::runMeetingBusinessLoopScenario` 改用 participantRoleNames=["contributor-a","contributor-b"] 和 ownerRoleName="manager"，保留原轮次、事实、权限与审核断言。创建拒绝断言必须保存完整 rejected result（不含凭据）。启动真实会议前，用生产 Captain Schema 与 resolveCaptainCommand 对四 lane 的临时快照逐项验证 names、系统角色和最终 identity definitionId 一致；临时验证不写永久脚本测试。ACP probe 检查三个 participant role names，不再读取内部 identities。沿正式 Meeting Interface Captain Control Surface，不放宽生产 Schema。按正式合同修改原三个lane的临时Definition配置，退役脚本中的overrides；CORE_SCENARIOS继续原显式角色，SMOKE_SCENARIOS加入acp-codex-reviewer-web。
-2. `plugin/scripts/smoke-profile/index.mjs::runScenario`复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实caller/tools/result/checkpoint采证。
+2. `plugin/scripts/smoke-profile/index.mjs::runScenario`复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实 Host accepted 事件、DSH caller、Web tools/result 与 checkpoint 采证。
 3. 一场会议两轮，Manager/Reviewer/GitHub/arXiv/Web五独立root；每轮每contributor一份Evidence，目标六个合法Review，worker机制spawn且模型继承Codex。失败重试另按原预算；20分钟软时限失败STOP，不能宣传费用/token上限。
 4. 议题固定“DSH通过ACP连接外部Agent的公开机制、权限和恢复边界”。Web每轮至少一次真实search和两个不同域名正文读取，限定agentclientprotocol.com及deepseek-harness.github.io。保存URL/标题/发布时间（缺失unknown）/访问时间/正文sha256，实际工具事件和正式证据相互印证，不硬编码措辞。起始页面固定为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 与 [DSH Architecture](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，只作为实际搜索后读取的定位起点，不预填正文或claim；DSH域名根路径返回404，禁止把域名直接拼成根URL作为读取成功条件。
-5. probe 从安装包根具名 import `readMeetingOutboxForAcceptance`，通过 ctx.storageDomain.get 借用当前 Runtime 已打开 domain。订阅 `convivium/acp-checkpoint` 必须在创建会议/冷恢复前完成；热阶段保存事件、绑定 hash、工具调用 ID、结构化结果和第一轮事实到原 checkpoint，冷阶段读取原 checkpoint 后合并本进程新事件。deliveryId 沿 owner 原 deliveryId，不派生新 ID；以原事件 deliveryId 精确查同 meeting 的 outbox.deliveryId，要求每项恰一条且 status=delivered；仅采用当前 Reviewer root 的 delivery-completed，worker 只核对 committed 与 structured_output。不读取 owner/provider 私有字段。第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate不重复工具；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
-6. result必须为严格JSON：`{ok:true,scenario:"acp-codex-reviewer-web",meetingId:string,observed:{sessionIds:Record<string,string>,reviewer:{provider:"acp-codex",model:string,reasoningEffort?:string,workerProvider:"spawn",workerModel:string,structuredReviews:number},web:{searchCalls:number,sources:Array<{roundId:string,url:string,title:string,publishedAt:string,accessedAt:string,contentSha256:string}>},rounds:number,coldRecovery:boolean,authorizationRejected:boolean,archiveComplete:boolean}}`；sessionIds键精确五role，structuredReviews=6、rounds=2，其余boolean=true；每轮域名集合都含两个指定域，workerModel=model。验证器拒绝未知/缺失字段，不接受模型自述代替事件。
+5. probe 在创建前订阅 `convivium/acp-review-accepted`，只计入 rootSessionId 等于 Reviewer 且 versionId/reviewId 与当前 Repository Review 相符、workerSessionId 有原 committed 的宿主接纳事件；六次必须来自六个独立 worker，冷阶段必须新增三个，历史 worker 不重新执行。ACP root/worker 不得出现 Convivium/skill/structured_output 的 tools/result；禁止用纯模型自报或 Web 角色的工具调用冒充审核。probe 从安装包根具名 import `readMeetingOutboxForAcceptance`，通过 ctx.storageDomain.get 借用当前 Runtime 已打开 domain。订阅 `convivium/acp-checkpoint` 必须在创建会议/冷恢复前完成；热阶段保存 checkpoint/Host accepted 事件、绑定 hash、Web 工具调用 ID 和第一轮正式 Review到原 checkpoint，冷阶段读取原 checkpoint 后合并本进程新事件。deliveryId 沿 owner 原 deliveryId，不派生新 ID；以原事件 deliveryId 精确查同 meeting 的 outbox.deliveryId，要求每项恰一条且 status=delivered；仅采用当前 Reviewer root 的 delivery-completed，worker 核对 committed、真实 parent/model 与 Host accepted 事件。不读取 owner/provider 私有字段。第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate 不重复 ACP prompt/worker 或会议提交；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
+6. result必须为严格JSON：`{ok:true,scenario:"acp-codex-reviewer-web",meetingId:string,observed:{sessionIds:Record<string,string>,reviewer:{provider:"acp-codex",model:string,reasoningEffort?:string,workerProvider:"spawn",workerModel:string,hostValidatedReviews:number},web:{searchCalls:number,sources:Array<{roundId:string,url:string,title:string,publishedAt:string,accessedAt:string,contentSha256:string}>},rounds:number,coldRecovery:boolean,authorizationRejected:boolean,archiveComplete:boolean}}`；sessionIds键精确五role，hostValidatedReviews=6、rounds=2，其余boolean=true；每轮域名集合都含两个指定域，workerModel=model。验证器拒绝未知/缺失字段，不接受模型自述代替事件。
 7. E1 预检在创建隔离 Host 前执行；environment.mjs 从锁定 Codex 包解析当前 macOS 平台 binary，设置 CODEX_PATH 并核对其 hash 等于 preflight.binarySha256.codex，保留 HOME/CODEX_HOME，不复制凭据。新场景临时 Definition 只为 Reviewer 写完整 agentOptions，Web 不设覆盖；旧三 lane 的 Reviewer 沿原 deepseek-official/deepseek-v4-flash 选择写入 Definition.agentOptions。新场景 contributor 闭集为 GitHub/arXiv/Web，maxParticipants=4。
 8. evidence 目录必须不存在，index.mjs 在检查后仅为显式新场景 mkdir 创建该固定目录，再调用现有 createRecordRoot；不得覆盖已有证据。
 9. Prepare/Execute/Assert/Restore：隔离mkdtemp profile，不复制Codex凭据；停止/等待本次进程，脱敏证据先保存到CONVIVIUM_SMOKE_RECORD_DIR；只清理自己创建的临时根，失败也保存并收敛。
@@ -89,8 +89,8 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-warm-activation
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-warm-activation CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-native-host
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-native-host CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/六Review、真实搜索/两域正文、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

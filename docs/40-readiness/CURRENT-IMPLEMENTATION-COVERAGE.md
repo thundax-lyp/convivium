@@ -14,7 +14,7 @@
 
 2026-10-16 用户确认 ACP root/worker 仅使用外部 Agent 自身原生工具和 Skills；Host 负责会议读取、审核提交及 worker 生命周期，见 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。当前源码仍为 MCP 工具转接路径，宿主适配未实现。下面 ACP MCP/structured_output 确定性结果是旧边界的历史验证，不证明新目标通过。
 
-本轮已核查普通分支 `codex/acp-acceptance` 与现有工作树；warm activation 后真实创建成功，但 Reviewer 没有调用会议工具，未产出 Review，E2 未通过、E3 未执行。旧付费现场与已消费输入保留；本次边界变更未发模型请求。Not Covered：ACP 不注入 Convivium MCP/Skills、宿主 worker 驱动与输出接纳、新边界两轮冷恢复和归档。RUNBOOK 当前为 Not Executable，不能按旧指令继续验收。
+本轮已核查普通分支 `codex/acp-acceptance` 与现有工作树；warm activation 后真实创建成功，但 Reviewer 没有调用会议工具，未产出 Review，E2 未通过、E3 未执行。旧付费现场与已消费输入保留；本次边界变更未发模型请求。Not Covered：ACP 不注入 Convivium MCP/Skills、宿主 worker 驱动与输出接纳、新边界两轮冷恢复和归档。宿主适配契约与 H1–H3/E2 作者修订已完成，RUNBOOK 审计为 Executable；源码尚未实现新路径，必须先执行 H1–H3，不能按旧 MCP 指令继续验收。
 
 ## ACP Configuration And Web Role Validation
 

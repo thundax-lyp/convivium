@@ -1,35 +1,121 @@
-# RUNBOOK: ACP Codex — 会议接线与用户诊断
+# RUNBOOK: ACP Codex — 原生执行与宿主审核适配
 
-## Status, Dependency And Boundary
+## Status, Authority And Executor Contract
 
-2026-10-16；Execute；D1–D5 及 D4a 已 PASS，任务段落已删除；下一入口 E1。D5 实际交付 10 个文件，用户授权补齐 host-plugin-lifecycle 测试替身的订阅/注销并保留总预算。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本册无剩余任务；本轮授权及执行边界以总入口为准。
+2026-10-16；Author/Audit；Executable，下一步骤 H1。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
-前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
+**ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
 
-当前断点：插件生命周期、owner、通知/审核 dispatcher、Reviewer worker 与用户诊断的确定性接线已闭合；真实 Codex/Web 专项仍未验收。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
+## Scope, Breakpoints And Formal Contract
+
+Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/developer；宿主以原 caller/claim 驱动 DSH spawn、解析完整 JSON 并提交；改验收采证。Non-goals：通用 ACP、原生 Codex subagent 投影、新技术 domain/业务事件、自动恢复未知、会话 GC、修改非 ACP Reviewer 工作流。
+
+当前断点：`provider.ts::connectSession` 注入 bridge；`prompt.ts::buildCodexPrompt` 透传 system/developer；`evidence-review-dispatch.ts::createEvidenceReviewDispatcher` 要求 ACP 调会议工具。原 MCP bridge 测试退休；已有发送/receipt/flush/原 ID/recovery 测试继续保护。唯一依据为 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)、[Orchestration](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#acp-codex-acceptance-boundary)、[Evidence Round](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)、[Peer Agents](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration)。
+
+精确数据/签名/所有权：消费 ACP Interface 的 CodexAcpProviderPort、三表、checkpoint、Reviewer And Worker 与 Prompt And Stream；`requireRecovery(sessionId:string):Promise<void>` 仅持久 RECOVERY_REQUIRED；新 `runAcpReviewWorker` 文件/签名和 accepted 事件 payload 由该接口唯一固定。JSON 根与四维键沿 `plugin/src/protocol/review-worker.ts` 中现有 ReviewWorkerOutputSchema；不新增公共 command。原 application 是唯一 Review 事实写入口；root delivery completed 仅证明通知已消费。
+
+不可违反：同 deliveryId 同进程原 Promise；消费后无原 Promise/无合法 Review 持久 block，绝不重复 spawn；worker 无 ownership；外部不提供 caller/claim/requestId；输出完整解析、不修补模型 JSON；root/worker checkpoint 与领域提交分别证明；未知不消费业务失败预算，真实 deadline 不冻结。
 
 ## Mechanical Steps
 
-## Formal Inputs And Traceability
+### H1：退役 Convivium ACP 工具 bridge
 
-读取 [Peer Meeting Agents](./PEER-MEETING-AGENTS-DESIGN.md) 的 owner/delivery/recovery、[DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的启用和卸载、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的 executionBlocks，以及 A2 的 ACP interface。不得在工具侧扩大Meeting权限；worker仍spawn、原claim/version/schema不变。
+前置状态：边界契约审计 Executable，现有 E2 七脚本原字节快照已保留。
+允许修改：
+- `plugin/src/dsh/acp-codex/provider.ts`
+- `plugin/src/dsh/acp-codex/types.ts`
+- `plugin/src/dsh/acp-codex/tool-bridge.ts`（删除）
+- `plugin/tests/integration/dsh/acp-codex-tool-bridge.spec.ts`（删除）
+- `plugin/tests/integration/dsh/acp-codex-provider.spec.ts`
+- `plugin/package.json`
+- `plugin/pnpm-lock.yaml`
+- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
+禁止修改：prompt、worker、领域提交和原七脚本；不退休仍有效的防重放测试。
 
-## 2026-10-16 Author Audit 与执行细则
+执行：
+1. 先改 provider 测试，使现有真实 scoped read 工具执行次数为 0，检查正常 new/load 的 mcpCount=0；运行该文件观察旧 bridge 导致 RED。
+2. provider 删除 bridge import/Lease 字段、创建、request 上下文和关闭逻辑，new/load 固定 mcpServers=[]；保留进程 cancel/drain、binding/receipt/checkpoint/block 逻辑。删除仅服务旧 bridge 的类型、文件与专用测试。
+3. 从 package.json 删除旧直接依赖，运行 `pnpm --dir plugin install --lockfile-only --offline --ignore-scripts` 更新 lockfile，不改变其它版本；如果命令造成其它交付路径变化 STOP。原 ACP reviewer 旧 MCP 测试将在 H3 原位替换，不在此声称全工程完成。
 
-按正式 ACP interface 的 Prompt, MCP And Stream / Delivery, Recovery, Deadlines And User Handling / Reviewer And Worker 复核 D2–D5；compaction 由 Preset 唯一装配，owner 和 provider hook 只核查，不注册第二个 Service。需求依据为 Orchestration 的 ACP Codex Acceptance Boundary、Evidence Round 的 ACP Review Outcome And Deadline；安全 DTO 以 Meeting Interface 的 ACP Execution Diagnostics 为准。D1 保留既有 PASS，不重做。
+验证（仓库根）：
+```bash
+pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
+pnpm --dir plugin typecheck:host
+pnpm --dir plugin exec eslint src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts
+pnpm --dir plugin exec prettier --check src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts package.json pnpm-lock.yaml
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+PASS：全部退出 0、DSH 工具未执行、RPC new/load 无 Convivium MCP、原防重放/恢复通过，实际 2–10 文件；删除本段并提交。
+STOP：任何断言/类型/门禁失败或额外文件；保留改动、原错误和复现，不回退用户内容、不继续 H2。
 
-每步允许修改本册以删除已 PASS 的任务及更新剩余入口，计入实际 2–10 个文件。生产签名只增加可选 `acpCodex?: CodexAcpProviderPort`，缺省保留非 ACP 路径。D2 的新文件唯一为 `plugin/tests/integration/dsh/acp-reviewer.spec.ts`；D5 的新文件唯一为 `plugin/tests/client/meeting/meeting-panel-execution-block.client.spec.tsx`。D2/D4 允许扩展既有脚本 ACP fixture，不能替代真实 DSH caller、MCP、SessionPersistence、SQLite 或 worker driver。每步前以仓库外完整字节快照固定工作树，PASS 后记录实际路径/命令/断言；不以 Vitest 忽略不存在的新文件作为通过。
+### H2：外部 prompt 仅携带原生策略与未消费任务
 
-固定映射：D2 `createMeetingAgentOwner` 的 setup/release/deliver 与 lifecycle 的 owner 参数；D3 `createMeetingNoticeDispatcher` / `NoticeDispatchError` 与 lifecycle 的 dispatcher 参数；D4 `registerMeetingTools` / `registerReviewWorkerTool`、`createEvidenceReviewDispatcher`，由 `plugin-entry.ts` 显式传 port；D5 `MeetingViewSchema`、runtime read/refreshListeners、`ConviviumMeetingPanel` 与本地化。provider.port 方法和全部数据结构直接消费正式 ACP interface，不新增技术状态、领域事件或数据库迁移。
+前置状态：H1 PASS。
+允许修改：
+- `plugin/src/dsh/acp-codex/prompt.ts`
+- `plugin/src/dsh/acp-codex/connection.ts`
+- `plugin/tests/unit/dsh/acp-codex-prompt.spec.ts`
+- `plugin/tests/unit/dsh/acp-codex-connection.spec.ts`
+- `plugin/tests/fixtures/scripted-acp-agent.mjs`
+- `plugin/scripts/acp-codex-preflight.mjs`
+- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
+禁止修改：用户任务正文、持久 prefix hash 算法、身份资源绑定、worker 和领域逻辑。
 
-测试断言：D2 覆盖 setup 早于 publication、admitting 早于 followup、同键异文本拒绝、重复 completed/pending 不重发、无 ACP wake、原绑定冷 load 与 cleanup 无远端 load、只停所属子树；D3 覆盖持久事实优先、unknown 不计失败、30 秒重核对且原 deadline 不冻结；D4 覆盖同 claim 原 Promise、spawn 模型继承/structured_output/真实 caller、blocked 不提交或 replacement、合法 Review 优先及真实 claim timeout 恰一次；D5 覆盖安全 DTO、同领域 version 刷新、双语 alert 与原 Captain 控制。D2 的真实 MCP 使用原注册工具和 scope；D4 在相同集成文件补 worker structured_output，不用纯文本 JSON 替代。
+执行：
+1. prompt 测试改为证明 system/developer 的宿主方法/Skill 不透传，已消费 user 不重复；connection 测试增加 load=true/http=false 可连接。fixture 仅增加 no-http 能力模式。先运行两文件观察目标 RED。
+2. buildCodexPrompt 前置固定原生执行 text（含 sessionId、仅使用自身工具和 Skills、Host 负责权限和结果接纳）；不消费 system/developer，仍严格校验未消费 user 的 text/ID/hash 与原请求控制。非 user 历史不送外部。
+3. connection 与 preflight 删除已退役的 MCP HTTP 能力要求，loadSession 必须 true，其余版本/model/login/read-only/timeout/cancel 不变。
 
-阶段不做真实模型、互联网或固定人工部署，留 E 册；纯技术诊断不写领域事件/receipt/Archive，因此新增领域格式迁移与事务写入 Not Applicable。固定完整门禁为每步下列命令、文档链接和 diff 检查；不缩减既有测试。最终 D5 同步 coverage 的实际证据/Not Covered，不宣称 E 阶段已完成。失败保留工作树与持久门禁，Restore 只清本次临时 profile/进程；不能删 unknown 或自动重放。
+验证：
+```bash
+pnpm --dir plugin exec vitest run tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
+pnpm --dir plugin typecheck:host
+pnpm --dir plugin exec eslint src/dsh/acp-codex/prompt.ts src/dsh/acp-codex/connection.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/fixtures/scripted-acp-agent.mjs scripts/acp-codex-preflight.mjs
+pnpm --dir plugin exec prettier --check src/dsh/acp-codex/prompt.ts src/dsh/acp-codex/connection.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/fixtures/scripted-acp-agent.mjs scripts/acp-codex-preflight.mjs
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+PASS：全部退出 0、宿主 system/developer/Skill 未进入 ACP、无 MCP 能力也成功连接、prefix/cancel/recovery 未弱化，实际 2–10 文件；删除本段并提交。
+STOP：同 H1；不运行真实模型、不重放。
 
-作者审计结论为 Executable；随后 D2–D5 已执行 PASS，实际验证见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-meeting-integration-validation)。文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
+### H3：宿主驱动 ACP 审核并接纳合法结果
 
-## Validation, Handoff And Deletion
+前置状态：H1/H2 PASS。
+允许修改：
+- `plugin/src/dsh/acp-review-worker.ts`（唯一新增文件）
+- `plugin/src/dsh/index.ts`
+- `plugin/src/dsh/acp-codex/provider.ts`
+- `plugin/src/dsh/acp-codex/types.ts`
+- `plugin/src/runtime/services/evidence-review-dispatch.ts`
+- `plugin/src/runtime/meeting-lifecycle.ts`
+- `plugin/tests/integration/dsh/acp-reviewer.spec.ts`
+- `plugin/tests/unit/runtime/evidence-review-dispatch.spec.ts`
+- `plugin/tests/fixtures/scripted-acp-agent.mjs`
+- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
+禁止修改：非 ACP 工具 worker、public command/DTO、领域状态机、物理存储和已消费现场。
 
-本册门禁为各步全部验证与实际文件计数，断言见各 PASS；只有 D2–D5 全部 PASS 才证明会议确定性接线闭合，真实网络和模型仍未验收。只有前述证据齐全才交接E1。将每步实际变更路径、命令/退出码、关键断言和 Not Covered 保存到仓库外脱敏执行记录，不为写进度修改其它 RUNBOOK。
+执行：
+1. 原位替换退休 MCP reviewer integration 为真实 DSH 原生组合；fixture 对带 native review output 标识的 worker 返回固定完整 JSON，不模拟被测 Host 生命周期。runtime unit 增加合法结果/非法 JSON或Schema或version/重复与消费后恢复门禁。先观察 Host 仍要求工具或未提交的 RED。
+2. 实现接口固定的 runAcpReviewWorker，从 registry 取得原 root、核对可信 ownership/provider，spawn 不传 outputSchema，prompt 要求仅输出 workerOutputSchema JSON、无 fence；等待 completed，checkpoint 后整段 JSON.parse，finally dispose。导出经 dsh/index.ts。
+3. dispatcher dependencies 新增可选 `nativeReview?: (input: {ownership:SessionOwnership;versionId:string;prompt:string;signal:AbortSignal}) => Promise<{workerSessionId:string;model:string;output:unknown}>` 与可选 `onNativeReviewAccepted?: (payload:{rootSessionId:string;workerSessionId:string;versionId:string;reviewId:string;provider:"acp-codex";model:string}) => void`；仅 ACP 分支必须具备 runner，缺失拒绝，不回退工具。provider 实现 requireRecovery 调用既有 block，无新技术格式。dispatcher 为 ACP 分支保存原 deliveryId Promise；正式 Review 优先，已消费无 Promise 先 requireRecovery 并沿 checkBlock 停止。claim 后重读原 prompt，原 root 通知不要求工具；resume/deliverObserved 授权继续。Host 校验 Schema/version 后用原 claim/caller/requestId/application 提交，accepted 后才发只读事件。非 ACP 分支保留原工作流。
+4. lifecycle 从 ctx 绑定 runner 与 accepted 事件 producer，不由 provider 写 Meeting command。测试证明 root cold load 同 ID、worker 无 MCP/structured_output、模型继承、caller 精确、重复不替换、已消费无结果阻断、非法/取消/blocked 不成功，disposer 总执行。
 
-失败按总入口 Restore 保留工作树和原持久状态，不消除 unknown；本册不重复做其它阶段已证明的验收。全局 readiness 和四条真实 lane 由 E 册负责。中途不删除本册；全部交付完成后 E3 连同其余阶段和总入口一起删除，不能以 completed/archive 留存。数据结构/接口缺漏在编码前 STOP，不能把本册当新的产品真相源。
+验证：
+```bash
+pnpm --dir plugin exec vitest run tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/integration/dsh/evidence-review-dispatch.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts tests/unit/dsh/meeting-agent-owner.spec.ts
+pnpm --dir plugin typecheck:host
+pnpm --dir plugin exec eslint src/dsh/acp-review-worker.ts src/dsh/index.ts src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts src/runtime/services/evidence-review-dispatch.ts src/runtime/meeting-lifecycle.ts tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/fixtures/scripted-acp-agent.mjs
+pnpm --dir plugin exec prettier --check src/dsh/acp-review-worker.ts src/dsh/index.ts src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts src/runtime/services/evidence-review-dispatch.ts src/runtime/meeting-lifecycle.ts tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/fixtures/scripted-acp-agent.mjs
+pnpm --dir plugin build
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+PASS：全部退出 0，上述正反例成立、实际 2–10 文件；删除本段并提交，然后进入 E2。
+STOP：任一失败或必须新建技术表/改变事实格式/扩大文件范围；保留最后 PASS/原状态/复现，不进入 E2。
+
+## Audit, Validation Matrix And Closure
+
+Author 已核查路径、DSH rc.2 的 spawn(outputSchema optional)/SubagentResult.output、checkpoint flush 与原 caller/claim/Schema。H1 正常+持久恢复；H2 原生策略/非法请求/历史完整性；H3 authority、输出完整性、取消/重复/消费后无结果、原 ID 冷恢复；E2 真实两轮/来源/归档；E3 全门禁。业务版本冲突/claim 失效/事务原子性复用原 application 与 evidence-review integration，H3 不引入新的领域写路径。新数据库迁移、兼容读取、跨 Host 和生产部署 Not Applicable。历史 ACP 现场不可 replay；H1–H3 真实模型与互联网 Not Covered，留 E2。
+
+审计：Executable。作者文档链接和 diff 检查通过后单独提交契约/RUNBOOK；机械执行时每步前快照、每步 PASS 删除任务并提交。全部 H 步完成才交接 E2；长期实际证据在 E3 迁 coverage/operations 并与其余五册一起删除。失败不删任务、不清原门禁、不声称完成。
