@@ -118,7 +118,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 
 ## 实施与验证边界
 
-当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 已实现并通过确定性恢复/MCP 组合测试；会议 owner/worker、dispatcher 与诊断接线已完成并通过确定性验证；真实 Codex/Web 互联网专项尚未执行，不宣称真实验收已通过；验证事实见 Current Implementation Coverage。
+当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 的原生执行、保守恢复、会议 owner/worker、dispatcher 与诊断接线已完成并通过确定性验证。2026-10-16 已完成一轮真实 Codex 核心链路冒烟；Web search 已执行，正文 fetch 被环境 DNS/SSRF 门禁拒绝。完整两轮、原绑定冷恢复及最终归档真实验收未通过，剩余验收转人工冒烟；验证事实见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-native-execution-migration)。
 
 先以确定性 ACP 子进程结合真实 DSH AgentLoop/Storage Domain 验证原生 prompt 边界、宿主 caller、完整 JSON 接纳、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
 
@@ -126,7 +126,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 
 第一轮发布且所有 request/delivery 正常结算后暂停，关闭隔离 Host，以原数据重启；必须观察新的 loaded 与第二轮真实审核，最后撤权归档。probe 订阅公开进程内 checkpoint 事件，并与 DSH 工具/Session 事件及 Repository 正式事实交叉核对，不读取 provider 私有 store/owner。事件订阅须先就绪，不能补造历史。
 
-生产 Catalog producer 未提供；只验证 provisioning 快照与期限，不宣称动态目录上线。未知结果自动恢复、远端结果自动核对、长会话压缩、其它 bridge/OS/模型组合均 Not Covered 或 Non-goals。身份 text 到达不等于模型遵循；cwd 分离不等于 OS 隔离；目录探测不等于推理认证。本次复用产品基线 verify，不安装 bridge、不执行真实模型或互联网专项。
+生产 Catalog producer 未提供；只验证 provisioning 快照与期限，不宣称动态目录上线。未知结果自动恢复、远端结果自动核对、长会话压缩、其它 bridge/OS/模型组合均 Not Covered 或 Non-goals。身份 text 到达不等于模型遵循；cwd 分离不等于 OS 隔离；目录探测不等于推理认证。本节定义验收目标，不作为执行记录；历史及当前验证结果以 readiness 为准，不由目标场景推断通过。
 
 ## Related Documents
 

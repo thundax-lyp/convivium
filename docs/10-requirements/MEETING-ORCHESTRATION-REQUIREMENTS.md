@@ -455,7 +455,7 @@ Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义�
 
 ## ACP Codex Acceptance Boundary
 
-本节是已确认的目标验收，尚未实现。2026-10-16 已确认 ACP 执行边界：以 ACP 方式存在的 Agent 只使用外部 Agent 自身原生工具和 Skills，不使用 Convivium 定义的工具或 Skills，也不经 Convivium 的 MCP bridge 调用 DSH 工具。会议职责继续保留；会议读取、审核提交和 worker 生命周期由 Convivium 宿主程序化适配。宿主以原身份、当前 claim 和 immutable version 构造审核输入，校验外部输出后通过原 Runtime 提交；外部文本不能自行授予 caller、替换 claim/version 或形成正式 Review。此边界适用于 ACP root 和 ACP worker；DSH 原生 Agent 的工具与 Skills 路径保持原需求。
+本节定义已确认的目标行为与验收标准；实现覆盖和实际验收结果见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-native-execution-migration)。2026-10-16 已确认 ACP 执行边界：以 ACP 方式存在的 Agent 只使用外部 Agent 自身原生工具和 Skills，不使用 Convivium 定义的工具或 Skills，也不经 Convivium 的 MCP bridge 调用 DSH 工具。会议职责继续保留；会议读取、审核提交和 worker 生命周期由 Convivium 宿主程序化适配。宿主以原身份、当前 claim 和 immutable version 构造审核输入，校验外部输出后通过原 Runtime 提交；外部文本不能自行授予 caller、替换 claim/version 或形成正式 Review。此边界适用于 ACP root 和 ACP worker；DSH 原生 Agent 的工具与 Skills 路径保持原需求。
 
 新增验收判据：ACP new/load 不注入 Convivium MCP server；ACP 输入不附带 Convivium Skill 正文或要求调用 Convivium 工具的指令；Host 负责启动、取消和回收审核 worker，并证明合法输出才形成 Review，非法、过期、取消或未知结果不形成成功事实；旧的 MCP 工具可见/可调用与模型调用 `structured_output` 的证据不能替代本边界验收。
 
