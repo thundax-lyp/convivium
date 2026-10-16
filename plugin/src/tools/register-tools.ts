@@ -8,7 +8,7 @@ import {
     type ValueSchemaSpec
 } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
-import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
+import type { CodexAcpProviderPort, ResolvedMeetingCaller } from "@/dsh/index.ts";
 import {
     DisposeHandRaiseActionSchema,
     MeetingCommandSchema,
@@ -44,6 +44,7 @@ export interface TargetMeetingToolReader {
 }
 
 export interface MeetingCommandToolDependencies {
+    readonly acpCodex?: CodexAcpProviderPort;
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
     readonly reviewWorkers: Pick<SubagentRuntime, "start">;
@@ -426,7 +427,11 @@ const registerReadTool = (dependencies: MeetingCommandToolDependencies): (() => 
 };
 
 const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies): (() => void) => {
-    return dependencies.registry.register(
+    const tasks = new Map<
+        string,
+        { meetingId: string; claimId: string; result: Promise<JsonValue> }
+    >();
+    const dispose = dependencies.registry.register(
         defineTool({
             name: "convivium_run_review_worker",
             description:
@@ -475,69 +480,92 @@ const registerReviewWorkerTool = (dependencies: MeetingCommandToolDependencies):
                         "The active claim and immutable review input are unavailable."
                     ) as unknown as JsonValue;
                 }
-                const run = await dependencies.reviewWorkers.start("spawn", {
-                    label: `convivium:review:${versionId}`,
-                    prompt: [{ type: "text", text: prompt.prompt }],
-                    parent: exec.agent,
-                    signal: exec.signal,
-                    outputSchema: ReviewWorkerOutputSchema,
-                    toolFilter: { allow: [] }
-                });
-                try {
-                    const result = await run.result;
-                    exec.signal.throwIfAborted();
-                    if (
-                        result.stopReason !== "completed" ||
-                        result.structured === undefined ||
-                        typeof result.structured !== "object" ||
-                        result.structured === null ||
-                        (result.structured as { versionId?: unknown }).versionId !== versionId
-                    ) {
-                        return {
-                            kind: "failed",
-                            code:
-                                result.stopReason === "completed"
-                                    ? "REVIEW_WORKER_VERSION_MISMATCH"
-                                    : "REVIEW_WORKER_NOT_COMPLETED"
-                        } as JsonValue;
-                    }
-                    const output = result.structured as Record<string, unknown>;
-                    if (validateJsonSchemaValue(ReviewWorkerOutputSchema, output).length !== 0) {
-                        return {
-                            kind: "failed",
-                            code: "REVIEW_WORKER_OUTPUT_INVALID"
-                        } as JsonValue;
-                    }
-                    const parsed = SubmitEvidenceReviewActionSchema.safeParse({
-                        kind: "submit_evidence_review",
-                        roundId: prompt.roundId,
-                        claimId: prompt.claimId,
-                        versionId: output.versionId,
-                        dimensions: output.dimensions,
-                        scope: output.scope
-                    });
-                    if (!parsed.success) {
-                        return {
-                            kind: "failed",
-                            code: "REVIEW_WORKER_OUTPUT_INVALID"
-                        } as JsonValue;
-                    }
-                    return (await dependencies.application.execute(
-                        {
-                            protocolVersion: 1,
-                            meetingId,
-                            requestId: `evidence-review:${prompt.claimId}`,
-                            action: parsed.data
-                        },
-                        { caller: caller.caller },
-                        exec.signal
-                    )) as unknown as JsonValue;
-                } finally {
-                    await run.dispose();
+                const block = dependencies.acpCodex?.blockFor(exec.agent.id);
+                if (block) {
+                    return { kind: "failed", code: block.code };
                 }
+                const previous = tasks.get(exec.agent.id);
+                if (previous?.meetingId === meetingId && previous.claimId === prompt.claimId) {
+                    return previous.result;
+                }
+                const parent = exec.agent;
+                const result = (async (): Promise<JsonValue> => {
+                    const run = await dependencies.reviewWorkers.start("spawn", {
+                        label: `convivium:review:${versionId}`,
+                        prompt: [{ type: "text", text: prompt.prompt }],
+                        parent,
+                        signal: exec.signal,
+                        outputSchema: ReviewWorkerOutputSchema,
+                        toolFilter: { allow: [] }
+                    });
+                    try {
+                        const result = await run.result;
+                        exec.signal.throwIfAborted();
+                        const block = dependencies.acpCodex?.blockFor(parent.id);
+                        if (block) {
+                            return { kind: "failed", code: block.code };
+                        }
+                        if (
+                            result.stopReason !== "completed" ||
+                            result.structured === undefined ||
+                            typeof result.structured !== "object" ||
+                            result.structured === null ||
+                            (result.structured as { versionId?: unknown }).versionId !== versionId
+                        ) {
+                            return {
+                                kind: "failed",
+                                code:
+                                    result.stopReason === "completed"
+                                        ? "REVIEW_WORKER_VERSION_MISMATCH"
+                                        : "REVIEW_WORKER_NOT_COMPLETED"
+                            } as JsonValue;
+                        }
+                        const output = result.structured as Record<string, unknown>;
+                        if (
+                            validateJsonSchemaValue(ReviewWorkerOutputSchema, output).length !== 0
+                        ) {
+                            return {
+                                kind: "failed",
+                                code: "REVIEW_WORKER_OUTPUT_INVALID"
+                            } as JsonValue;
+                        }
+                        const parsed = SubmitEvidenceReviewActionSchema.safeParse({
+                            kind: "submit_evidence_review",
+                            roundId: prompt.roundId,
+                            claimId: prompt.claimId,
+                            versionId: output.versionId,
+                            dimensions: output.dimensions,
+                            scope: output.scope
+                        });
+                        if (!parsed.success) {
+                            return {
+                                kind: "failed",
+                                code: "REVIEW_WORKER_OUTPUT_INVALID"
+                            } as JsonValue;
+                        }
+                        return (await dependencies.application.execute(
+                            {
+                                protocolVersion: 1,
+                                meetingId,
+                                requestId: `evidence-review:${prompt.claimId}`,
+                                action: parsed.data
+                            },
+                            { caller: caller.caller },
+                            exec.signal
+                        )) as unknown as JsonValue;
+                    } finally {
+                        await run.dispose();
+                    }
+                })();
+                tasks.set(exec.agent.id, { meetingId, claimId: prompt.claimId, result });
+                return result;
             }
         })
     );
+    return () => {
+        tasks.clear();
+        dispose();
+    };
 };
 
 export function registerMeetingTools(

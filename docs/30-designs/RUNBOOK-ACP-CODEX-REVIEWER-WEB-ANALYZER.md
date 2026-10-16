@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-15；Execute；契约迁移 A1–A3 与配置角色 C1–C7 已通过，下一入口为 P1。执行分支 `codex/acp-configuration-roles`，仅使用普通分支，不创建 worktree。正式文档与配置/角色代码共同交付；未安装官方 bridge 或调用真实模型。全量插件 verify 已通过，不代表 ACP provider 或真实专项完成。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，下一入口为 E1。执行分支 `codex/acp-meeting-integration`，仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；本次复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E 阶段官方预检、真实验收与全组收口尚未完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -11,7 +11,7 @@
 | A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | 已迁移 / 无剩余任务          | 正式依据齐备，完整迁移后删除草稿       |
 | C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | 已实现 / 无剩余任务 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
-| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | D1–D5 / 4、5、4、9、8        | 身份/投递/审核/可见阻断通过            |
+| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | 已实现 / 无剩余任务        | 身份/投递/审核/可见阻断通过            |
 | E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 2、7、9              | 官方预检、真实专项、完整门禁、删除六册 |
 
 ## Scope And Invariants
@@ -26,7 +26,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 ## Executor Contract And File Budget
 
-- 仅用户授权 Execute 后从第一项未完成任务开始；本次用户明确要求每项完成、删除该任务段落后单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
+- 仅用户授权 Execute 后从第一项未完成任务开始；2026-10-16 用户授权先复核 P 阶段并修正文档，再串行执行 D1–D5，每步 PASS 后删除当前册对应任务段落并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
 - **每步实际仓库交付文件变更2–10个**；源码、测试、文档、lockfile、新增和删除全部计数，rename按旧/新两路径计。清单是固定允许上限，不是可顺便改动的文件池。相同文件在不同步骤再次修改分别计入；不得以拆补丁、先临时文件再搬回绕过计数。
 - ignored构建物与仓库外临时profile/脱敏日志不计为交付文件，但必须执行Restore；不能把它们拿来凑2个。生成声明只由指定build/generate脚本更新，若出现新的非ignored交付文件也计入并须在清单内。
 - 每步前记录工作树文件内容快照，完成后按**该步前后内容差异**列实际路径（包括当时已存在的未跟踪文件），与白名单/2–10核对；不能用相对HEAD累计diff当本步计数。范围外变化、实际不足2或超过10均STOP，由作者调整步骤，不人为改无关文件凑数。
@@ -43,18 +43,18 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 | 当前 owning path / symbol                                                                                            | 现状与固定目标                                                                                          |
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| plugin/src/plugin-entry.ts::apply / meetingConsumerPlugin                                                            | 无 ACP；启用时先注册自研 provider、打开技术 domain，再 activateTargetMeetingApplication；禁用时保持现状 |
-| plugin/src/config.ts::Config                                                                                         | 外部 agentModelOverrides；删除，新增可选 acpCodex 严格连接配置                                          |
-| plugin/src/role-composition/model-options.ts::resolveEffectiveAgentOptions                                           | 字段合并；改完整选择                                                                                    |
-| plugin/src/role-composition/resolve.ts::definitionHash                                                               | 对象展开；显式枚举原身份字段，排除 agentOptions                                                         |
-| plugin/src/role-composition/dsh-capabilities.ts::preflightMeetingIdentity                                            | 只等待 resolveCallConfig；使用解析后选择并固化 reasoning                                                |
-| plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner / deliverToHandle                                     | create/resume/setup 已有；ACP 交付持久门禁并停用 wake 重发；非 ACP 原路径保留                           |
-| plugin/src/runtime/services/evidence-review-dispatch.ts::createEvidenceReviewDispatcher                              | catch 即 failValidation；先区分未知门禁、正式 Review 与真正 deadline                                    |
-| plugin/src/runtime/services/meeting-notice-dispatch.ts::createMeetingNoticeDispatcher                                | observed 异常可能计贡献失败；未知只等待/报告                                                            |
-| plugin/src/tools/register-tools.ts::registerReviewWorkerTool                                                         | 保持 spawn/claim/schema/权限；检查 worker root 技术阻断，防误判已知失败                                 |
+| plugin/src/plugin-entry.ts::apply / meetingConsumerPlugin                                                            | 已接入可选 ACP：启用先注册 provider/技术 domain，再 activateTargetMeetingApplication；缺省保留原路径 |
+| plugin/src/config.ts::Config                                                                                         | 已删除外部 agentModelOverrides，已实现可选 acpCodex 严格连接配置                                          |
+| plugin/src/role-composition/model-options.ts::resolveEffectiveAgentOptions                                           | 已按完整选择解析，不逐字段合并                                                                                    |
+| plugin/src/role-composition/resolve.ts::definitionHash                                                               | 已显式枚举原身份字段，排除 agentOptions                                                         |
+| plugin/src/role-composition/dsh-capabilities.ts::preflightMeetingIdentity                                            | 已使用解析后选择并固化 reasoning                                                |
+| plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner / deliverToHandle                                     | 已接入 setup/ACP 持久交付门禁及冷恢复，无 ACP wake；非 ACP 原路径保留                           |
+| plugin/src/runtime/services/evidence-review-dispatch.ts::createEvidenceReviewDispatcher                              | 已优先核对正式 Review/真实 deadline，未知阻断不误结算                                    |
+| plugin/src/runtime/services/meeting-notice-dispatch.ts::createMeetingNoticeDispatcher                                | 已保留贡献事实及真实期限，未知只重核对、不重投或计失败                                                            |
+| plugin/src/tools/register-tools.ts::registerReviewWorkerTool                                                         | 已接入原生 spawn/claim 复用与 root 阻断，保持 schema/权限                                 |
 | plugin/src/runtime/meeting-lifecycle.ts::activateTargetMeetingApplication                                            | 装配 owner/dispatchers/read；显式传入可选 CodexAcpProvider，不读取虚构 ctx.acpRecovery                  |
-| plugin/src/protocol/meeting-view.ts::MeetingViewSchema                                                               | 无技术阻断诊断；仅加 executionBlocks 安全投影，不写领域事实                                             |
-| plugin/src/role-composition/model.ts / role-skills/role-skill-names.ts / repository/storage-domain/format/schemas.ts | 七角色/五能力闭集；扩为八/六并保持旧格式可读                                                            |
+| plugin/src/protocol/meeting-view.ts::MeetingViewSchema                                                               | 已提供 executionBlocks 安全投影与同 version 刷新，不写领域事实                                             |
+| plugin/src/role-composition/model.ts / role-skills/role-skill-names.ts / repository/storage-domain/format/schemas.ts | 八角色/六能力资源与持久闭集已实现                                                            |
 | plugin/scripts/smoke-profile/index.mjs::writeSmokePatch / runScenario                                                | 仍写旧 overrides；按临时 Definition 迁移，加独立显式 ACP 专项                                           |
 
 | 不变量/范围                       | owning步骤与证据             |
@@ -73,4 +73,4 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 阶段完成只交接下一册，不单独删除RUNBOOK。全局完成须所有scope与固定验证集合齐全、正式长期来源无遗漏、Not Covered准确；E3一次删除六册并做删除后检查，失败恢复。真实外部运行适用；跨用户/发布/物理介质迁移/UI重设计Not Applicable，其它OS、生产Catalog和长会话压缩Not Covered。
 
-A1–A3 完成文档契约迁移：基线 verify、各步本地文档链接和 git diff --check 已通过，任务逐项删除并单独提交。草稿不存在，临时 Migration Input 已移除。正式设计明确未实现/未运行边界；C1–C7 已实现且任务段落已删除，后续 P/D/E 尚未执行。未安装官方 bridge、未执行真实 Codex/互联网专项；C 册聚焦 118 项测试及完整 verify（95 文件、809 项测试）通过；P/D/E 的 Executable 只代表计划决策完备。
+A1–A3 与 C1–C7 的既有证据保持原边界；P1–P5 已实现，任务段落已删除，确定性复核证据见 Current Implementation Coverage。D1–D5 与 D4a 已执行 PASS，任务段落已删除；E 阶段尚未执行，其 Executable 只代表计划决策完备。真实 Codex/互联网专项未执行。

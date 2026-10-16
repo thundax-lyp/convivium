@@ -299,7 +299,7 @@ Client 先生成展示块和左右位置，再渲染：未归属事件直接输�
 
 ## Codex Provider Composition
 
-本节为待实现设计。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
+本节的 provider 与 D1–D5 会议装配已实现并通过确定性验证；E 阶段真实验收与全组收口尚未完成。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
 
 `plugin/src/plugin-entry.ts::apply/meetingConsumerPlugin` 在 acpCodex 缺省时保持现有组合，不注册新 route、探测或进程。启用时通过显式 ctx.inject 取得原 meetingServices、subprocess 与 storageDomain，先 createCodexAcpProvider 打开技术 domain 并注册 LlmAdapter，再调用 `activateTargetMeetingApplication`。缺服务、路由冲突或创建失败拒绝本次启动。保持会议工具先注册、owner/Session 再恢复的现有顺序。
 
@@ -313,4 +313,4 @@ Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView ex
 
 ## ACP 实施与验证边界
 
-本次只合并设计，尚未安装 ACP SDK/bridge、实现上述模块或执行真实专项。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
+ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合复核见 Current Implementation Coverage；D1–D5 会议装配已完成并通过确定性验证，真实专项未执行。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。

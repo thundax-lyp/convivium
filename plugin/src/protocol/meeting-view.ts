@@ -799,7 +799,15 @@ export const MeetingSummarySchema = z.object({
     unavailableReason: text.optional(),
     deletionStatus: MeetingDeletionStatusSchema.optional()
 });
+export const MeetingExecutionBlockSchema = z.strictObject({
+    identityId: id,
+    code: z.enum(["ACP_CODEX_OUTCOME_UNKNOWN", "ACP_CODEX_RECOVERY_REQUIRED"]),
+    since: epoch,
+    allowedActions: z.tuple([z.literal("pause_meeting"), z.literal("end_meeting")])
+});
+export type MeetingExecutionBlock = z.infer<typeof MeetingExecutionBlockSchema>;
 export const MeetingViewSchema = z.object({
+    executionBlocks: z.array(MeetingExecutionBlockSchema).optional(),
     timelineEvents: z.array(MeetingEventViewSchema).optional(),
     agendaCandidates: z.array(AgendaCandidateViewSchema),
     meetingId: id,

@@ -84,11 +84,11 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 
 ## Codex Session Integration
 
-本节是待实现的稳定装配方案，精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
+本节的 D1–D5 装配已实现并通过确定性验证，E 阶段真实验收与全组收口尚未完成；精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
 
 `plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 核验并加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。
 
-provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，准备独立 ACP Session，再安装 compaction boundary。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
+provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，先经公开 agentPresets.serviceFor 核查由父 Preset composeFrom 继承的 CodexCompactionBoundary，再准备独立 ACP Session；该 hook 不安装或替换 compaction Service。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
 
 `deliverToHandle` 对 ACP 的 deliver/deliverObserved 统一走 observed 流程，以原 outbox deliveryId 做持久接收门禁；首次 admitting 后才 followup，flush 后 queued，原 turn 正常结束且所有 request 有持久 receipt/checkpoint 后 completed。重复 completed 返回原 durable 结果；pending 只等待原进程 Promise。无 Promise 的重启未完成项只阻断，不再次入队、不 steer/wake。非 ACP 继续原路径。
 
@@ -122,7 +122,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 
 ## 实施与验证边界
 
-当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 尚未实现，Codex 恢复/MCP 执行及 Web 互联网专项仍为后续设计，不宣称已通过；验证事实见 Current Implementation Coverage。
+当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 已实现并通过确定性恢复/MCP 组合测试；会议 owner/worker、dispatcher 与诊断接线已完成并通过确定性验证；真实 Codex/Web 互联网专项尚未执行，不宣称真实验收已通过；验证事实见 Current Implementation Coverage。
 
 先以确定性 ACP 子进程结合真实 DSH AgentLoop/ToolRuntime/Storage Domain 验证身份字节、真实 caller、structured_output、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
 

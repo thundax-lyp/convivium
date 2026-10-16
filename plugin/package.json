@@ -224,6 +224,7 @@
         "@modelcontextprotocol/sdk": "1.26.0"
     },
     "devDependencies": {
+        "@deepseek-ai/dsh-subagent-spawn-in-process": "0.2.0-rc.2",
         "@deepseek-ai/cordis": "4.0.4",
         "@deepseek-ai/cordis-plugin-include": "1.0.9",
         "@deepseek-ai/cordis-plugin-loader": "1.0.5",

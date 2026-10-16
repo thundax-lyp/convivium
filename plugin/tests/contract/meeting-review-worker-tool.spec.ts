@@ -8,7 +8,7 @@ import {
 import { expect, it, vi } from "vitest";
 import { registerMeetingTools } from "@/tools/index.ts";
 
-const workerFixture = () => {
+const workerFixture = (acpCodex?) => {
     const definitions: ToolDefinition[] = [];
     const dispose = vi.fn(async () => undefined);
     const structured = {
@@ -39,6 +39,7 @@ const workerFixture = () => {
     const accepted = { kind: "accepted", receipt: { requestId: "evidence-review:claim-1" } };
     const execute = vi.fn(async () => accepted);
     registerMeetingTools({
+        acpCodex,
         registry: {
             register: (definition) => {
                 definitions.push(definition);
@@ -155,6 +156,11 @@ it("validates and submits a worker result under the captured claim and reviewer 
     expect(result).toEqual(accepted);
     expect(dispose).toHaveBeenCalledOnce();
 
+    resolvePrompt.mockResolvedValueOnce({
+        prompt: "next immutable claim",
+        claimId: "claim-2",
+        roundId: "round-1"
+    });
     const invalidDispose = vi.fn(async () => undefined);
     start.mockResolvedValueOnce({
         id: "worker-2",
@@ -262,3 +268,55 @@ it("does not submit a completed result after cancellation and still disposes the
     expect(execute).not.toHaveBeenCalled();
     expect(dispose).toHaveBeenCalledOnce();
 });
+
+it("reuses the original worker result for concurrent calls under the same active claim", async () => {
+    const f = workerFixture();
+    let finish!: (value: unknown) => void;
+    const result = new Promise((resolve) => {
+        finish = resolve;
+    });
+    f.start.mockResolvedValue({
+        id: "one-worker",
+        localAgent: undefined,
+        result,
+        dispose: f.dispose
+    });
+    const first = f.invoke();
+    const second = f.invoke();
+    try {
+        await vi.waitFor(() => expect(f.start).toHaveBeenCalledTimes(1));
+    } finally {
+        finish({ output: [], stopReason: "completed", structured: f.structured });
+    }
+    expect(await first).toEqual(f.accepted);
+    expect(await second).toEqual(f.accepted);
+    expect(f.execute).toHaveBeenCalledOnce();
+    expect(f.dispose).toHaveBeenCalledOnce();
+});
+
+it.each(["before", "after"])(
+    "does not start or submit a worker when the ACP root becomes blocked %s execution",
+    async (when) => {
+        const block = { code: "ACP_CODEX_OUTCOME_UNKNOWN", since: 1 };
+        const acpCodex = { blockFor: vi.fn(() => (when === "before" ? block : undefined)) };
+        const f = workerFixture(acpCodex);
+        if (when === "after") {
+            f.start.mockImplementation(async () => {
+                acpCodex.blockFor.mockReturnValue(block);
+                return {
+                    id: "worker",
+                    localAgent: undefined,
+                    result: Promise.resolve({
+                        output: [],
+                        stopReason: "completed",
+                        structured: f.structured
+                    }),
+                    dispose: f.dispose
+                };
+            });
+        }
+        expect(await f.invoke()).toEqual({ kind: "failed", code: block.code });
+        expect(f.execute).not.toHaveBeenCalled();
+        expect(f.start).toHaveBeenCalledTimes(when === "before" ? 0 : 1);
+    }
+);

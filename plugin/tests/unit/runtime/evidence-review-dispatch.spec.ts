@@ -984,3 +984,87 @@ describe("evidence review request dispatcher recovery", () => {
         }
     );
 });
+
+it.each(["before", "after", "expired", "committed"])(
+    "preserves ACP review facts and deadline semantics when blocked: %s",
+    async (mode) => {
+        const { state, ownership, pendingVersion } = stateWithPendingReview();
+        let now = 6;
+        let blocked = mode !== "after";
+        const application = claimApplication(state);
+        const owner = {
+            resume: vi.fn(async () => {}),
+            deliver: vi.fn(),
+            deliverObserved: vi.fn(async () => {
+                blocked = true;
+                throw new Error("unknown remote execution");
+            })
+        };
+        if (mode === "expired") {
+            await application.execute({
+                action: {
+                    kind: "claim_evidence_review",
+                    sourceEffectId: "effect-review-1",
+                    roundId: "round-current",
+                    versionId: "version-pending"
+                }
+            });
+            application.execute.mockClear();
+            now = 101;
+        }
+        if (mode === "committed") {
+            state.reviews.push({
+                ...state.reviews[0],
+                id: "review-final",
+                versionId: "version-pending"
+            });
+            pendingVersion.status = "validated";
+        }
+        const dispatcher = createEvidenceReviewDispatcher({
+            definitions: [{ agentDefinitionId: "fixture" }],
+            owner,
+            application,
+            clock: { now: () => now },
+            repository: {
+                recover: async () => ({
+                    snapshot: { meetingId: state.id, version: 6, state },
+                    sessionOwnership: ownership
+                })
+            },
+            acpCodex: {
+                blockFor: () =>
+                    blocked ? { code: "ACP_CODEX_OUTCOME_UNKNOWN", since: 1 } : undefined
+            }
+        });
+        const input = {
+            outboxItem: outboxItem({
+                kind: "agent_notice",
+                noticeKind: "review_request",
+                recipientId: "reviewer-v1",
+                agendaId: "agenda-v1",
+                versionId: "version-pending"
+            }),
+            signal: new AbortController().signal
+        };
+        if (mode === "committed") {
+            await expect(dispatcher.dispatch(input)).resolves.toBeUndefined();
+        } else {
+            await expect(dispatcher.dispatch(input)).rejects.toMatchObject({
+                code: "ACP_CODEX_OUTCOME_UNKNOWN",
+                retryable: true,
+                terminalOnAttemptLimit: false,
+                retryAt: now + 30000
+            });
+            await expect(dispatcher.dispatch(input)).rejects.toMatchObject({
+                code: "ACP_CODEX_OUTCOME_UNKNOWN"
+            });
+        }
+        expect(
+            application.execute.mock.calls.filter(
+                ([command]) => command.action.kind === "fail_evidence_validation"
+            )
+        ).toHaveLength(mode === "expired" ? 1 : 0);
+        expect(owner.deliverObserved).toHaveBeenCalledTimes(mode === "after" ? 1 : 0);
+        expect(pendingVersion.failureCount).toBe(mode === "expired" ? 1 : 0);
+    }
+);

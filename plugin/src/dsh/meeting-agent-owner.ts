@@ -12,6 +12,7 @@ import { resolveResourceBinding, readRoleResource } from "@/role-composition/ind
 import { validateRoleSkills, matchesPreparedDescriptor } from "@/role-composition/index.ts";
 import { isDeepStrictEqual } from "node:util";
 import type { SessionOwnership } from "@/repository/index.ts";
+import type { CodexAcpProviderPort } from "./acp-codex/index.ts";
 import { meetingAgentDirectory } from "./meeting-agent-directory.ts";
 
 declare module "@deepseek-ai/dsh-llm" {
@@ -70,12 +71,14 @@ const deliverToHandle = async ({
     ctx,
     handle,
     input,
-    observe
+    observe,
+    acpCodex
 }: {
     ctx: Context;
     handle: AgentHandle;
     input: DeliveryInput;
     observe: boolean;
+    acpCodex?: CodexAcpProviderPort;
 }): Promise<{
     durable: boolean;
     failure?: { code: string; summary: string };
@@ -111,12 +114,15 @@ const deliverToHandle = async ({
             source: { kind: "convivium" }
         });
         const durable = await ctx.sessions.flush(handle.agent.session);
+        if (acpCodex) {
+            await acpCodex.markDeliveryQueued(handle.agent.id, input.deliveryId);
+        }
         await input.authorize();
         input.signal.throwIfAborted();
         if (observe) {
             await handle.agent.whenIdle();
             input.signal.throwIfAborted();
-            if (claimedTurn === undefined) {
+            if (claimedTurn === undefined && !acpCodex) {
                 handle.agent.steer({
                     id: MessageId(`${input.deliveryId}:wake`),
                     role: "user",
@@ -135,6 +141,11 @@ const deliverToHandle = async ({
                 }
             }
         }
+        if (acpCodex) {
+            await acpCodex.checkpoint(handle.agent.id, input.signal);
+            await acpCodex.finishDelivery(handle.agent.id, input.deliveryId, input.signal);
+            return { durable: true };
+        }
         return failure === undefined ? { durable } : { durable, failure };
     } finally {
         disposeClaim?.();
@@ -145,11 +156,13 @@ const deliverToHandle = async ({
 export const createMeetingAgentOwner = ({
     ctx,
     packageRoot,
-    workspaceRoot
+    workspaceRoot,
+    acpCodex
 }: {
     ctx: Context;
     packageRoot: string;
     workspaceRoot: string;
+    acpCodex?: CodexAcpProviderPort;
 }): MeetingAgentOwner => {
     const directory = (ownership: SessionOwnership, create = false) =>
         meetingAgentDirectory({
@@ -203,6 +216,12 @@ export const createMeetingAgentOwner = ({
             return;
         }
         current.handle.agent.cancel({ kind: "hook", reason });
+        if (ownership.agentOptions.provider === "acp-codex") {
+            if (!acpCodex) {
+                throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+            }
+            await acpCodex.stopSession(ownership.sessionId);
+        }
         await current.handle.agent.whenIdle();
         await current.handle.dispose();
         handles.delete(ownership.id);
@@ -265,6 +284,12 @@ export const createMeetingAgentOwner = ({
             });
             await verifyResources(ownership, definition);
             signal.throwIfAborted();
+            if (ownership.agentOptions.provider === "acp-codex") {
+                if (!acpCodex) {
+                    throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                }
+                await acpCodex.prepareSession(agent, purpose, signal);
+            }
         };
     const remember = async (ownership: SessionOwnership, handle: AgentHandle, purpose: Purpose) => {
         if (
@@ -332,7 +357,48 @@ export const createMeetingAgentOwner = ({
         ) {
             throw new Error("RECOVERY_UNAVAILABLE: no authorized delivery handle");
         }
-        return deliverToHandle({ ctx, handle: current.handle, input, observe });
+        if (input.ownership.agentOptions.provider !== "acp-codex") {
+            return deliverToHandle({ ctx, handle: current.handle, input, observe });
+        }
+        if (!acpCodex) {
+            throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+        }
+        const state = acpCodex.deliveryState(input.ownership.sessionId, input.deliveryId);
+        await acpCodex.beginDelivery({
+            sessionId: input.ownership.sessionId,
+            deliveryId: input.deliveryId,
+            text: input.text
+        });
+        if (state === "completed") {
+            return { durable: true };
+        }
+        if (state !== "unseen") {
+            await acpCodex.reconcileSession(input.ownership.sessionId, input.signal);
+            if (
+                acpCodex.deliveryState(input.ownership.sessionId, input.deliveryId) === "completed"
+            ) {
+                return { durable: true };
+            }
+            throw new Error(
+                acpCodex.blockFor(input.ownership.sessionId)?.code ?? "ACP_CODEX_RECOVERY_REQUIRED"
+            );
+        }
+        try {
+            return await deliverToHandle({
+                ctx,
+                handle: current.handle,
+                input,
+                observe: true,
+                acpCodex
+            });
+        } catch (cause) {
+            // Reconcile durable receipts or persist a conservative block; never enqueue again.
+            await acpCodex.reconcileSession(
+                input.ownership.sessionId,
+                new AbortController().signal
+            );
+            throw cause;
+        }
     };
     return {
         create: (input) =>
@@ -402,6 +468,19 @@ export const createMeetingAgentOwner = ({
             }),
         disposeAll: async () => {
             closing = true;
+            // Active ACP requests must settle through cancellation before their delivery queue drains.
+            for (const current of handles.values()) {
+                if (current.handle.agent.options.provider === "acp-codex") {
+                    current.handle.agent.cancel({
+                        kind: "hook",
+                        reason: "Meeting Runtime shutdown"
+                    });
+                    if (!acpCodex) {
+                        throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                    }
+                    await acpCodex.stopSession(current.sessionId);
+                }
+            }
             await Promise.allSettled([...pending.values()]);
             const errors: unknown[] = [];
             for (const [id, current] of handles) {
@@ -410,6 +489,12 @@ export const createMeetingAgentOwner = ({
                         kind: "hook",
                         reason: "Meeting Runtime shutdown"
                     });
+                    if (current.handle.agent.options.provider === "acp-codex") {
+                        if (!acpCodex) {
+                            throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                        }
+                        await acpCodex.stopSession(current.sessionId);
+                    }
                     await current.handle.agent.whenIdle();
                     await current.handle.dispose();
                     handles.delete(id);

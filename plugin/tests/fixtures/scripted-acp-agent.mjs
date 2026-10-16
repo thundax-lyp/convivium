@@ -140,8 +140,52 @@ for await (const line of createInterface({ input: process.stdin })) {
             const server = endpoints.get(message.params.sessionId);
             if (server) {
                 const listing = await callTool(server, 1, "tools/list", {});
+                if (
+                    listing.result?.tools.some(
+                        (tool) => tool.name === "convivium_run_review_worker"
+                    ) &&
+                    JSON.stringify(message.params.prompt).includes("review-worker=version-1")
+                ) {
+                    await callTool(server, 5, "tools/call", {
+                        name: "convivium_run_review_worker",
+                        arguments: {
+                            input: { meetingId: "meeting", versionId: "version-1" }
+                        }
+                    });
+                }
+                if (listing.result?.tools.some((tool) => tool.name === "structured_output")) {
+                    await callTool(server, 4, "tools/call", {
+                        name: "structured_output",
+                        arguments: {
+                            versionId: "version-1",
+                            scope: "first round",
+                            dimensions: Object.fromEntries(
+                                ["source", "credibility", "completeness", "support"].map((key) => [
+                                    key,
+                                    {
+                                        score: 2,
+                                        scope: key,
+                                        reason: "verified",
+                                        baselineEvidenceIds: []
+                                    }
+                                ])
+                            )
+                        }
+                    });
+                }
                 if (listing.result?.tools.some((tool) => tool.name === "read")) {
                     await callTool(server, 2, "tools/call", { name: "read", arguments: {} });
+                }
+                if (listing.result?.tools.some((tool) => tool.name === "convivium_read_meeting")) {
+                    const meetingId = JSON.stringify(message.params.prompt).match(
+                        /meeting-id=([a-z-]+)/
+                    )?.[1];
+                    if (meetingId) {
+                        await callTool(server, 3, "tools/call", {
+                            name: "convivium_read_meeting",
+                            arguments: { input: { protocolVersion: 1, meetingId } }
+                        });
+                    }
                 }
             }
             write({

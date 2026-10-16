@@ -16,7 +16,30 @@
 
 固定聚焦集合 12 个测试文件、118 项测试通过；八角色真实 DSH Preset/Session 组合覆盖角色指令、Skill 列表/按名称加载隔离与原绑定恢复，不发送真实模型请求。全量 `pnpm --dir plugin verify` 通过：95 个测试文件、809 项测试，以及格式、lint、Host/Client/Remote 类型、构建、环境、定义和包契约检查。文档链接检查通过；未改固定人工环境。
 
-Not Covered：ACP provider 尚未实现，未安装/运行 codex-acp，未执行 Codex/MCP、跨进程 ACP 恢复、Web 实际互联网取证或生产动态 Catalog 验收。下面矩阵中原七角色真实 smoke 属于既有历史证据，不覆盖新增 Web 或 Codex 专项。
+Not Covered（配置阶段）：上述配置与角色验证不覆盖 ACP provider、真实 Codex/MCP、跨进程 ACP 恢复、Web 实际互联网取证或生产动态 Catalog 验收。下面矩阵中原七角色真实 smoke 属于既有历史证据，不覆盖新增 Web 或 Codex 专项。
+
+## ACP Provider Validation
+
+2026-10-16 在 PR #133 合并基线 `226fd696` 复核 P 阶段：connection、prompt、MCP bridge、三表技术存储、provider、compaction boundary 和保守冷恢复已实现。脚本 ACP 子进程结合真实 DSH 服务覆盖确定性组合，不向真实模型发送请求。
+
+本次执行 `pnpm --dir plugin exec vitest run tests/unit/dsh/acp-codex-connection.spec.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/integration/dsh/acp-codex-tool-bridge.spec.ts tests/integration/dsh/acp-codex-store.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/integration/dsh/acp-codex-compaction.spec.ts tests/recovery/acp-codex.spec.ts`：7 文件、48 项测试通过；`pnpm --dir plugin typecheck:host` 通过；`pnpm --dir plugin lint` 通过，保留 provider.ts 的 max-lines 和 provider 测试的 max-lines-per-function 两条警告。测试覆盖发送前持久门禁、原生 receipt/checkpoint、同键冲突、正常冷 load、未知阻断与子树收敛；详细断言以对应测试为准。
+
+Not Covered（P 阶段复核）：该阶段证据不覆盖会议生命周期/owner/dispatcher/Reviewer worker 接线、用户诊断、真实 Codex 和 Web 互联网两轮专项、固定人工环境部署；未重跑全量 verify。后续会议接线的证据见下节，不能将 P 阶段确定性证据当作真实会议验收。
+
+## ACP Meeting Integration Validation
+
+2026-10-16，普通分支 `codex/acp-meeting-integration` 完成 D1–D5 的确定性接线。D1 `8f502352` 接入可选 provider 生命周期；D2 `8d4164c0` 接入身份 setup、持久交付门禁、原绑定冷 load 与 cancel/stop/drain；D3 `5f15cc30` 保留贡献事实与真实期限，unknown 不重投或误计失败；D4a `6adf6e78` 固定原生 spawn 测试依赖 rc.2；D4 `da35bf57` 验证 Reviewer→ACP/MCP→原生 spawn worker→structured_output、同 active claim 原 Promise 复用及根阻断门禁。D4 固定六文件、46 项测试通过；这些为既有阶段结果，本次未重复运行。
+
+D5 本次执行：
+
+- `pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-lifecycle.spec.ts tests/unit/host-plugin-lifecycle.spec.ts`：两文件、15 项测试通过。
+- `pnpm --dir plugin exec vitest run --project client tests/client/meeting/meeting-panel-execution-block.client.spec.tsx tests/client/meeting/meeting-panel-recovery.client.spec.ts`：两文件、13 项测试通过。
+- `pnpm --dir plugin typecheck:client`、`pnpm --dir plugin typecheck:host` 和 `pnpm --dir plugin lint` 通过。lint 保留七条长度警告；Client 测试存在宿主 UI 包缺失 source map 的警告，不影响退出码。
+- 文档本地文件链接与 `git diff --check` 通过。
+
+已验证：executionBlocks 仅由匹配当前身份的 ownership 与 provider 技术记录生成，字段为 identityId/code/since/固定 allowedActions，空时省略；内部路径不进入 DTO。持久 block 通知沿原 refresh stream 发送当前 committedVersion，领域 version 不变也能重读诊断；中英文 alert 显示身份和处置方向。没有自动 Captain 操作、清锁按钮或 resume 解除技术门禁；原暂停控制仍可用，原控制/恢复测试继续通过。诊断订阅在 Meeting runtime 停止时注销，先于 provider.close。无新增领域事件、receipt 或 Archive 事实。
+
+Not Covered：真实 Codex/互联网两轮专项、固定人工 Web 部署及浏览器视觉验收、其它平台、生产动态 Catalog、长会话压缩认证；本次未运行全量 verify。当前只满足 D 阶段确定性门禁，下一入口为 E1 官方环境预检；E2 真实验收及 E3 全组验证/证据迁移/删除六册尚未执行，不宣称发布就绪。
 
 ## Feature Coverage
 

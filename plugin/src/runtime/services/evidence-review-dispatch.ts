@@ -6,7 +6,7 @@ import type {
     Publication
 } from "@/domain/index.ts";
 import { MAX_EVIDENCE_VALIDATION_FAILURES } from "@/domain/index.ts";
-import type { MeetingAgentOwner } from "@/dsh/index.ts";
+import type { CodexAcpProviderPort, MeetingAgentOwner } from "@/dsh/index.ts";
 import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import type { MeetingRepository } from "@/repository/index.ts";
@@ -165,6 +165,7 @@ interface DispatchEvidenceReviewInput {
 }
 
 interface EvidenceReviewDispatcherDependencies {
+    readonly acpCodex?: CodexAcpProviderPort;
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly repository: Pick<MeetingRepository<MeetingState>, "recover">;
@@ -430,6 +431,50 @@ export const createEvidenceReviewDispatcher = (
             if (state.lifecycle.status !== "running") {
                 retry("INVALID_STATE", false);
             }
+            if (state.reviews.some((review) => review.versionId === requestedVersionId)) {
+                return;
+            }
+            const identity = findIdentity(state, recipientId, "evidence_reviewer");
+            const ownership = findOwnership(
+                recovered.sessionOwnership,
+                identity,
+                recovered.snapshot.meetingId,
+                "evidence_reviewer"
+            );
+            const checkBlock = () => {
+                const block = dependencies.acpCodex?.blockFor(ownership.sessionId);
+                if (block) {
+                    retry(block.code, false, dependencies.clock.now() + 30000);
+                }
+            };
+            const reconcileOutcome = async (): Promise<boolean> => {
+                const latest = await dependencies.repository.recover();
+                if (!latest.snapshot) {
+                    retry("REVIEW_STATE_UNAVAILABLE");
+                }
+                if (
+                    latest.snapshot.state.reviews.some(
+                        (review) => review.versionId === requestedVersionId
+                    )
+                ) {
+                    return true;
+                }
+                const claim = latest.snapshot.state.reviewClaims.find(
+                    (entry) => entry.versionId === requestedVersionId
+                );
+                if (claim && claim.expiresAt <= dependencies.clock.now()) {
+                    await failValidation(
+                        latest.snapshot.meetingId,
+                        claim.roundId,
+                        claim.id,
+                        "review_timeout"
+                    );
+                    checkBlock();
+                    retry("REVIEW_VALIDATION_RETRY", false);
+                }
+                checkBlock();
+                return false;
+            };
             const existingClaim = state.reviewClaims.find(
                 (claim) => claim.versionId === requestedVersionId
             );
@@ -441,13 +486,16 @@ export const createEvidenceReviewDispatcher = (
                         existingClaim.id,
                         "review_timeout"
                     );
+                    checkBlock();
                     retry("REVIEW_VALIDATION_RETRY", false);
                 }
+                checkBlock();
                 if (existingClaim.sourceEffectId !== outboxItem.id) {
                     return;
                 }
                 retry("REVIEW_CLAIM_IN_PROGRESS", false, existingClaim.expiresAt);
             }
+            checkBlock();
             const pending = pendingReviews(state);
             const requested = pending.find(({ version }) => version.id === requestedVersionId);
             if (!requested) {
@@ -471,13 +519,6 @@ export const createEvidenceReviewDispatcher = (
             ) {
                 fail("REVIEW_VISIBILITY_INVALID");
             }
-            const identity = findIdentity(state, recipientId, "evidence_reviewer");
-            const ownership = findOwnership(
-                recovered.sessionOwnership,
-                identity,
-                recovered.snapshot.meetingId,
-                "evidence_reviewer"
-            );
             const claim = await dependencies.application.execute(
                 {
                     protocolVersion: 1,
@@ -596,6 +637,9 @@ export const createEvidenceReviewDispatcher = (
                     signal
                 });
             } catch (error) {
+                if (await reconcileOutcome()) {
+                    return;
+                }
                 await failValidation(
                     recovered.snapshot.meetingId,
                     requested.roundId,
@@ -603,6 +647,9 @@ export const createEvidenceReviewDispatcher = (
                     claimReleaseReason(error, signal)
                 );
                 retry("REVIEW_VALIDATION_RETRY", false);
+            }
+            if (await reconcileOutcome()) {
+                return;
             }
             const completed = await dependencies.repository.recover();
             if (!completed.snapshot) {

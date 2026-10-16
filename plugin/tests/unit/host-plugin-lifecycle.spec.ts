@@ -4,7 +4,14 @@ import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import Tools from "@deepseek-ai/dsh-tools";
 
+const { createProvider } = vi.hoisted(() => ({ createProvider: vi.fn() }));
+vi.mock("@/dsh/acp-codex/index.ts", async (original) => ({
+    ...(await original<object>()),
+    createCodexAcpProvider: createProvider
+}));
+
 import { apply, inject } from "@/index.ts";
+import { getLocalMeetingWebRuntime } from "@/runtime/index.ts";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.ts";
 import roleResources from "../../config/definitions.json" with { type: "json" };
 
@@ -34,7 +41,7 @@ describe("Convivium host inject", () => {
 describe("Convivium local Meeting route lifecycle", () => {
     const host = async (
         host: "127.0.0.1" | "localhost" | "0.0.0.0" | undefined,
-        runtimeConfig = config
+        runtimeConfig: typeof config & { acpCodex?: { command: string; args: string[] } } = config
     ) => {
         const routeDispose = vi.fn();
         const register = vi.fn(() => routeDispose);
@@ -42,7 +49,20 @@ describe("Convivium local Meeting route lifecycle", () => {
         const toolDisposers: Array<ReturnType<typeof vi.fn>> = [];
         const childOrder: string[] = [];
         const ctx = {
-            get: vi.fn(() => undefined),
+            get: vi.fn((key: string) =>
+                runtimeConfig.acpCodex
+                    ? (ctx as unknown as Record<string, unknown>)[key]
+                    : undefined
+            ),
+            sessions: {},
+            sessionPersistence: {},
+            agentPresets: {},
+            agentDefaultModel: {},
+            skills: {},
+            llm: {},
+            subprocess: {},
+            systemPrompt: {},
+            storageDomain: createFakeDomainFacility(),
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
             },
@@ -78,7 +98,10 @@ describe("Convivium local Meeting route lifecycle", () => {
             webServer: host === undefined ? undefined : { host, register },
             typertGateway: {},
             typert: {},
-            inject(keys: string[], callback: (context: unknown) => void) {
+            inject(keys: string[], callback: (context: unknown) => unknown) {
+                if (keys.includes("subprocess")) {
+                    return callback(ctx);
+                }
                 expect(keys).toEqual(["webServer", "typertGateway", "typert"]);
                 if (ctx.webServer !== undefined) {
                     callback(ctx);
@@ -130,6 +153,68 @@ describe("Convivium local Meeting route lifecycle", () => {
             }
         };
     };
+
+    it("registers the optional ACP provider before recovery and closes it after Meeting runtime shutdown", async () => {
+        const close = vi.fn();
+        const unsubscribe = vi.fn();
+        const subscribeBlocks = vi.fn(() => unsubscribe);
+        let providerContext: Context;
+        createProvider.mockImplementationOnce(async (context) => {
+            providerContext = context;
+            expect(context.tools.register).not.toHaveBeenCalled();
+            return { close, subscribeBlocks };
+        });
+        const fixture = await host(undefined, {
+            ...config,
+            acpCodex: { command: "/scripted-acp", args: [] }
+        });
+        expect(createProvider).toHaveBeenCalledTimes(1);
+        expect(fixture.toolDisposers).toHaveLength(14);
+        close.mockImplementation(() => {
+            expect(() => getLocalMeetingWebRuntime(providerContext)).toThrow();
+        });
+        await fixture.dispose();
+        expect(subscribeBlocks).toHaveBeenCalledOnce();
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        expect(unsubscribe.mock.invocationCallOrder[0]).toBeLessThan(
+            close.mock.invocationCallOrder[0]
+        );
+        expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes the ACP provider when Meeting activation rejects invalid definitions", async () => {
+        const close = vi.fn();
+        createProvider.mockResolvedValueOnce({ close });
+        await expect(
+            host(undefined, {
+                ...config,
+                agentDefinitions: [],
+                acpCodex: { command: "/scripted-acp", args: [] }
+            })
+        ).rejects.toThrow("exact eight packaged Meeting role definitions");
+        expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not activate Meeting tools when ACP route registration fails", async () => {
+        createProvider.mockRejectedValueOnce(new Error("duplicate ACP route"));
+        await expect(
+            host(undefined, {
+                ...config,
+                acpCodex: { command: "/scripted-acp", args: [] }
+            })
+        ).rejects.toThrow("duplicate ACP route");
+    });
+
+    it("rejects enabled ACP when a required Host service is absent", async () => {
+        const calls = createProvider.mock.calls.length;
+        await expect(
+            apply({ get: () => undefined } as never, {
+                ...config,
+                acpCodex: { command: "/scripted-acp", args: [] }
+            })
+        ).rejects.toThrow("Missing ACP Host service: agents");
+        expect(createProvider).toHaveBeenCalledTimes(calls);
+    });
 
     it("registers exactly one Remote Service on loopback", async () => {
         const fixture = await host("127.0.0.1");
