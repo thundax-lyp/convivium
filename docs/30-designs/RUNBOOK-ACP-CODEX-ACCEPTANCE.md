@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Author/Audit；**H1–H4 PASS；H5 Executable，PASS 后原 checkpoint E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H5 PASS；原 checkpoint E2 装配待作者审计，之后 E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -132,7 +132,7 @@ CONVIVIUM_SMOKE_ACP_COLD_ROOT=/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/c
 
 证据 `/tmp/convivium-native-host-20261016/e2-timeout-resume-stop.json`；原 root `/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/convivium-dsh-smoke-9L1cR5`、原 checkpoint 备份、更新后 checkpoint、失败冷日志及所有先前失败根均保留。runner 已退出1，所属恢复端口57346释放；持久业务状态仍 running，不冒充已暂停或归档。只读技术表四 ready binding、十 committed request，无未知结果；不重放已消费输入。冷原绑定后的第二轮真实新执行及最终归档仍 Not Covered。
 
-H5 前置修复：用户已授权补齐恢复后的 Manager 持久续行通知；唯一实现/测试白名单和精确判据见 D 册 H5，不能混入 E2 脚本。H5 PASS 后仅由 E2 恢复阶段在停止的原临时 profile 更新产品发布物，先逐文件固定/核对新旧职责范围，保持原 Definition/角色资源/模型/cwd/SQLite/Session 和技术门禁；再通过新的用户 pause/resume 生命周期动作续接原 checkpoint，禁止重做第一轮或重放输入。E2 恢复装配与唯一命令在 H5 PASS 后作者核对原现场再固定，不让机械执行者猜测；在此之前不启动现场。
+H5 前置修复已 PASS（43 项聚焦测试、Host 类型/lint/format/build/link/diff）；任务段落已删除，单独提交，不混入 E2。用户已授权补齐恢复后的 Manager 持久续行通知；唯一实现/测试白名单和精确判据见 D 册 H5，不能混入 E2 脚本。H5 PASS 后仅由 E2 恢复阶段在停止的原临时 profile 更新产品发布物，先逐文件固定/核对新旧职责范围，保持原 Definition/角色资源/模型/cwd/SQLite/Session 和技术门禁；再通过新的用户 pause/resume 生命周期动作续接原 checkpoint，禁止重做第一轮或重放输入。E2 恢复装配与唯一命令在 H5 PASS 后作者核对原现场再固定，不让机械执行者猜测；在此之前不启动现场。
 
 ### E2：实现专项脚本并完成真实两轮冷恢复
 

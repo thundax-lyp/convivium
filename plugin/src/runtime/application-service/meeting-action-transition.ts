@@ -300,6 +300,13 @@ const runUserControlTransition = (
                 effectRequests:
                     action.kind === "resume_meeting"
                         ? [
+                              ...result.state.identities
+                                  .filter((identity) => identity.roles.includes("manager"))
+                                  .map((identity) => ({
+                                      kind: "agent_notice" as const,
+                                      noticeKind: "meeting_resumed" as const,
+                                      recipientId: identity.id
+                                  })),
                               ...resumedRoundEffects(result.state),
                               ...resumedEvidenceReviewEffects(result.state)
                           ]

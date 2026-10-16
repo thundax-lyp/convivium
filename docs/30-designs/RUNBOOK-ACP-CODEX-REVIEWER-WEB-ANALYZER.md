@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Author/Audit；**H1–H4 PASS；H5 Executable，PASS 后原 checkpoint E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；装配前置修复 H4 已 PASS 并提交 `89da4c10`；新的 E2 已完成真实创建、第一轮三份正式 Review 和发布，但 Web 正文读取均因非公网解析触发 `WEB_BLOCKED_URL` 而 STOP；E3 未执行。记录 `/tmp/convivium-native-host-20261016/e2-assembly-stop.json`，现场保留且不重放。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H5 PASS；原 checkpoint E2 装配待作者审计，之后 E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；装配前置修复 H4 已 PASS 并提交 `89da4c10`；新的 E2 已完成真实创建、第一轮三份正式 Review 和发布，但 Web 正文读取均因非公网解析触发 `WEB_BLOCKED_URL` 而 STOP；E3 未执行。记录 `/tmp/convivium-native-host-20261016/e2-assembly-stop.json`，现场保留且不重放。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
 
 2026-10-16 用户明确底层 DNS 不属于 Convivium 范畴且不构成阻塞；按 E 册修订判据继续新隔离任务，非公网拒绝只记环境未覆盖，不放宽 SSRF、不伪造正文成功、不重放旧输入。原 STOP 记录仍保留。修订范围的新验收已创建五身份，但首位 Contributor 未在原截止前提交 Evidence，持久状态 submission_missing；本次 STOP 与 DNS 无关，Host 已停稳，E3 未执行。证据 `/tmp/convivium-native-host-20261016/e2-scoped-stop.json`；不重放旧输入。
 
