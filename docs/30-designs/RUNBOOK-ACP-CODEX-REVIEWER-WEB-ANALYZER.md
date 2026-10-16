@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-15；Execute；契约迁移 A1–A3 与配置角色 C1–C7 已通过，下一入口为 P1。执行分支 `codex/acp-configuration-roles`，仅使用普通分支，不创建 worktree。正式文档与配置/角色代码共同交付；未安装官方 bridge 或调用真实模型。全量插件 verify 已通过，不代表 ACP provider 或真实专项完成。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，下一入口为 D1。执行分支 `codex/acp-meeting-integration`，仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；本次复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。尚未会议接线或真实 Codex 验收。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -26,7 +26,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 ## Executor Contract And File Budget
 
-- 仅用户授权 Execute 后从第一项未完成任务开始；本次用户明确要求每项完成、删除该任务段落后单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
+- 仅用户授权 Execute 后从第一项未完成任务开始；2026-10-16 用户授权先复核 P 阶段并修正文档，再串行执行 D1–D5，每步 PASS 后删除当前册对应任务段落并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
 - **每步实际仓库交付文件变更2–10个**；源码、测试、文档、lockfile、新增和删除全部计数，rename按旧/新两路径计。清单是固定允许上限，不是可顺便改动的文件池。相同文件在不同步骤再次修改分别计入；不得以拆补丁、先临时文件再搬回绕过计数。
 - ignored构建物与仓库外临时profile/脱敏日志不计为交付文件，但必须执行Restore；不能把它们拿来凑2个。生成声明只由指定build/generate脚本更新，若出现新的非ignored交付文件也计入并须在清单内。
 - 每步前记录工作树文件内容快照，完成后按**该步前后内容差异**列实际路径（包括当时已存在的未跟踪文件），与白名单/2–10核对；不能用相对HEAD累计diff当本步计数。范围外变化、实际不足2或超过10均STOP，由作者调整步骤，不人为改无关文件凑数。
@@ -73,4 +73,4 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 阶段完成只交接下一册，不单独删除RUNBOOK。全局完成须所有scope与固定验证集合齐全、正式长期来源无遗漏、Not Covered准确；E3一次删除六册并做删除后检查，失败恢复。真实外部运行适用；跨用户/发布/物理介质迁移/UI重设计Not Applicable，其它OS、生产Catalog和长会话压缩Not Covered。
 
-A1–A3 完成文档契约迁移：基线 verify、各步本地文档链接和 git diff --check 已通过，任务逐项删除并单独提交。草稿不存在，临时 Migration Input 已移除。正式设计明确未实现/未运行边界；C1–C7 已实现且任务段落已删除，后续 P/D/E 尚未执行。未安装官方 bridge、未执行真实 Codex/互联网专项；C 册聚焦 118 项测试及完整 verify（95 文件、809 项测试）通过；P/D/E 的 Executable 只代表计划决策完备。
+A1–A3 与 C1–C7 的既有证据保持原边界；P1–P5 已实现，任务段落已删除，确定性复核证据见 Current Implementation Coverage。D/E 尚未执行，Executable 只代表计划决策完备。真实 Codex/互联网专项未执行。

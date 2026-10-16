@@ -16,7 +16,15 @@
 
 固定聚焦集合 12 个测试文件、118 项测试通过；八角色真实 DSH Preset/Session 组合覆盖角色指令、Skill 列表/按名称加载隔离与原绑定恢复，不发送真实模型请求。全量 `pnpm --dir plugin verify` 通过：95 个测试文件、809 项测试，以及格式、lint、Host/Client/Remote 类型、构建、环境、定义和包契约检查。文档链接检查通过；未改固定人工环境。
 
-Not Covered：ACP provider 尚未实现，未安装/运行 codex-acp，未执行 Codex/MCP、跨进程 ACP 恢复、Web 实际互联网取证或生产动态 Catalog 验收。下面矩阵中原七角色真实 smoke 属于既有历史证据，不覆盖新增 Web 或 Codex 专项。
+Not Covered（配置阶段）：上述配置与角色验证不覆盖 ACP provider、真实 Codex/MCP、跨进程 ACP 恢复、Web 实际互联网取证或生产动态 Catalog 验收。下面矩阵中原七角色真实 smoke 属于既有历史证据，不覆盖新增 Web 或 Codex 专项。
+
+## ACP Provider Validation
+
+2026-10-16 在 PR #133 合并基线 `226fd696` 复核 P 阶段：connection、prompt、MCP bridge、三表技术存储、provider、compaction boundary 和保守冷恢复已实现。脚本 ACP 子进程结合真实 DSH 服务覆盖确定性组合，不向真实模型发送请求。
+
+本次执行 `pnpm --dir plugin exec vitest run tests/unit/dsh/acp-codex-connection.spec.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/integration/dsh/acp-codex-tool-bridge.spec.ts tests/integration/dsh/acp-codex-store.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/integration/dsh/acp-codex-compaction.spec.ts tests/recovery/acp-codex.spec.ts`：7 文件、48 项测试通过；`pnpm --dir plugin typecheck:host` 通过；`pnpm --dir plugin lint` 通过，保留 provider.ts 的 max-lines 和 provider 测试的 max-lines-per-function 两条警告。测试覆盖发送前持久门禁、原生 receipt/checkpoint、同键冲突、正常冷 load、未知阻断与子树收敛；详细断言以对应测试为准。
+
+Not Covered：会议生命周期/owner/dispatcher/Reviewer worker 接线、用户诊断、真实 Codex 和 Web 互联网两轮专项、固定人工环境部署；本次未重跑全量 verify。P 阶段确定性证据允许交接会议接线，不能证明真实会议验收完成。
 
 ## Feature Coverage
 
