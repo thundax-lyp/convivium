@@ -60,8 +60,20 @@ const meetingConsumerPlugin = {
                 });
                 ctx.effect(
                     () => async () => {
-                        await disposeTarget();
-                        await acpCodex?.close();
+                        const errors: unknown[] = [];
+                        try {
+                            await disposeTarget();
+                        } catch (error) {
+                            errors.push(error);
+                        }
+                        try {
+                            await acpCodex?.close();
+                        } catch (error) {
+                            errors.push(error);
+                        }
+                        if (errors.length) {
+                            throw new AggregateError(errors, "Convivium shutdown failed");
+                        }
                     },
                     "convivium:target-runtime"
                 );

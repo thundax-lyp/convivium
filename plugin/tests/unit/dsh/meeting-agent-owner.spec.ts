@@ -533,3 +533,18 @@ it("keeps ACP provisioning restricted if ownership is not active or provider pre
     expect(acpCodex.stopSession).not.toHaveBeenCalled();
     await f.owner.disposeAll();
 });
+
+it("releases the Agent handle even when ACP stop fails", async () => {
+    const failure = new Error("stop failed");
+    const acpCodex = {
+        prepareSession: vi.fn(async () => {}),
+        stopSession: vi.fn(async () => {
+            throw failure;
+        })
+    };
+    const f = await fixture(acpCodex);
+    await f.owner.create(f);
+    await expect(f.owner.disposeAll()).rejects.toBeInstanceOf(AggregateError);
+    expect(f.handles[0].agent.whenIdle).toHaveBeenCalled();
+    expect(f.handles[0].dispose).toHaveBeenCalledOnce();
+});

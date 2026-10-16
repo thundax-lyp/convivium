@@ -44,6 +44,14 @@ Executed Validation：静态核对 Config 以 contributorRoleDefinitionIds 闭�
 
 Not Covered / Closure：本次仅明确需求和已检查代码的适用边界，未新增运行行为，未实际创建八身份会议；既有 verify 证据不能代替该场景真实验收。
 
+## 2026-10-16：ACP 失败关闭与资源释放
+
+Scope / Validated Contract：处理 PR #134 的 Codex comments #4290639678、#4290639681。owner.disposeAll 在单个 ACP stop 失败后仍等待 pending 并逐 handle 尝试 whenIdle/dispose，汇总错误；插件 target 清理失败后仍尝试 provider.close，保留双方错误。取消与 drain 的先后、ownership 和持久阻断语义不变。
+
+Executed Validation：两项回归在修复前分别观察到 stop 错误提前退出、target 错误跳过 provider.close；修复后两文件 29 项通过。最终 `pnpm --dir plugin verify` 完整通过，103 文件、900 项测试，以及 format/lint/typecheck/build/environment/contract/八角色资源/package 检查；文档链接与 git diff --check 通过。
+
+Not Covered / Closure：故障注入验证错误后的清理调用与错误保留，不证明真实外部进程必定终止；未追加真实模型、固定人工环境或操作系统故障验收。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。
