@@ -273,11 +273,14 @@ describe("ACP durable recovery gates", () => {
             await expect(cold.resume()).rejects.toMatchObject({
                 code: "ACP_CODEX_RECOVERY_REQUIRED"
             });
+            const calls = await cold.calls();
+            // Two directory probes plus the original binding; cold recovery never replaces it.
+            expect(calls.filter((call) => call.method === "session/new")).toHaveLength(3);
             expect(
-                (await cold.calls()).filter(
-                    (call) => call.method === "session/new" && call.mcpCount === 1
-                )
-            ).toHaveLength(1);
+                calls
+                    .filter((call) => ["session/new", "session/load"].includes(call.method))
+                    .every((call) => call.mcpCount === 0)
+            ).toBe(true);
             expect(
                 (await cold.calls()).filter((call) => call.method === "session/prompt")
             ).toHaveLength(1);

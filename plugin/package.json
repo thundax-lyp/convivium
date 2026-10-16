@@ -221,8 +221,7 @@
         "simple-icons": "16.31.0",
         "zod": "^4.4.3",
         "zustand": "~4.4.7",
-        "@agentclientprotocol/sdk": "1.5.1",
-        "@modelcontextprotocol/sdk": "1.26.0"
+        "@agentclientprotocol/sdk": "1.5.1"
     },
     "devDependencies": {
         "@deepseek-ai/dsh-subagent-spawn-in-process": "0.2.0-rc.2",

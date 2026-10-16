@@ -10,25 +10,6 @@ export interface CodexAcpConnection {
     close(): Promise<void>;
 }
 
-export interface CodexToolBridge {
-    readonly mcpServer: {
-        type: "http";
-        name: "convivium";
-        url: string;
-        headers: [{ name: "Authorization"; value: string }];
-    };
-    setRequest(
-        input:
-            | {
-                  requestId: string;
-                  tools: readonly import("@deepseek-ai/dsh-llm").ToolSchema[];
-                  signal: AbortSignal;
-              }
-            | undefined
-    ): void;
-    close(): Promise<void>;
-}
-
 export type CodexAcpBlock = Readonly<{
     code: "ACP_CODEX_OUTCOME_UNKNOWN" | "ACP_CODEX_RECOVERY_REQUIRED";
     since: number;

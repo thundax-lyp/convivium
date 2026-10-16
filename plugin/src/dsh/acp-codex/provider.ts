@@ -28,7 +28,6 @@ import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import { CodexCompactionBoundary } from "./compaction.ts";
 import { openCodexAcpConnection } from "./connection.ts";
 import { openCodexAcpStore } from "./store.ts";
-import { openCodexToolBridge } from "./tool-bridge.ts";
 import { buildCodexPrompt } from "./prompt.ts";
 import type {
     CodexAcpConfig,
@@ -37,8 +36,7 @@ import type {
     CodexAcpBlock,
     CodexAcpBinding,
     CodexAcpRequest,
-    CodexAcpConnection,
-    CodexToolBridge
+    CodexAcpConnection
 } from "./types.ts";
 
 const error = (code: string, message: string) => new LlmError(message, code);
@@ -93,7 +91,6 @@ interface Lease {
     agent: Agent;
     purpose: "provisioning" | "delivery";
     lifetime: AbortController;
-    bridge: CodexToolBridge;
     connection: CodexAcpConnection;
     buffer?: { requestId: string; text: string };
     active?: { done: Promise<void>; release: () => void; cancel: () => void };
@@ -633,16 +630,9 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         const lifetime = new AbortController();
         const abort = () => lifetime.abort(signal.reason);
         signal.addEventListener("abort", abort, { once: true });
-        let bridge: CodexToolBridge | undefined;
         let connection: CodexAcpConnection | undefined;
         let lease: Lease | undefined;
         try {
-            bridge = await openCodexToolBridge({
-                agent,
-                signal: lifetime.signal,
-                isBlocked: () => this.disabled || !!this.blockFor(rootSessionId) || !!this.closing,
-                onUnsafeSettlement: () => this.block(agent.id, "ACP_CODEX_OUTCOME_UNKNOWN")
-            });
             connection = await openCodexAcpConnection(
                 this.ctx,
                 this.config,
@@ -667,7 +657,7 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
                 const loaded = await connection.client.loadSession({
                     sessionId: acpSessionId,
                     cwd,
-                    mcpServers: [bridge.mcpServer]
+                    mcpServers: []
                 });
                 if (
                     select(loaded.configOptions ?? [], "model").current !== previous.model ||
@@ -678,9 +668,8 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
                     throw error("ACP_CODEX_RECOVERY_REQUIRED", "Loaded configuration mismatch");
                 }
             } else {
-                acpSessionId = (
-                    await connection.client.newSession({ cwd, mcpServers: [bridge.mcpServer] })
-                ).sessionId;
+                acpSessionId = (await connection.client.newSession({ cwd, mcpServers: [] }))
+                    .sessionId;
             }
             await this.configure(connection, acpSessionId, model, effort);
             signal.throwIfAborted();
@@ -703,7 +692,7 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
                     })
                 );
             }
-            lease = { agent, purpose, lifetime, bridge, connection };
+            lease = { agent, purpose, lifetime, connection };
             this.leases.set(agent.id, lease);
             agent.ctx.effect(() => () => this.stopSession(agent.id));
             const bound = this.store.binding(agent.id);
@@ -712,7 +701,6 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
             }
         } catch (cause) {
             lifetime.abort();
-            await bridge?.close();
             await connection?.close();
             if (previous) {
                 await this.block(agent.id, "ACP_CODEX_RECOVERY_REQUIRED");
@@ -910,15 +898,32 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         let timer: ReturnType<typeof setTimeout> | undefined;
         let abortSettlement: Promise<void> | undefined;
         let cancellation: Promise<void> | undefined;
+        let promptOperation: ReturnType<CodexAcpConnection["client"]["prompt"]> | undefined;
         const abort = () => {
-            lease.bridge.setRequest(undefined);
             abortSettlement ??= this.block(sessionId, "ACP_CODEX_OUTCOME_UNKNOWN");
             void abortSettlement.catch(() => {
                 this.disabled = true;
             });
-            cancellation ??= lease.connection.client
-                .cancel({ sessionId: binding.acpSessionId ?? "" })
-                .finally(() => lease.connection.close());
+            cancellation ??= (async () => {
+                let grace: ReturnType<typeof setTimeout> | undefined;
+                try {
+                    await lease.connection.client.cancel({ sessionId: binding.acpSessionId ?? "" });
+                    if (promptOperation) {
+                        await Promise.race([
+                            promptOperation.then(
+                                () => {},
+                                () => {}
+                            ),
+                            new Promise<void>((resolve) => {
+                                grace = setTimeout(resolve, 5000);
+                            })
+                        ]);
+                    }
+                } finally {
+                    clearTimeout(grace);
+                    await lease.connection.close();
+                }
+            })();
             void cancellation.catch(() => {
                 this.disabled = true;
             });
@@ -971,22 +976,17 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
             sent = true;
             timer = setTimeout(() => deadline.abort(), 120000);
             lease.buffer = { requestId: request.requestId, text: "" };
-            lease.bridge.setRequest({
-                requestId: request.requestId,
-                tools: options.tools ?? [],
-                signal
-            });
             signal.addEventListener("abort", abort, { once: true });
             if (signal.aborted) {
                 abort();
                 signal.throwIfAborted();
             }
-            const response = await lease.connection.client.prompt({
+            promptOperation = lease.connection.client.prompt({
                 sessionId: binding.acpSessionId,
                 prompt: prompt.prompt
             });
+            const response = await promptOperation;
             signal.throwIfAborted();
-            lease.bridge.setRequest(undefined);
             const blockedAfter = this.blockFor(sessionId);
             if (blockedAfter) {
                 throw error(blockedAfter.code, "Unsafe ACP tool settlement");
@@ -1048,7 +1048,6 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
                 await abortSettlement;
                 await cancellation;
             } finally {
-                lease.bridge.setRequest(undefined);
                 lease.buffer = undefined;
                 lease.active = undefined;
                 release();
@@ -1198,19 +1197,14 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         }
         lease.closing = (async () => {
             const active = lease.active;
-            // The active request owns cancellation. Its bridge remains live until its
-            // finally block has cleared the request and released the settlement latch.
+            // Cancel and await the active request before closing its connection.
             if (active) {
                 active.cancel();
                 await active.done;
             }
-            lease.bridge.setRequest(undefined);
             lease.lifetime.abort();
             const failures: unknown[] = [];
-            for (const result of await Promise.allSettled([
-                lease.bridge.close(),
-                lease.connection.close()
-            ])) {
+            for (const result of await Promise.allSettled([lease.connection.close()])) {
                 if (result.status === "rejected") {
                     failures.push(result.reason);
                 }

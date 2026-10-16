@@ -2,7 +2,7 @@
 
 ## Status, Authority And Executor Contract
 
-2026-10-16；Author/Audit；**H1 白名单修订 Executable；H1 待验证，H2/H3/E2/E3 未执行**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
+2026-10-16；Author/Audit；**H1 PASS；下一入口 H2→H3→E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
 **ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
 
@@ -23,39 +23,6 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 不可违反：同 deliveryId 同进程原 Promise；消费后无原 Promise/无合法 Review 持久 block，绝不重复 spawn；worker 无 ownership；外部不提供 caller/claim/requestId；输出完整解析、不修补模型 JSON；root/worker checkpoint 与领域提交分别证明；未知不消费业务失败预算，真实 deadline 不冻结。
 
 ## Mechanical Steps
-
-### H1：退役 Convivium ACP 工具 bridge
-
-前置状态：边界契约审计 Executable，现有 E2 七脚本原字节快照已保留。
-允许修改：
-- `plugin/src/dsh/acp-codex/provider.ts`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/dsh/acp-codex/tool-bridge.ts`（删除）
-- `plugin/tests/integration/dsh/acp-codex-tool-bridge.spec.ts`（删除）
-- `plugin/tests/integration/dsh/acp-codex-provider.spec.ts`
-- `plugin/tests/recovery/acp-codex.spec.ts`
-- `plugin/package.json`
-- `plugin/pnpm-lock.yaml`
-- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
-禁止修改：prompt、worker、领域提交和原七脚本；不退休仍有效的防重放测试。
-
-执行：
-1. 先改 provider 测试，使现有真实 scoped read 工具执行次数为 0，检查正常 new/load 的 mcpCount=0；运行该文件观察旧 bridge 导致 RED。
-2. provider 删除 bridge import/Lease 字段、创建、request 上下文和关闭逻辑，new/load 固定 mcpServers=[]；保留进程 cancel/drain、binding/receipt/checkpoint/block 逻辑。删除仅服务旧 bridge 的类型、文件与专用测试。
-3. recovery 不再用 mcpCount 区分 probe/正式 newSession；从原 prompt 的 sessionId 识别原绑定并断言从未创建替代绑定，所有 new/load 的 mcpCount=0。cancel notification 发送后等待原 prompt 正常结算或 5000ms 取消宽限到期，随后 close/drain；保持未知 block、子树隔离、取消计数和无重发断言，不以 sleep 或放宽断言修复。
-4. 从 package.json 删除旧直接依赖，运行 `pnpm --dir plugin install --lockfile-only --offline --ignore-scripts` 更新 lockfile，不改变其它版本；如果命令造成其它交付路径变化 STOP。原 ACP reviewer 旧 MCP 测试将在 H3 原位替换，不在此声称全工程完成。
-
-验证（仓库根）：
-```bash
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec eslint src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
-pnpm --dir plugin exec prettier --check src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts package.json pnpm-lock.yaml
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-PASS：全部退出 0、DSH 工具未执行、RPC new/load 无 Convivium MCP、原防重放/恢复通过，实际 2–10 文件；删除本段并提交。
-STOP：任何断言/类型/门禁失败或额外文件；保留改动、原错误和复现，不回退用户内容、不继续 H2。
 
 ### H2：外部 prompt 仅携带原生策略与未消费任务
 
