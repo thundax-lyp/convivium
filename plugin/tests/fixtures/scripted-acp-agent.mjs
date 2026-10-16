@@ -143,6 +143,17 @@ for await (const line of createInterface({ input: process.stdin })) {
                 if (listing.result?.tools.some((tool) => tool.name === "read")) {
                     await callTool(server, 2, "tools/call", { name: "read", arguments: {} });
                 }
+                if (listing.result?.tools.some((tool) => tool.name === "convivium_read_meeting")) {
+                    const meetingId = JSON.stringify(message.params.prompt).match(
+                        /meeting-id=([a-z-]+)/
+                    )?.[1];
+                    if (meetingId) {
+                        await callTool(server, 3, "tools/call", {
+                            name: "convivium_read_meeting",
+                            arguments: { input: { protocolVersion: 1, meetingId } }
+                        });
+                    }
+                }
             }
             write({
                 method: "session/update",

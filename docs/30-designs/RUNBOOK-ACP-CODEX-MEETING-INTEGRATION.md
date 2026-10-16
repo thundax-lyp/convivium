@@ -2,11 +2,11 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；D1 已 PASS 并删除任务段落，下一入口 D2。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1–D2 已 PASS 并删除任务段落，下一入口 D3。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 
-当前断点：插件入口已完成可选 provider 生命周期装配；owner 尚未调用自研 port，dispatcher 异常仍可能直接计失败。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
+当前断点：插件入口已完成可选 provider 生命周期装配；owner 已接入准备/交付/停止门禁，dispatcher 异常仍可能直接计失败。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
 
 ## Mechanical Steps
 
@@ -27,36 +27,6 @@
 阶段不做真实模型、互联网或固定人工部署，留 E 册；纯技术诊断不写领域事件/receipt/Archive，因此新增领域格式迁移与事务写入 Not Applicable。固定完整门禁为每步下列命令、文档链接和 diff 检查；不缩减既有测试。最终 D5 同步 coverage 的实际证据/Not Covered，不宣称 E 阶段已完成。失败保留工作树与持久门禁，Restore 只清本次临时 profile/进程；不能删 unknown 或自动重放。
 
 审计结论：Executable；本次为契约一致性与执行范围复核，不代表 D2–D5 行为已实现。文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
-
-### D2：接入 owner 的身份与交付门禁
-
-前置状态：D1 PASS。
-允许修改（6 个代码/测试文件及本册；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/dsh/meeting-agent-owner.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/tests/unit/dsh/meeting-agent-owner.spec.ts`
-- `plugin/tests/integration/dsh/meeting-agent-owner.spec.ts`
-- `plugin/tests/integration/dsh/acp-reviewer.spec.ts`（D2 新增）
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. owner参数增加可选 `acpCodex?: CodexAcpProviderPort`，lifecycle 从 options 显式传入；在setup资源/Skill校验末尾prepareSession，先于发布/inbox。保留header/cwd/no-parent及身份指令，不在Codex用户目录复制资源。
-2. ACP交付强制observed、admitting→queued→checkpoint→completed；旧delivery校验同文本，pending只等原Promise，重启未知block，移除ACP wake。非ACP路径不变。
-3. release先cancel、停所属ACP子树/等待工具进程，再dispose；cleanup不加载远端会话。新集成用真实Context/Loader/AgentLoop/subprocess-local/SQLite，脚本ACP不能mock掉caller/MCP。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/dsh/meeting-agent-owner.spec.ts tests/integration/dsh/meeting-agent-owner.spec.ts tests/integration/dsh/acp-reviewer.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：独立身份/作用域首次续聊冷load一致，旧delivery无重发，归档只收敛本root；本步实际变更路径 2–10 个且均在清单内。
-STOP：绕过setup授权、首次记录晚于入队或cleanup触发模型；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
 
 ### D3：通知投递识别未知与既有贡献事实
 

@@ -14,7 +14,7 @@ afterEach(async () => {
         directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))
     );
 });
-const fixture = async () => {
+const fixture = async (acpCodex?) => {
     const workspaceRoot = await realpath(await mkdtemp(join(tmpdir(), "convivium-owner-unit-")));
     directories.push(workspaceRoot);
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -65,6 +65,7 @@ const fixture = async () => {
     const factory = async (options) => {
         const handle = {
             agent: {
+                options: options.agentOptions,
                 id: options.sessionId ?? options.resumeSessionId,
                 session: { id: options.sessionId ?? options.resumeSessionId, header },
                 cancel: vi.fn(),
@@ -105,7 +106,7 @@ const fixture = async () => {
 
             definitionHash: definitionHash(definition)
         },
-        agentOptions: { provider: "host", model: "model" },
+        agentOptions: { provider: acpCodex ? "acp-codex" : "host", model: "model" },
         meetingId: "meeting",
         identityId: "identity",
         sessionId: "session",
@@ -145,10 +146,145 @@ const fixture = async () => {
         emit,
         header,
         workspaceRoot,
-        owner: createMeetingAgentOwner({ ctx, packageRoot, workspaceRoot })
+        owner: createMeetingAgentOwner({ ctx, packageRoot, workspaceRoot, acpCodex })
     };
 };
 describe("meeting Agent owner", () => {
+    it("prepares ACP before publication and persists delivery before enqueue without wake or replay", async () => {
+        let state = "unseen";
+        let text: string | undefined;
+        const acpCodex = {
+            prepareSession: vi.fn(async () => {}),
+            stopSession: vi.fn(async () => {}),
+            deliveryState: vi.fn(() => state),
+            beginDelivery: vi.fn(async (input) => {
+                if (text !== undefined && input.text !== text) {
+                    throw new Error("ACP_CODEX_DELIVERY_CONFLICT");
+                }
+                text = input.text;
+                if (state === "unseen") {
+                    state = "pending";
+                }
+            }),
+            markDeliveryQueued: vi.fn(async () => {}),
+            checkpoint: vi.fn(async () => {}),
+            finishDelivery: vi.fn(async () => {
+                state = "completed";
+            }),
+            blockFor: () => undefined
+        };
+        const f = await fixture(acpCodex);
+        acpCodex.prepareSession.mockImplementation(async () => {
+            expect(f.handles).toHaveLength(0);
+        });
+        await f.owner.create(f);
+        expect(acpCodex.prepareSession).toHaveBeenCalledWith(
+            f.handles[0].agent,
+            "provisioning",
+            f.signal
+        );
+        acpCodex.prepareSession.mockImplementation(async () => {});
+        const ownership = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership, purpose: "delivery" });
+        const agent = f.handles[1].agent;
+        agent.followup.mockImplementation(() => {
+            expect(state).toBe("pending");
+        });
+        const input = {
+            ownership,
+            deliveryId: "effect",
+            text: "Read meeting",
+            authorize: async () => {},
+            signal: f.signal
+        };
+        expect(await f.owner.deliver(input)).toBe(true);
+        expect(acpCodex.markDeliveryQueued).toHaveBeenCalledWith("session", "effect");
+        expect(acpCodex.checkpoint).toHaveBeenCalledWith("session", f.signal);
+        expect(acpCodex.finishDelivery).toHaveBeenCalledWith("session", "effect", f.signal);
+        expect(agent.whenIdle).toHaveBeenCalled();
+        expect(agent.steer).not.toHaveBeenCalled();
+        expect(await f.owner.deliverObserved(input)).toEqual({
+            durable: true,
+            outcome: "completed"
+        });
+        expect(agent.followup).toHaveBeenCalledTimes(1);
+        await expect(f.owner.deliver({ ...input, text: "changed" })).rejects.toThrow(
+            "ACP_CODEX_DELIVERY_CONFLICT"
+        );
+        await f.owner.disposeAll();
+        expect(acpCodex.stopSession).toHaveBeenLastCalledWith("session");
+        expect(acpCodex.stopSession.mock.invocationCallOrder.at(-1)).toBeLessThan(
+            f.handles[1].dispose.mock.invocationCallOrder[0]
+        );
+    });
+
+    it("cancels active ACP delivery before waiting for owner shutdown", async () => {
+        let idle!: () => void;
+        const waiting = new Promise<void>((resolve) => {
+            idle = resolve;
+        });
+        const acpCodex = {
+            prepareSession: vi.fn(async () => {}),
+            stopSession: vi.fn(async () => {}),
+            deliveryState: () => "unseen",
+            beginDelivery: vi.fn(async () => {}),
+            markDeliveryQueued: vi.fn(async () => {}),
+            checkpoint: vi.fn(async () => {}),
+            finishDelivery: vi.fn(async () => {}),
+            reconcileSession: vi.fn(async () => {})
+        };
+        const f = await fixture(acpCodex);
+        const ownership = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership, purpose: "delivery" });
+        f.handles[0].agent.whenIdle.mockImplementation(() => waiting);
+        const delivery = f.owner.deliver({
+            ownership,
+            deliveryId: "active",
+            text: "Read",
+            authorize: async () => {},
+            signal: f.signal
+        });
+        await vi.waitFor(() => expect(f.handles[0].agent.whenIdle).toHaveBeenCalled());
+        const shutdown = f.owner.disposeAll();
+        try {
+            await vi.waitFor(() => expect(f.handles[0].agent.cancel).toHaveBeenCalled());
+            expect(acpCodex.stopSession).toHaveBeenCalledWith("session");
+        } finally {
+            idle();
+            await delivery;
+            await shutdown;
+        }
+    });
+
+    it("does not enqueue a pending ACP delivery whose original process task is unavailable", async () => {
+        const acpCodex = {
+            prepareSession: vi.fn(async () => {}),
+            stopSession: vi.fn(async () => {}),
+            deliveryState: () => "pending",
+            beginDelivery: vi.fn(async () => {}),
+            reconcileSession: vi.fn(async () => {
+                throw new Error("ACP_CODEX_RECOVERY_REQUIRED");
+            }),
+            blockFor: () => undefined
+        };
+        const f = await fixture(acpCodex);
+        const ownership = { ...f.ownership, lifecycleStatus: "active" };
+        await f.owner.resume({ ...f, ownership, purpose: "delivery" });
+        await expect(
+            f.owner.deliver({
+                ownership,
+                deliveryId: "old",
+                text: "Read",
+                authorize: async () => {},
+                signal: f.signal
+            })
+        ).rejects.toThrow("ACP_CODEX_RECOVERY_REQUIRED");
+        expect(acpCodex.beginDelivery).toHaveBeenCalled();
+        expect(f.handles[0].agent.followup).not.toHaveBeenCalled();
+        expect(f.handles[0].agent.steer).not.toHaveBeenCalled();
+        await f.owner.disposeAll();
+    });
+
     it("rejects a resumed Session whose cwd differs without rewriting its header", async () => {
         const f = await fixture();
         await f.owner.create(f);
