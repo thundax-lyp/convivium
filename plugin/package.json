@@ -80,6 +80,7 @@
         "test:integration": "pnpm generate:typert && vitest run --project integration",
         "test:recovery": "pnpm generate:typert && vitest run --project recovery",
         "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
+        "acp:preflight": "node scripts/acp-codex-preflight.mjs",
         "smoke:profile": "node scripts/smoke-profile/index.mjs",
         "verify:agent-definitions": "node scripts/verify-agent-definition-samples.mjs",
         "verify:environment": "node scripts/verify-dsh-environment.mjs",

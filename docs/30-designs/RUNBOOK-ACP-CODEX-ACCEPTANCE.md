@@ -2,11 +2,11 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；**Executable；下一入口 E1，尚未执行**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
+2026-10-16；Execute；**Executable；E1 已 PASS；下一入口 E2**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
-当前断点：尚无新lane或官方安装组合的实际运行证据。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
+当前断点：E1 官方预检及构建已通过；尚无新 lane 的真实两轮运行证据。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
 
 ## Mechanical Steps
 
@@ -15,35 +15,6 @@
 ## Formal Inputs And Evidence
 
 读取 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)、A2 的 ACP interface 与 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。官方binary/model选择沿正式ACP interface；本次专项结果JSON/来源断言见E2，不升为产品公开接口；不再从已删除草稿取值。权限/恢复确定性证据复用P/D册；真实专项不能用fixture替代。
-
-### E1：编写并执行官方环境预检
-
-前置状态：D5 PASS；允许本次官方环境探测，不发模型prompt。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/scripts/acp-codex-preflight.mjs`
-- `plugin/package.json`
-- `docs/30-designs/RUNBOOK-ACP-CODEX-ACCEPTANCE.md`
-- `docs/30-designs/RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. preflight脚本唯一入口直接Node运行；固定从plugin/node_modules解析官方codex-acp/Codex package bin，CODEX_PATH固定锁定CLI，检查已登录状态，仅输出boolean/版本。验证lock完整性、记录bridge入口及平台binary SHA256/版本，不dump环境或认证。
-2. 只initialize/new/configOption/close，默认选择model.currentValue及其reasoning.currentValue；若存在CONVIVIUM_ACP_CODEX_MODEL/REASONING则严格验证指定值。无合法默认/认证失败STOP，不自动猜模型或发prompt验证。输入不用必须由用户手填。
-3. 添加package script `acp:preflight`；smoke内部调用相同preflight函数 `preflightCodexAcp():Promise<{command:string;args:readonly string[];model:string;reasoningEffort?:string;versions:Record<string,string>;binarySha256:Record<string,string>}>`，函数定义在新脚本并支持直接执行打印脱敏JSON；脚本不是新增产品抽象。
-4. 支持直接执行及import两种入口，导出preflightCodexAcp；import不自行运行。只做版本/登录/initialize/new/configOption/close；保留既有登录。具体锁定和默认model/reasoning规则沿正式ACP合同。本期真实lane仅macOS：darwin/arm64取@openai/codex-darwin-arm64和aarch64-apple-darwin，darwin/x64取@openai/codex-darwin-x64和x86_64-apple-darwin；从锁定Codex包入口的createRequire解析平台包/package.json，再取vendor/<triple>/bin/codex。CODEX_PATH显式指向此原生binary；缺包/文件或非darwin立即STOP，不取系统CLI。
-
-验证：
-
-```bash
-pnpm --dir plugin acp:preflight
-pnpm --dir plugin build
-```
-
-PASS：精确版本/binary hash/合法默认选择输出；允许临时 ACP probe session，不创建 DSH/Meeting session、不发 prompt；构建通过，只证明可开始真实验收；本步实际变更路径 2–10 个且均在清单内。
-STOP：认证/目录/能力失败、缺binary或需重新登录/复制凭据；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
 
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
