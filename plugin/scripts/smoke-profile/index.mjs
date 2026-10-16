@@ -783,7 +783,11 @@ const runAcpColdCheckpoint = async (root, deepSeekApiKey, recordRoot) => {
     let port;
     try {
         const checkpointPath = join(root, "peer-checkpoint.json");
-        const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
+        const checkpointText = await readFile(checkpointPath, "utf8");
+        const checkpoint = JSON.parse(checkpointText);
+        await writeFile(join(root, "peer-checkpoint-before-recovery.json"), checkpointText, {
+            flag: "wx"
+        });
         const definitionsPath = join(root, "smoke-definitions.json");
         const definitions = JSON.parse(await readFile(definitionsPath, "utf8")).definitions;
         const reviewer = definitions.find(

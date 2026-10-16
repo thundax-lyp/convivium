@@ -24,6 +24,31 @@ describe("canonical MeetingState validation", () => {
         const state = makeRunningMeetingStateV1();
         expect(validateMeetingState(state)).toEqual({ kind: "valid", state });
     });
+    it.each(["actorId", "agendaId", "publicationId"] as const)(
+        "rejects a FormalMessage with a dangling %s reference",
+        (field) => {
+            const state = validState();
+            const message = {
+                id: "message",
+                seq: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                kind: "round_evidence",
+                body: "Evidence summary",
+                publicationId: "pub",
+                relatedIds: ["v", "review"],
+                createdAt: 0
+            };
+            expect(validateMeetingState({ ...state, messages: [message] })).toMatchObject({
+                kind: "valid"
+            });
+            message[field] = "missing";
+            expect(validateMeetingState({ ...state, messages: [message] })).toMatchObject({
+                kind: "invalid",
+                path: `$.messages[0].${field}`
+            });
+        }
+    );
     it("rejects a second registered version in one evidence package", () => {
         const state = validState();
         const pkg = state.evidencePackages[0];
@@ -254,3 +279,38 @@ describe("canonical MeetingState validation", () => {
         expect(validateMeetingState(archived)).toEqual({ kind: "valid", state: archived });
     });
 });
+
+it.each(["actorId", "agendaId", "publicationId"] as const)(
+    "rejects a dangling archive FormalMessage %s while live messages remain valid",
+    (field) => {
+        const state = validState("archived");
+        const message = {
+            id: "message",
+            seq: 1,
+            actorId: "contributor",
+            agendaId: "a",
+            publicationId: "pub",
+            kind: "round_evidence",
+            body: "summary",
+            relatedIds: [],
+            createdAt: 0
+        };
+        const archive = {
+            ...state.archive!,
+            publications: state.publications,
+            identityProvenance: state.identities.map(({ id, displayName, roles }) => ({
+                identityId: id,
+                displayName,
+                roles
+            })),
+            messages: [message]
+        };
+        expect(validateMeetingState({ ...state, archive })).toMatchObject({ kind: "valid" });
+        expect(
+            validateMeetingState({
+                ...state,
+                archive: { ...archive, messages: [{ ...message, [field]: "missing" }] }
+            })
+        ).toMatchObject({ kind: "invalid", path: `$.archive.messages[0].${field}` });
+    }
+);

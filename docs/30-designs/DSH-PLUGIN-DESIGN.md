@@ -225,7 +225,7 @@ interface TimelineMilestoneGroup {
 | `meeting.created`                                                                                                                                                                    | `meeting_start`                                        | 默认展示     |
 | `round.opened`、`evidence.submitted`、`evidence_review.submitted`、`review_delivery.recorded`、`round.published`、`formal_message.published`、`round.aborted`、`contribution.failed` | subject 或 relation 指向的 `round`                     | 默认展示     |
 | `hand_raise.recorded`、`hand_raise.disposed`、`round.participation_recorded`、`contribution.closed`、`evidence_review.claimed`、`evidence_validation.failed`                         | subject 或 relation 指向的 `round`                     | 默认展示     |
-| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`decision.recorded`、`decision.changed`、`risk.disposed`                                                             | 唯一明确关联的 round；无关联或歧义时作为未归属普通卡片 | 默认展示     |
+| `manager_plan.recorded`、`question.disposed`、`issue.disposed`、`risk.disposed`                                                             | 唯一明确关联的 round；无关联或歧义时作为未归属普通卡片 | 默认展示     |
 | `completion_fact.recorded`、`completion_fact.changed`                                                                                                                                | 当前 `completion`；没有活动实例时建立                  | 关键         |
 | `meeting.ended`、`archive.started`、`archive.completed`                                                                                                                              | `closure`                                              | 默认展示     |
 | `identity.recommended`、`identity.admission_recorded`                                                                                                                                | 未归属普通卡片                                         | 默认展示     |
@@ -299,21 +299,21 @@ Client 先生成展示块和左右位置，再渲染：未归属事件直接输�
 
 ## Codex Provider Composition
 
-本节的 provider 与 D1–D5 会议装配已实现并通过确定性验证；E 阶段真实验收与全组收口尚未完成。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
+本节的 provider 与 D1–D5 会议装配已实现并通过确定性验证；已完成一轮真实核心链路冒烟，剩余真实验收按人工交接收口；完整两轮验收未通过，事实与未覆盖边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-native-execution-migration)。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
 
 `plugin/src/plugin-entry.ts::apply/meetingConsumerPlugin` 在 acpCodex 缺省时保持现有组合，不注册新 route、探测或进程。启用时通过显式 ctx.inject 声明原 meetingServices、subprocess 与 storageDomain 为全部必需依赖；服务尚未激活则等待，不在 inject 前通过即时 ctx.get 抛缺服务错误。依赖齐备才先 createCodexAcpProvider 打开技术 domain 并注册 LlmAdapter，再调用 `activateTargetMeetingApplication`。必需服务始终缺失则 consumer 不激活，路由冲突或创建失败拒绝本次激活；依赖撤销时随 consumer fiber 释放会议运行时、工具和 provider。保持会议工具先注册、owner/Session 再恢复的现有顺序。
 
-`plugin/src/dsh/acp-codex/` 负责 connection/process、prompt、MCP bridge、store、provider 和 compaction；不执行 Meeting command。provider factory 统一持有 route/domain/连接生命周期。`plugin/src/runtime/meeting-lifecycle.ts::activateTargetMeetingApplication` 显式把可选 CodexAcpProviderPort 传给 owner、review dispatcher、notice dispatcher、review tool 和 read projection，不读取 ctx.acpRecovery 等虚构服务。不新增顶层工程、通用 adapter registry、installer 或跨表事务。Host 安装并登录 bridge，发行包不内置它。
+`plugin/src/dsh/acp-codex/` 负责 connection/process、原生 prompt、store、provider 和 compaction；不执行 Meeting command。provider factory 统一持有 route/domain/连接生命周期。`plugin/src/runtime/meeting-lifecycle.ts::activateTargetMeetingApplication` 显式把可选 CodexAcpProviderPort 传给 owner、review dispatcher、notice dispatcher、review tool 和 read projection，不读取 ctx.acpRecovery 等虚构服务。不新增顶层工程、通用 adapter registry、installer 或跨表事务。Host 安装并登录 bridge，发行包不内置它。
 
 压缩边界是单独的 Cordis 入口 `@convivium/dsh-plugin/acp-compaction`：`plugin/src/dsh/acp-codex/compaction.ts::CodexCompactionBoundary` 继承 Host 的 BasicCompactionEngine，在八个 Preset 既有隔离组替换默认 backend，非 ACP 调用仍委派原实现。构建增加独立 Node entry 与 package subpath，不通过 provider 注册第二个同名 Service。prepareSession 使用 agentPresets.serviceFor 核查已装配边界；spawn 保持继承父 Preset，未装边界的自定义 Preset 拒绝 ACP。精确行为见 ACP 接口的 Prompt, MCP And Stream。
 
-关闭先拒绝新的会议投递并停止 owner，再 provider.close：禁止新请求，取消并 drain 所有 MCP/进程，关闭技术 domain 并注销 route。route 关闭不删除 binding/request/delivery 历史；cleanup 失败保留现有 archiving 语义，不关闭其它会议或用户输入 Session。启动配置 reload 走插件重新装载，核对旧 launchFingerprint，不能热改已绑定会话。
+关闭先拒绝新的会议投递并停止 owner，再 provider.close：禁止新请求，取消活动 prompt 并等待结算，再 drain 连接/进程，关闭技术 domain 并注销 route。owner 在 pending drain 前仅提前 cancel/stop ACP handle；非 ACP 投递按原顺序先 drain，再统一 cancel/dispose。单个 ACP stop 失败不能跳过其余 handle 的等待与释放；target 清理失败后仍尝试关闭 provider，失败汇总保留。route 关闭不删除 binding/request/delivery 历史；cleanup 失败保留现有 archiving 语义，不关闭其它会议或用户输入 Session。启动配置 reload 走插件重新装载，核对旧 launchFingerprint，不能热改已绑定会话。
 
 Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView executionBlocks](../20-interfaces/MEETING-INTERFACE.md#acp-execution-diagnostics)。subscribeBlocks 在持久阻断后触发 refreshListeners，以当前 committedVersion 通知；Client 同版本也重读。`plugin/src/client/meeting/panel.tsx::ConviviumMeetingPanel` 详情显示本地化 role=alert，说明身份、停止自动执行及现有暂停/异常结束操作。DTO 只含安全字段，不把模型、路径、凭据或原 ACP ID 发到远端/归档；不写领域 version/event、不自动暂停、不增清锁 UI。
 
 ## ACP 实施与验证边界
 
-ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合复核见 Current Implementation Coverage；D1–D5 会议装配已完成并通过确定性验证，真实专项未执行。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
+ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合复核见 Current Implementation Coverage；D1–D5 会议装配已完成并通过确定性验证，真实核心链路已完成一轮冒烟，完整两轮、Web 正文读取及原绑定冷恢复真实验收仍未覆盖，剩余工作转人工冒烟。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；当前证据与未覆盖项见 readiness，人工冒烟与失败处置见 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md#acp-人工冒烟与日志调试)。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
 
 ### Acceptance-only Outbox Reader
 

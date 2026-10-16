@@ -48,7 +48,7 @@
 3. 不同会议、身份和授权范围的 Meeting Agent 不共享 Session；Captain 是本地用户，可控制当前 Host 中多场 Meeting。输入 Session 仅作来源记录，不是会议身份或权限绑定。
 4. 主持身份不得伪装成普通参与者，也不得以参与者名义形成正式发言或立场。
 5. 同一个底层 Agent 承担多个会议身份时，各身份必须保持可区分、可审计。
-6. 会议由可信本地用户入口创建；Runtime 注入用户来源，payload 不得伪造 actor、Session 或 authority。结构化 Captain 创建接口只允许用角色 Definition 的唯一 `displayName` 选择初始 Contributor，参数可省略且默认空数组；用户不得提交 `identityKey`、Definition ID 或正式 identity ID。Captain adapter 精确解析名称后补齐唯一专职 `manager` 和唯一专职 `evidence_reviewer`，为内部创建命令生成引用并原子分配正式 identity ID；未知、重复、歧义或指向 Manager/Reviewer 的参会角色名称必须整条拒绝。Manager、Reviewer 与所选 Contributor 均为必需身份、负责全部初始议题且默认无 Captain 风险处置权；Manager 与 Reviewer 不能兼任 Captain、Contributor 或彼此。Manager 必须绑定 `meeting_manager`，Reviewer 必须绑定 `verification_reviewer`。无效或相互矛盾的配置不得产生部分可用的会议。
+6. 会议由可信本地用户入口创建；Runtime 注入用户来源，payload 不得伪造 actor、Session 或 authority。结构化 Captain 创建接口只允许用角色 Definition 的唯一 `displayName` 选择初始 Contributor，参数可省略且默认空数组。当前八角色资源中的六个 Contributor 均可同时被选中，结构化 Captain 允许选择 0–6 个；Host `initialContributorRoleIds` 允许配置 1–6 个不同 Contributor。连同唯一 Manager 和 Reviewer，初始身份总数分别为 2–8 和 3–8，不保留最多五个 Contributor 的旧限制；用户不得提交 `identityKey`、Definition ID 或正式 identity ID。Captain adapter 精确解析名称后补齐唯一专职 `manager` 和唯一专职 `evidence_reviewer`，为内部创建命令生成引用并原子分配正式 identity ID；未知、重复、歧义或指向 Manager/Reviewer 的参会角色名称必须整条拒绝。Manager、Reviewer 与所选 Contributor 均为必需身份、负责全部初始议题且默认无 Captain 风险处置权；Manager 与 Reviewer 不能兼任 Captain、Contributor 或彼此。Manager 必须绑定 `meeting_manager`，Reviewer 必须绑定 `verification_reviewer`。无效或相互矛盾的配置不得产生部分可用的会议。
 7. 新建会议的目标、议题和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
@@ -455,7 +455,7 @@ Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义�
 
 ## ACP Codex Acceptance Boundary
 
-本节是已确认的目标验收，尚未实现。2026-10-16 已确认 ACP 执行边界：以 ACP 方式存在的 Agent 只使用外部 Agent 自身原生工具和 Skills，不使用 Convivium 定义的工具或 Skills，也不经 Convivium 的 MCP bridge 调用 DSH 工具。会议职责继续保留；会议读取、审核提交和 worker 生命周期由 Convivium 宿主程序化适配。宿主以原身份、当前 claim 和 immutable version 构造审核输入，校验外部输出后通过原 Runtime 提交；外部文本不能自行授予 caller、替换 claim/version 或形成正式 Review。此边界适用于 ACP root 和 ACP worker；DSH 原生 Agent 的工具与 Skills 路径保持原需求。
+本节定义已确认的目标行为与验收标准；实现覆盖和实际验收结果见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-native-execution-migration)。2026-10-16 已确认 ACP 执行边界：以 ACP 方式存在的 Agent 只使用外部 Agent 自身原生工具和 Skills，不使用 Convivium 定义的工具或 Skills，也不经 Convivium 的 MCP bridge 调用 DSH 工具。会议职责继续保留；会议读取、审核提交和 worker 生命周期由 Convivium 宿主程序化适配。宿主以原身份、当前 claim 和 immutable version 构造审核输入，校验外部输出后通过原 Runtime 提交；外部文本不能自行授予 caller、替换 claim/version 或形成正式 Review。此边界适用于 ACP root 和 ACP worker；DSH 原生 Agent 的工具与 Skills 路径保持原需求。
 
 新增验收判据：ACP new/load 不注入 Convivium MCP server；ACP 输入不附带 Convivium Skill 正文或要求调用 Convivium 工具的指令；Host 负责启动、取消和回收审核 worker，并证明合法输出才形成 Review，非法、过期、取消或未知结果不形成成功事实；旧的 MCP 工具可见/可调用与模型调用 `structured_output` 的证据不能替代本边界验收。
 

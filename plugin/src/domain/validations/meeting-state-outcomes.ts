@@ -396,6 +396,22 @@ const validateTerminalRecords = (
                 return fail(p);
             }
         }
+        const archiveIdentityIds = new Set(
+            archive.identityProvenance.map((item) => item.identityId)
+        );
+        const archiveAgendaIds = ids(archive.agenda);
+        const archivePublicationIds = ids(archive.publications);
+        for (const [index, message] of archive.messages.entries()) {
+            for (const [key, targets] of [
+                ["actorId", archiveIdentityIds],
+                ["agendaId", archiveAgendaIds],
+                ["publicationId", archivePublicationIds]
+            ] as const) {
+                if (!targets.has(message[key])) {
+                    return fail(`$.archive.messages[${index}].${key}`);
+                }
+            }
+        }
         if (
             JSON.stringify(archive.unresolvedItemIds) !==
             JSON.stringify([

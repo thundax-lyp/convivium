@@ -182,6 +182,28 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(close).toHaveBeenCalledTimes(1);
     });
 
+    it("closes the ACP provider and preserves both shutdown failures", async () => {
+        const targetFailure = new Error("target shutdown failed");
+        const providerFailure = new Error("provider shutdown failed");
+        const close = vi.fn(async () => {
+            throw providerFailure;
+        });
+        createProvider.mockResolvedValueOnce({
+            close,
+            subscribeBlocks: () => () => {
+                throw targetFailure;
+            }
+        });
+        const fixture = await host(undefined, {
+            ...config,
+            acpCodex: { command: "/scripted-acp", args: [] }
+        });
+        await expect(fixture.dispose()).rejects.toMatchObject({
+            errors: [targetFailure, providerFailure]
+        });
+        expect(close).toHaveBeenCalledOnce();
+    });
+
     it("closes the ACP provider when Meeting activation rejects invalid definitions", async () => {
         const close = vi.fn();
         createProvider.mockResolvedValueOnce({ close });

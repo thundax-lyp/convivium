@@ -508,21 +508,28 @@ export const createMeetingAgentOwner = ({
             }),
         disposeAll: async () => {
             closing = true;
-            // Active ACP requests must settle through cancellation before their delivery queue drains.
+            const errors: unknown[] = [];
+            // Cancel ACP work before waiting for its pending delivery queue.
             for (const current of handles.values()) {
-                if (current.handle.agent.options.provider === "acp-codex") {
+                if (current.handle.agent.options.provider !== "acp-codex") {
+                    continue;
+                }
+                try {
                     current.handle.agent.cancel({
                         kind: "hook",
                         reason: "Meeting Runtime shutdown"
                     });
-                    if (!acpCodex) {
-                        throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                    if (current.handle.agent.options.provider === "acp-codex") {
+                        if (!acpCodex) {
+                            throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                        }
+                        await acpCodex.stopSession(current.sessionId);
                     }
-                    await acpCodex.stopSession(current.sessionId);
+                } catch (error) {
+                    errors.push(error);
                 }
             }
             await Promise.allSettled([...pending.values()]);
-            const errors: unknown[] = [];
             for (const [id, current] of handles) {
                 try {
                     current.handle.agent.cancel({
@@ -535,7 +542,15 @@ export const createMeetingAgentOwner = ({
                         }
                         await acpCodex.stopSession(current.sessionId);
                     }
+                } catch (error) {
+                    errors.push(error);
+                }
+                try {
                     await current.handle.agent.whenIdle();
+                } catch (error) {
+                    errors.push(error);
+                }
+                try {
                     await current.handle.dispose();
                     handles.delete(id);
                 } catch (error) {
