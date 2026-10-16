@@ -10,6 +10,12 @@
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
+## ACP Native Execution Migration
+
+2026-10-16 用户确认 ACP root/worker 仅使用外部 Agent 自身原生工具和 Skills；Host 负责会议读取、审核提交及 worker 生命周期，见 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。当前源码仍为 MCP 工具转接路径，宿主适配未实现。下面 ACP MCP/structured_output 确定性结果是旧边界的历史验证，不证明新目标通过。
+
+本轮已核查普通分支 `codex/acp-acceptance` 与现有工作树；warm activation 后真实创建成功，但 Reviewer 没有调用会议工具，未产出 Review，E2 未通过、E3 未执行。旧付费现场与已消费输入保留；本次边界变更未发模型请求。Not Covered：ACP 不注入 Convivium MCP/Skills、宿主 worker 驱动与输出接纳、新边界两轮冷恢复和归档。RUNBOOK 当前为 Not Executable，不能按旧指令继续验收。
+
 ## ACP Configuration And Web Role Validation
 
 2026-10-15 配置与角色代码：Definition.agentOptions 为完整可选执行选择，agentModelOverrides 生产入口已删除；预检绑定解析后的模型/reasoning，原七角色身份 hash 保持不变。不可变准入选择、descriptor 激活到期检查、八角色/六能力发行闭集及默认 GitHub/arXiv/Web 贡献者创建入口已实现。

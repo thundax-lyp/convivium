@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；**Executable；E1 已 PASS；E2 入口修复已 PASS；Executable，下一入口 E2**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
+2026-10-16；Author；**Not Executable；E1 已 PASS；E2/E3 STOP**。用户已确认 ACP Agent 仅使用自身原生工具和 Skills，会议读取、审核提交和 worker 生命周期由宿主适配。原 E2 的 MCP/structured_output 验收前提失效，须先按 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary) 完成宿主适配设计、文件白名单和重新审计。既有真实用量及逐步提交授权保留；本状态不授权重放已消费输入、push/PR/merge 或固定人工环境安装。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -11,6 +11,22 @@
 ## Mechanical Steps
 
 每步 PASS 后先保存仓库外脱敏执行记录，删除本册该步完整任务段落并更新本册/总入口的下一入口，执行文档链接和 diff 检查，阅读完整待提交 diff 后单独 commit；失败保留任务段落且不提交失败步骤。E3 以删除六册代替删除单个段落。E1/E2 的 RUNBOOK 更新已列入允许文件。
+
+## 2026-10-16 ACP 边界变更 STOP
+
+最后 PASS：`0d1518ba` 的 warm activation 聚焦门禁；最新真实专项确认会议创建成功，未得到合法 Review，不能记为 E2 PASS。原现场 `/tmp/convivium-acp-codex-evidence-warm-activation/convivium-smoke-record-x8FrbR/acp-codex-reviewer-web` 与 `/tmp/convivium-acp-acceptance-records/e2-warm-activation-stop.json` 保留，输入已消费，不再次投递。
+
+触发条件：正式需求改为 ACP 原生执行/宿主适配；`evidence-review-dispatch.ts` 的 review_request 仍要求模型调用 `convivium_run_review_worker`，`register-tools.ts::registerReviewWorkerTool` 仍依赖 DSH spawn 的 structured 结果，`provider.ts::connectSession` 仍给 new/load 注入 Convivium MCP bridge。当前缺少宿主专用审核调用接口、ACP 输出载体和持久接纳/恢复顺序；不是继续修复 tools/list 可消除的缺口。
+
+最小静态复现（仓库根）：
+
+```bash
+rg -n '只调用一次 convivium_run_review_worker' plugin/src/runtime/services/evidence-review-dispatch.ts
+rg -n 'reviewWorkers.start|result.structured' plugin/src/tools/register-tools.ts
+rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
+```
+
+实际输出分别命中现有投递指令、spawn/structured 接纳和 new/load MCP 注入。恢复条件：先固定宿主调用/输出接纳与防重放契约，补齐唯一文件和 symbol 白名单及正反例验证，审计为 Executable 后才进入实现，再以全新隔离环境执行 E2。用户已完成产品边界决定，无须重复询问授权；未完成技术设计不交给机械执行者选择。下文 E2/E3 任务段落保留用于作者修订，不得执行或删除为已完成。
 
 ## 2026-10-16 E2 Author Audit
 

@@ -10,6 +10,14 @@
 
 Non-goals：通用 ACP、其它 bridge/Teams、Codex 原生多 Agent 投影、热换已绑定执行配置、API key 登录、远端未知结果自动核对/续跑、强制清锁、隐藏推理留存和长会话压缩认证。
 
+## ACP Native Execution Boundary
+
+2026-10-16 用户确认的当前目标以 [ACP Codex Acceptance Boundary](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#acp-codex-acceptance-boundary) 为准：ACP root/worker 仅使用外部 Agent 原生工具和 Skills。Convivium 不向其注入自己的工具、Skill 正文或 DSH `structured_output` 工具；newSession/loadSession 的 `mcpServers` 不包含 Convivium bridge。会议读取、可信输入组装、worker 生命周期、输出校验和 Review 提交由宿主承担。身份、claim、version、requestId、receipt、outbox 和未知结果防重放门禁不因此放宽，provider 不成为 Meeting 事实源。
+
+**迁移状态：Not Executable。** 下文的 `CodexToolBridge`、MCP HTTP 能力要求、正常 new/load 注入 bridge、Reviewer 三工具、模型调用 `structured_output` 以及 MCP drain 描述是当前旧实现基线，不再是允许继续实现或验收的目标。其余技术记录与保守恢复约束继续有效。不得把这些旧实现描述解释为新边界的例外；正式宿主调用接口、输出载体与持久接纳顺序尚需完成设计及 focused validation 后，才能解除迁移门禁。
+
+宿主适配必须使用当前可信 ownership 取得 Reviewer caller，按现有 claim/immutable version/baseline 构造输入，以 `ReviewWorkerOutputSchema` 和 `SubmitEvidenceReviewActionSchema` 校验结果，再调用原 application 提交。不得从外部返回值取得 authority、meetingId、roundId、claimId 或 requestId；worker 不获得 Meeting ownership。不允许以宽松 JSON 提取、未校验文本、自动重跑或新 Session fallback 替代结果接纳协议。
+
 ## Dependency, Host And Public API
 
 - 产品 dependencies 精确增加 `@agentclientprotocol/sdk:1.5.1`、`@modelcontextprotocol/sdk:1.26.0`；Host peerDependencies/devDependencies 增加 `@deepseek-ai/dsh-subprocess`、`@deepseek-ai/dsh-compaction` 与 `@deepseek-ai/dsh-compaction-basic`，均 0.2.0-rc.2，peer optional 与已有 Host 包一致。测试宿主增加 devDependency `@deepseek-ai/dsh-subprocess-local:0.2.0-rc.2`；沿用已有 storage-sqlite，不引入第二种测试介质。官方 bridge/CLI 仅 devDependencies：`@agentclientprotocol/codex-acp:1.11.0`、`@openai/codex:0.161.0`。pnpm.overrides 固定 `@agentclientprotocol/codex-acp>@openai/codex` 为 0.161.0；其余传递依赖按新 lockfile integrity 冻结，不手改 integrity。无需新顶层 package。

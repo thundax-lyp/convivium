@@ -84,6 +84,8 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 
 ## Codex Session Integration
 
+2026-10-16 ACP 目标已变更为 [ACP Native Execution Boundary](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。本节 MCP bridge、one-shot driver `structured_output` 及模型调用会议工具的描述仅记录旧实现；宿主适配尚未实现，不能据此继续 E2。DSH 原生路径保持原设计。新的职责链为 Host 读取可信会议事实 → 构造 ACP 审核输入 → 外部 Agent 使用自身原生能力 → Host 校验结果并通过原 Runtime 提交；worker 启动、取消、回收归 Host。具体接口和完成/恢复顺序尚未固定，不得先以 provider 合成会议工具调用或模型自报成功替代宿主适配。
+
 本节的 D1–D5 装配已实现并通过确定性验证，E 阶段真实验收与全组收口尚未完成；精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
 
 `plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 首次 warm 激活核验并保留原 Agent/进程/MCP/绑定，冷恢复才加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。

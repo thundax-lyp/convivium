@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，E1 官方环境预检与 build 已 PASS；E2 只读采证入口已补齐；Captain 创建与 Host 统一消费临时 Definition 快照，角色解析验证已通过；STORAGE_UNAVAILABLE 已定位为首发前原 ACP 空会话 reload 失败；warm activation 修复通过确定性门禁，下一入口为 E2 真实创建与两轮验收，下一入口 E2。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E1 已通过（bridge 1.11.0、Codex 0.161.0、默认 gpt-6.1-sol/low）；E2 真实验收与 E3 全组收口尚未完成。
+2026-10-16；Author；**Not Executable，E2/E3 STOP**。用户已确认 ACP root/worker 只使用自身原生工具和 Skills，会议读取、审核提交及 worker 生命周期由宿主适配。原 MCP Reviewer/structured_output 目标与当前需求冲突；旧 A/C/P/D 验证只证明旧实现，E1 预检已 PASS，warm activation 修复已 PASS，真实创建已成功，但 E2/E3 尚未 PASS。执行分支 `codex/acp-acceptance`，基线 `69ff4424`，当前最近已提交源码 `0d1518ba`。仍仅使用普通分支；不重放已消费输入、不修改固定人工环境、不 push/PR/merge。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -18,7 +18,7 @@
 
 自研Codex专用provider注册acp-codex，禁止安装dsh-acp-adapter，仅参考机制；允许官方codex-acp。Definition.agentOptions为唯一新建选择，退役外部overrides；不可变准入快照/descriptor到期不变。Reviewer独立主Session选择Codex，worker仍spawn且模型默认继承；Web独立Session使用Host默认模型。支持正常空闲点原会话冷load；未知结果持久阻断，不重发/空白重绑，真实deadline继续。
 
-业务链：创建→五平级Session→Web搜索/读取→Evidence→Reviewer ACP→MCP原DSH caller→spawn structured_output→原Runtime提交Review→发布→安全暂停/冷load→第二轮→撤权归档。
+目标业务链：创建→五平级Session→Web搜索/读取→Evidence→Host构造可信审核输入→Reviewer/worker ACP原生执行→Host校验输出→原Runtime提交Review→发布→安全暂停/冷load→第二轮→撤权归档。宿主调用接口、输出载体和接纳/恢复顺序未完成设计与审计前，不执行该链路。
 
 Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、自动恢复未知/人工清锁、热换已有会议模型、凭据UI、长会话压缩认证、生产动态Catalog producer、远程多用户、物理存储迁移、固定人工环境部署、提交/发布/合并。
 
