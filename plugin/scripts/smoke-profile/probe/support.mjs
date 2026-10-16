@@ -159,12 +159,8 @@ export const peerSessionId = (meetingId, identityId) =>
     stablePeerId("meeting_agent_session", meetingId, identityId);
 export const peerCreateCommand = async (requestId, statement) => {
     const fs = process.getBuiltinModule("node:fs/promises");
-    const path = process.getBuiltinModule("node:path");
     const definitions = JSON.parse(
-        await fs.readFile(
-            path.join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, "definitions.json"),
-            "utf8"
-        )
+        await fs.readFile(process.env.CONVIVIUM_SMOKE_DEFINITIONS_PATH, "utf8")
     ).definitions;
     return {
         protocolVersion: 1,
@@ -180,41 +176,35 @@ export const peerCreateCommand = async (requestId, statement) => {
                 hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
-            identities: definitions
-                .filter((d) =>
+            participantRoleNames: definitions
+                .filter((definition) =>
                     [
-                        "meeting_manager",
-                        "verification_reviewer",
                         "github_research_analyst",
-                        "arxiv_research_analyst"
-                    ].includes(d.roleDefinitionId)
+                        "arxiv_research_analyst",
+                        ...(process.env.CONVIVIUM_SMOKE_SCENARIO === "acp-codex-reviewer-web"
+                            ? ["web_research_analyst"]
+                            : [])
+                    ].includes(definition.roleDefinitionId)
                 )
-                .map((d) => ({
-                    identityKey: d.roleDefinitionId,
-                    definitionId: d.agentDefinitionId,
-                    displayName: d.roleDefinitionId,
-                    roles: [
-                        d.roleDefinitionId === "meeting_manager"
-                            ? "manager"
-                            : d.roleDefinitionId === "verification_reviewer"
-                              ? "evidence_reviewer"
-                              : "contributor"
-                    ],
-                    agendaResponsibilityIds: ["agenda"],
-                    riskAuthority: false,
-                    required: true
-                })),
-            managerIdentityKey: "meeting_manager",
-            evidenceReviewerIdentityKey: "verification_reviewer",
+                .map((definition) => definition.displayName),
             initialAgenda: [
                 { id: "agenda", title: statement, question: statement, requiredOutputIds: [] }
             ],
             initialActiveAgendaId: "agenda",
             limits: {
                 maxFormalMessages: 100,
-                maxDurationMs: 900000,
-                taskDeadlineMs: 300000,
-                reviewDeadlineMs: 180000
+                maxDurationMs:
+                    process.env.CONVIVIUM_SMOKE_SCENARIO === "acp-codex-reviewer-web"
+                        ? 3600000
+                        : 900000,
+                taskDeadlineMs:
+                    process.env.CONVIVIUM_SMOKE_SCENARIO === "acp-codex-reviewer-web"
+                        ? 900000
+                        : 300000,
+                reviewDeadlineMs:
+                    process.env.CONVIVIUM_SMOKE_SCENARIO === "acp-codex-reviewer-web"
+                        ? 600000
+                        : 180000
             }
         }
     };
