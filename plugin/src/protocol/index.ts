@@ -39,6 +39,8 @@ export {
     IdentityViewSchema,
     IdentityRecommendationViewSchema,
     MeetingSummarySchema,
+    MeetingExecutionBlockSchema,
+    type MeetingExecutionBlock,
     MeetingViewSchema,
     MeetingListResultSchema,
     MeetingReadResultSchema,

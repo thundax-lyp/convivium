@@ -119,3 +119,108 @@ describe("target Meeting list", () => {
         }
     });
 });
+
+it("refreshes safe ACP diagnostics at the committed domain version without writing Meeting facts", async () => {
+    const state = makeRunningMeetingStateV1();
+    state.identities[0].sessionOwnershipId = "owner";
+    const snapshot = {
+        meetingId: state.id,
+        version: state.version,
+        state,
+        createdAt: 0,
+        updatedAt: 1
+    };
+    let records: { meetingId: string }[] = [];
+    const repository = {
+        recover: async () => ({
+            snapshot,
+            sessionOwnership: [
+                {
+                    id: "owner",
+                    meetingId: state.id,
+                    identityId: state.identities[0].id,
+                    sessionId: "root"
+                }
+            ]
+        }),
+        readCommittedEvents: async () => ({ events: [] })
+    };
+    const registry = {
+        listMeetings: () => records,
+        openMeeting: async () => repository,
+        close: vi.fn(async () => {})
+    };
+    const open = vi
+        .spyOn(StorageDomainRepositoryRegistry, "open")
+        .mockResolvedValue(registry as never);
+    let block: { code: "ACP_CODEX_OUTCOME_UNKNOWN"; since: number; path: string } | undefined;
+    let notify!: (root: string) => void;
+    const unsubscribe = vi.fn();
+    const ctx = {
+        storageDomain: {},
+        logger: () => ({ error: vi.fn() }),
+        agents: { get: () => undefined },
+        subagents: {
+            getProvider: () => ({
+                name: "spawn",
+                capabilities: { outputSchema: true },
+                prepareContinuable: async () => ({})
+            })
+        }
+    };
+    const dispose = await activateTargetMeetingApplication(
+        ctx as never,
+        {
+            provider: "spawn",
+            maxParticipants: 3,
+            speakerTimeoutMs: 60000,
+            outboxPollMs: 1000,
+            agentDefinitions: roleResources.definitions
+        },
+        {
+            rolePackageRoot: "/fixture",
+            acpCodex: {
+                blockFor: () => block,
+                subscribeBlocks: (listener) => {
+                    notify = listener;
+                    return unsubscribe;
+                }
+            }
+        }
+    );
+    const signal = new AbortController();
+    try {
+        const runtime = getLocalMeetingWebRuntime(ctx);
+        expect(
+            (await runtime.read({ protocolVersion: 1, meetingId: state.id }, signal.signal))
+                .executionBlocks
+        ).toBeUndefined();
+        records = [{ meetingId: state.id }];
+        const stream = runtime.subscribeRefresh(signal.signal);
+        const next = stream.next();
+        block = { code: "ACP_CODEX_OUTCOME_UNKNOWN", since: 123, path: "/private/internal" };
+        notify("root");
+        expect((await next).value).toEqual({
+            kind: "refresh",
+            meetingId: state.id,
+            committedVersion: state.version
+        });
+        const view = await runtime.read({ protocolVersion: 1, meetingId: state.id }, signal.signal);
+        expect(view.executionBlocks).toEqual([
+            {
+                identityId: state.identities[0].id,
+                code: block.code,
+                since: 123,
+                allowedActions: ["pause_meeting", "end_meeting"]
+            }
+        ]);
+        expect(JSON.stringify(view)).not.toContain("/private/internal");
+        signal.abort();
+        await stream.return();
+    } finally {
+        signal.abort();
+        await dispose();
+        open.mockRestore();
+    }
+    expect(unsubscribe).toHaveBeenCalledOnce();
+});

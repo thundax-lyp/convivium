@@ -7,7 +7,8 @@ import type { MeetingState } from "@/domain/index.ts";
 import type {
     CaptainMeetingCommand,
     MeetingCommand,
-    ReadMeetingRequest
+    ReadMeetingRequest,
+    MeetingExecutionBlock
 } from "@/protocol/index.ts";
 import { MeetingCommandResultSchema } from "@/protocol/index.ts";
 import { projectMeetingSummary, projectMeetingView } from "@/projection/index.ts";
@@ -802,12 +803,42 @@ export const activateTargetMeetingApplication = async (
         async read(request: ReadMeetingRequest, signal: AbortSignal) {
             signal.throwIfAborted();
             const repository = await registry.openMeeting({ meetingId: request.meetingId });
-            const snapshot = (await repository.recover()).snapshot;
+            const recovery = await repository.recover();
+            const snapshot = recovery.snapshot;
             if (!snapshot) {
                 throw new Error("Meeting is not ready.");
             }
             const eventLog = await repository.readCommittedEvents();
-            return projectMeetingView(snapshot, { kind: "captain" }, undefined, eventLog.events);
+            const view = projectMeetingView(
+                snapshot,
+                { kind: "captain" },
+                undefined,
+                eventLog.events
+            );
+            const executionBlocks: MeetingExecutionBlock[] = [];
+            for (const ownership of recovery.sessionOwnership) {
+                if (
+                    ownership.meetingId !== snapshot.meetingId ||
+                    !snapshot.state.identities.some(
+                        (identity) =>
+                            identity.id === ownership.identityId &&
+                            identity.sessionOwnershipId === ownership.id
+                    )
+                ) {
+                    continue;
+                }
+                const block = options.acpCodex?.blockFor(ownership.sessionId);
+                if (block && ownership.identityId) {
+                    executionBlocks.push({
+                        identityId: ownership.identityId,
+                        code: block.code,
+                        since: block.since,
+                        allowedActions: ["pause_meeting", "end_meeting"]
+                    });
+                }
+            }
+            executionBlocks.sort((left, right) => left.identityId.localeCompare(right.identityId));
+            return executionBlocks.length ? { ...view, executionBlocks } : view;
         },
         async control(command: CaptainMeetingCommand, signal: AbortSignal) {
             const resolved = resolveCaptainCommand(command, definitions);
@@ -918,6 +949,26 @@ export const activateTargetMeetingApplication = async (
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     identityReaders.set(ctx, identityReader);
+    const unsubscribeBlocks = options.acpCodex?.subscribeBlocks((rootSessionId) => {
+        void (async () => {
+            const found = await runtime.findBySessionId(
+                rootSessionId,
+                new AbortController().signal
+            );
+            if (!found || !runtimes.has(ctx)) {
+                return;
+            }
+            const repository = await registry.openMeeting({ meetingId: found.meetingId });
+            const snapshot = (await repository.recover()).snapshot;
+            if (snapshot && runtimes.has(ctx)) {
+                for (const listener of refreshListeners) {
+                    listener(snapshot.meetingId, snapshot.version);
+                }
+            }
+        })().catch((cause) =>
+            ctx.logger("convivium:meeting").error("ACP diagnostic refresh failed %o", cause)
+        );
+    });
     await options.onBeforeRecovery?.({
         runtime,
         reader: identityReader,
@@ -926,6 +977,7 @@ export const activateTargetMeetingApplication = async (
     });
     await reconcile();
     return async () => {
+        unsubscribeBlocks?.();
         for (const worker of deliveryWorkers.values()) {
             worker.stop();
         }

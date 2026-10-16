@@ -156,11 +156,13 @@ describe("Convivium local Meeting route lifecycle", () => {
 
     it("registers the optional ACP provider before recovery and closes it after Meeting runtime shutdown", async () => {
         const close = vi.fn();
+        const unsubscribe = vi.fn();
+        const subscribeBlocks = vi.fn(() => unsubscribe);
         let providerContext: Context;
         createProvider.mockImplementationOnce(async (context) => {
             providerContext = context;
             expect(context.tools.register).not.toHaveBeenCalled();
-            return { close };
+            return { close, subscribeBlocks };
         });
         const fixture = await host(undefined, {
             ...config,
@@ -172,6 +174,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             expect(() => getLocalMeetingWebRuntime(providerContext)).toThrow();
         });
         await fixture.dispose();
+        expect(subscribeBlocks).toHaveBeenCalledOnce();
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        expect(unsubscribe.mock.invocationCallOrder[0]).toBeLessThan(
+            close.mock.invocationCallOrder[0]
+        );
         expect(close).toHaveBeenCalledTimes(1);
     });
 

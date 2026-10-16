@@ -3,6 +3,10 @@ import type { TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 export const MEETING_LOCALE_NS = "convivium.meeting";
 
 export const zh = {
+    "panel.execution.unknown":
+        "{identity}：执行结果未知，已停止自动执行。可暂停或异常结束会议；继续会议不会解除阻断。",
+    "panel.execution.recovery":
+        "{identity}：会话需要恢复，已停止自动执行。可暂停或异常结束会议；继续会议不会解除阻断。",
     "form.create": "创建会议",
     "form.controls": "用户控制",
     "form.action": "操作",
@@ -370,6 +374,10 @@ export const zh = {
 export type MeetingLocaleKey = keyof typeof zh;
 
 export const en: Record<MeetingLocaleKey, string> = {
+    "panel.execution.unknown":
+        "{identity}: Execution outcome is unknown. Automatic execution is blocked. You can pause or end the meeting; resuming does not clear this block.",
+    "panel.execution.recovery":
+        "{identity}: Session recovery is required. Automatic execution is blocked. You can pause or end the meeting; resuming does not clear this block.",
     "form.create": "Create meeting",
     "form.controls": "User controls",
     "form.action": "Action",

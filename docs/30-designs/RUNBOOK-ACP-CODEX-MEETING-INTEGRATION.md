@@ -2,11 +2,11 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；D1–D4 及 D4a 已 PASS 并删除任务段落，下一入口 D5。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1–D5 及 D4a 已 PASS，任务段落已删除；下一入口 E1。D5 实际交付 10 个文件，用户授权补齐 host-plugin-lifecycle 测试替身的订阅/注销并保留总预算。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 
-当前断点：插件入口已完成可选 provider 生命周期装配；owner 已接入准备/交付/停止门禁，dispatcher 异常仍可能直接计失败。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
+当前断点：插件生命周期、owner、通知/审核 dispatcher、Reviewer worker 与用户诊断的确定性接线已闭合；真实 Codex/Web 专项仍未验收。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
 
 ## Mechanical Steps
 
@@ -26,41 +26,7 @@
 
 阶段不做真实模型、互联网或固定人工部署，留 E 册；纯技术诊断不写领域事件/receipt/Archive，因此新增领域格式迁移与事务写入 Not Applicable。固定完整门禁为每步下列命令、文档链接和 diff 检查；不缩减既有测试。最终 D5 同步 coverage 的实际证据/Not Covered，不宣称 E 阶段已完成。失败保留工作树与持久门禁，Restore 只清本次临时 profile/进程；不能删 unknown 或自动重放。
 
-审计结论：Executable；本次为契约一致性与执行范围复核，不代表 D2–D5 行为已实现。文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
-
-### D5：公开阻断诊断并复用原人工控制
-
-前置状态：D4 PASS。
-允许修改（9 个代码/测试/证据文件及本册；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/protocol/meeting-view.ts`
-- `plugin/src/protocol/index.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/src/client/meeting/panel.tsx`
-- `plugin/src/client/meeting/shared/locales.ts`
-- `plugin/tests/client/meeting/meeting-panel-execution-block.client.spec.tsx`
-- `plugin/tests/client/meeting/meeting-panel-recovery.client.spec.ts`
-- `plugin/tests/unit/runtime/meeting-lifecycle.spec.ts`
-- `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 添加executionBlocks精确可选schema/runtime安全投影；providerblock变更走现有refresh；同version刷新也重新读取诊断，既有stale领域数据保护不变。
-2. 面板role=alert显示身份、code对应中英文提示与现有处置方向；不暴露内部路径/ACP ID；不自动执行Captain控制，resume不解除门禁。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-lifecycle.spec.ts
-pnpm --dir plugin exec vitest run --project client tests/client/meeting/meeting-panel-execution-block.client.spec.tsx tests/client/meeting/meeting-panel-recovery.client.spec.ts
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin lint
-```
-
-PASS：不增领域version也能刷新诊断，原因/身份可见且不泄密，暂停/异常结束沿原Captain权限，无清锁按钮；本步实际变更路径 2–10 个且均在清单内。
-STOP：伪造用户身份/领域事实，resume自动解除block或重设计UI；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
+作者审计结论为 Executable；随后 D2–D5 已执行 PASS，实际验证见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-meeting-integration-validation)。文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
 
 ## Validation, Handoff And Deletion
 

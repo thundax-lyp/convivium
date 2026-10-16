@@ -345,10 +345,27 @@ export const ConviviumMeetingPanel = ({
         deleteDisabled:
             freshness.connection !== "connected" || freshness.list !== "fresh" || writePending,
         localFeedback: (
-            <SubmissionFeedback
-                submission={localSubmission}
-                disabled={freshness.connection !== "connected" || writePending}
-            />
+            <>
+                <SubmissionFeedback
+                    submission={localSubmission}
+                    disabled={freshness.connection !== "connected" || writePending}
+                />
+                {detail?.executionBlocks?.map((block) => (
+                    <p role="alert" key={block.identityId}>
+                        {t(
+                            block.code === "ACP_CODEX_OUTCOME_UNKNOWN"
+                                ? "panel.execution.unknown"
+                                : "panel.execution.recovery",
+                            {
+                                identity:
+                                    detail.identities.find(
+                                        (identity) => identity.id === block.identityId
+                                    )?.displayName ?? block.identityId
+                            }
+                        )}
+                    </p>
+                ))}
+            </>
         ),
         locale,
         meetings,
