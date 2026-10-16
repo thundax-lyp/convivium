@@ -8,6 +8,8 @@
 
 用户后续授权延长临时任务预算，单人超时由原 Runtime 记录并正常收敛；验收以两轮实际 Evidence 全部审核、原绑定冷恢复、权限拒绝和归档为门禁，数量不固定六份，缺失贡献必须如实报告。精确预算与新目录见 E 册；预检暂时 Internal error 后无 prompt 诊断已通过，旧空目录和日志保留，正式入口唯一改为 timeout-compatible-ready；禁止复活终态或重放输入。
 
+采证字段审计已核对 rc.2 ToolExecutionFailure.error.info.code；此前第一轮三份 Review 已完成，DNS 分类脚本错误不推定为业务失败。原根保留，完整声明复核已纠正 Session 扁平化 error 与 runtime ToolFailure 的混淆；新任务证据目录唯一为 timeout-observed，继续按 E 册执行。
+
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |

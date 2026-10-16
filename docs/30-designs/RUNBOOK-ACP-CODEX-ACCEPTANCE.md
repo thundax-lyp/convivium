@@ -98,6 +98,10 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 
 预检恢复审计：timeout-compatible 首次启动在 preflight 返回 Internal error，尚未 mkdtemp 场景根/创建会议/发送 prompt，证据目录文件数=0，原日志和空目录保留。随后仅运行既有无 prompt 的 preflight，成功返回 gpt-6.1-sol/low 且 binary hash 与原证据同值，记录 /tmp/convivium-native-host-20261016/e2-timeout-preflight-diagnostic.json；不是重投会议输入。按用户兼容暂时性网络失败的授权，作者将本次正式命令唯一目录改为 /tmp/convivium-acp-codex-evidence-timeout-compatible-ready，仍要求不存在；不删除或覆盖旧目录。两册修订链接/diff通过，审计 Executable。
 
+采证修正审计：timeout-compatible-ready 已真实完成第一轮三份 Evidence/Review 和发布，原工具拒绝确为非公网 DNS。DSH rc.2 公开 ToolExecutionFailure.error 为 ToolFailure={message:string,info?:ToolErrorInfo}，ToolErrorInfo={name:string,code:string,reason?:string}，code 位于 result.error.info.code，原 probe 误取 result.errorCode 导致已授权环境分类失败。E2 白名单内 probe/index.mjs::recordTool 仅将 errorCode 正确映射为 result.error?.info?.code，isError/content 保持原值，不放宽分类或 SSRF。原根 qPFMnD/日志保留，无 checkpoint，不恢复或重投旧输入；新 randomUUID 任务唯一证据目录为 /tmp/convivium-acp-codex-evidence-timeout-result。复用已通过部署契约/build，重跑脚本 lint/format、真实专项；两册链接/diff通过，Author/Audit Executable。此为采证设施修复，不新增测试的测试。
+
+完整类型复核：前次只核对 Session 扁平化日志中的 error={name,code}，误当成 tools/result 的 ToolFailure，造成 timeout-result 第一轮三份 Review/发布后仍未识别环境拒绝。已同时核对 rc.2 ToolFailure 与 ToolErrorInfo 公开声明，以及 dsh-tools::toolErrorResult/materializeFinalResult，唯一映射是 result.error.info.code；不采用模糊文本 fallback。原 fFMhgE 根保留，无 checkpoint，不复用已消费输入。新的唯一目录固定 /tmp/convivium-acp-codex-evidence-timeout-observed；修正该 E2 白名单内的一行后继续原全部验证，先两册链接/diff 审计通过再执行。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。
@@ -133,8 +137,8 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-timeout-compatible-ready
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-compatible-ready CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-timeout-observed
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-observed CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/全部实际 Evidence 合法 Review 与超时记录、真实搜索/两域正文或明确环境未覆盖记录、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。
