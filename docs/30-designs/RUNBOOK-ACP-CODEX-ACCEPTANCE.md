@@ -104,6 +104,10 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 
 只读服务装配审计：timeout-observed 已通过真实 Web 非公网拒绝分类、三份 Review 和发布；随后 settled 访问 ctx.storageDomain 报 cannot get property "storageDomain" without inject。缺口位于 E2 白名单内 probe/index.mjs::inject，固定新增必需 storageDomain，不使用 ctx.get 绕过注入、不改生产依赖。已逐项核对场景访问 agents/sessions/tools/storageDomain，前三已声明，只有 storageDomain 遗漏；所有 smoke profile 都装载 SQLite Storage Domain。原 osdKN0 根保留且不重放，新 randomUUID 任务唯一目录 /tmp/convivium-acp-codex-evidence-timeout-outbox。只改既有 probe 依赖声明，lint/format 和既有部署契约通过后执行原真实门禁；两册链接/diff检查通过，Author/Audit Executable。
 
+原始工具事件采证审计：timeout-outbox 又在第一轮三份 Review/发布后未匹配 Web 环境拒绝。只读 Session 原始 tool/call、tool/result 逐项证明两域真实 fetch 拒绝，不能据采证失败判为业务超时。无模型输入的实际 rc.2 ToolRuntime + HttpFetchProvider 调用确认 tools/result.error.info.code 正确；原始 Session 的已提交 error 是 {name,code}，事件时间与瞬时回调完成时间不同。为消除瞬时采证歧义，E2 白名单内 collectWeb 固定读取 Web Agent.session.snapshotEvents()（公开 Session API）；先按 callId 建立 tool/call 的 name/arguments 映射，再仅对 tool/result 且 message.isError=true、data.error.code=WEB_BLOCKED_URL 的实际事件补入错误 records。记录 sessionId=原 Web Session.id、at=原 event.time、arguments=原 JSON、content=原 message.content、errorCode=原 data.error.code，仍按 round 时间、实际 search、两域和原始错误正文交叉检查。禁止生成历史 ACP checkpoint 或替换工具结果；成功正文仍走原 tools/result 规范值，未覆盖不写 sha256。Web Agent 从 ctx.agents.get 原 ID 读取，已卸载时仅从原 observedAgents 快照引用找同 ID，不创建 Session。该修正只读取既有日志，不重执行工具。
+
+原 n0HSJH 根保留，不重放；新 randomUUID 任务唯一证据目录 /tmp/convivium-acp-codex-evidence-timeout-session。两册 Author/Audit 链接/diff检查后 Executable，修正 collectWeb 后执行脚本 lint/format 和原真实门禁；既有部署契约/build复用。未扩大 E2 10 文件预算，不新增测试脚本的测试。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。
@@ -139,8 +143,8 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-timeout-outbox
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-outbox CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-timeout-session
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-session CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/全部实际 Evidence 合法 Review 与超时记录、真实搜索/两域正文或明确环境未覆盖记录、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

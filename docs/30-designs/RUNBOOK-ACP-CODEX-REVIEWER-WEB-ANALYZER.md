@@ -12,6 +12,8 @@
 
 只读 outbox probe 已核对缺失 storageDomain 必需 inject；E2 白名单内补声明，保留所有生产门禁。此前 DNS 分类、三份 Review 与发布已验证；新任务唯一目录 timeout-outbox，原场景保留不重放。
 
+Web 环境拒绝的只读采证已固定为公开 Session.snapshotEvents 的原 tool/call/result，校验原 callId/error/time，不重执行工具或模型输入；新任务唯一目录 timeout-session，详见 E 册审计。
+
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |
