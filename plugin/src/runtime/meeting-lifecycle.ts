@@ -23,7 +23,7 @@ import {
 import { createMeetingIdentityEffectHandler } from "./application-service/index.ts";
 import { createMeetingCreationCoordinator } from "./meeting-runtime.ts";
 import { createMeetingAgentOwner, type RoleCatalogPort } from "@/dsh/index.ts";
-import type { MeetingOwnershipLookup } from "@/dsh/index.ts";
+import type { CodexAcpProviderPort, MeetingOwnershipLookup } from "@/dsh/index.ts";
 import type { LocalMeetingWebRuntime } from "./index.ts";
 import { createOutboxWorker } from "./outbox-worker.ts";
 import { createMeetingNoticeDispatcher } from "./services/index.ts";
@@ -658,6 +658,7 @@ export const activateTargetMeetingApplication = async (
     config: Config,
     options: {
         rolePackageRoot: string;
+        acpCodex?: CodexAcpProviderPort;
         onBeforeRecovery?: (services: {
             runtime: LocalMeetingWebRuntime & MeetingOwnershipLookup;
             reader: MeetingIdentityReader;

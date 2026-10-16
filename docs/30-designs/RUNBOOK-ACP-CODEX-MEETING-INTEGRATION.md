@@ -2,45 +2,17 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-15；Author / Audit；**Executable（实施计划，尚未执行）**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本册不授权提交、安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1 已 PASS 并删除任务段落，下一入口 D2。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 
-当前断点：插件入口/owner未调用自研port，dispatcher异常仍可能直接计失败。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
+当前断点：插件入口已完成可选 provider 生命周期装配；owner 尚未调用自研 port，dispatcher 异常仍可能直接计失败。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
 
 ## Mechanical Steps
 
 ## Formal Inputs And Traceability
 
 读取 [Peer Meeting Agents](./PEER-MEETING-AGENTS-DESIGN.md) 的 owner/delivery/recovery、[DSH Plugin Design](./DSH-PLUGIN-DESIGN.md) 的启用和卸载、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的 executionBlocks，以及 A2 的 ACP interface。不得在工具侧扩大Meeting权限；worker仍spawn、原claim/version/schema不变。
-
-### D1：接入可选 provider 的插件生命周期
-
-前置状态：P5 PASS。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/plugin-entry.ts`
-- `plugin/src/dsh/index.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/tests/unit/host-plugin-lifecycle.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. acpCodex省略时保持原服务依赖/行为；启用时先创建/注册provider，再激活Meeting应用，明确注入subprocess/storage等公开服务。
-2. activateTargetMeetingApplication选项接收可选port，注册失败/缺服务/重复route拒绝，activation失败关闭已创建provider；卸载先停止会议再关闭provider。
-3. 此步只接装配和错误/禁用生命周期，D2才把port接owner。不得在中间状态部署或发真实ACP会议。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/host-plugin-lifecycle.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：默认部署不引入新硬依赖，启用注册先于恢复、失败无泄漏；本步实际变更路径 2–10 个且均在清单内。
-STOP：需要虚构ctx.acpRecovery或改变全局静态Agent模型；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
 
 ### D2：接入 owner 的身份与交付门禁
 

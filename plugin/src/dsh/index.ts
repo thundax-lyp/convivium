@@ -14,3 +14,5 @@ export {
     type RoleCatalogPort
 } from "./meeting-role-catalog.ts";
 export { createMeetingAgentOwner, type MeetingAgentOwner } from "./meeting-agent-owner.ts";
+
+export { createCodexAcpProvider, type CodexAcpProviderPort } from "./acp-codex/index.ts";
