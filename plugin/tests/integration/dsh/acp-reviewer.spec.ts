@@ -11,6 +11,8 @@ import {
 import SessionPersistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import AgentPresetRegistry from "@deepseek-ai/dsh-agent-preset-registry";
 import AgentPreset from "@deepseek-ai/dsh-agent-preset";
+import Subagents from "@deepseek-ai/dsh-subagent";
+import * as Spawn from "@deepseek-ai/dsh-subagent-spawn-in-process";
 import Skills from "@deepseek-ai/dsh-skill";
 import LocalSubprocess from "@deepseek-ai/dsh-subprocess-local";
 import Storage from "@deepseek-ai/dsh-storage";
@@ -38,6 +40,8 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
     const providers: Awaited<ReturnType<typeof createCodexAcpProvider>>[] = [];
     const owners: ReturnType<typeof createMeetingAgentOwner>[] = [];
     const calls: string[] = [];
+    const submitted: unknown[] = [];
+    const children: { provider: string; model?: string }[] = [];
     let ownership: SessionOwnership;
     try {
         await cp(join(packageRoot, "config"), join(root, "config"), { recursive: true });
@@ -94,6 +98,8 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
                 root: join(root, "sessions"),
                 compression: "none"
             });
+            await ctx.plugin(Subagents);
+            await ctx.plugin(Spawn, { providerName: "spawn" });
             await ctx.plugin(LocalSubprocess);
             await ctx.plugin(Storage);
             await ctx.plugin(Sqlite, { path: join(root, "storage.sqlite") });
@@ -116,16 +122,20 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
             registerMeetingTools({
                 registry: ctx.tools,
                 application: {
-                    execute: async () => {
-                        throw new Error("Unexpected command");
+                    execute: async (command) => {
+                        submitted.push(command.action);
+                        return { kind: "accepted" };
                     }
                 },
-                reviewWorkers: {
-                    start: async () => {
-                        throw new Error("D4 worker not connected");
-                    }
+                acpCodex: provider,
+                reviewWorkers: ctx.subagents,
+                reviewPrompts: {
+                    resolve: async () => ({
+                        prompt: "Return a structured review for version-1",
+                        claimId: "claim-1",
+                        roundId: "round-1"
+                    })
                 },
-                reviewPrompts: { resolve: async () => undefined },
                 callers: {
                     resolve: (agent, signal) =>
                         resolveMeetingCaller(
@@ -151,6 +161,11 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
                 packageRoot: root,
                 workspaceRoot: root,
                 acpCodex: provider
+            });
+            ctx.on("agent/created", ({ agent }) => {
+                if (agent.session.header.parentSession) {
+                    children.push({ provider: agent.options.provider, model: agent.options.model });
+                }
             });
             owners.push(owner);
             return { ctx, provider, owner };
@@ -245,11 +260,27 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
         await second.owner.resume({ ownership, definition, purpose: "delivery", signal });
         expect(await second.owner.deliver({ ...input, deliveryId: "second-delivery" })).toBe(true);
         expect(calls).toEqual(["reviewer", "reviewer"]);
+        expect(
+            await second.owner.deliver({
+                ...input,
+                deliveryId: "review-delivery",
+                text: "review-worker=version-1"
+            })
+        ).toBe(true);
+        expect(submitted).toHaveLength(1);
+        expect(submitted[0]).toMatchObject({
+            kind: "submit_evidence_review",
+            claimId: "claim-1",
+            versionId: "version-1"
+        });
+        expect(children).toEqual([{ provider: "acp-codex", model: "scripted-codex" }]);
         const trace = await count();
         const ids = trace
             .filter((entry) => entry.method === "session/prompt")
             .map((entry) => entry.sessionId);
-        expect(new Set(ids).size).toBe(1);
+        expect(ids[0]).toBe(ids[1]);
+        expect(ids[2]).toBe(ids[0]);
+        expect(ids[3]).not.toBe(ids[0]);
         const loads = trace.filter((entry) => entry.method === "session/load").length;
         await second.owner.stop({
             ownership: { ...ownership, capabilityStatus: "revoked", lifecycleStatus: "closing" },

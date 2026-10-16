@@ -565,6 +565,7 @@ const createDeliveryManager = (input: {
             application
         });
         const review = createEvidenceReviewDispatcher({
+            acpCodex: input.acpCodex,
             owner: agentOwner,
             definitions,
             repository,

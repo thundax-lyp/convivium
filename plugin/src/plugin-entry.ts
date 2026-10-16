@@ -44,6 +44,7 @@ const meetingConsumerPlugin = {
                     acpCodex,
                     onBeforeRecovery: ({ runtime, reader, application, reviewPrompts }) => {
                         registerMeetingTools({
+                            acpCodex,
                             registry: ctx.tools,
                             application,
                             reviewWorkers: ctx.subagents,
