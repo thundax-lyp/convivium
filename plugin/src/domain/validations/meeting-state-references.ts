@@ -433,6 +433,8 @@ const validateSequencesAndBaselines = (parsedState: MeetingState): string | unde
     const publications = parsedState.publications;
     const publicationIds = ids(publications);
     const messages = parsedState.messages;
+    const identityIds = ids(parsedState.identities);
+    const agendaIds = ids(parsedState.agenda);
     const reviews = parsedState.reviews;
     const roundById = indexById(rounds);
     const versionOwnerById = indexVersionOwners(parsedState);
@@ -470,6 +472,15 @@ const validateSequencesAndBaselines = (parsedState: MeetingState): string | unde
     for (let i = 0; i < messages.length; i++) {
         const r = messages[i] as unknown as RecordValue;
         const path = `$.messages[${i}]`;
+        for (const [key, targets] of [
+            ["actorId", identityIds],
+            ["agendaId", agendaIds],
+            ["publicationId", publicationIds]
+        ] as const) {
+            if (!ref(r[key], targets)) {
+                return fail(`${path}.${key}`);
+            }
+        }
         if (
             i > 0 &&
             ((messages[i - 1] as unknown as RecordValue).seq as number) >= (r.seq as number)

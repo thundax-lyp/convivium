@@ -24,6 +24,31 @@ describe("canonical MeetingState validation", () => {
         const state = makeRunningMeetingStateV1();
         expect(validateMeetingState(state)).toEqual({ kind: "valid", state });
     });
+    it.each(["actorId", "agendaId", "publicationId"] as const)(
+        "rejects a FormalMessage with a dangling %s reference",
+        (field) => {
+            const state = validState();
+            const message = {
+                id: "message",
+                seq: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                kind: "round_evidence",
+                body: "Evidence summary",
+                publicationId: "pub",
+                relatedIds: ["v", "review"],
+                createdAt: 0
+            };
+            expect(validateMeetingState({ ...state, messages: [message] })).toMatchObject({
+                kind: "valid"
+            });
+            message[field] = "missing";
+            expect(validateMeetingState({ ...state, messages: [message] })).toMatchObject({
+                kind: "invalid",
+                path: `$.messages[0].${field}`
+            });
+        }
+    );
     it("rejects a second registered version in one evidence package", () => {
         const state = validState();
         const pkg = state.evidencePackages[0];

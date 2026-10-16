@@ -109,7 +109,7 @@ Contribution 首次登记前的准备期限为 acceptedAt + taskDeadlineMs，并
 
 `Publication` 必含 `id`、`roundId`、`seq`、`finalVersionIds`、`finalReviewIds`、`publishedAt`、`exitReasons[]`，可含与该 Round `execution_failed` Contribution 精确一致且按 contributionIds 排序的 `contributionFailures[]`。本轮 pending hand raises 必须全部处置；每个接纳 Contribution 必须有确定终态，且每个登记 package 的 currentVersion 必须有最终 Review，才可创建 Publication。始终未通过校验的私有材料不形成 finalVersionId/finalReviewId。全部 Contribution 执行失败时仍可创建零版本、零 Review 的 Publication，并保留失败结构供 Manager 规划后续或形成 `partial|no_consensus`，不得推导完成事实。
 
-`FormalMessage` 必含 `id`、`seq`、`actorId`、`agendaId`、`kind`、`body`、`publicationId`、`relatedIds[]`、`createdAt`；seq 全局严格递增。Message 只在 Publication 时产生。
+`FormalMessage` 必含 `id`、`seq`、`actorId`、`agendaId`、`kind`、`body`、`publicationId`、`relatedIds[]`、`createdAt`；seq 全局严格递增。actorId、agendaId、publicationId 必须分别引用本 Meeting 中存在的 identity、Agenda 与 Publication；持久化解码遇到悬空引用时拒读。Message 只在 Publication 时产生。
 
 `RiskDisposition` 必含 `id`、`issueId`、`actorId`、`action`、`scope`、`rationale`、`evidenceIds`、`createdAt`；action 为 `accept|reject`，追加后不可变。`CompletionFact` 必含 `id`、`outputId`、`criterionId?`、`actorId`、`status`、`statement`、`rationale`、非空 `evidenceIds`、`supersedesFactId?`、`createdAt`；status 为 `active|superseded|revoked`。成果仅由 Captain 依据已公开且完成审核和送达的证据确认，不要求独立提案或决策链。
 
