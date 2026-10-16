@@ -22,6 +22,7 @@ import { SessionId } from "@deepseek-ai/dsh-session";
 import { expect, it, vi } from "vitest";
 import { createCodexAcpProvider } from "@/dsh/acp-codex/provider.ts";
 import CodexCompactionBoundary from "@/dsh/acp-codex/compaction.ts";
+import { runAcpReviewWorker } from "@/dsh/acp-review-worker.ts";
 import { createMeetingAgentOwner } from "@/dsh/meeting-agent-owner.ts";
 import { resolveMeetingCaller } from "@/dsh/caller-resolver.ts";
 import { encodeMeetingIdentitySessionLabel } from "@/dsh/labels.ts";
@@ -31,7 +32,7 @@ import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts
 import { registerMeetingTools } from "@/tools/register-tools.ts";
 import type { SessionOwnership } from "@/repository/index.ts";
 
-it("keeps the Reviewer identity and durable delivery across MCP, warm activation and cold load", async () => {
+it("keeps the Reviewer identity and durable delivery through native host workers, warm activation and cold load", async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "convivium-acp-owner-")));
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
     const script = fileURLToPath(new URL("../../fixtures/scripted-acp-agent.mjs", import.meta.url));
@@ -162,7 +163,13 @@ it("keeps the Reviewer identity and durable delivery across MCP, warm activation
                 workspaceRoot: root,
                 acpCodex: provider
             });
+            ctx.on("tools/result", (exec) => {
+                calls.push(exec.name);
+            });
             ctx.on("agent/created", ({ agent }) => {
+                agent.ctx.on("tools/result", (exec) => {
+                    calls.push(exec.name);
+                });
                 if (agent.session.header.parentSession) {
                     children.push({ provider: agent.options.provider, model: agent.options.model });
                 }
@@ -246,7 +253,7 @@ it("keeps the Reviewer identity and durable delivery across MCP, warm activation
             durable: true,
             outcome: "completed"
         });
-        expect(calls).toEqual(["reviewer"]);
+        expect(calls).toEqual([]);
         const count = async () =>
             (await readFile(join(root, "scripted-rpc.jsonl"), "utf8"))
                 .trim()
@@ -266,7 +273,7 @@ it("keeps the Reviewer identity and durable delivery across MCP, warm activation
         const second = await host();
         await second.owner.resume({ ownership, definition, purpose: "delivery", signal });
         expect(await second.owner.deliver({ ...input, deliveryId: "second-delivery" })).toBe(true);
-        expect(calls).toEqual(["reviewer", "reviewer"]);
+        expect(calls).toEqual([]);
         expect(
             await second.owner.deliver({
                 ...input,
@@ -274,12 +281,22 @@ it("keeps the Reviewer identity and durable delivery across MCP, warm activation
                 text: "review-worker=version-1"
             })
         ).toBe(true);
-        expect(submitted).toHaveLength(1);
-        expect(submitted[0]).toMatchObject({
-            kind: "submit_evidence_review",
-            claimId: "claim-1",
-            versionId: "version-1"
+        const nativeInput = {
+            ctx: second.ctx,
+            acpCodex: second.provider,
+            ownership,
+            versionId: "version-1",
+            prompt: "Review the immutable version and fixed baseline.",
+            signal
+        };
+        const result = await runAcpReviewWorker(nativeInput);
+        expect(result).toMatchObject({
+            model: "scripted-codex",
+            output: { versionId: "version-1", scope: "first round" }
         });
+        expect(second.ctx.agents.get(SessionId(result.workerSessionId))).toBeUndefined();
+        expect(submitted).toEqual([]);
+        expect(calls).toEqual([]);
         expect(children).toEqual([{ provider: "acp-codex", model: "scripted-codex" }]);
         const trace = await count();
         const ids = trace
@@ -288,6 +305,43 @@ it("keeps the Reviewer identity and durable delivery across MCP, warm activation
         expect(ids[0]).toBe(ids[1]);
         expect(ids[2]).toBe(ids[0]);
         expect(ids[3]).not.toBe(ids[0]);
+        expect(
+            trace
+                .filter((entry) => ["session/new", "session/load"].includes(entry.method))
+                .every((entry) => entry.mcpCount === 0)
+        ).toBe(true);
+        expect(
+            JSON.stringify(trace.filter((entry) => entry.method === "session/prompt"))
+        ).not.toContain("convivium_run_review_worker");
+        await writeFile(join(root, "scripted-fault"), "native-invalid-json");
+        await expect(runAcpReviewWorker(nativeInput)).rejects.toBeInstanceOf(SyntaxError);
+        expect(second.provider.blockFor(ownership.sessionId)).toBeUndefined();
+        await rm(join(root, "scripted-fault"));
+        await expect(
+            runAcpReviewWorker({
+                ...nativeInput,
+                ownership: { ...ownership, capabilityStatus: "revoked" }
+            })
+        ).rejects.toThrow("REVIEW_OWNERSHIP_INVALID");
+        const control = new AbortController();
+        await writeFile(join(root, "scripted-fault"), "pending");
+        const cancelled = runAcpReviewWorker({ ...nativeInput, signal: control.signal });
+        const rejected = expect(cancelled).rejects.toThrow();
+        await vi.waitFor(async () =>
+            expect(
+                (await count()).filter((entry) => entry.method === "session/prompt")
+            ).toHaveLength(6)
+        );
+        control.abort();
+        await rejected;
+        expect(second.provider.blockFor(ownership.sessionId)?.code).toBe(
+            "ACP_CODEX_OUTCOME_UNKNOWN"
+        );
+        await expect(runAcpReviewWorker(nativeInput)).rejects.toMatchObject({
+            code: "ACP_CODEX_OUTCOME_UNKNOWN"
+        });
+        await rm(join(root, "scripted-fault"));
+        expect(calls).toEqual([]);
         const loads = trace.filter((entry) => entry.method === "session/load").length;
         await second.owner.stop({
             ownership: { ...ownership, capabilityStatus: "revoked", lifecycleStatus: "closing" },

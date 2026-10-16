@@ -2,7 +2,7 @@
 
 ## Status, Authority And Executor Contract
 
-2026-10-16；Author/Audit；**H1/H2 PASS；下一入口 H3→E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
+2026-10-16；Author/Audit；**H1/H2/H3 PASS；下一入口 E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
 **ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
 
@@ -23,41 +23,6 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 不可违反：同 deliveryId 同进程原 Promise；消费后无原 Promise/无合法 Review 持久 block，绝不重复 spawn；worker 无 ownership；外部不提供 caller/claim/requestId；输出完整解析、不修补模型 JSON；root/worker checkpoint 与领域提交分别证明；未知不消费业务失败预算，真实 deadline 不冻结。
 
 ## Mechanical Steps
-
-### H3：宿主驱动 ACP 审核并接纳合法结果
-
-前置状态：H1/H2 PASS。
-允许修改：
-- `plugin/src/dsh/acp-review-worker.ts`（唯一新增文件）
-- `plugin/src/dsh/index.ts`
-- `plugin/src/dsh/acp-codex/provider.ts`
-- `plugin/src/dsh/acp-codex/types.ts`
-- `plugin/src/runtime/services/evidence-review-dispatch.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/tests/integration/dsh/acp-reviewer.spec.ts`
-- `plugin/tests/unit/runtime/evidence-review-dispatch.spec.ts`
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
-禁止修改：非 ACP 工具 worker、public command/DTO、领域状态机、物理存储和已消费现场。
-
-执行：
-1. 原位替换退休 MCP reviewer integration 为真实 DSH 原生组合；fixture 对带 native review output 标识的 worker 返回固定完整 JSON，不模拟被测 Host 生命周期。runtime unit 增加合法结果/非法 JSON或Schema或version/重复与消费后恢复门禁。先观察 Host 仍要求工具或未提交的 RED。
-2. 实现接口固定的 runAcpReviewWorker，从 registry 取得原 root、核对可信 ownership/provider，spawn 不传 outputSchema，prompt 要求仅输出 workerOutputSchema JSON、无 fence；等待 completed，checkpoint 后整段 JSON.parse，finally dispose。导出经 dsh/index.ts。
-3. dispatcher dependencies 新增可选 `nativeReview?: (input: {ownership:SessionOwnership;versionId:string;prompt:string;signal:AbortSignal}) => Promise<{workerSessionId:string;model:string;output:unknown}>` 与可选 `onNativeReviewAccepted?: (payload:{rootSessionId:string;workerSessionId:string;versionId:string;reviewId:string;provider:"acp-codex";model:string}) => void`；仅 ACP 分支必须具备 runner，缺失拒绝，不回退工具。provider 实现 requireRecovery 调用既有 block，无新技术格式。dispatcher 为 ACP 分支保存原 deliveryId Promise；正式 Review 优先，已消费无 Promise 先 requireRecovery 并沿 checkBlock 停止。claim 后重读原 prompt，原 root 通知不要求工具；resume/deliverObserved 授权继续。Host 校验 Schema/version 后用原 claim/caller/requestId/application 提交，accepted 后才发只读事件。非 ACP 分支保留原工作流。
-4. lifecycle 从 ctx 绑定 runner 与 accepted 事件 producer，不由 provider 写 Meeting command。测试证明 root cold load 同 ID、worker 无 MCP/structured_output、模型继承、caller 精确、重复不替换、已消费无结果阻断、非法/取消/blocked 不成功，disposer 总执行。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/integration/dsh/evidence-review-dispatch.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts tests/unit/dsh/meeting-agent-owner.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec eslint src/dsh/acp-review-worker.ts src/dsh/index.ts src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts src/runtime/services/evidence-review-dispatch.ts src/runtime/meeting-lifecycle.ts tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/fixtures/scripted-acp-agent.mjs
-pnpm --dir plugin exec prettier --check src/dsh/acp-review-worker.ts src/dsh/index.ts src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts src/runtime/services/evidence-review-dispatch.ts src/runtime/meeting-lifecycle.ts tests/integration/dsh/acp-reviewer.spec.ts tests/unit/runtime/evidence-review-dispatch.spec.ts tests/fixtures/scripted-acp-agent.mjs
-pnpm --dir plugin build
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-PASS：全部退出 0，上述正反例成立、实际 2–10 文件；删除本段并提交，然后进入 E2。
-STOP：任一失败或必须新建技术表/改变事实格式/扩大文件范围；保留最后 PASS/原状态/复现，不进入 E2。
 
 ## Audit, Validation Matrix And Closure
 

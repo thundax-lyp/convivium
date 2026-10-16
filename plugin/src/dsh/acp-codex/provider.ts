@@ -1182,6 +1182,8 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
         );
         this.diagnostic(binding, "delivery-completed", { deliveryId });
     };
+    requireRecovery = (sessionId: string): Promise<void> =>
+        this.block(sessionId, "ACP_CODEX_RECOVERY_REQUIRED");
     blockFor = (sessionId: string): CodexAcpBlock | undefined =>
         this.blocked.get(this.store.binding(sessionId)?.rootSessionId ?? sessionId) ??
         this.store.binding(sessionId)?.block;

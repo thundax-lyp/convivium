@@ -68,6 +68,7 @@ export interface CodexAcpProviderPort {
         signal: AbortSignal
     ): Promise<void>;
     reconcileSession(sessionId: string, signal: AbortSignal): Promise<void>;
+    requireRecovery(sessionId: string): Promise<void>;
     deliveryState(
         sessionId: string,
         deliveryId: string
@@ -84,6 +85,14 @@ export interface CodexAcpProviderPort {
 
 declare module "@deepseek-ai/cordis" {
     interface Events {
+        "convivium/acp-review-accepted"(payload: {
+            rootSessionId: string;
+            workerSessionId: string;
+            versionId: string;
+            reviewId: string;
+            provider: "acp-codex";
+            model: string;
+        }): void;
         "convivium/acp-checkpoint"(payload: {
             sessionId: string;
             rootSessionId: string;
