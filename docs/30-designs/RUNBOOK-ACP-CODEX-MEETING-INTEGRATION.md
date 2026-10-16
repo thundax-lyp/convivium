@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；D1–D3 已 PASS 并删除任务段落，下一入口 D4。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1–D3 已 PASS 并删除任务段落，D4a 依赖准备已 PASS 并删除任务段落，下一入口 D4。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 
@@ -30,16 +30,14 @@
 
 ### D4：接通 Reviewer spawn worker 与审核失败边界
 
-前置状态：D3 PASS。
-允许修改（10 个代码/测试白名单路径及本册；实际不要求修改所有白名单文件，新增、修改和删除合计，实际须 2–10 个）：
+前置状态：D3 与 D4a PASS。
+允许修改（8 个代码/测试路径及本册，固定上限 9 个交付文件，实际须 2–9 个）：
 
 - `plugin/src/plugin-entry.ts`
 - `plugin/src/tools/register-tools.ts`
 - `plugin/src/runtime/services/evidence-review-dispatch.ts`
 - `plugin/src/runtime/meeting-lifecycle.ts`
 - `plugin/tests/unit/runtime/evidence-review-dispatch.spec.ts`
-- `plugin/tests/integration/dsh/evidence-review-dispatch.spec.ts`
-- `plugin/tests/integration/dsh/review-worker-submission.spec.ts`
 - `plugin/tests/contract/meeting-review-worker-tool.spec.ts`
 - `plugin/tests/integration/dsh/acp-reviewer.spec.ts`
 - `plugin/tests/fixtures/scripted-acp-agent.mjs`
@@ -50,12 +48,13 @@
 
 1. `MeetingCommandToolDependencies` 增加可选 acpCodex，由 plugin-entry.ts 传入；lifecycle 的 dispatcher 同样接收。按正式合同接审核工具/dispatcher的root block，同active claim重复调用复用原Promise。start仍spawn、parent仍exec.agent、schema/allow=[]/原claim/version不改。
 2. 合法Review优先补结算；未知不dispatch_failed/review_interrupted、不补派worker；真正claim到期只按原review_timeout结算一次，blocked不建replacement。
-3. 验真实MCP structured_output经DSH tools/result捕获；纯文本/错version/取消/无structured/worker无ownership均不得提交。完成正式结果不被迟到错误改判。
+3. 集成测试用真实 `SubagentRuntime` 和 `@deepseek-ai/dsh-subagent-spawn-in-process`，worker 由原生 driver 创建、继承 Preset 模型及 compaction，不能 mock worker driver；既有仓库/应用集成测试继续验证 Review 提交。验真实MCP structured_output经DSH tools/result捕获；纯文本/错version/取消/无structured/worker无ownership均不得提交。完成正式结果不被迟到错误改判。
 
 验证：
 
 ```bash
 pnpm --dir plugin exec vitest run tests/unit/runtime/evidence-review-dispatch.spec.ts tests/integration/dsh/evidence-review-dispatch.spec.ts tests/integration/dsh/review-worker-submission.spec.ts tests/contract/meeting-review-worker-tool.spec.ts tests/integration/dsh/acp-reviewer.spec.ts tests/recovery/acp-codex.spec.ts
+pnpm --dir plugin typecheck:host
 ```
 
 PASS：Codex Reviewer→spawn模型继承→structured审核成立，未知不误扣、真实timeout恰一次；本步实际变更路径 2–10 个且均在清单内。
