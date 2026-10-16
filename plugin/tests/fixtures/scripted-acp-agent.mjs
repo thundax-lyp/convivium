@@ -83,7 +83,7 @@ for await (const line of createInterface({ input: process.stdin })) {
                 protocolVersion: 1,
                 agentCapabilities: {
                     loadSession: mode !== "no-load",
-                    mcpCapabilities: { http: true }
+                    mcpCapabilities: { http: mode !== "no-http" }
                 },
                 agentInfo: { name: "scripted", version: "1" }
             }

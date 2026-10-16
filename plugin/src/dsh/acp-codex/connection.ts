@@ -144,8 +144,7 @@ export const openCodexAcpConnection = async (
         });
         if (
             initialized.protocolVersion !== PROTOCOL_VERSION ||
-            !initialized.agentCapabilities?.loadSession ||
-            !initialized.agentCapabilities.mcpCapabilities?.http
+            !initialized.agentCapabilities?.loadSession
         ) {
             throw new LlmError(
                 "Required ACP capabilities unavailable.",

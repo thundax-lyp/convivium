@@ -97,6 +97,17 @@ export const preflightCodexAcp = async () => {
         child.once("close", accept);
         child.once("error", accept);
     });
+    const terminateGroup = (signal) => {
+        if (child.pid) {
+            try {
+                process.kill(-child.pid, signal);
+            } catch (error) {
+                if (error.code !== "ESRCH") {
+                    throw error;
+                }
+            }
+        }
+    };
     let timer;
     try {
         const client = new ClientSideConnection(
@@ -125,8 +136,7 @@ export const preflightCodexAcp = async () => {
         );
         if (
             initialized.protocolVersion !== PROTOCOL_VERSION ||
-            !initialized.agentCapabilities?.loadSession ||
-            !initialized.agentCapabilities?.mcpCapabilities?.http
+            !initialized.agentCapabilities?.loadSession
         ) {
             fail("ACP_CODEX_CONFIG_INVALID");
         }
@@ -201,20 +211,12 @@ export const preflightCodexAcp = async () => {
         };
     } finally {
         clearTimeout(timer);
-        if (child.pid) {
-            try {
-                process.kill(-child.pid, "SIGTERM");
-            } catch (error) {
-                if (error.code !== "ESRCH") {
-                    throw error;
-                }
-            }
-        }
+        terminateGroup("SIGTERM");
         const force = setTimeout(() => {
-            if (child.pid) {
-                try {
-                    process.kill(-child.pid, "SIGKILL");
-                } catch {}
+            try {
+                terminateGroup("SIGKILL");
+            } catch {
+                // Reaping below still owns confirmation that the process has stopped.
             }
         }, 5000);
         await exited;

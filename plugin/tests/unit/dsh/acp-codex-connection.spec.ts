@@ -60,6 +60,10 @@ describe("Codex ACP subprocess connection", () => {
         }
         expect(connection.client.signal.aborted).toBe(true);
     });
+    it("accepts native ACP execution without MCP HTTP capability", async () => {
+        const { connection } = await open("no-http");
+        await connection.close();
+    });
     it("cancels the original pending prompt and closes its process", async () => {
         const { connection } = await open("pending");
         const response = connection.client.prompt({

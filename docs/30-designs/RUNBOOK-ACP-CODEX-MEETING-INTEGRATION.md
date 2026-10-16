@@ -2,7 +2,7 @@
 
 ## Status, Authority And Executor Contract
 
-2026-10-16；Author/Audit；**H1 PASS；下一入口 H2→H3→E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
+2026-10-16；Author/Audit；**H1/H2 PASS；下一入口 H3→E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
 **ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
 
@@ -23,36 +23,6 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 不可违反：同 deliveryId 同进程原 Promise；消费后无原 Promise/无合法 Review 持久 block，绝不重复 spawn；worker 无 ownership；外部不提供 caller/claim/requestId；输出完整解析、不修补模型 JSON；root/worker checkpoint 与领域提交分别证明；未知不消费业务失败预算，真实 deadline 不冻结。
 
 ## Mechanical Steps
-
-### H2：外部 prompt 仅携带原生策略与未消费任务
-
-前置状态：H1 PASS。
-允许修改：
-- `plugin/src/dsh/acp-codex/prompt.ts`
-- `plugin/src/dsh/acp-codex/connection.ts`
-- `plugin/tests/unit/dsh/acp-codex-prompt.spec.ts`
-- `plugin/tests/unit/dsh/acp-codex-connection.spec.ts`
-- `plugin/tests/fixtures/scripted-acp-agent.mjs`
-- `plugin/scripts/acp-codex-preflight.mjs`
-- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
-禁止修改：用户任务正文、持久 prefix hash 算法、身份资源绑定、worker 和领域逻辑。
-
-执行：
-1. prompt 测试改为证明 system/developer 的宿主方法/Skill 不透传，已消费 user 不重复；connection 测试增加 load=true/http=false 可连接。fixture 仅增加 no-http 能力模式。先运行两文件观察目标 RED。
-2. buildCodexPrompt 前置固定原生执行 text（含 sessionId、仅使用自身工具和 Skills、Host 负责权限和结果接纳）；不消费 system/developer，仍严格校验未消费 user 的 text/ID/hash 与原请求控制。非 user 历史不送外部。
-3. connection 与 preflight 删除已退役的 MCP HTTP 能力要求，loadSession 必须 true，其余版本/model/login/read-only/timeout/cancel 不变。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec eslint src/dsh/acp-codex/prompt.ts src/dsh/acp-codex/connection.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/fixtures/scripted-acp-agent.mjs scripts/acp-codex-preflight.mjs
-pnpm --dir plugin exec prettier --check src/dsh/acp-codex/prompt.ts src/dsh/acp-codex/connection.ts tests/unit/dsh/acp-codex-prompt.spec.ts tests/unit/dsh/acp-codex-connection.spec.ts tests/fixtures/scripted-acp-agent.mjs scripts/acp-codex-preflight.mjs
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-PASS：全部退出 0、宿主 system/developer/Skill 未进入 ACP、无 MCP 能力也成功连接、prefix/cancel/recovery 未弱化，实际 2–10 文件；删除本段并提交。
-STOP：同 H1；不运行真实模型、不重放。
 
 ### H3：宿主驱动 ACP 审核并接纳合法结果
 

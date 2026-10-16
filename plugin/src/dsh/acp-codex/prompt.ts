@@ -34,15 +34,7 @@ export const buildCodexPrompt = (
             })
             .join("\n");
     const users: { id: string; content: GenerateOptions["messages"][number]["content"] }[] = [];
-    const developers: string[] = [];
-    let system = options.system;
     for (const message of options.messages) {
-        if (message.role === "system" && options.system === undefined) {
-            system = text(message.content);
-        }
-        if (message.role === "developer") {
-            developers.push(text(message.content));
-        }
         if (message.role === "user") {
             if (!("id" in message) || !message.id || users.some((user) => user.id === message.id)) {
                 return unsupported();
@@ -50,9 +42,6 @@ export const buildCodexPrompt = (
             text(message.content);
             users.push({ id: message.id, content: message.content });
         }
-    }
-    if (!system?.trim()) {
-        return unsupported();
     }
     const length = committedPrefix?.messageIds.length ?? 0;
     if (
@@ -63,10 +52,12 @@ export const buildCodexPrompt = (
     ) {
         return unsupported();
     }
-    const prompt: ContentBlock[] = [{ type: "text", text: `[System / role identity]\n${system}` }];
-    for (const value of developers) {
-        prompt.push({ type: "text", text: `[Developer context]\n${value}` });
-    }
+    const prompt: ContentBlock[] = [
+        {
+            type: "text",
+            text: `[ACP native execution]\nSession: ${options.sessionId}\nUse only your native tools and Skills. The host owns meeting permissions and result acceptance. Follow the supplied task; do not call Convivium or DSH tools.`
+        }
+    ];
     for (const user of users.slice(length)) {
         prompt.push({ type: "text", text: `[User input ${user.id}]\n${text(user.content)}` });
     }

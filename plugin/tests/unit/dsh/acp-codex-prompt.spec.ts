@@ -19,7 +19,7 @@ const input = () => ({
     messages: [user("first", "hello")]
 });
 describe("Codex ACP prompt projection", () => {
-    it("sends current identity and only new persistent user inputs", () => {
+    it("sends native execution policy and only new persistent user inputs", () => {
         const first = buildCodexPrompt(input(), undefined);
         const next = {
             ...input(),
@@ -33,7 +33,10 @@ describe("Codex ACP prompt projection", () => {
         expect(result.inputMessageIds).toEqual(["second"]);
         expect(result.prefixMessageIds).toEqual(["first", "second"]);
         expect(result.prompt).toEqual([
-            { type: "text", text: "[System / role identity]\nCURRENT IDENTITY" },
+            {
+                type: "text",
+                text: "[ACP native execution]\nSession: session\nUse only your native tools and Skills. The host owns meeting permissions and result acceptance. Follow the supplied task; do not call Convivium or DSH tools."
+            },
             { type: "text", text: "[User input second]\nnext" }
         ]);
     });
@@ -57,7 +60,7 @@ describe("Codex ACP prompt projection", () => {
         ).toThrow(/Unsupported/);
         expect(() => buildCodexPrompt(input(), prefix)).toThrow(/Unsupported/);
     });
-    it("preserves developer context and ignores old assistant/tool output", () => {
+    it("does not project host system, developer Skills or old assistant output", () => {
         const options = input();
         const result = buildCodexPrompt(
             {
@@ -67,7 +70,7 @@ describe("Codex ACP prompt projection", () => {
                     createMessage({
                         role: "developer",
                         source: { kind: "user" },
-                        content: [{ type: "text", text: "current tools" }]
+                        content: [{ type: "text", text: "CONVIVIUM_SKILL_BODY_AND_TOOL_DIRECTORY" }]
                     }),
                     createMessage({
                         role: "assistant",
@@ -78,7 +81,10 @@ describe("Codex ACP prompt projection", () => {
             },
             undefined
         );
-        expect(JSON.stringify(result.prompt)).toContain("current tools");
+        expect(JSON.stringify(result.prompt)).not.toContain(
+            "CONVIVIUM_SKILL_BODY_AND_TOOL_DIRECTORY"
+        );
+        expect(JSON.stringify(result.prompt)).not.toContain("ROLE IDENTITY");
         expect(JSON.stringify(result.prompt)).not.toContain("OLD ANSWER");
     });
     it.each([
@@ -86,8 +92,7 @@ describe("Codex ACP prompt projection", () => {
         { temperature: 0 },
         { maxTokens: 1 },
         { stop: [] },
-        { sessionId: undefined },
-        { system: "" }
+        { sessionId: undefined }
     ])("rejects unsupported request controls %j", (patch) => {
         expect(() => buildCodexPrompt({ ...input(), ...patch }, undefined)).toThrow(/Unsupported/);
     });
