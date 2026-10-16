@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Author/Audit；**Executable，下一入口 H1→H2→H3→E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；原 E2 未 PASS，E3 未执行。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H3 PASS；H4 Executable；下一入口 H4→E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；当前 E2 因 `Missing ACP Host service: agentPresets` 未 PASS，装配前置修复已由 D 册 H4 固定白名单和验证；E3 未执行。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -11,7 +11,7 @@
 | A    | [契约迁移](./RUNBOOK-ACP-CODEX-CONTRACTS.md)           | 已迁移 / 无剩余任务          | 正式依据齐备，完整迁移后删除草稿       |
 | C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | 已实现 / 无剩余任务 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
-| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | H1/H2/H3 / 8、7、10 | 原生执行、宿主审核和持久门禁 |
+| D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | H1/H2/H3 已 PASS / 无剩余任务 | 原生执行、宿主审核和持久门禁 |
 | E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 4、10、9              | 官方预检、真实专项、完整门禁、删除六册 |
 
 ## Scope And Invariants

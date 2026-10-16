@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Author/Audit；**Executable，等待 H1–H3 PASS 后执行 E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H3 PASS；H4 Executable，PASS 后 E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -54,9 +54,19 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 
 读取 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)、A2 的 ACP interface 与 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。官方binary/model选择沿正式ACP interface；本次专项结果JSON/来源断言见E2，不升为产品公开接口；不再从已删除草稿取值。权限/恢复确定性证据复用P/D册；真实专项不能用fixture替代。
 
+## E2 原生宿主专项 STOP
+
+2026-10-16；最后 PASS `0be78c9e`：H1 18 项、H2 34 项、H3 58 项聚焦测试通过，Host 类型检查、相应 lint/format 和 H3 build 通过；H1/H2/H3 已分别删除任务并提交。本次 E2 的四 lane 角色/Schema/同 Definition 快照核对、4 项部署契约测试、脚本 lint 与 build 通过。
+
+执行下方固定真实命令后退出 1：Host `plugin/src/plugin-entry.ts::apply` 在即时 `ctx.get` 检查报 `Missing ACP Host service: agentPresets`，probe `conviviumMeetings/list` 返回 `gateway/service-unavailable`。未进入会议创建；只读 SQLite `units` 为空，无 Meeting/ACP domain，不存在本次可重放的会议输入。不能从此推定 Preset 配置确实缺失，仍须区分服务未注册与尚未就绪。
+
+证据 `/tmp/convivium-acp-codex-evidence-native-host/convivium-smoke-record-krZIyx/acp-codex-reviewer-web`，执行记录 `/tmp/convivium-native-host-20261016/e2-native-host-stop.json`。原临时根 `/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/convivium-dsh-smoke-aWq0rS` 保留；本次 Host PID 28976 已退出，端口 52295 已核对释放。未重启此现场、未重放任何旧输入。
+
+触发 STOP：生产入口及直接测试 `plugin/tests/unit/host-plugin-lifecycle.spec.ts` 不在 E2 白名单；不继续改源码、不提交失败 E2、不执行 E3。继续需作者固定该装配前置修复及白名单，保留必需服务拒绝语义，修复并验证后用新的隔离任务/证据目录验收；不得放宽门禁或覆盖本次现场。真实用量、原生工具/Skills 边界和不重放授权约束持续有效。本轮作者已按用户授权固定 D 册 H4 及 3 文件白名单，审计 Executable；H4 PASS 后使用 evidence-host-assembly 新目录继续 E2。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
-前置状态：E1、H1–H3 PASS；真实测试用量沿用既有授权；不重放已消费输入。
+前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。
 允许修改（10 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/scripts/smoke-profile/index.mjs`
@@ -78,7 +88,7 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 2. `plugin/scripts/smoke-profile/index.mjs::runScenario`复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实 Host accepted 事件、DSH caller、Web tools/result 与 checkpoint 采证。
 3. 一场会议两轮，Manager/Reviewer/GitHub/arXiv/Web五独立root；每轮每contributor一份Evidence，目标六个合法Review，worker机制spawn且模型继承Codex。失败重试另按原预算；20分钟软时限失败STOP，不能宣传费用/token上限。
 4. 议题固定“DSH通过ACP连接外部Agent的公开机制、权限和恢复边界”。Web每轮至少一次真实search和两个不同域名正文读取，限定agentclientprotocol.com及deepseek-harness.github.io。保存URL/标题/发布时间（缺失unknown）/访问时间/正文sha256，实际工具事件和正式证据相互印证，不硬编码措辞。起始页面固定为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 与 [DSH Architecture](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，只作为实际搜索后读取的定位起点，不预填正文或claim；DSH域名根路径返回404，禁止把域名直接拼成根URL作为读取成功条件。
-5. probe 在创建前订阅 `convivium/acp-review-accepted`，只计入 rootSessionId 等于 Reviewer 且 versionId/reviewId 与当前 Repository Review 相符、workerSessionId 有原 committed 的宿主接纳事件；六次必须来自六个独立 worker，冷阶段必须新增三个，历史 worker 不重新执行。ACP root/worker 不得出现 Convivium/skill/structured_output 的 tools/result；禁止用纯模型自报或 Web 角色的工具调用冒充审核。probe 从安装包根具名 import `readMeetingOutboxForAcceptance`，通过 ctx.storageDomain.get 借用当前 Runtime 已打开 domain。订阅 `convivium/acp-checkpoint` 必须在创建会议/冷恢复前完成；热阶段保存 checkpoint/Host accepted 事件、绑定 hash、Web 工具调用 ID 和第一轮正式 Review到原 checkpoint，冷阶段读取原 checkpoint 后合并本进程新事件。deliveryId 沿 owner 原 deliveryId，不派生新 ID；以原事件 deliveryId 精确查同 meeting 的 outbox.deliveryId，要求每项恰一条且 status=delivered；仅采用当前 Reviewer root 的 delivery-completed，worker 核对 committed、真实 parent/model 与 Host accepted 事件。不读取 owner/provider 私有字段。第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate 不重复 ACP prompt/worker 或会议提交；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
+5. probe 在创建前订阅 `convivium/acp-review-accepted`，只计入 rootSessionId 等于 Reviewer 且 versionId/reviewId 与当前 Repository Review 相符、workerSessionId 有原 committed 的宿主接纳事件；六次必须来自六个独立 worker，冷阶段必须新增三个，历史 worker/committed requestId 不重复。ACP root/worker 不得出现 Convivium/skill/structured_output 的 tools/result；禁止用纯模型自报或 Web 角色的工具调用冒充审核。probe 从安装包根具名 import `readMeetingOutboxForAcceptance`，通过 ctx.storageDomain.get 借用当前 Runtime 已打开 domain。订阅 `convivium/acp-checkpoint` 必须在创建会议/冷恢复前完成；热阶段保存 checkpoint/Host accepted 事件、绑定 hash、Web 工具调用 ID 和第一轮正式 Review到原 checkpoint，冷阶段读取原 checkpoint 后合并本进程新事件。deliveryId 沿 owner 原 deliveryId，不派生新 ID；以原事件 deliveryId 精确查同 meeting 的 outbox.deliveryId，要求每项恰一条且 status=delivered；仅采用当前 Reviewer root 的 delivery-completed，worker 核对 committed、真实 parent/model 与 Host accepted 事件。不读取 owner/provider 私有字段。第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate 不重复 ACP prompt/worker 或会议提交；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
 6. result必须为严格JSON：`{ok:true,scenario:"acp-codex-reviewer-web",meetingId:string,observed:{sessionIds:Record<string,string>,reviewer:{provider:"acp-codex",model:string,reasoningEffort?:string,workerProvider:"spawn",workerModel:string,hostValidatedReviews:number},web:{searchCalls:number,sources:Array<{roundId:string,url:string,title:string,publishedAt:string,accessedAt:string,contentSha256:string}>},rounds:number,coldRecovery:boolean,authorizationRejected:boolean,archiveComplete:boolean}}`；sessionIds键精确五role，hostValidatedReviews=6、rounds=2，其余boolean=true；每轮域名集合都含两个指定域，workerModel=model。验证器拒绝未知/缺失字段，不接受模型自述代替事件。
 7. E1 预检在创建隔离 Host 前执行；environment.mjs 从锁定 Codex 包解析当前 macOS 平台 binary，设置 CODEX_PATH 并核对其 hash 等于 preflight.binarySha256.codex，保留 HOME/CODEX_HOME，不复制凭据。新场景临时 Definition 只为 Reviewer 写完整 agentOptions，Web 不设覆盖；旧三 lane 的 Reviewer 沿原 deepseek-official/deepseek-v4-flash 选择写入 Definition.agentOptions。新场景 contributor 闭集为 GitHub/arXiv/Web，maxParticipants=4。
 8. evidence 目录必须不存在，index.mjs 在检查后仅为显式新场景 mkdir 创建该固定目录，再调用现有 createRecordRoot；不得覆盖已有证据。
@@ -89,8 +99,8 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-native-host
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-native-host CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-host-assembly
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-host-assembly CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/六Review、真实搜索/两域正文、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

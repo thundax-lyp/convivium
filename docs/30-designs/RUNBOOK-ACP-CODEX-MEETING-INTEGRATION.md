@@ -2,7 +2,7 @@
 
 ## Status, Authority And Executor Contract
 
-2026-10-16；Author/Audit；**H1/H2/H3 PASS；下一入口 E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
+2026-10-16；Author/Audit；**H1/H2/H3 PASS；H4 Author/Audit Executable，下一入口 H4→E2→E3**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
 **ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
 
@@ -23,6 +23,33 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 不可违反：同 deliveryId 同进程原 Promise；消费后无原 Promise/无合法 Review 持久 block，绝不重复 spawn；worker 无 ownership；外部不提供 caller/claim/requestId；输出完整解析、不修补模型 JSON；root/worker checkpoint 与领域提交分别证明；未知不消费业务失败预算，真实 deadline 不冻结。
 
 ## Mechanical Steps
+
+### H4：等待完整必需服务后装配 ACP consumer
+
+前置状态：H1–H3 PASS；原 E2 native-host 在创建前装载失败，SQLite units 为空，未消费会议输入；旧现场保留。作者已核对 Cordis 4.0.4 公开 ctx.inject 以 required dependency fiber 等待，并在依赖撤销时释放消费方；不新增轮询、超时、optional 依赖或根 context 查找。
+允许修改（3 个文件）：
+- `plugin/src/plugin-entry.ts`
+- `plugin/tests/unit/host-plugin-lifecycle.spec.ts`
+- 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
+禁止修改：provider、owner、模型选择、会议协议、技术持久门禁、原七个 E2 脚本和任何旧临时根。
+
+执行：
+1. 将旧“即时缺服务抛错”测试原位替换为真实 Cordis 组合测试，分别让 agentPresets/subprocess 晚到。先观察原 apply 抛错 RED；不能用 mock inject 自行模拟就绪行为。
+2. `plugin-entry.ts::apply` 仅删除 inject 之前的 ctx.get 服务循环，保留全部 meetingServices、storageDomain、subprocess 的 required inject 和 provider→Runtime→tools→恢复顺序；非 ACP 路径不变。
+3. 真实 Context 中依赖缺失时 provider 工厂调用数不增加、会议工具为 0；补齐同 scope 依赖后 provider 只创建一次、会议工具 14 个；撤销该依赖后工具归零、Runtime 卸载后 provider.close 恰一次，不能因其它 provider-added 事件重新激活。既有注册失败/无 Web/插件卸载测试继续通过。
+
+验证（仓库根）：
+```bash
+pnpm --dir plugin exec vitest run tests/unit/host-plugin-lifecycle.spec.ts tests/integration/dsh/acp-reviewer.spec.ts
+pnpm --dir plugin typecheck:host
+pnpm --dir plugin exec eslint src/plugin-entry.ts tests/unit/host-plugin-lifecycle.spec.ts
+pnpm --dir plugin exec prettier --check src/plugin-entry.ts tests/unit/host-plugin-lifecycle.spec.ts
+pnpm --dir plugin build
+node .github/scripts/check-doc-links.mjs
+git diff --check
+```
+PASS：全部退出 0，late/absent/revoke/cleanup 与原注册失败断言成立；实际 2–10 文件且仅上述 3 文件。保存脱敏记录，删除本 H4 段落并单独提交；进入新目录 E2。
+STOP：必须删减依赖、改 optional、增加重放或扩大文件范围，或规定验证无法通过；保留原状态和任务，不提交失败步骤、不进入 E2。
 
 ## Audit, Validation Matrix And Closure
 
