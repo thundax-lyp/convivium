@@ -76,6 +76,14 @@ Executed Validation：暂停 fail_evidence_validation 时并发 dispatch，修�
 
 Not Covered / Closure：确定性故障同步验证，不追加真实 ACP/模型、人工环境或跨进程恢复验收。
 
+## 2026-10-16：非 ACP 停机投递先 drain
+
+Scope / Validated Contract：处理 PR #136 的 comment #4292931264。owner.disposeAll 第一轮仅对 ACP handle 提前 cancel/stop；非 ACP pending 投递先完成，再统一 cancel/whenIdle/dispose。保留 ACP stop 失败后的继续清理与错误汇总。
+
+Executed Validation：以 pending Session flush 同步停机，原实现提前调用非 ACP cancel 的断言失败；修复后16项 owner 测试通过，已有 ACP 提前取消及失败清理保护继续通过。完整 plugin verify 通过103文件906项测试及全部格式/类型/构建/契约检查；文档链接1175项零错误、git diff --check通过。
+
+Not Covered / Closure：未追加人工 Host 停机或真实模型运行；仅恢复非 ACP 的既有 drain 顺序。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。

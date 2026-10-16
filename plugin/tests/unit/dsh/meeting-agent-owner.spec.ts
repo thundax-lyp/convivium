@@ -548,3 +548,33 @@ it("releases the Agent handle even when ACP stop fails", async () => {
     expect(f.handles[0].agent.whenIdle).toHaveBeenCalled();
     expect(f.handles[0].dispose).toHaveBeenCalledOnce();
 });
+
+it("drains non-ACP delivery before cancelling its handle on shutdown", async () => {
+    const f = await fixture();
+    const ownership = { ...f.ownership, lifecycleStatus: "active" };
+    await f.owner.resume({ ...f, ownership, purpose: "delivery" });
+    const idle = Promise.withResolvers();
+    f.ctx.sessions.flush.mockImplementation(async () => {
+        await idle.promise;
+        return true;
+    });
+    f.ctx.sessions.flush.mockClear();
+    const delivery = f.owner.deliver({
+        ownership,
+        deliveryId: "active",
+        text: "Read",
+        authorize: async () => {},
+        signal: f.signal
+    });
+    await vi.waitFor(() => expect(f.ctx.sessions.flush).toHaveBeenCalled());
+    const shutdown = f.owner.disposeAll();
+    try {
+        expect(f.handles[0].agent.cancel).not.toHaveBeenCalled();
+    } finally {
+        idle.resolve(undefined);
+        await delivery;
+        await shutdown;
+    }
+    expect(f.handles[0].agent.cancel).toHaveBeenCalledOnce();
+    expect(f.handles[0].dispose).toHaveBeenCalledOnce();
+});

@@ -511,6 +511,9 @@ export const createMeetingAgentOwner = ({
             const errors: unknown[] = [];
             // Cancel ACP work before waiting for its pending delivery queue.
             for (const current of handles.values()) {
+                if (current.handle.agent.options.provider !== "acp-codex") {
+                    continue;
+                }
                 try {
                     current.handle.agent.cancel({
                         kind: "hook",

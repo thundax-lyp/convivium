@@ -307,7 +307,7 @@ Client 先生成展示块和左右位置，再渲染：未归属事件直接输�
 
 压缩边界是单独的 Cordis 入口 `@convivium/dsh-plugin/acp-compaction`：`plugin/src/dsh/acp-codex/compaction.ts::CodexCompactionBoundary` 继承 Host 的 BasicCompactionEngine，在八个 Preset 既有隔离组替换默认 backend，非 ACP 调用仍委派原实现。构建增加独立 Node entry 与 package subpath，不通过 provider 注册第二个同名 Service。prepareSession 使用 agentPresets.serviceFor 核查已装配边界；spawn 保持继承父 Preset，未装边界的自定义 Preset 拒绝 ACP。精确行为见 ACP 接口的 Prompt, MCP And Stream。
 
-关闭先拒绝新的会议投递并停止 owner，再 provider.close：禁止新请求，取消活动 prompt 并等待结算，再 drain 连接/进程，关闭技术 domain 并注销 route。单个 ACP stop 失败不能跳过其余 handle 的等待与释放；target 清理失败后仍尝试关闭 provider，失败汇总保留。route 关闭不删除 binding/request/delivery 历史；cleanup 失败保留现有 archiving 语义，不关闭其它会议或用户输入 Session。启动配置 reload 走插件重新装载，核对旧 launchFingerprint，不能热改已绑定会话。
+关闭先拒绝新的会议投递并停止 owner，再 provider.close：禁止新请求，取消活动 prompt 并等待结算，再 drain 连接/进程，关闭技术 domain 并注销 route。owner 在 pending drain 前仅提前 cancel/stop ACP handle；非 ACP 投递按原顺序先 drain，再统一 cancel/dispose。单个 ACP stop 失败不能跳过其余 handle 的等待与释放；target 清理失败后仍尝试关闭 provider，失败汇总保留。route 关闭不删除 binding/request/delivery 历史；cleanup 失败保留现有 archiving 语义，不关闭其它会议或用户输入 Session。启动配置 reload 走插件重新装载，核对旧 launchFingerprint，不能热改已绑定会话。
 
 Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView executionBlocks](../20-interfaces/MEETING-INTERFACE.md#acp-execution-diagnostics)。subscribeBlocks 在持久阻断后触发 refreshListeners，以当前 committedVersion 通知；Client 同版本也重读。`plugin/src/client/meeting/panel.tsx::ConviviumMeetingPanel` 详情显示本地化 role=alert，说明身份、停止自动执行及现有暂停/异常结束操作。DTO 只含安全字段，不把模型、路径、凭据或原 ACP ID 发到远端/归档；不写领域 version/event、不自动暂停、不增清锁 UI。
 
