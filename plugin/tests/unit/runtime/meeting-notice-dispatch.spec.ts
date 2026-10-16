@@ -829,3 +829,82 @@ it("preserves a settled contribution when a late ACP delivery error arrives", as
     expect(f.execute).not.toHaveBeenCalled();
     expect(f.state.contributions[0].status).toBe("withdrawn");
 });
+
+it.each(["manager-v1", "contributor-v1", "reviewer-v1", "unknown"])(
+    "delivers meeting_resumed only to current Manager: %s",
+    async (recipientId) => {
+        const { state, ownership } = fixture();
+        const deliver = vi.fn().mockResolvedValue(true);
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { resume: vi.fn(async () => {}), deliver },
+            definitions: [{ agentDefinitionId: "fixture" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: { meetingId: state.id, state },
+                    sessionOwnership: ownership
+                })
+            }
+        });
+        const input = {
+            outboxItem: item({ kind: "agent_notice", noticeKind: "meeting_resumed", recipientId }),
+            signal: new AbortController().signal
+        };
+        if (recipientId === "manager-v1") {
+            await dispatcher.dispatch(input);
+            expect(deliver).toHaveBeenCalledOnce();
+            expect(JSON.parse(deliver.mock.calls[0][0].text)).toEqual({
+                effectId: "effect-1",
+                meetingId: state.id,
+                noticeKind: "meeting_resumed"
+            });
+        } else {
+            await expect(dispatcher.dispatch(input)).rejects.toMatchObject({
+                code: "NOTICE_VISIBILITY_INVALID"
+            });
+            expect(deliver).not.toHaveBeenCalled();
+        }
+    }
+);
+
+it.each(["paused", "terminal", "revoked", "wrong-meeting"])(
+    "does not deliver resumed Manager notice after %s",
+    async (condition) => {
+        const { state, ownership } = fixture();
+        if (condition === "paused" || condition === "terminal") {
+            state.lifecycle = { ...state.lifecycle, status: condition };
+        }
+        if (condition === "revoked") {
+            ownership[0].capabilityStatus = "revoked";
+        }
+        if (condition === "wrong-meeting") {
+            ownership[0].meetingId = "other-meeting";
+        }
+        const deliver = vi.fn().mockResolvedValue(true);
+        const dispatcher = createMeetingNoticeDispatcher({
+            owner: { resume: vi.fn(async () => {}), deliver },
+            definitions: [{ agentDefinitionId: "fixture" }],
+            repository: {
+                recover: async () => ({
+                    snapshot: { meetingId: state.id, state },
+                    sessionOwnership: ownership
+                })
+            }
+        });
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: item({
+                    kind: "agent_notice",
+                    noticeKind: "meeting_resumed",
+                    recipientId: "manager-v1"
+                }),
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({
+            code:
+                condition === "paused" || condition === "terminal"
+                    ? "INVALID_STATE"
+                    : "NOTICE_OWNERSHIP_INVALID"
+        });
+        expect(deliver).not.toHaveBeenCalled();
+    }
+);

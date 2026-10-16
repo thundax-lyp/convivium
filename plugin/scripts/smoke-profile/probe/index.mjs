@@ -1,3 +1,4 @@
+import { runAcpCodexReviewerWebScenario } from "./scenarios/acp-codex-reviewer-web.mjs";
 import { request as httpRequest } from "node:http";
 import { runPeerMeetingAgentsScenario } from "./scenarios/peer-meeting-agents.mjs";
 import { collectAgentPromptEvidence, createProbeSupport } from "./support.mjs";
@@ -9,6 +10,7 @@ export const inject = [
     "agents",
     "sessions",
     "sessionPersistence",
+    "storageDomain",
     "subagents",
     "tools",
     "webServer",
@@ -35,6 +37,9 @@ const {
 let inputSession;
 let nextCall = 1000;
 const observedAgents = new Map();
+const acpEvents = [];
+const reviewEvidence = [];
+const toolEvidence = new Map();
 const observedInboxMessages = new Map();
 const inboxWaiters = new Set();
 
@@ -103,12 +108,17 @@ function waitForInbox(ctx, agentId, select) {
     });
 }
 
-async function run(ctx) {
+const run = async (ctx) => {
     if (!outputPath) {
         return;
     }
     if (
-        !["identity-admission", "meeting-business-loop", "peer-meeting-agents"].includes(scenario)
+        ![
+            "identity-admission",
+            "meeting-business-loop",
+            "peer-meeting-agents",
+            "acp-codex-reviewer-web"
+        ].includes(scenario)
     ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
@@ -254,9 +264,14 @@ async function run(ctx) {
             waitForInbox,
             messageTexts,
             observedMessages: (agent) => observedMessages(agent, observedInboxMessages),
-            observedAgents: () => [...observedAgents.values()]
+            observedAgents: () => [...observedAgents.values()],
+            acpEvents,
+            reviewEvidence,
+            toolEvidence
         };
-        if (scenario === "identity-admission") {
+        if (scenario === "acp-codex-reviewer-web") {
+            await runAcpCodexReviewerWebScenario(runtime);
+        } else if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
         } else if (scenario === "peer-meeting-agents") {
             await runPeerMeetingAgentsScenario(runtime);
@@ -284,9 +299,61 @@ async function run(ctx) {
         }
         await inputSession?.dispose();
     }
-}
+};
 
-export function apply(ctx) {
+export const apply = (ctx) => {
+    if (scenario === "acp-codex-reviewer-web") {
+        ctx.logger.exporter({
+            export: (message) => {
+                if (
+                    message.name === "convivium:meeting" &&
+                    message.args[0] === "Meeting creation failed: %s"
+                ) {
+                    console.error("CONVIVIUM_CREATE_DIAGNOSTIC " + message.args[1]);
+                }
+            }
+        });
+    }
+    ctx.on("convivium/acp-checkpoint", (event) => {
+        if (scenario === "acp-codex-reviewer-web") {
+            acpEvents.push({ ...event });
+        }
+    });
+    ctx.on("convivium/acp-review-accepted", (event) => {
+        if (scenario === "acp-codex-reviewer-web") {
+            const worker = observedAgents.get(event.workerSessionId);
+            reviewEvidence.push({ ...event, parentSession: worker?.session.header.parentSession });
+        }
+    });
+    const recordTool = (exec, result) => {
+        if (scenario !== "acp-codex-reviewer-web" || toolEvidence.has(String(exec.callId))) {
+            return;
+        }
+        const args =
+            typeof exec.arguments === "string" ? JSON.parse(exec.arguments) : exec.arguments;
+        if (
+            exec.agent?.options.provider === "acp-codex" ||
+            exec.name === "structured_output" ||
+            /web.*(search|fetch)|^(search|fetch).*web/.test(exec.name) ||
+            exec.name === "convivium_run_review_worker"
+        ) {
+            toolEvidence.set(String(exec.callId), {
+                callId: String(exec.callId),
+                name: exec.name,
+                sessionId: String(exec.agent.id),
+                parentSession: exec.agent.session.header.parentSession,
+                provider: exec.agent.options.provider,
+                model: exec.agent.options.model,
+                at: Date.now(),
+                arguments: args,
+                value: result.value,
+                isError: result.isError === true,
+                errorCode: result.error?.info?.code,
+                content: result.content
+            });
+        }
+    };
+    ctx.on("tools/result", recordTool);
     // The probe drives these fixture roles through real tools. Do not let their
     // model turns race the fixed four-round sequence; reviewers remain live.
     ctx.on("agent/pre-step", async ({ agent }, next) => {
@@ -304,6 +371,7 @@ export function apply(ctx) {
     });
     ctx.on("agent/created", ({ agent }) => {
         observedAgents.set(String(agent.id), agent);
+        agent.ctx.on("tools/result", recordTool);
         {
             agent.ctx.on("agent/inbox/inserted", ({ message }) => recordInbox(agent, message));
         }
@@ -317,4 +385,4 @@ export function apply(ctx) {
         void run(ctx);
         return () => {};
     }, "convivium-smoke-profile-probe");
-}
+};

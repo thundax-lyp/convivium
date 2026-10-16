@@ -39,20 +39,6 @@ const statePath = provider ? join(process.env.CODEX_HOME, "scripted-remote.json"
 const sessions = new Set(
     statePath && existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : ["saved"]
 );
-const endpoints = new Map();
-const callTool = async (server, id, method, params) => {
-    const response = await fetch(server.url, {
-        method: "POST",
-        headers: {
-            Authorization: server.headers[0].value,
-            "Content-Type": "application/json",
-            Accept: "application/json, text/event-stream",
-            "MCP-Protocol-Version": "2025-11-25"
-        },
-        body: JSON.stringify({ jsonrpc: "2.0", id, method, params })
-    });
-    return await response.json();
-};
 let active;
 const write = (message) =>
     process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
@@ -64,7 +50,8 @@ for await (const line of createInterface({ input: process.stdin })) {
             JSON.stringify({
                 method: message.method,
                 sessionId: message.params?.sessionId ?? null,
-                mcpCount: message.params?.mcpServers?.length ?? null
+                mcpCount: message.params?.mcpServers?.length ?? null,
+                prompt: message.params?.prompt ?? null
             }) + "\n"
         );
     }
@@ -83,7 +70,7 @@ for await (const line of createInterface({ input: process.stdin })) {
                 protocolVersion: 1,
                 agentCapabilities: {
                     loadSession: mode !== "no-load",
-                    mcpCapabilities: { http: true }
+                    mcpCapabilities: { http: mode !== "no-http" }
                 },
                 agentInfo: { name: "scripted", version: "1" }
             }
@@ -94,7 +81,6 @@ for await (const line of createInterface({ input: process.stdin })) {
         if (statePath) {
             writeFileSync(statePath, JSON.stringify([...sessions]));
         }
-        endpoints.set(sessionId, message.params.mcpServers[0]);
         write({ id: message.id, result: { sessionId, configOptions: configurations() } });
     } else if (message.method === "session/load") {
         if (fault === "load-fail") {
@@ -105,7 +91,6 @@ for await (const line of createInterface({ input: process.stdin })) {
             write({ id: message.id, error: { code: -32602, message: "unknown session" } });
             continue;
         }
-        endpoints.set(message.params.sessionId, message.params.mcpServers[0]);
         if (provider) {
             write({
                 method: "session/update",
@@ -117,10 +102,6 @@ for await (const line of createInterface({ input: process.stdin })) {
                     }
                 }
             });
-            const server = endpoints.get(message.params.sessionId);
-            if (server) {
-                await callTool(server, 99, "tools/call", { name: "read", arguments: {} });
-            }
         }
         write({ id: message.id, result: { configOptions: configurations() } });
     } else if (message.method === "session/set_config_option") {
@@ -137,57 +118,6 @@ for await (const line of createInterface({ input: process.stdin })) {
             process.exit(3);
         }
         if (provider) {
-            const server = endpoints.get(message.params.sessionId);
-            if (server) {
-                const listing = await callTool(server, 1, "tools/list", {});
-                if (
-                    listing.result?.tools.some(
-                        (tool) => tool.name === "convivium_run_review_worker"
-                    ) &&
-                    JSON.stringify(message.params.prompt).includes("review-worker=version-1")
-                ) {
-                    await callTool(server, 5, "tools/call", {
-                        name: "convivium_run_review_worker",
-                        arguments: {
-                            input: { meetingId: "meeting", versionId: "version-1" }
-                        }
-                    });
-                }
-                if (listing.result?.tools.some((tool) => tool.name === "structured_output")) {
-                    await callTool(server, 4, "tools/call", {
-                        name: "structured_output",
-                        arguments: {
-                            versionId: "version-1",
-                            scope: "first round",
-                            dimensions: Object.fromEntries(
-                                ["source", "credibility", "completeness", "support"].map((key) => [
-                                    key,
-                                    {
-                                        score: 2,
-                                        scope: key,
-                                        reason: "verified",
-                                        baselineEvidenceIds: []
-                                    }
-                                ])
-                            )
-                        }
-                    });
-                }
-                if (listing.result?.tools.some((tool) => tool.name === "read")) {
-                    await callTool(server, 2, "tools/call", { name: "read", arguments: {} });
-                }
-                if (listing.result?.tools.some((tool) => tool.name === "convivium_read_meeting")) {
-                    const meetingId = JSON.stringify(message.params.prompt).match(
-                        /meeting-id=([a-z-]+)/
-                    )?.[1];
-                    if (meetingId) {
-                        await callTool(server, 3, "tools/call", {
-                            name: "convivium_read_meeting",
-                            arguments: { input: { protocolVersion: 1, meetingId } }
-                        });
-                    }
-                }
-            }
             write({
                 method: "session/update",
                 params: {
@@ -199,13 +129,37 @@ for await (const line of createInterface({ input: process.stdin })) {
                 }
             });
         }
+        const nativeReview =
+            provider && JSON.stringify(message.params.prompt).includes("[Native review output]");
+        const review = {
+            versionId: "version-1",
+            scope: "first round",
+            dimensions: Object.fromEntries(
+                ["source", "credibility", "completeness", "support"].map((key) => [
+                    key,
+                    {
+                        score: 2,
+                        scope: key,
+                        reason: "verified",
+                        baselineEvidenceIds: []
+                    }
+                ])
+            )
+        };
         write({
             method: "session/update",
             params: {
                 sessionId: message.params.sessionId,
                 update: {
                     sessionUpdate: "agent_message_chunk",
-                    content: { type: "text", text: "scripted result" }
+                    content: {
+                        type: "text",
+                        text: nativeReview
+                            ? fault === "native-invalid-json"
+                                ? "```json\n{}\n```"
+                                : JSON.stringify(review)
+                            : "scripted result"
+                    }
                 }
             }
         });

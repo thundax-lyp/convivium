@@ -16,3 +16,5 @@ export {
 export { createMeetingAgentOwner, type MeetingAgentOwner } from "./meeting-agent-owner.ts";
 
 export { createCodexAcpProvider, type CodexAcpProviderPort } from "./acp-codex/index.ts";
+
+export { runAcpReviewWorker } from "./acp-review-worker.ts";

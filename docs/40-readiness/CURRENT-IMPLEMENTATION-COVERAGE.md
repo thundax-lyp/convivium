@@ -10,6 +10,22 @@
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
+## ACP Native Execution Migration
+
+2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。
+
+已实现 H1–H5：取消 RPC 等待原 prompt 结算；原生执行边界；宿主审核适配；必需服务装载修复；恢复后向当前 Manager 发出不携带 agendaId 的持久 `meeting_resumed` 通知。H5 原始提交 `c920a4ab`（历史整理前），四个聚焦测试文件43项通过，Host typecheck、lint、format、build 与文档检查通过；覆盖同事务幂等、stale/conflict、权限拒绝、同 deliveryId reopen 与 unknown 零重放。确定性测试不证明实际模型恢复续行。
+
+真实冒烟：DSH `0.2.0-rc.2`、codex-acp `1.11.0`、Codex `0.161.0`，Reviewer 使用 `gpt-6.1-sol` / `low`。会议 `meeting-bcdce35f3f2bfa6ce39e380d10353a52` 实际完成一轮、3条 Evidence、3条合法 Review 和一次发布；五个独立身份，宿主接受的 worker 审核与持久事实对应。只读末次记录为 version26 / running，四个 ready binding、十个 committed request；Host 已停止。原临时现场、Session、checkpoint 及失败日志保留，不重放已消费输入。多次隔离尝试不累计为同一会议多轮。
+
+Web 实际 search 已执行；正文 fetch 因非公网 DNS 解析被 SSRF 门禁拒绝，记录 `WEB_BLOCKED_URL`，没有正文成功或内容哈希证据。按用户决定，底层 DNS 属于环境边界，不修复网络或放宽 SSRF。
+
+本次收口验证：公开只读验收入口已纳入精确导出契约检查，`pnpm --dir plugin verify` 完整通过：format/lint/typecheck、103个测试文件895项测试、build、environment、contract、八角色资源及 package 检查。记录 `/tmp/convivium-native-host-20261016/closure-verify-fixed.log`；真实模型未追加调用。此前导出清单漂移 STOP 已修复，未放宽集合相等检查。
+
+Closure：用户确认一轮核心链路冒烟成功，取消剩余自动真实验收，后续转为[人工冒烟与日志调试](../50-operations/HOW-TO-DSH-SMOKE.md#acp-人工冒烟与日志调试)。长期结论及操作步骤已迁移，六份临时执行手册按人工交接范围删除，不将原 E2 完整验收或 E3 原三场景真实复验记为 PASS。
+
+Not Covered：第二轮真实执行、H5 通知的实际模型续行、最终归档、Web 正文读取、真实贡献超时后的整会收敛、本次原三场景付费复验、固定人工环境部署与浏览器验收、其它平台和长期模型质量。原现场不能直接当作新版人工环境；恢复须匹配原资源、Session、模型和 cwd，先确认期限及技术记录，不修改历史记录绕过门禁。
+
 ## ACP Configuration And Web Role Validation
 
 2026-10-15 配置与角色代码：Definition.agentOptions 为完整可选执行选择，agentModelOverrides 生产入口已删除；预检绑定解析后的模型/reasoning，原七角色身份 hash 保持不变。不可变准入选择、descriptor 激活到期检查、八角色/六能力发行闭集及默认 GitHub/arXiv/Web 贡献者创建入口已实现。
@@ -39,7 +55,7 @@ D5 本次执行：
 
 已验证：executionBlocks 仅由匹配当前身份的 ownership 与 provider 技术记录生成，字段为 identityId/code/since/固定 allowedActions，空时省略；内部路径不进入 DTO。持久 block 通知沿原 refresh stream 发送当前 committedVersion，领域 version 不变也能重读诊断；中英文 alert 显示身份和处置方向。没有自动 Captain 操作、清锁按钮或 resume 解除技术门禁；原暂停控制仍可用，原控制/恢复测试继续通过。诊断订阅在 Meeting runtime 停止时注销，先于 provider.close。无新增领域事件、receipt 或 Archive 事实。
 
-Not Covered：真实 Codex/互联网两轮专项、固定人工 Web 部署及浏览器视觉验收、其它平台、生产动态 Catalog、长会话压缩认证；本次未运行全量 verify。当前只满足 D 阶段确定性门禁，下一入口为 E1 官方环境预检；E2 真实验收及 E3 全组验证/证据迁移/删除六册尚未执行，不宣称发布就绪。
+Not Covered：真实 Codex/互联网两轮专项、固定人工 Web 部署及浏览器视觉验收、其它平台、生产动态 Catalog、长会话压缩认证；本次未运行全量 verify。该段为历史 D 阶段证据；当前原生边界实现及人工交接结论见上方 ACP Native Execution Migration，不宣称发布就绪。
 
 ## Feature Coverage
 

@@ -1068,3 +1068,172 @@ it.each(["before", "after", "expired", "committed"])(
         expect(pendingVersion.failureCount).toBe(mode === "expired" ? 1 : 0);
     }
 );
+
+const nativeFixture = (output: unknown) => {
+    const { state, ownership, pendingVersion } = stateWithPendingReview();
+    ownership[0] = { ...ownership[0]!, agentOptions: { provider: "acp-codex", model: "codex" } };
+    const claims = claimApplication(state);
+    const application = {
+        execute: vi.fn(async (command, context, signal) => {
+            if (command.action.kind !== "submit_evidence_review") {
+                return claims.execute(command, context, signal);
+            }
+            state.reviews.push({
+                ...state.reviews[0]!,
+                id: "native-review",
+                versionId: command.action.versionId
+            });
+            pendingVersion.status = "validated";
+            state.reviewClaims = [];
+            return { kind: "accepted", relatedIds: ["native-review"] };
+        })
+    };
+    let blocked = false;
+    let deliveryState = "unseen";
+    const owner = {
+        resume: vi.fn(async () => {}),
+        deliverObserved: vi.fn(async () => {
+            deliveryState = "completed";
+            return { durable: true, outcome: "completed" };
+        })
+    };
+    const acpCodex = {
+        blockFor: () => (blocked ? { code: "ACP_CODEX_RECOVERY_REQUIRED", since: 1 } : undefined),
+        deliveryState: () => deliveryState,
+        requireRecovery: vi.fn(async () => {
+            blocked = true;
+        })
+    };
+    const nativeReview = vi.fn(async () => ({
+        workerSessionId: "native-worker",
+        model: "codex",
+        output
+    }));
+    const accepted = vi.fn();
+    const dependencies = {
+        owner,
+        application,
+        acpCodex,
+        nativeReview,
+        onNativeReviewAccepted: accepted,
+        definitions: [{ agentDefinitionId: "fixture" }],
+        clock: { now: () => 6 },
+        repository: {
+            recover: async () => ({
+                snapshot: { meetingId: state.id, version: 6, state },
+                sessionOwnership: ownership
+            })
+        }
+    };
+    const input = {
+        outboxItem: outboxItem({
+            kind: "agent_notice",
+            noticeKind: "review_request",
+            recipientId: "reviewer-v1",
+            agendaId: "agenda-v1",
+            versionId: "version-pending"
+        }),
+        signal: new AbortController().signal
+    };
+    return {
+        state,
+        owner,
+        application,
+        acpCodex,
+        nativeReview,
+        accepted,
+        dependencies,
+        input,
+        consume: () => {
+            deliveryState = "completed";
+        }
+    };
+};
+const nativeOutput = () => ({
+    versionId: "version-pending",
+    scope: "limited evidence",
+    dimensions: Object.fromEntries(
+        ["source", "credibility", "completeness", "support"].map((key) => [
+            key,
+            {
+                score: 2,
+                scope: key,
+                reason: "supported within stated limits",
+                baselineEvidenceIds: ["version-baseline"]
+            }
+        ])
+    )
+});
+it("accepts a native review with the host claim/caller and reuses one live delivery task", async () => {
+    const f = nativeFixture(nativeOutput());
+    const result = Promise.withResolvers();
+    f.nativeReview.mockImplementation(() => result.promise);
+    const dispatcher = createEvidenceReviewDispatcher(f.dependencies);
+    const first = dispatcher.dispatch(f.input);
+    void first.catch(() => {});
+    await vi.waitFor(() => expect(f.nativeReview).toHaveBeenCalledOnce());
+    const repeated = dispatcher.dispatch(f.input);
+    result.resolve({ workerSessionId: "native-worker", model: "codex", output: nativeOutput() });
+    await Promise.all([first, repeated]);
+    expect(f.nativeReview).toHaveBeenCalledOnce();
+    expect(f.owner.deliverObserved).toHaveBeenCalledOnce();
+    expect(JSON.parse(f.owner.deliverObserved.mock.calls[0][0].text).instructions).not.toContain(
+        "convivium_run_review_worker"
+    );
+    const submissions = f.application.execute.mock.calls.filter(
+        ([command]) => command.action.kind === "submit_evidence_review"
+    );
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0][0]).toMatchObject({
+        requestId: "evidence-review:review-claim-v1",
+        action: {
+            claimId: "review-claim-v1",
+            roundId: "round-current",
+            versionId: "version-pending"
+        }
+    });
+    expect(submissions[0][1]).toEqual({
+        caller: {
+            channel: "dsh_tool",
+            principalId: "reviewer-v1",
+            sessionBindingId: "owner:reviewer-v1"
+        }
+    });
+    expect(f.accepted).toHaveBeenCalledWith({
+        rootSessionId: "session:reviewer-v1",
+        workerSessionId: "native-worker",
+        versionId: "version-pending",
+        reviewId: "native-review",
+        provider: "acp-codex",
+        model: "codex"
+    });
+    await dispatcher.dispatch(f.input);
+    expect(f.nativeReview).toHaveBeenCalledOnce();
+});
+it.each([
+    { ...nativeOutput(), versionId: "wrong-version" },
+    { ...nativeOutput(), authority: "captain" },
+    { ...nativeOutput(), dimensions: {} }
+])("does not submit invalid native review output %j", async (output) => {
+    const f = nativeFixture(output);
+    await expect(
+        createEvidenceReviewDispatcher(f.dependencies).dispatch(f.input)
+    ).rejects.toMatchObject({ code: "REVIEW_VALIDATION_RETRY" });
+    expect(
+        f.application.execute.mock.calls.filter(
+            ([command]) => command.action.kind === "submit_evidence_review"
+        )
+    ).toHaveLength(0);
+    expect(f.accepted).not.toHaveBeenCalled();
+});
+it("blocks consumed native review input without an original task instead of spawning again", async () => {
+    const f = nativeFixture(nativeOutput());
+    f.consume();
+    await expect(
+        createEvidenceReviewDispatcher(f.dependencies).dispatch(f.input)
+    ).rejects.toMatchObject({ code: "ACP_CODEX_RECOVERY_REQUIRED", terminalOnAttemptLimit: false });
+    expect(f.acpCodex.requireRecovery).toHaveBeenCalledWith("session:reviewer-v1");
+    expect(f.nativeReview).not.toHaveBeenCalled();
+    expect(f.owner.deliverObserved).not.toHaveBeenCalled();
+    expect(f.application.execute).not.toHaveBeenCalled();
+});

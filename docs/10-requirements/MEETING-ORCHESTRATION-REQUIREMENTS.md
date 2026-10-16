@@ -133,6 +133,7 @@ Manager 在轮次收口后根据当前正式事实判断是否停止当前议题
 8. 会议创建失败或插件异常终止后，不得遗留无法确定所属会议的会议专用 Session。
 9. 恢复或关闭会议专用 Session 时，不得操作属于其他会议、其他团队或无法确认归属的 Session。
 10. 单个 Agent 的内部工具失败不得自动判定整场会议失败。
+11. 成功恢复普通人工暂停的会议时，Runtime 必须在同一提交中为当前 Manager 创建一次持久续行通知，包括当前没有开放轮次的情形。Manager 收到通知后重新读取正式事实、扫描已授权后续工作并决定等待、继续或正常收口；通知本身不自动开轮、提交贡献或结束会议，不增加权限。相同请求重放不得追加通知；投递仍验证当前身份、ownership、capability 与生命周期，已消费输入和未知外部结果不得重放。
 
 ### MO-FR-10：会议记录、隐私与归档
 
@@ -454,7 +455,11 @@ Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义�
 
 ## ACP Codex Acceptance Boundary
 
-本节是已确认的目标验收，尚未实现。Reviewer 的独立主 Session 通过自研 `acp-codex` provider → ACP → `codex-acp` → Codex 执行；审核 worker 保持 DSH `spawn` 委派，默认继承父模型，不是新增平级身份。WEB ANALYZER 使用 Host 默认模型，实际搜索、读取原始网页、交叉核验并提交可定位来源；必须区分事实、推断、时效和未知项，不伪造来源或以搜索摘要代替正文。
+本节是已确认的目标验收，尚未实现。2026-10-16 已确认 ACP 执行边界：以 ACP 方式存在的 Agent 只使用外部 Agent 自身原生工具和 Skills，不使用 Convivium 定义的工具或 Skills，也不经 Convivium 的 MCP bridge 调用 DSH 工具。会议职责继续保留；会议读取、审核提交和 worker 生命周期由 Convivium 宿主程序化适配。宿主以原身份、当前 claim 和 immutable version 构造审核输入，校验外部输出后通过原 Runtime 提交；外部文本不能自行授予 caller、替换 claim/version 或形成正式 Review。此边界适用于 ACP root 和 ACP worker；DSH 原生 Agent 的工具与 Skills 路径保持原需求。
+
+新增验收判据：ACP new/load 不注入 Convivium MCP server；ACP 输入不附带 Convivium Skill 正文或要求调用 Convivium 工具的指令；Host 负责启动、取消和回收审核 worker，并证明合法输出才形成 Review，非法、过期、取消或未知结果不形成成功事实；旧的 MCP 工具可见/可调用与模型调用 `structured_output` 的证据不能替代本边界验收。
+
+Reviewer 的独立主 Session 通过自研 `acp-codex` provider → ACP → `codex-acp` → Codex 执行；审核 worker 保持 DSH `spawn` 委派，默认继承父模型，不是新增平级身份。WEB ANALYZER 使用 Host 默认模型，实际搜索、读取原始网页、交叉核验并提交可定位来源；必须区分事实、推断、时效和未知项，不伪造来源或以搜索摘要代替正文。
 
 支持正常空闲点按原外部 Session ID 冷恢复；无法证明结果、绑定、资源或配置一致时持久阻断，禁止自动重发、wake、空白会话重绑和人工清锁。技术阻断不伪造会议失败或自动暂停；展示受影响身份及暂停/异常结束入口，继续操作不解除阻断。真实 Contribution/Review 期限仍按原规则结算。用户异常结束并归档后可另建会议，不复用原绑定。
 

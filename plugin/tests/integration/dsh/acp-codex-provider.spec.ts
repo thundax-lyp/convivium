@@ -155,7 +155,7 @@ describe("Codex provider lifecycle", () => {
         await handle.agent.whenIdle();
         await f.provider.finishDelivery(handle.agent.id, message.id, new AbortController().signal);
         expect(f.provider.deliveryState(handle.agent.id, message.id)).toBe("completed");
-        expect(calls).toEqual([handle.agent.id]);
+        expect(calls).toEqual([]);
         expect(f.provider.blockFor(handle.agent.id)).toBeUndefined();
         expect(events.map((event) => event.phase)).toEqual([
             "bound",
@@ -177,7 +177,7 @@ describe("Codex provider lifecycle", () => {
         await f.provider.markDeliveryQueued(handle.agent.id, second.id);
         await handle.agent.whenIdle();
         await f.provider.finishDelivery(handle.agent.id, second.id, new AbortController().signal);
-        expect(calls).toEqual([handle.agent.id, handle.agent.id]);
+        expect(calls).toEqual([]);
         const rpc = (await readFile(join(f.root, "scripted-rpc.jsonl"), "utf8"))
             .trim()
             .split("\n")
@@ -185,6 +185,11 @@ describe("Codex provider lifecycle", () => {
         expect(rpc.filter((entry) => entry.method === "session/new")).toHaveLength(2);
         expect(rpc.filter((entry) => entry.method === "session/prompt")).toHaveLength(2);
         expect(rpc.some((entry) => entry.method === "session/load")).toBe(false);
+        expect(
+            rpc
+                .filter((entry) => entry.method === "session/new")
+                .every((entry) => entry.mcpCount === 0)
+        ).toBe(true);
         const stored = await f.ctx.sessionPersistence.open(handle.agent.id, "read");
         try {
             const records = (await stored.read()).events;

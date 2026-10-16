@@ -301,7 +301,7 @@ Client 先生成展示块和左右位置，再渲染：未归属事件直接输�
 
 本节的 provider 与 D1–D5 会议装配已实现并通过确定性验证；E 阶段真实验收与全组收口尚未完成。公开配置、精确模块路径/签名和持久协议以 [DSH ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 为唯一依据；身份/准入由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 拥有，owner/worker 接线由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#codex-session-integration) 拥有。
 
-`plugin/src/plugin-entry.ts::apply/meetingConsumerPlugin` 在 acpCodex 缺省时保持现有组合，不注册新 route、探测或进程。启用时通过显式 ctx.inject 取得原 meetingServices、subprocess 与 storageDomain，先 createCodexAcpProvider 打开技术 domain 并注册 LlmAdapter，再调用 `activateTargetMeetingApplication`。缺服务、路由冲突或创建失败拒绝本次启动。保持会议工具先注册、owner/Session 再恢复的现有顺序。
+`plugin/src/plugin-entry.ts::apply/meetingConsumerPlugin` 在 acpCodex 缺省时保持现有组合，不注册新 route、探测或进程。启用时通过显式 ctx.inject 声明原 meetingServices、subprocess 与 storageDomain 为全部必需依赖；服务尚未激活则等待，不在 inject 前通过即时 ctx.get 抛缺服务错误。依赖齐备才先 createCodexAcpProvider 打开技术 domain 并注册 LlmAdapter，再调用 `activateTargetMeetingApplication`。必需服务始终缺失则 consumer 不激活，路由冲突或创建失败拒绝本次激活；依赖撤销时随 consumer fiber 释放会议运行时、工具和 provider。保持会议工具先注册、owner/Session 再恢复的现有顺序。
 
 `plugin/src/dsh/acp-codex/` 负责 connection/process、prompt、MCP bridge、store、provider 和 compaction；不执行 Meeting command。provider factory 统一持有 route/domain/连接生命周期。`plugin/src/runtime/meeting-lifecycle.ts::activateTargetMeetingApplication` 显式把可选 CodexAcpProviderPort 传给 owner、review dispatcher、notice dispatcher、review tool 和 read projection，不读取 ctx.acpRecovery 等虚构服务。不新增顶层工程、通用 adapter registry、installer 或跨表事务。Host 安装并登录 bridge，发行包不内置它。
 
@@ -314,3 +314,7 @@ Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView ex
 ## ACP 实施与验证边界
 
 ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合复核见 Current Implementation Coverage；D1–D5 会议装配已完成并通过确定性验证，真实专项未执行。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
+
+### Acceptance-only Outbox Reader
+
+包入口具名导出 `readMeetingOutboxForAcceptance`，实现位于 `plugin/src/repository/storage-domain/acceptance-read.ts`，通过 Repository 目录入口逐级导出。唯一消费者是隔离 smoke probe；通过 Host 公开 `storageDomain.get` 借用已经打开的 domain，只读 catalog 与 `loadProjection` 校验后的提交链/checkpoint，并按 deliveryId 返回冻结字段白名单。`loadProjection` 接受只含 table/get/entries 的读取面，对未知记录执行已有 Schema 校验。入口不 open/close domain、不执行 recover，不持有额外租约，不开放 Web/Remote 或模型工具；字段及拒绝语义见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acceptance-outbox-read)。

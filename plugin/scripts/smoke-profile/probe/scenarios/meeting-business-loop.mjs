@@ -184,26 +184,14 @@ export const runMeetingBusinessLoopScenario = async (runtime) => {
                 hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
-            identities: MEETING_BUSINESS_LOOP_DEFINITIONS.map(
-                ([identityKey, definitionId, role]) => ({
-                    identityKey,
-                    definitionId,
-                    displayName: identityKey,
-                    roles: [role],
-                    agendaResponsibilityIds: ["agenda-1"],
-                    riskAuthority: false,
-                    required: true
-                })
-            ),
-            managerIdentityKey: "manager",
-            evidenceReviewerIdentityKey: "reviewer",
+            participantRoleNames: ["contributor-a", "contributor-b"],
             initialAgenda: [
                 {
                     id: "agenda-1",
                     title: MEETING_BUSINESS_LOOP_TOPIC.title,
                     question: MEETING_BUSINESS_LOOP_TOPIC.question,
                     requiredOutputIds: [],
-                    ownerIdentityKey: "manager"
+                    ownerRoleName: "manager"
                 }
             ],
             initialActiveAgendaId: "agenda-1",

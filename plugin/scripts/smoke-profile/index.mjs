@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { preflightCodexAcp } from "../acp-codex-preflight.mjs";
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
 import {
@@ -8,6 +9,7 @@ import {
     mkdtemp,
     readFile,
     realpath,
+    rename,
     rm,
     stat,
     writeFile
@@ -17,7 +19,11 @@ import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
-import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
+import {
+    createCodexSmokeEnvironment,
+    createSmokeEnvironment,
+    loadSmokeApiKey
+} from "./environment.mjs";
 import {
     completeMeetingBusinessLoopResult,
     validateMeetingBusinessLoopHotResult,
@@ -40,7 +46,10 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "600000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
+const ACP_SCENARIO = "acp-codex-reviewer-web";
+const COLD_SCENARIOS = ["meeting-business-loop", "peer-meeting-agents", ACP_SCENARIO];
 export const SMOKE_SCENARIOS = [
+    ACP_SCENARIO,
     "identity-admission",
     "meeting-business-loop",
     "peer-meeting-agents"
@@ -191,13 +200,16 @@ async function copyRecordedText(source, destination, deepSeekApiKey) {
     await writeFile(destination, redact(content, deepSeekApiKey), "utf8");
 }
 
-export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
+export const stageScenarioRecord = async (recordRoot, result, deepSeekApiKey) => {
     if (recordRoot === undefined) {
         return;
     }
     const files = [
         [result.dumpConfig, "dump-config.yml"],
-        ...(["meeting-business-loop", "peer-meeting-agents"].includes(result.scenario)
+        ...(result.scenario === ACP_SCENARIO
+            ? [[join(tempRoot, "peer-checkpoint.json"), "checkpoint.json"]]
+            : []),
+        ...(COLD_SCENARIOS.includes(result.scenario)
             ? [
                   [result.bootLogs.initial.stdoutPath, "initial/boot.stdout.log"],
                   [result.bootLogs.initial.stderrPath, "initial/boot.stderr.log"],
@@ -216,9 +228,9 @@ export async function stageScenarioRecord(recordRoot, result, deepSeekApiKey) {
             await copyRecordedText(source, join(recordRoot, relativePath), deepSeekApiKey);
         }
     }
-}
+};
 
-export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
+export const writeScenarioRecord = async (recordRoot, result, deepSeekApiKey) => {
     if (recordRoot === undefined) {
         return;
     }
@@ -232,9 +244,11 @@ export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
             source: "target-runtime-smoke",
             secretRedaction: "DEEPSEEK_API_KEY and Host URL tokens are replaced",
             externalResearch:
-                result.scenario === "peer-meeting-agents"
-                    ? "actual GitHub and arXiv tool reads required"
-                    : "not performed; fixture evidence only"
+                result.scenario === ACP_SCENARIO
+                    ? "actual Codex reviews and Web source reads required"
+                    : result.scenario === "peer-meeting-agents"
+                      ? "actual GitHub and arXiv tool reads required"
+                      : "not performed; fixture evidence only"
         }
     };
     await writeFile(
@@ -242,7 +256,7 @@ export async function writeScenarioRecord(recordRoot, result, deepSeekApiKey) {
         redact(JSON.stringify(summary, null, 2), deepSeekApiKey) + "\n",
         "utf8"
     );
-}
+};
 
 async function allocatePort() {
     const server = createServer();
@@ -300,18 +314,34 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-export async function writeSmokePatch(path, _scenario, storagePath) {
+export const writeSmokePatch = async (path, scenario, storagePath, acp) => {
     const targetDefinitions = JSON.parse(
         await readFile(join(pluginRoot, "config", "definitions.json"), "utf8")
     ).definitions;
-    const targetModelOverrides = Object.fromEntries(
-        targetDefinitions
-            .filter(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
-            .map(({ agentDefinitionId }) => [
-                agentDefinitionId,
-                { provider: "deepseek-official", model: "deepseek-v4-flash" }
-            ])
-    );
+    const businessNames = {
+        meeting_manager: "manager",
+        verification_reviewer: "reviewer",
+        github_research_analyst: "contributor-a",
+        arxiv_research_analyst: "contributor-b"
+    };
+    for (const definition of targetDefinitions) {
+        definition.displayName =
+            scenario === "meeting-business-loop"
+                ? (businessNames[definition.roleDefinitionId] ?? definition.roleDefinitionId)
+                : definition.roleDefinitionId;
+        if (definition.roleDefinitionId === "verification_reviewer") {
+            definition.agentOptions =
+                scenario === ACP_SCENARIO
+                    ? {
+                          provider: "acp-codex",
+                          model: acp.model,
+                          ...(acp.reasoningEffort === undefined
+                              ? {}
+                              : { reasoningEffort: acp.reasoningEffort })
+                      }
+                    : { provider: "deepseek-official", model: "deepseek-v4-flash" };
+        }
+    }
     const patch = [
         "- insert:",
         "    - id: convivium-smoke-storage-sqlite",
@@ -330,15 +360,20 @@ export async function writeSmokePatch(path, _scenario, storagePath) {
         "  config:",
         `    provider: ${PROVIDER}`,
         `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
-        '    initialContributorRoleIds: ["github_research_analyst", "arxiv_research_analyst"]',
-        `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`,
-        "    maxParticipants: 3",
-        "    speakerTimeoutMs: 60000",
+        `    initialContributorRoleIds: ${JSON.stringify(scenario === ACP_SCENARIO ? ["github_research_analyst", "arxiv_research_analyst", "web_research_analyst"] : ["github_research_analyst", "arxiv_research_analyst"])}`,
+        ...(scenario === ACP_SCENARIO
+            ? [`    acpCodex: ${JSON.stringify({ command: acp.command, args: acp.args })}`]
+            : []),
+        `    maxParticipants: ${scenario === ACP_SCENARIO ? 4 : 3}`,
+        `    speakerTimeoutMs: ${scenario === ACP_SCENARIO ? 600000 : 60000}`,
         "    outboxPollMs: 1000",
         ""
     ].join("\n");
     await writeFile(path, patch, "utf8");
-}
+    const definitionsPath = join(dirname(path), "smoke-definitions.json");
+    await writeFile(definitionsPath, JSON.stringify({ definitions: targetDefinitions }), "utf8");
+    return definitionsPath;
+};
 
 async function writeProbePackage(probeDir) {
     await cp(probeSourceDir, probeDir, { recursive: true });
@@ -566,7 +601,12 @@ async function restore(root = tempRoot) {
     }
 }
 
-async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, storagePath) {
+const runScenario = async (scenario, artifact, deepSeekApiKey, recordRoot, storagePath) => {
+    const scenarioDeadline = Date.now() + 4500000;
+    const remaining = () =>
+        scenario === ACP_SCENARIO ? Math.max(1, scenarioDeadline - Date.now()) : BOOT_TIMEOUT_MS;
+    const acp = scenario === ACP_SCENARIO ? await preflightCodexAcp() : undefined;
+    const baseEnvironment = acp ? createCodexSmokeEnvironment(process.env, acp) : process.env;
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
     const workspaceDir = join(tempRoot, "workspace");
@@ -578,7 +618,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
-    await writeSmokePatch(patchPath, scenario, storagePath);
+    const definitionsPath = await writeSmokePatch(patchPath, scenario, storagePath, acp);
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
@@ -591,12 +631,21 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         roleAssetRoot = join(unpackRoot, "package", "config");
         await access(join(roleAssetRoot, "cordis.patch.yml"), constants.R_OK);
     }
-    const env = createSmokeEnvironment(process.env, {
+    const env = createSmokeEnvironment(baseEnvironment, {
+        ...(acp
+            ? {
+                  CONVIVIUM_ACP_CODEX_SELECTION: JSON.stringify({
+                      model: acp.model,
+                      reasoningEffort: acp.reasoningEffort
+                  })
+              }
+            : {}),
         ...(roleAssetRoot ? { CONVIVIUM_MEETING_ROLES_ROOT: roleAssetRoot } : {}),
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
+        CONVIVIUM_SMOKE_DEFINITIONS_PATH: definitionsPath,
         CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH: agentPromptsPath,
         CONVIVIUM_SMOKE_SCENARIO: scenario,
         CONVIVIUM_SMOKE_PEER_CHECKPOINT: join(tempRoot, "peer-checkpoint.json")
@@ -619,7 +668,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let finalPort = port;
     let finalBootLogs = bootLogs;
-    let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    let probeResult = await waitForJson(resultPath, remaining());
     if (!probeResult.ok) {
         const stdoutTail = (await readFile(bootLogs.stdoutPath, "utf8")).slice(-8000);
         const stderrTail = (await readFile(bootLogs.stderrPath, "utf8")).slice(-8000);
@@ -629,11 +678,13 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
                 `stderr tail:\n${stderrTail}`
         );
     }
-    if (["meeting-business-loop", "peer-meeting-agents"].includes(scenario)) {
+    if (COLD_SCENARIOS.includes(scenario)) {
         probeResult =
             scenario === "meeting-business-loop"
                 ? validateMeetingBusinessLoopHotResult(probeResult)
-                : validatePeerMeetingAgentsResult(probeResult, false);
+                : scenario === ACP_SCENARIO
+                  ? probeResult
+                  : validatePeerMeetingAgentsResult(probeResult, false);
         await stopHost();
         await assertPortReleased(port);
         activePort = undefined;
@@ -642,10 +693,14 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         await mkdir(coldLogsDir, { recursive: true });
         finalPort = await allocatePort();
         activePort = finalPort;
-        const coldEnv = createSmokeEnvironment(hostEnv, {
-            CONVIVIUM_SMOKE_PHASE: "cold-reopen",
-            CONVIVIUM_SMOKE_MEETING_ID: probeResult.meetingId
-        });
+        const coldEnv = createSmokeEnvironment(
+            hostEnv,
+            {
+                CONVIVIUM_SMOKE_PHASE: "cold-reopen",
+                CONVIVIUM_SMOKE_MEETING_ID: probeResult.meetingId
+            },
+            deepSeekApiKey
+        );
         finalBootLogs = await bootHost(
             coldEnv,
             patchPath,
@@ -654,7 +709,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
             finalPort,
             roleAssetRoot
         );
-        const coldResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+        const coldResult = await waitForJson(resultPath, remaining());
         if (!coldResult.ok) {
             const stdoutTail = (await readFile(finalBootLogs.stdoutPath, "utf8")).slice(-8000);
             const stderrTail = (await readFile(finalBootLogs.stderrPath, "utf8")).slice(-8000);
@@ -682,7 +737,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
         artifact: basename(artifact),
         probe: probeResult,
         dumpConfig: dumpPath,
-        bootLogs: ["meeting-business-loop", "peer-meeting-agents"].includes(scenario)
+        bootLogs: COLD_SCENARIOS.includes(scenario)
             ? { initial: bootLogs, coldReopen: finalBootLogs }
             : finalBootLogs,
         agentPrompts: agentPromptsPath,
@@ -690,7 +745,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey, recordRoot, stora
     };
     await stageScenarioRecord(recordRoot, result, deepSeekApiKey);
     return result;
-}
+};
 
 export async function assertPortReleased(port) {
     const deadline = Date.now() + 5000;
@@ -714,7 +769,154 @@ export async function assertPortReleased(port) {
     }
 }
 
-async function main() {
+const runAcpColdCheckpoint = async (root, deepSeekApiKey, recordRoot) => {
+    root = resolve(root);
+    if (
+        !root.startsWith(resolve(tmpdir()) + sep) ||
+        !basename(root).startsWith("convivium-dsh-smoke-")
+    ) {
+        throw new Error("Invalid ACP acceptance checkpoint root");
+    }
+    tempRoot = root;
+    let passed = false;
+    let completedResult;
+    let port;
+    try {
+        const checkpointPath = join(root, "peer-checkpoint.json");
+        const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
+        const definitionsPath = join(root, "smoke-definitions.json");
+        const definitions = JSON.parse(await readFile(definitionsPath, "utf8")).definitions;
+        const reviewer = definitions.find(
+            (item) => item.roleDefinitionId === "verification_reviewer"
+        );
+        const acp = await preflightCodexAcp();
+        if (
+            reviewer.agentOptions.model !== acp.model ||
+            reviewer.agentOptions.reasoningEffort !== acp.reasoningEffort
+        ) {
+            throw new Error("ACP checkpoint model differs from preflight");
+        }
+        const roleAssetRoot = await realpath(
+            join(root, "dsh-home", "profiles", PROFILE, "node_modules", CONVIVIUM_PACKAGE, "config")
+        );
+        const resultPath = join(root, "smoke-result.json");
+        const patchPath = join(root, "convivium-smoke.patch.yml");
+        const env = createSmokeEnvironment(createCodexSmokeEnvironment(process.env, acp), {
+            CONVIVIUM_ACP_CODEX_SELECTION: JSON.stringify({
+                model: acp.model,
+                reasoningEffort: acp.reasoningEffort
+            }),
+            CONVIVIUM_MEETING_ROLES_ROOT: roleAssetRoot,
+            DSH_HOME: join(root, "dsh-home"),
+            DSH_TELEMETRY_DISABLED: "1",
+            DSH_PERMISSION_MODE: "workspace-write",
+            CONVIVIUM_SMOKE_RESULT: resultPath,
+            CONVIVIUM_SMOKE_DEFINITIONS_PATH: definitionsPath,
+            CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH: join(root, "agent-prompts.json"),
+            CONVIVIUM_SMOKE_SCENARIO: ACP_SCENARIO,
+            CONVIVIUM_SMOKE_PEER_CHECKPOINT: checkpointPath,
+            CONVIVIUM_SMOKE_PHASE: "cold-reopen",
+            CONVIVIUM_SMOKE_MEETING_ID: checkpoint.meetingId
+        });
+        const probeDir = join(root, "probe");
+        await writeProbePackage(probeDir);
+        const installedProbe = join(
+            root,
+            "dsh-home",
+            "profiles",
+            PROFILE,
+            "node_modules",
+            PROBE_PACKAGE
+        );
+        const backupProbe = join(root, "probe-installed-before-recovery");
+        const installedManifest = JSON.parse(
+            await readFile(join(installedProbe, "package.json"), "utf8")
+        );
+        if (installedManifest.name !== PROBE_PACKAGE || (await pathExists(backupProbe))) {
+            throw new Error("Original acceptance probe cannot be safely replaced");
+        }
+        await rename(installedProbe, backupProbe);
+        await cp(probeDir, installedProbe, { recursive: true });
+        await rm(resultPath, { force: true });
+        const logsDir = join(root, "logs-cold-credential-recovery");
+        await mkdir(logsDir);
+        port = await allocatePort();
+        activePort = port;
+        const bootLogs = await bootHost(
+            createSmokeEnvironment(env, {}, deepSeekApiKey),
+            patchPath,
+            join(root, "workspace"),
+            logsDir,
+            port,
+            roleAssetRoot
+        );
+        const probe = await waitForJson(resultPath, 4500000);
+        if (!probe.ok) {
+            throw new Error("ACP checkpoint recovery probe failed: " + probe.error);
+        }
+        validateScenarioResult(probe, ACP_SCENARIO);
+        const result = {
+            ok: true,
+            scenario: ACP_SCENARIO,
+            profile: PROFILE,
+            provider: PROVIDER,
+            port,
+            artifact: "preserved-installed-package",
+            probe,
+            dumpConfig: join(root, "logs", "dump-config.yml"),
+            bootLogs: {
+                initial: {
+                    stdoutPath: join(root, "logs", "boot.stdout.log"),
+                    stderrPath: join(root, "logs", "boot.stderr.log")
+                },
+                coldReopen: bootLogs
+            },
+            agentPrompts: join(root, "agent-prompts.json"),
+            recoveredCheckpoint: true
+        };
+        await stageScenarioRecord(recordRoot, result, deepSeekApiKey);
+        for (const file of ["boot.stdout.log", "boot.stderr.log"]) {
+            await copyRecordedText(
+                join(root, "logs-cold-reopen", file),
+                join(recordRoot, "interrupted-cold", file),
+                deepSeekApiKey
+            );
+        }
+        await copyRecordedText(
+            join(root, "peer-checkpoint-before-recovery.json"),
+            join(recordRoot, "original-checkpoint.json"),
+            deepSeekApiKey
+        );
+        await writeScenarioRecord(join(recordRoot, ACP_SCENARIO), result, deepSeekApiKey);
+        passed = true;
+        completedResult = result;
+    } catch (error) {
+        await writeScenarioRecord(
+            join(recordRoot, ACP_SCENARIO),
+            {
+                ok: false,
+                scenario: ACP_SCENARIO,
+                error: redact(error.message, deepSeekApiKey),
+                preservedTemporaryRoot: root
+            },
+            deepSeekApiKey
+        );
+        throw error;
+    } finally {
+        await stopHost();
+        if (port !== undefined) {
+            await assertPortReleased(port);
+        }
+        activePort = undefined;
+        if (passed) {
+            await restore(root);
+        }
+        tempRoot = undefined;
+    }
+    console.log(JSON.stringify({ ...completedResult, restore: "PASS" }));
+};
+
+const main = async () => {
     const args = process.argv.slice(2);
     const scenarios = selectScenarios(args, process.env.CONVIVIUM_SMOKE_SCENARIO, BROWSER_MODE);
     const storagePath = await resolveSmokeStoragePath(
@@ -724,7 +926,25 @@ async function main() {
     validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
     validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
     const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
+    if (scenarios.includes(ACP_SCENARIO)) {
+        const directory = process.env.CONVIVIUM_SMOKE_RECORD_DIR;
+        if (!directory || (await pathExists(directory))) {
+            throw new Error("ACP evidence directory must be specified and absent");
+        }
+        await mkdir(directory);
+    }
     const recordRoot = await createRecordRoot(process.env.CONVIVIUM_SMOKE_RECORD_DIR);
+    if (process.env.CONVIVIUM_SMOKE_ACP_COLD_ROOT) {
+        if (scenarios.length !== 1 || scenarios[0] !== ACP_SCENARIO) {
+            throw new Error("ACP checkpoint recovery requires the single ACP scenario");
+        }
+        await runAcpColdCheckpoint(
+            process.env.CONVIVIUM_SMOKE_ACP_COLD_ROOT,
+            deepSeekApiKey,
+            recordRoot
+        );
+        return;
+    }
     const buildRoot = await mkdtemp(tempPrefix);
     const started = Date.now();
     try {
@@ -732,6 +952,7 @@ async function main() {
         for (const scenario of scenarios) {
             const start = Date.now();
             let result;
+            let preserveFailedRoot = false;
             try {
                 result = await runScenario(
                     scenario,
@@ -741,6 +962,12 @@ async function main() {
                     storagePath
                 );
             } catch (error) {
+                preserveFailedRoot = scenario === ACP_SCENARIO && tempRoot !== undefined;
+                await stopHost();
+                if (activePort !== undefined) {
+                    await assertPortReleased(activePort);
+                    activePort = undefined;
+                }
                 if (recordRoot !== undefined && tempRoot !== undefined) {
                     for (const file of ["boot.stdout.log", "boot.stderr.log", "dump-config.yml"]) {
                         const source = join(tempRoot, "logs", file);
@@ -754,7 +981,12 @@ async function main() {
                     }
                     await writeScenarioRecord(
                         join(recordRoot, scenario),
-                        { ok: false, scenario, error: redact(error.message, deepSeekApiKey) },
+                        {
+                            ok: false,
+                            scenario,
+                            error: redact(error.message, deepSeekApiKey),
+                            ...(preserveFailedRoot ? { preservedTemporaryRoot: tempRoot } : {})
+                        },
                         deepSeekApiKey
                     );
                 }
@@ -763,7 +995,9 @@ async function main() {
                     { cause: error }
                 );
             } finally {
-                await restore();
+                if (!preserveFailedRoot) {
+                    await restore();
+                }
                 tempRoot = undefined;
             }
             await writeScenarioRecord(
@@ -785,7 +1019,7 @@ async function main() {
     if (!args.includes("--json")) {
         console.log(`PASS ${scenarios.length} scenarios ${Date.now() - started}ms (one build)`);
     }
-}
+};
 
 const isMain =
     process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

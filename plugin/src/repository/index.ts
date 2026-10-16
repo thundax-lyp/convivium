@@ -36,3 +36,4 @@ export type {
     OutboxKind,
     PersistedMeetingEvent
 } from "./types.ts";
+export { readMeetingOutboxForAcceptance } from "./storage-domain/index.ts";

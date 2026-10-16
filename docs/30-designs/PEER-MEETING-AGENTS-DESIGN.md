@@ -30,7 +30,7 @@ Domain 不依赖 DSH、文件系统或 Repository；Repository 不调用 DSH；t
 
 `MeetingAgentOwner` 在 `plugin/src/dsh/meeting-agent-owner.ts` 实现，由 `plugin/src/dsh/index.ts` 公开给 Runtime；它不读取 Meeting Repository，也不负责把 outbox 标为 delivered。其固定接口除 `create/resume/deliver/suspend/stop/disposeAll` 外，增加 `deliverObserved`：输入与 `deliver` 相同，返回 `{durable,outcome:"completed"|"failed",failureCode?,failureSummary?}`。内部 `Map<sessionOwnershipId,{handle:AgentHandle;purpose:"provisioning"|"delivery"|"cleanup"}>` 只保存本 owner 创建/恢复的 handle 与装配模式：同一 id+sessionId+compositionHash 的同值重入可复用，任一字段不同为 `OWNERSHIP_CONFLICT`；已有裸 live Agent 但无本 owner handle 时拒绝收养并给 `RECOVERY_UNAVAILABLE`。`create` 使用 descriptor 和 ownership 的全部同值绑定、先持久化的 provisioning 状态；`resume` 重新装载原 Definition/资源/options，`purpose="provisioning"` 仅在 Runtime 已核对相同不可调度 intent 时恢复尚未激活的 Session，`purpose="delivery"` 只允许 active 且未 revoked 的 ownership，`purpose="cleanup"` 只允许已 revoked 但未 closed 的 ownership。create 与 provisioning/cleanup resume 的 scoped setup 额外用 `tools.restrict({allow:[]})` 禁止任何 Tool，且 Runtime 的 ownership gate 拒绝其 Meeting read/command；恢复可能启动 DSH loop，不能把“无授权业务调用”误写成“绝不启动 turn”。`deliver` 先执行 `authorize`，再按 DSH Role Interface 的精确 `UserMessage` 调用 `followup`、`sessions.flush`、再次 `authorize`，返回 flush 的布尔结果；调用方仅在 `true` 时提交 delivered，`false` 时保留 retry。`deliverObserved` 在 `followup` 前订阅 `agent/inbox/claimed` 与 `agent/error`，只把同 Agent、同 deliveryId 被 claim 的 turn 关联为目标，flush 后等待 `agent.whenIdle()`；若当前消息尚未 claim，则用 DSH 公开 `steer` 注入无业务事实的 wake message，使原 next-turn 通知被下一 turn 领取，再等待 idle，仍未领取则投递失败。监听始终在 finally 释放，且之前活动 turn 的失败不会错记到当前通知。`stop` 只对目标 handle 执行 `agent.cancel({kind:"hook",reason})`、`agent.whenIdle()`、`handle.dispose()` 并删 Map；无 handle 时按原 ownership 以 `purpose="cleanup"` 恢复后执行，恢复失败则保持 archiving/cleanup retry，不用 `ctx.agents.get` 代替。`disposeAll` 用于 Host 停机，只释放 Map 中的 handle，不改变 Meeting ownership 或事实。
 
-owner 公共方法之间用私有 helper 复用，不在同一串行键内递归获取锁。owner 按 ownershipId 串行执行 create/resume/deliver/suspend/stop，disposeAll 先拒绝新操作再等在途操作退出；不同 Meeting 不共用串行键。Runtime 只有在初始 `completeCreate` 已提交 ready、或动态 `record_identity_admission_result` 已提交 active 后，才可调用 `resume(purpose:"delivery")`。若 Map 中仍为 provisioning purpose，先 cancel/whenIdle/dispose 旧 scope，再以同一 sessionId 恢复 delivery scope；不得只因 ownership 已 active 而复用带 `allow:[]` 的 handle。delivery scope 保留该角色 toolFilter，移除的只是 provisioning 禁工具层。ready 后恢复失败保留原 active 绑定与重试，不倒改为 creation_failed。
+owner 公共方法之间用私有 helper 复用，不在同一串行键内递归获取锁。owner 按 ownershipId 串行执行 create/resume/deliver/suspend/stop，disposeAll 先拒绝新操作再等在途操作退出；不同 Meeting 不共用串行键。Runtime 只有在初始 `completeCreate` 已提交 ready、或动态 `record_identity_admission_result` 已提交 active 后，才可调用 `resume(purpose:"delivery")`。非 ACP 的 provisioning purpose 保持先 cancel/whenIdle/dispose 旧 scope，再以同一 sessionId 恢复 delivery scope。ACP 同 owner 的首次激活在核对 active ownership、header/options/资源/Skill 后，先 await prepareSession(delivery) 验证并升级同 Agent 的无活动请求 warm lease，再调用独立 provisioning restriction 的 disposer，仅移除 allow=[] 层；原角色 toolFilter 保留，失败仍禁工具。禁止只改 purpose 却保留 allow=[]，或未验证就提前放权。delivery scope 保留该角色 toolFilter，移除的只是 provisioning 禁工具层。ready 后恢复失败保留原 active 绑定与重试，不倒改为 creation_failed。
 
 `suspend` 只释放 Map 中目标 handle（cancel/whenIdle/dispose 后删除），不撤销 ownership；Map 无该 handle 时同值成功，不恢复 Session 来取消。Runtime 在 pause 状态已提交、停止调度后调用它；paused 冷启动不恢复 delivery，resume 命令提交后才按原绑定恢复。stop 的缺 handle 路径仍是已撤权 cleanup，不能使用 suspend 冒充终态撤权。scope teardown 失败保留诊断与重试，不能提前记录 closed。
 
@@ -84,19 +84,15 @@ owner 装配时捕获 Host 启动目录，在首次 create 前创建 `meetings/<
 
 ## Codex Session Integration
 
-本节的 D1–D5 装配已实现并通过确定性验证，E 阶段真实验收与全组收口尚未完成；精确方法、三表、发送写序与失败语义唯一由 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md) 定义；Definition/快照/TTL 唯一由 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 定义，不另复制契约。
+ACP root/worker 只使用外部 Agent 自身原生工具和 Skills，会议读取、审核提交与 worker 生命周期由宿主适配；契约和防重放边界唯一见 [ACP Execution Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。DSH 原生执行路径保持前文设计。
 
-`plugin/src/dsh/meeting-agent-owner.ts::createMeetingAgentOwner` 接收可选 `CodexAcpProviderPort`。root 的 scoped setup 先 mount 原 Preset、验证原 AGENTS/Skill/toolFilter/options/header/cwd，末尾 await prepareSession(agent,purpose,signal)，再发布 Agent。provisioning 只创建首外部绑定，不授任务权限；delivery 核验并加载原绑定；cleanup 不创建或加载外部会话。purpose 切换仍用原绑定。其它未由 owner 准备的 root 不允许选择该路由，包括普通用户输入 Session。
+`createMeetingAgentOwner` 继续校验 Definition/资源/Skill/options/header/cwd、装配 Preset 和持久交付门禁，首次 warm 激活保留原 Agent/进程/绑定；provider 仅用 ACP 空 mcpServers 和原连接。宿主 Role/Skill 完整性校验不意味着向外部投影这些方法；provider 的 prompt projection 不传 system/developer。
 
-provider 的公开 agent/created hook 仅接受 parentSession 可证明属于已准备 root 的 fresh spawn worker，先经公开 agentPresets.serviceFor 核查由父 Preset composeFrom 继承的 CodexCompactionBoundary，再准备独立 ACP Session；该 hook 不安装或替换 compaction Service。worker source 只允许 startup；不复活旧 worker、不接收 worker resume/clear/compact。one-shot driver 在 worker 自己 scope 注册 structured_output；allow=[] 不屏蔽该工具。Reviewer 的 claim/version/outputSchema/真实 caller 与 Runtime 提交流程不变，worker 不获得 Meeting ownership。
+`createEvidenceReviewDispatcher` 为 ACP 分支持有一次执行 Promise，通知原 root 后通过 `runAcpReviewWorker` 启动无 outputSchema 的原生 DSH spawn。原 worker parent/model、取消、checkpoint 和 disposer 由 DSH adapter 管理；Runtime 校验完整 JSON、Schema/version 后，使用原 claim/caller/application 提交，并发出只读 accepted 事件。既有工具 Reviewer 流程只供非 ACP。已消费原交付且无持久 Review/原 Promise 时持久阻断，不复活或替换 worker；正常空闲点保留原 ID 冷 load。
 
-`deliverToHandle` 对 ACP 的 deliver/deliverObserved 统一走 observed 流程，以原 outbox deliveryId 做持久接收门禁；首次 admitting 后才 followup，flush 后 queued，原 turn 正常结束且所有 request 有持久 receipt/checkpoint 后 completed。重复 completed 返回原 durable 结果；pending 只等待原进程 Promise。无 Promise 的重启未完成项只阻断，不再次入队、不 steer/wake。非 ACP 继续原路径。
+provider 的 agent/created hook 仍只准备已准备 root 下的 fresh spawn，核查继承的 CodexCompactionBoundary；不新增全局默认 ACP 用户 Session，不安装第二个 compaction Service。未知结果继续传播到所属根、保持真实 deadline、不自动暂停。stopSession(root) 停所属子树，stopSession(worker) 不反向停父；cleanup 不 load，不做 GC。
 
-owner.resume 先复核原 ownership、身份资源、模型和 Session header/cwd，再 reconcileSession，只有可证明空闲完成才 load 原外部 ID。hydration 不执行工具或提交新事实。旧 sending、缺 receipt、丢失技术记录或 load/指纹失败均保留原绑定并 fail closed。正常冷恢复不依赖不存在的 DSH 自动续执行服务；不能凭日志或 outbox lease 推定可以重发。
-
-`plugin/src/runtime/services/evidence-review-dispatch.ts::createEvidenceReviewDispatcher` 与 `meeting-notice-dispatch.ts::createMeetingNoticeDispatcher` 先核对正式 Review/Evidence，再运行真实 deadline/撤权检查，再查 root block，最后才领取/投递。未知不派 replacement 或合成失败；真正 review_timeout 仍幂等计预算。`plugin/src/tools/register-tools.ts::registerReviewWorkerTool` 每个真实 exec.agent 只复用同一 active claim 的原 Promise，每次重新授权；start 前、result 后检查根阻断，finally dispose。合法已提交事实保留，不能被迟到错误改判。
-
-暂停、异常结束和归档仍用既有 Captain 控制与 revoke/drain/dispose。stopSession(Reviewer) 停其子树，stopSession(worker) 只停该 worker；不反向停父或别根。provider 阻断不等于保持进程运行；停止必须 drain 原进程/MCP/DSH 工具后才记 cleanup 成功，保留技术历史，不做 GC。
+真实模型用量沿用已有授权；不重放已消费输入，不修改固定人工 profile。旧 MCP 确定性验证是历史证据；新路径须重新验证宿主接纳、非法输出、取消、消费后崩溃和正常冷恢复。
 
 ## Web Analyzer Resource Composition
 
@@ -124,7 +120,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 
 当前代码已完成八角色/六能力、Definition 完整模型选择、外部 overrides 退役、显式身份 hash、解析后 reasoning 固化及 descriptor 激活到期处理；原七角色 hash 由旧基线常量测试锁定。八角色装配与 Skill 隔离通过真实 DSH 组合测试，不调用真实模型。ACP provider 已实现并通过确定性恢复/MCP 组合测试；会议 owner/worker、dispatcher 与诊断接线已完成并通过确定性验证；真实 Codex/Web 互联网专项尚未执行，不宣称真实验收已通过；验证事实见 Current Implementation Coverage。
 
-先以确定性 ACP 子进程结合真实 DSH AgentLoop/ToolRuntime/Storage Domain 验证身份字节、真实 caller、structured_output、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
+先以确定性 ACP 子进程结合真实 DSH AgentLoop/Storage Domain 验证原生 prompt 边界、宿主 caller、完整 JSON 接纳、撤权、同键异 payload、不可变快照/TTL、发送前存储失败、发送中 kill、responded-before-flush、flush-before-checkpoint、冷 load 失败、worker 未知向根传播、真实 deadline 与正式事实竞争及归档收敛，再运行独立真实专项。现有 peer-meeting-agents 四 Session lane 的数字/证据边界保持原样，不由本方案改称五 Session 通过。
 
 新专项为一场会议两轮、五个平级身份，Reviewer 主 Session 为 acp-codex，spawn worker 默认继承；Web 用 Host 默认。每轮三份 Evidence/三份合法 Review，失败重试另计；Web 每轮实际 search 并读取 agentclientprotocol.com 与 deepseek-harness.github.io 两域原始页面。定位起点为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 和 [DSH Reference](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，后者域根 404，不能作读取目标。20 分钟软时限不是费用上限，超限停止。
 
@@ -137,3 +133,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Design](./MEETING-DESIGN.md)
 - [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)
+
+## Resume Continuation
+
+依据 MO-FR-9，`runMeetingActionTransition` 在接受 `resume_meeting` 的同一事务中，为当前 Manager 追加 `meeting_resumed` notice，并保留原开放轮次/取消审核的恢复 effects。该 notice 不绑定议题、不依赖开放轮次；`createMeetingNoticeDispatcher` 在 running 状态与原 Manager ownership/capability 校验通过后，仅向原 Session 投递定位信息。Manager 另行重读会议并决定后续工作。重复 command 沿原 receipt 去重；投递重试沿原 deliveryId，已消费或未知 ACP 输入不再投递。没有新的状态字段、数据库迁移或权限；其它 notice 的 Agenda 可见性和角色门禁保持原样。

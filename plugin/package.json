@@ -80,6 +80,7 @@
         "test:integration": "pnpm generate:typert && vitest run --project integration",
         "test:recovery": "pnpm generate:typert && vitest run --project recovery",
         "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
+        "acp:preflight": "node scripts/acp-codex-preflight.mjs",
         "smoke:profile": "node scripts/smoke-profile/index.mjs",
         "verify:agent-definitions": "node scripts/verify-agent-definition-samples.mjs",
         "verify:environment": "node scripts/verify-dsh-environment.mjs",
@@ -220,8 +221,7 @@
         "simple-icons": "16.31.0",
         "zod": "^4.4.3",
         "zustand": "~4.4.7",
-        "@agentclientprotocol/sdk": "1.5.1",
-        "@modelcontextprotocol/sdk": "1.26.0"
+        "@agentclientprotocol/sdk": "1.5.1"
     },
     "devDependencies": {
         "@deepseek-ai/dsh-subagent-spawn-in-process": "0.2.0-rc.2",

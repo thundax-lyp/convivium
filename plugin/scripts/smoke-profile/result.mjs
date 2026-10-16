@@ -10,8 +10,10 @@ function exact(object, keys) {
     );
 }
 
-export function validateScenarioResult(value, expectedScenario) {
-    if (expectedScenario === "identity-admission") {
+export const validateScenarioResult = (value, expectedScenario) => {
+    if (expectedScenario === "acp-codex-reviewer-web") {
+        validateAcpCodexReviewerWebResult(value);
+    } else if (expectedScenario === "identity-admission") {
         validateIdentityAdmissionResult(value);
     } else if (expectedScenario === "meeting-business-loop") {
         validateMeetingBusinessLoopResult(value);
@@ -21,7 +23,7 @@ export function validateScenarioResult(value, expectedScenario) {
         throw new Error("Unsupported smoke result scenario: " + expectedScenario);
     }
     return value;
-}
+};
 
 function validateMeetingBusinessLoopResult(value) {
     if (
@@ -241,3 +243,110 @@ export function validatePeerMeetingAgentsResult(value, coldRecovery = true) {
     }
     return value;
 }
+
+export const validateAcpCodexReviewerWebResult = (value) => {
+    const observed = value?.observed;
+    const roles = [
+        "meeting_manager",
+        "verification_reviewer",
+        "github_research_analyst",
+        "arxiv_research_analyst",
+        "web_research_analyst"
+    ];
+    const text = (item) => typeof item === "string" && item.trim().length > 0;
+    if (
+        !exact(value, ["ok", "scenario", "meetingId", "observed"]) ||
+        value.ok !== true ||
+        value.scenario !== "acp-codex-reviewer-web" ||
+        !text(value.meetingId) ||
+        !exact(observed, [
+            "sessionIds",
+            "reviewer",
+            "web",
+            "timedOutContributions",
+            "rounds",
+            "coldRecovery",
+            "authorizationRejected",
+            "archiveComplete"
+        ]) ||
+        !exact(observed.sessionIds, roles) ||
+        !Object.values(observed.sessionIds).every(text) ||
+        new Set(Object.values(observed.sessionIds)).size !== 5 ||
+        !exact(observed.reviewer, [
+            "provider",
+            "model",
+            ...(Object.hasOwn(observed.reviewer ?? {}, "reasoningEffort")
+                ? ["reasoningEffort"]
+                : []),
+            "workerProvider",
+            "workerModel",
+            "hostValidatedReviews"
+        ]) ||
+        observed.reviewer.provider !== "acp-codex" ||
+        !text(observed.reviewer.model) ||
+        observed.reviewer.workerProvider !== "spawn" ||
+        observed.reviewer.workerModel !== observed.reviewer.model ||
+        !Number.isInteger(observed.reviewer.hostValidatedReviews) ||
+        observed.reviewer.hostValidatedReviews < 2 ||
+        !Number.isInteger(observed.timedOutContributions) ||
+        observed.timedOutContributions < 0 ||
+        !exact(observed.web, ["searchCalls", "sources", "blockedSources"]) ||
+        !Number.isInteger(observed.web.searchCalls) ||
+        observed.web.searchCalls < 2 ||
+        !Array.isArray(observed.web.sources) ||
+        !Array.isArray(observed.web.blockedSources) ||
+        observed.web.blockedSources.some(
+            (source) =>
+                !exact(source, ["roundId", "url", "errorCode", "reason"]) ||
+                ![source.roundId, source.url, source.reason].every(text) ||
+                source.errorCode !== "WEB_BLOCKED_URL" ||
+                !source.reason.includes("resolves to a non-public IP address")
+        ) ||
+        observed.web.sources.some(
+            (source) =>
+                !exact(source, [
+                    "roundId",
+                    "url",
+                    "title",
+                    "publishedAt",
+                    "accessedAt",
+                    "contentSha256"
+                ]) ||
+                ![
+                    source.roundId,
+                    source.url,
+                    source.title,
+                    source.publishedAt,
+                    source.accessedAt
+                ].every(text) ||
+                !/^[a-f0-9]{64}$/.test(source.contentSha256) ||
+                Number.isNaN(Date.parse(source.accessedAt))
+        ) ||
+        observed.rounds !== 2 ||
+        observed.coldRecovery !== true ||
+        observed.authorizationRejected !== true ||
+        observed.archiveComplete !== true
+    ) {
+        throw new Error("ACP Codex Web smoke result is invalid");
+    }
+    const records = [...observed.web.sources, ...observed.web.blockedSources];
+    const rounds = [...new Set(records.map((source) => source.roundId))];
+    if (
+        rounds.length !== 2 ||
+        rounds.some((round) => {
+            const domains = new Set(
+                records
+                    .filter((source) => source.roundId === round)
+                    .map((source) => new URL(source.url).hostname)
+            );
+            return (
+                records.filter((source) => source.roundId === round).length !== 2 ||
+                !domains.has("agentclientprotocol.com") ||
+                !domains.has("deepseek-harness.github.io")
+            );
+        })
+    ) {
+        throw new Error("ACP Web per-round source domains missing");
+    }
+    return value;
+};

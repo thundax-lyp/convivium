@@ -23,7 +23,7 @@ import {
 } from "./application-service/index.ts";
 import { createMeetingIdentityEffectHandler } from "./application-service/index.ts";
 import { createMeetingCreationCoordinator } from "./meeting-runtime.ts";
-import { createMeetingAgentOwner, type RoleCatalogPort } from "@/dsh/index.ts";
+import { createMeetingAgentOwner, runAcpReviewWorker, type RoleCatalogPort } from "@/dsh/index.ts";
 import type { CodexAcpProviderPort, MeetingOwnershipLookup } from "@/dsh/index.ts";
 import type { LocalMeetingWebRuntime } from "./index.ts";
 import { createOutboxWorker } from "./outbox-worker.ts";
@@ -567,6 +567,10 @@ const createDeliveryManager = (input: {
         });
         const review = createEvidenceReviewDispatcher({
             acpCodex: input.acpCodex,
+            nativeReview: input.acpCodex
+                ? (review) => runAcpReviewWorker({ ...review, ctx, acpCodex: input.acpCodex! })
+                : undefined,
+            onNativeReviewAccepted: (event) => ctx.emit("convivium/acp-review-accepted", event),
             owner: agentOwner,
             definitions,
             repository,

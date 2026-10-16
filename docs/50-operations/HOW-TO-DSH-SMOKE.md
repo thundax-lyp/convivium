@@ -4,7 +4,7 @@
 
 本文说明如何运行当前 target runtime 的真实 DSH 组合冒烟、判断成功与失败、保留复盘记录并确认 Restore。脚本入口是 `plugin/scripts/smoke-profile/index.mjs`；支持的场景和结果断言以该脚本及其 `probe/` 为准，本文不维护历史 selector。
 
-当前只支持：
+默认依次执行以下三个场景：
 
 - `identity-admission`：验证 Role catalog、原生 Skill Loader 和独立平级 AgentSession。
 - `meeting-business-loop`：验证 target Agent tools、四轮 Manager `roundGoal`、Evidence、Reviewer 逐版本 worker/Review、Publication、Archive 和 SQLite cold reopen。
@@ -43,6 +43,24 @@ CONVIVIUM_INSTALL_ROOT="$web_ui_root" \
 按照 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md) 核对发布物和启动条件；`$web_ui_root/workspace-path` 必须记录 `web_ui_workspace`，`start.sh` 应从仓库 `dsh-workspace/` 启动 DSH，并将 `DSH_HOME` 指向 `web_ui_home`。若首次安装复用仓库根固定的 `dev.env`，只在确认安装器新建的 `$web_ui_root/dev.env` 仍是空占位文件后，将其替换为指向仓库根 `dev.env` 的符号链接；后续刷新必须保留该链接，不得复制或回显 key。运行 `"$web_ui_root/start.sh"`，在 DSH Web 的 Choose workspace 中添加并选择 `web_ui_project` 的绝对路径。人工冒烟的会议议题固定为“TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？”，从普通聊天输入 `/convivium TypeSafe 的 Jev（System-One 决策模型）对长效 Agent 系统是否有实质性系统提升？` 创建 fixture，并在 `Meetings` 面板查看；其他议题的会议不得计为本项人工冒烟通过。若无法选择该项目目录，停止并记录实际入口。已存在的用户 Session 和会议在刷新后直接重开，不重新创建。只有新 profile 首次启动且缺少可用 fixture 时才建立新的会议。成功判据是重启后同一 `DSH_HOME` 能读回已提交的对话，同一 SQLite 能读回会议；仅端口监听不算通过。启动或补读失败时保留固定 `DSH_HOME`、项目目录、安装根和 Host 错误，不改用日常 profile、`/tmp` 或旧构建物。验收结束后停止 Host，保留全部固定目录；删除须另行按精确路径确认，不由 smoke Restore 清理。
 
 人工会议 Agent 的独立工作目录位于固定 DSH 启动目录下的 `dsh-workspace/meetings/<meetingId>/agents/<identityId>/`，不是用户输入 Session 的 `projects/meetings-view/`。目录及工作文件不随暂停、结束、归档或会议业务数据删除自动清理。恢复仍从同一 `dsh-workspace/` 启动，核对 DSH Session header 中的原 cwd。没有 cwd 的旧 Session 会被 DSH 历史接口报为 session/not-found；源码更新不回填其 header，也不自动重建或删除原会议。验证新版目录行为须新建会议；既有会议仍保留原数据，需另行明确旧 Session 的处置范围。
+
+## ACP 人工冒烟与日志调试
+
+2026-10-16 已接受真实一轮核心链路冒烟成功；完整两轮、恢复续行和归档仍待人工验证，详见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#acp-native-execution-migration)。此次交接不启动新模型任务，也不刷新固定人工环境。
+
+前置：使用上文固定人工环境及安装流程，核对发布物、DSH `0.2.0-rc.2`、凭据和官方 ACP 预检。运行 `pnpm --dir plugin acp:preflight`，确认官方 codex-acp/Codex 版本、二进制与选择的模型有效；Definition.agentOptions 是新会议模型选择依据，既有身份绑定不能改配。ACP Agent 只使用自身原生工具和 Skills，会议读取、worker 生命周期及 Review 提交由宿主适配；不要要求它发现 Convivium MCP 或加载 Convivium Skills。
+
+人工验证顺序：
+1. 在固定 Web 环境打开既有兼容会议，核对 meetingId、version、独立 Session、资源、模型及 cwd；没有可用 fixture 时才按上文固定议题创建新会议。
+2. 观察一轮真实 Evidence、逐版本独立 worker、宿主校验后的 Review 和 Publication；记录实际数量、失败和耗时，不能以进程启动或 URL 回显替代业务成功。
+3. 通过受控用户入口暂停，停稳 Host 后冷启动，核对原事实与绑定，再用新的用户请求继续。观察 `meeting_resumed` 投递至当前 Manager、后续开轮和发布；通知本身不替 Manager 选择领域操作。
+4. 验证正常结束与 archive complete；模型或网络超时须如实记录，观察 Runtime 是否按期限与失败语义收敛。未实际走通的项目保留 Not Covered。
+
+日志记录日期、源码 commit、发布物标识、meetingId、version、requestId/deliveryId、阶段、错误码和原始异常；结合 Host 日志、公开 Session tool/result、ACP 技术记录与会议已提交事实定位。导出前脱敏 key、URL token 和敏感正文；不根据内部推理补写会议事实。
+
+失败时停止本次 Host 并确认端口释放，保留 SQLite、DSH_HOME、Session 和 checkpoint。外部结果未知或已消费输入缺少持久 outcome 时停止，禁止重新投递旧输入、替换 Session、改写 receipt/outbox、刷新原准入有效期或放宽取消门禁。非公网 DNS 的 `WEB_BLOCKED_URL` 记环境未覆盖，不绕过 SSRF。恢复必须先核对原绑定与持久结果，再经新的合法用户生命周期请求继续；不要直接运行旧临时目录中的恢复脚本。
+
+专项自动入口仍保留 `CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web`，仅显式选择才运行，不包含在默认三场景；它要求完整两轮与冷恢复/归档，其未通过记录不能作为一轮冒烟的 PASS 记录。历史临时 checkpoint 恢复入口仅用于受审计的指定现场，不能当作通用恢复命令。
 
 ## Prerequisites
 

@@ -2,11 +2,11 @@
 
 ## Purpose And Preconditions
 
-本文说明七个角色资源的部署和核对。新会议创建一位 Manager、一位专职 Evidence Reviewer 和 Host `initialContributorRoleIds` 选中的 Contributor；当前部署 patch 选 GitHub/arXiv 两位，三个工程角色资源保留；Reviewer 的逐版本 one-shot worker 仍使用 subagent。正式契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，恢复与权限边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md)，实际覆盖见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
+本文说明八个角色资源的部署和核对。新会议创建一位 Manager、一位专职 Evidence Reviewer 和 Host `initialContributorRoleIds` 选中的 Contributor；当前部署 patch 选 GitHub/arXiv 两位，三个工程角色资源保留；Reviewer 的逐版本 one-shot worker 仍使用 subagent。正式契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，恢复与权限边界见 [Peer Meeting Agents Design](../30-designs/PEER-MEETING-AGENTS-DESIGN.md)，实际覆盖见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 - Node/pnpm 满足 `plugin/package.json`，DSH 固定 `0.2.0-rc.2`。
-- 发行包包含 `config/definitions.json`、七份 AGENTS、七个 Preset、五项能力 Skill、一个用户入口 Skill 和部署 patch。
-- Host 提供模型路由、Agent factory、Preset/Skill Loader、Session persistence、SQLite Storage Domain；Reviewer worker 所需的 spawn provider 和来源读取工具由 Host 提供。
+- 发行包包含 `config/definitions.json`、八份 AGENTS、八个 Preset、六项能力 Skill、一个用户入口 Skill 和部署 patch。
+- Host 提供模型路由、Agent factory、Preset/Skill Loader、Session persistence、SQLite Storage Domain；Reviewer worker 所需的 spawn provider 由 Host 提供。ACP Agent 仅使用自身原生工具和 Skills，表中 Convivium 能力分配不作为 ACP 工具注入；会议上下文和审核提交由宿主适配。
 - 凭据按 [Smoke Operations](./HOW-TO-DSH-SMOKE.md) 管理，不写入包、patch、终端输出或结果。缺模型、工具、资源或凭据时停止，不能以测试替身声称研究能力可用。
 
 ## Deploy And Start
@@ -15,7 +15,7 @@
 
 `start.sh` 从 `$DSH_HOME/profiles/web/node_modules/@convivium/dsh-plugin/config` 解析真实路径，设置 `CONVIVIUM_MEETING_ROLES_ROOT`，再加载该目录的 `cordis.patch.yml`。此变量是非敏感部署路径，必须与插件入口的 package root 一致；另一份解包副本即使内容相同也不是运行资源根。不要自行改为源码目录或用 patch baseUrl 猜测路径。
 
-Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/convivium <会议目标>` 直接创建会议，受控方法按 Host 配置自动补齐初始身份、初始议题和限制；`Meetings` 面板只负责查看和控制。七角色 Definition 与身份资源由内容指纹绑定，不另设版本字段。Captain 就是可信本地用户，无须 Captain Session。聊天 Skill 通过一次性授权工具创建；`/convivium cancel <meetingId> <原因>` 以一次性授权异常取消。结构化用户控制经 loopback Remote；Manager 有专用正常结束工具。输入 Session 关闭、面板重新连接均不改变会议授权。
+Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/convivium <会议目标>` 直接创建会议，受控方法按 Host 配置自动补齐初始身份、初始议题和限制；`Meetings` 面板只负责查看和控制。八角色 Definition 与身份资源由内容指纹绑定，不另设版本字段。Captain 就是可信本地用户，无须 Captain Session。聊天 Skill 通过一次性授权工具创建；`/convivium cancel <meetingId> <原因>` 以一次性授权异常取消。结构化用户控制经 loopback Remote；Manager 有专用正常结束工具。输入 Session 关闭、面板重新连接均不改变会议授权。
 
 ## Role Assets And Models
 
@@ -28,10 +28,11 @@ Host 的默认 Preset 保持 `standard`。用户在普通聊天输入 `/conviviu
 | verification_reviewer   | convivium-verification-reviewer   | arxiv、evidence-review、github、repository-analysis |
 | github_research_analyst | convivium-github-research-analyst | github                                              |
 | arxiv_research_analyst  | convivium-arxiv-research-analyst  | arxiv                                               |
+| web_research_analyst | convivium-web-research-analyst | web |
 
 Definition ID 为 `convivium.<后缀>`。`config/agents/<后缀>/AGENTS.md` 由插件在 scoped setup 中显式注册为身份指令；具体目录以发行包 Definition 的资源引用为准。DSH 原生 cwd AGENTS 仍按 Host 规则加载。能力使用 `config/skills/<能力名>/SKILL.md`，可附带 `scripts/`；加载 Skill 不会执行脚本。隔离覆盖模型上下文、Skill 列表和按名称加载，不承诺本机文件系统保密。
 
-模型默认值由 DSH Settings 管理；角色差异通过额外 Host patch 的 `convivium.config.agentModelOverrides` 提供。key 为 Definition ID，value 仅含 provider/model/reasoningEffort，值必须来自 Host 支持的真实路由。该 patch 在角色 patch 后加载；Cordis 整体替换 config，因此须保留 provider、maxParticipants、`initialContributorRoleIds` 和完整 agentDefinitions 表达式。不要编辑 AGENTS/Skill 或凭据实现模型覆盖。
+模型默认值由 DSH Settings 管理；角色差异通过 Definition.agentOptions 的 provider/model/reasoningEffort 提供，值必须来自 Host 支持的真实路由。携带 Definition 的 Host patch 在角色 patch 后加载；Cordis 整体替换 config，因此须保留 provider、maxParticipants、`initialContributorRoleIds` 和完整 agentDefinitions 表达式。不要编辑 AGENTS/Skill 或凭据实现模型覆盖。
 
 创建时固化资源哈希、模型 options 和 Session ID。修改配置不会重配已创建身份；冷恢复必须匹配原绑定，缺失或变更资源时拒绝恢复。
 
@@ -59,3 +60,5 @@ Definition ID 为 `convivium.<后缀>`。`config/agents/<后缀>/AGENTS.md` 由�
 ## Evidence And Not Covered
 
 把日期、commit/工作树范围、DSH 版本、命令、三个场景 observed 和 Restore 结果记入 readiness。人工 Browser、跨 Host、长期模型任务质量不由这些自动结果证明。
+
+2026-10-16 ACP 专项已确认一轮核心链路成功，完整恢复与归档留待[人工冒烟](./HOW-TO-DSH-SMOKE.md#acp-人工冒烟与日志调试)；不以历史四轮 DSH 结果证明 ACP 两轮验收。

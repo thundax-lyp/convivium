@@ -16,6 +16,7 @@ import { runDueContributionDeadline } from "./contribution-deadline.ts";
 
 const supported = new Set([
     "meeting_started",
+    "meeting_resumed",
     "agenda_stopped",
     "round_opened",
     "hand_request",
@@ -123,8 +124,17 @@ const assertNoticeReferences = (
     identity: MeetingIdentity,
     payload: Record<string, unknown>,
     noticeKind: string,
-    agendaId: string
+    agendaId: string | undefined
 ): Record<string, unknown> => {
+    if (noticeKind === "meeting_resumed") {
+        if (!identity.roles.includes("manager")) {
+            fail("NOTICE_VISIBILITY_INVALID");
+        }
+        return {};
+    }
+    if (agendaId === undefined) {
+        fail("NOTICE_PAYLOAD_INVALID");
+    }
     const agenda = state.agenda.find((candidate) => candidate.id === agendaId);
     if (!agenda) {
         fail("NOTICE_VISIBILITY_INVALID");
@@ -271,7 +281,8 @@ export const createMeetingNoticeDispatcher = (
             fail("OUTBOX_ROUTE_UNAVAILABLE");
         }
         const recipientId = stringField(payload, "recipientId");
-        const agendaId = stringField(payload, "agendaId");
+        const agendaId =
+            noticeKind === "meeting_resumed" ? undefined : stringField(payload, "agendaId");
         const resolve = async () => {
             signal.throwIfAborted();
             const recovered = await dependencies.repository.recover();

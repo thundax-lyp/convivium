@@ -11,7 +11,8 @@ import type { ResolvedMeetingCaller } from "@/dsh/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
 import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
-import { ReviewWorkerOutputSchema } from "@/protocol/index.ts";
+import { validateJsonSchemaValue } from "@deepseek-ai/dsh-tools";
+import { SubmitEvidenceReviewActionSchema, ReviewWorkerOutputSchema } from "@/protocol/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
@@ -165,6 +166,20 @@ interface DispatchEvidenceReviewInput {
 }
 
 interface EvidenceReviewDispatcherDependencies {
+    readonly nativeReview?: (input: {
+        ownership: SessionOwnership;
+        versionId: string;
+        prompt: string;
+        signal: AbortSignal;
+    }) => Promise<{ workerSessionId: string; model: string; output: unknown }>;
+    readonly onNativeReviewAccepted?: (payload: {
+        rootSessionId: string;
+        workerSessionId: string;
+        versionId: string;
+        reviewId: string;
+        provider: "acp-codex";
+        model: string;
+    }) => void;
     readonly acpCodex?: CodexAcpProviderPort;
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
@@ -357,6 +372,7 @@ export const createReviewWorkerPromptResolver = (dependencies: {
 export const createEvidenceReviewDispatcher = (
     dependencies: EvidenceReviewDispatcherDependencies
 ): { dispatch(input: DispatchEvidenceReviewInput): Promise<void> } => {
+    const nativeTasks = new Map<string, Promise<void>>();
     const failValidation = async (
         meetingId: string,
         roundId: string,
@@ -421,7 +437,8 @@ export const createEvidenceReviewDispatcher = (
             if (!recovered.snapshot) {
                 retry("REVIEW_STATE_UNAVAILABLE");
             }
-            const { state } = recovered.snapshot;
+            const snapshot = recovered.snapshot;
+            const { state } = snapshot;
             if (recipientId !== state.evidenceReviewerId) {
                 fail("REVIEW_VISIBILITY_INVALID");
             }
@@ -438,7 +455,7 @@ export const createEvidenceReviewDispatcher = (
             const ownership = findOwnership(
                 recovered.sessionOwnership,
                 identity,
-                recovered.snapshot.meetingId,
+                snapshot.meetingId,
                 "evidence_reviewer"
             );
             const checkBlock = () => {
@@ -475,13 +492,34 @@ export const createEvidenceReviewDispatcher = (
                 checkBlock();
                 return false;
             };
+            const native = ownership.agentOptions?.provider === "acp-codex";
+            if (native) {
+                const task = nativeTasks.get(outboxItem.deliveryId);
+                if (task) {
+                    await task;
+                    return;
+                }
+                if (!dependencies.acpCodex || !dependencies.nativeReview) {
+                    fail("ACP_CODEX_CONFIG_INVALID");
+                }
+                if (
+                    dependencies.acpCodex.deliveryState(
+                        ownership.sessionId,
+                        outboxItem.deliveryId
+                    ) !== "unseen"
+                ) {
+                    await dependencies.acpCodex.requireRecovery(ownership.sessionId);
+                    checkBlock();
+                    fail("ACP_CODEX_RECOVERY_REQUIRED");
+                }
+            }
             const existingClaim = state.reviewClaims.find(
                 (claim) => claim.versionId === requestedVersionId
             );
             if (existingClaim) {
                 if (existingClaim.expiresAt <= dependencies.clock.now()) {
                     await failValidation(
-                        recovered.snapshot.meetingId,
+                        snapshot.meetingId,
                         existingClaim.roundId,
                         existingClaim.id,
                         "review_timeout"
@@ -522,8 +560,8 @@ export const createEvidenceReviewDispatcher = (
             const claim = await dependencies.application.execute(
                 {
                     protocolVersion: 1,
-                    meetingId: recovered.snapshot.meetingId,
-                    expectedMeetingVersion: recovered.snapshot.version,
+                    meetingId: snapshot.meetingId,
+                    expectedMeetingVersion: snapshot.version,
                     requestId: `review-claim:${outboxItem.id}:${outboxItem.attempts}`,
                     action: {
                         kind: "claim_evidence_review",
@@ -568,80 +606,169 @@ export const createEvidenceReviewDispatcher = (
                 retry("REVIEW_CLAIM_UNAVAILABLE");
             }
             try {
-                await deliverReviewNotice(dependencies, {
-                    observeTurn: true,
-                    deliveryId: outboxItem.deliveryId,
-                    ownership,
-                    meetingId: recovered.snapshot.meetingId,
-                    identityId: identity.id,
-                    authorize: async () => {
-                        const latest = await dependencies.repository.recover();
-                        if (
-                            !latest.snapshot ||
-                            latest.snapshot.meetingId !== recovered.snapshot!.meetingId
-                        ) {
-                            retry("REVIEW_STATE_UNAVAILABLE");
-                        }
-                        const current = latest.snapshot.state;
-                        if (current.lifecycle.status !== "running") {
-                            retry("INVALID_STATE", false);
-                        }
-                        const currentIdentity = findIdentity(
-                            current,
-                            recipientId,
-                            "evidence_reviewer"
-                        );
-                        const currentOwner = findOwnership(
-                            latest.sessionOwnership,
-                            currentIdentity,
-                            latest.snapshot.meetingId,
-                            "evidence_reviewer"
-                        );
-                        if (
-                            currentOwner.id !== ownership.id ||
-                            currentOwner.sessionId !== ownership.sessionId
-                        ) {
-                            fail("REVIEW_OWNERSHIP_INVALID");
-                        }
-                        if (
-                            current.evidenceReviewerId !== recipientId ||
-                            !current.reviewClaims.some(
-                                (c) =>
-                                    c.id === claimId &&
-                                    c.versionId === requestedVersionId &&
-                                    c.sourceEffectId === outboxItem.id &&
-                                    c.expiresAt > dependencies.clock.now()
-                            )
-                        ) {
-                            retry("REVIEW_CLAIM_UNAVAILABLE", false);
-                        }
-                    },
-                    prompt: [
+                const executeReview = async (): Promise<void> => {
+                    await deliverReviewNotice(dependencies, {
+                        observeTurn: true,
+                        deliveryId: outboxItem.deliveryId,
+                        ownership,
+                        meetingId: snapshot.meetingId,
+                        identityId: identity.id,
+                        authorize: async () => {
+                            const latest = await dependencies.repository.recover();
+                            if (
+                                !latest.snapshot ||
+                                latest.snapshot.meetingId !== snapshot.meetingId
+                            ) {
+                                retry("REVIEW_STATE_UNAVAILABLE");
+                            }
+                            const current = latest.snapshot.state;
+                            if (current.lifecycle.status !== "running") {
+                                retry("INVALID_STATE", false);
+                            }
+                            const currentIdentity = findIdentity(
+                                current,
+                                recipientId,
+                                "evidence_reviewer"
+                            );
+                            const currentOwner = findOwnership(
+                                latest.sessionOwnership,
+                                currentIdentity,
+                                latest.snapshot.meetingId,
+                                "evidence_reviewer"
+                            );
+                            if (
+                                currentOwner.id !== ownership.id ||
+                                currentOwner.sessionId !== ownership.sessionId
+                            ) {
+                                fail("REVIEW_OWNERSHIP_INVALID");
+                            }
+                            if (
+                                current.evidenceReviewerId !== recipientId ||
+                                !current.reviewClaims.some(
+                                    (c) =>
+                                        c.id === claimId &&
+                                        c.versionId === requestedVersionId &&
+                                        c.sourceEffectId === outboxItem.id &&
+                                        c.expiresAt > dependencies.clock.now()
+                                )
+                            ) {
+                                retry("REVIEW_CLAIM_UNAVAILABLE", false);
+                            }
+                        },
+                        prompt: [
+                            {
+                                type: "text",
+                                text: JSON.stringify({
+                                    effectId: outboxItem.id,
+                                    meetingId: snapshot.meetingId,
+                                    expectedMeetingVersion: snapshot.version,
+                                    pending: requested,
+                                    reviewConstraint: {
+                                        versionId: requestedVersionId,
+                                        allowedBaselineEvidenceIds
+                                    },
+                                    reviewItemRules,
+                                    instructions: native
+                                        ? "宿主将启动独立审核 worker 并校验提交结果。仅确认收到本审核任务，不调用会议工具，不自行提交。"
+                                        : "只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 只有顶层 input，input 只含当前 request 的 meetingId 和 versionId，不传 prompt。工具从当前 claim、immutable version 和固定 baseline 构造 worker 输入，使用机器校验的 workerOutputSchema；dimensions 只能是 source、credibility、completeness、support 四个键。Runtime 校验 worker 结果并直接提交 Review，返回 accepted 回执、rejected 或 failed；不要转抄结果或另行提交。工具参数直接使用结构化 object，不要生成 JSON 文本。工具返回后直接结束；失败时不创建 replacement worker。"
+                                })
+                            }
+                        ],
+                        signal
+                    });
+
+                    if (!native) {
+                        return;
+                    }
+                    const caller: ResolvedMeetingCaller = {
+                        caller: {
+                            channel: "dsh_tool",
+                            principalId: identity.id,
+                            sessionBindingId: ownership.id
+                        },
+                        meetingId: snapshot.meetingId,
+                        identityId: identity.id,
+                        role: "evidence_reviewer",
+                        ownership
+                    };
+                    const prompt = await createReviewWorkerPromptResolver({
+                        registry: { openMeeting: async () => dependencies.repository },
+                        clock: dependencies.clock
+                    }).resolve({
+                        meetingId: caller.meetingId,
+                        versionId: requestedVersionId,
+                        caller,
+                        signal
+                    });
+                    if (!prompt || prompt.claimId !== claimId) {
+                        fail("REVIEW_CLAIM_UNAVAILABLE");
+                    }
+                    const worker = await dependencies.nativeReview!({
+                        ownership,
+                        versionId: requestedVersionId,
+                        prompt: prompt.prompt,
+                        signal
+                    });
+                    signal.throwIfAborted();
+                    checkBlock();
+                    if (
+                        validateJsonSchemaValue(ReviewWorkerOutputSchema, worker.output).length !==
+                        0
+                    ) {
+                        fail("REVIEW_WORKER_OUTPUT_INVALID");
+                    }
+                    const output = worker.output as Record<string, unknown>;
+                    if (output.versionId !== requestedVersionId) {
+                        fail("REVIEW_WORKER_VERSION_MISMATCH");
+                    }
+                    const action = SubmitEvidenceReviewActionSchema.safeParse({
+                        kind: "submit_evidence_review",
+                        roundId: prompt.roundId,
+                        claimId,
+                        versionId: requestedVersionId,
+                        dimensions: output.dimensions,
+                        scope: output.scope
+                    });
+                    if (!action.success) {
+                        fail("REVIEW_WORKER_OUTPUT_INVALID");
+                    }
+                    const submitted = await dependencies.application.execute(
                         {
-                            type: "text",
-                            text: JSON.stringify({
-                                effectId: outboxItem.id,
-                                meetingId: recovered.snapshot.meetingId,
-                                expectedMeetingVersion: recovered.snapshot.version,
-                                pending: requested,
-                                reviewConstraint: {
-                                    versionId: requestedVersionId,
-                                    allowedBaselineEvidenceIds
-                                },
-                                reviewItemRules,
-                                instructions:
-                                    "只调用一次 convivium_run_review_worker，不调用通用 subagent，也不创建 replacement worker；convivium_run_review_worker 的 arguments 只有顶层 input，input 只含当前 request 的 meetingId 和 versionId，不传 prompt。工具从当前 claim、immutable version 和固定 baseline 构造 worker 输入，使用机器校验的 workerOutputSchema；dimensions 只能是 source、credibility、completeness、support 四个键。Runtime 校验 worker 结果并直接提交 Review，返回 accepted 回执、rejected 或 failed；不要转抄结果或另行提交。工具参数直接使用结构化 object，不要生成 JSON 文本。工具返回后直接结束；失败时不创建 replacement worker。"
-                            })
-                        }
-                    ],
-                    signal
-                });
+                            protocolVersion: 1,
+                            meetingId: caller.meetingId,
+                            requestId: `evidence-review:${claimId}`,
+                            action: action.data
+                        },
+                        { caller: caller.caller },
+                        signal
+                    );
+                    if (submitted.kind !== "accepted") {
+                        fail(submitted.error.code);
+                    }
+                    const reviewId = submitted.relatedIds?.[0];
+                    if (!reviewId) {
+                        fail("REVIEW_SUBMISSION_RECEIPT_INVALID");
+                    }
+                    dependencies.onNativeReviewAccepted?.({
+                        rootSessionId: ownership.sessionId,
+                        workerSessionId: worker.workerSessionId,
+                        versionId: requestedVersionId,
+                        reviewId,
+                        provider: "acp-codex",
+                        model: worker.model
+                    });
+                };
+                const task = executeReview();
+                if (native) {
+                    nativeTasks.set(outboxItem.deliveryId, task);
+                }
+                await task;
             } catch (error) {
                 if (await reconcileOutcome()) {
                     return;
                 }
                 await failValidation(
-                    recovered.snapshot.meetingId,
+                    snapshot.meetingId,
                     requested.roundId,
                     claimId,
                     claimReleaseReason(error, signal)
@@ -674,7 +801,7 @@ export const createEvidenceReviewDispatcher = (
             }
             // The owning turn has ended; a retained claim cannot represent live validation.
             await failValidation(
-                recovered.snapshot.meetingId,
+                snapshot.meetingId,
                 requested.roundId,
                 retainedClaim.id,
                 "dispatch_failed"

@@ -18,6 +18,7 @@ export interface AgentNoticeEffectBase {
 }
 
 export type AgentNoticeEffectRequest =
+    | { kind: "agent_notice"; noticeKind: "meeting_resumed"; recipientId: OpaqueId }
     | (AgentNoticeEffectBase & { noticeKind: "meeting_started" })
     | (AgentNoticeEffectBase & { noticeKind: "agenda_stopped"; planId: OpaqueId })
     | (AgentNoticeEffectBase & { noticeKind: "round_opened"; roundId: OpaqueId })

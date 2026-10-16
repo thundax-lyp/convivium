@@ -10,25 +10,6 @@ export interface CodexAcpConnection {
     close(): Promise<void>;
 }
 
-export interface CodexToolBridge {
-    readonly mcpServer: {
-        type: "http";
-        name: "convivium";
-        url: string;
-        headers: [{ name: "Authorization"; value: string }];
-    };
-    setRequest(
-        input:
-            | {
-                  requestId: string;
-                  tools: readonly import("@deepseek-ai/dsh-llm").ToolSchema[];
-                  signal: AbortSignal;
-              }
-            | undefined
-    ): void;
-    close(): Promise<void>;
-}
-
 export type CodexAcpBlock = Readonly<{
     code: "ACP_CODEX_OUTCOME_UNKNOWN" | "ACP_CODEX_RECOVERY_REQUIRED";
     since: number;
@@ -87,6 +68,7 @@ export interface CodexAcpProviderPort {
         signal: AbortSignal
     ): Promise<void>;
     reconcileSession(sessionId: string, signal: AbortSignal): Promise<void>;
+    requireRecovery(sessionId: string): Promise<void>;
     deliveryState(
         sessionId: string,
         deliveryId: string
@@ -103,6 +85,14 @@ export interface CodexAcpProviderPort {
 
 declare module "@deepseek-ai/cordis" {
     interface Events {
+        "convivium/acp-review-accepted"(payload: {
+            rootSessionId: string;
+            workerSessionId: string;
+            versionId: string;
+            reviewId: string;
+            provider: "acp-codex";
+            model: string;
+        }): void;
         "convivium/acp-checkpoint"(payload: {
             sessionId: string;
             rootSessionId: string;
