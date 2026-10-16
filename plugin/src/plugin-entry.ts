@@ -141,11 +141,6 @@ const meetingConsumerPlugin = {
 export const apply = async (ctx: Context, config: ConfigType): Promise<void> => {
     if (config.acpCodex) {
         const dependencies = [...meetingServices, "storageDomain", "subprocess"] as const;
-        for (const service of dependencies) {
-            if (!ctx.get(service)) {
-                throw new Error(`Missing ACP Host service: ${service}`);
-            }
-        }
         await ctx.inject(dependencies, (context) => meetingConsumerPlugin.apply(context, config));
         return;
     }

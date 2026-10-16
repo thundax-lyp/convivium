@@ -205,17 +205,6 @@ describe("Convivium local Meeting route lifecycle", () => {
         ).rejects.toThrow("duplicate ACP route");
     });
 
-    it("rejects enabled ACP when a required Host service is absent", async () => {
-        const calls = createProvider.mock.calls.length;
-        await expect(
-            apply({ get: () => undefined } as never, {
-                ...config,
-                acpCodex: { command: "/scripted-acp", args: [] }
-            })
-        ).rejects.toThrow("Missing ACP Host service: agents");
-        expect(createProvider).toHaveBeenCalledTimes(calls);
-    });
-
     it("registers exactly one Remote Service on loopback", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.childOrder).toEqual([
@@ -278,6 +267,78 @@ describe("Convivium local Meeting route lifecycle", () => {
 });
 
 describe("Convivium Cordis service lifecycle", () => {
+    it.each(["agentPresets", "subprocess"])(
+        "waits for required ACP service %s and releases its consumer when revoked",
+        async (lateService) => {
+            const root = new Context();
+            const close = vi.fn();
+            const unsubscribe = vi.fn();
+            const initialCalls = createProvider.mock.calls.length;
+            createProvider.mockResolvedValueOnce({ close, subscribeBlocks: () => unsubscribe });
+            try {
+                await root.plugin(SystemPrompt, {});
+                await root.plugin(Tools, { mode: "native" });
+                root.provide("agents", { get: () => undefined });
+                root.provide("sessions", {});
+                for (const service of [
+                    "sessionPersistence",
+                    "agentPresets",
+                    "agentDefaultModel",
+                    "skills",
+                    "llm",
+                    "subprocess"
+                ]) {
+                    if (service !== lateService) {
+                        root.provide(service, {});
+                    }
+                }
+                const spawnProvider = {
+                    name: "spawn",
+                    capabilities: providerCapabilities,
+                    prepareContinuable: async () => ({})
+                };
+                root.provide("subagents", {
+                    getProvider: () => spawnProvider,
+                    listChildren: async () => [],
+                    listDescendants: async () => [],
+                    drainContinuableChildren: async () => {}
+                });
+                root.provide("storageDomain", createFakeDomainFacility());
+                const plugin = await root.plugin({
+                    name: "acp-required-service-test",
+                    apply: (ctx) =>
+                        apply(ctx, { ...config, acpCodex: { command: "/scripted-acp", args: [] } })
+                });
+                const meetingTools = () =>
+                    root.tools.schemas().filter((schema) => schema.name.startsWith("convivium_"));
+                expect(createProvider).toHaveBeenCalledTimes(initialCalls);
+                expect(meetingTools()).toEqual([]);
+                const dependency = await root.plugin({
+                    name: "late-required-service",
+                    apply: (ctx) => {
+                        ctx.provide(lateService, {});
+                    }
+                });
+                await vi.waitFor(() => expect(meetingTools()).toHaveLength(14));
+                expect(createProvider).toHaveBeenCalledTimes(initialCalls + 1);
+                const providerContext = createProvider.mock.calls.at(-1)![0];
+                close.mockImplementation(() => {
+                    expect(() => getLocalMeetingWebRuntime(providerContext)).toThrow();
+                });
+                await dependency.dispose();
+                await vi.waitFor(() => expect(meetingTools()).toEqual([]));
+                expect(unsubscribe).toHaveBeenCalledOnce();
+                expect(close).toHaveBeenCalledOnce();
+                root.emit("subagent/provider-added", spawnProvider);
+                expect(createProvider).toHaveBeenCalledTimes(initialCalls + 1);
+                await plugin.dispose();
+                expect(close).toHaveBeenCalledOnce();
+            } finally {
+                await root.fiber.dispose();
+            }
+        }
+    );
+
     it.each([false, true])(
         "keeps tools gated on the configured provider and independent of WebServer (late provider: %s)",
         async (lateProvider) => {
