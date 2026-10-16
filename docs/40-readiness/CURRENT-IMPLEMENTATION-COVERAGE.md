@@ -68,6 +68,14 @@ Executed Validation：三项归档悬空引用反例修复前返回 valid、修�
 
 Not Covered / Closure：未执行人工归档界面或真实模型；不提供损坏归档修复或历史格式迁移。
 
+## 2026-10-16：并发审核等待失败结算
+
+Scope / Validated Contract：处理 PR #136 的 comment #4292715849。nativeTasks 的 Promise 覆盖 worker 执行、reconcileOutcome 和 claim 失败持久结算；整个任务结算后才删除。同 deliveryId 的并发 dispatch 等待相同结果，不在 validating 到 validation_failed 的结算窗口误触发 requireRecovery。已知失败后的预算重试和未知消费阻断不变。
+
+Executed Validation：暂停 fail_evidence_validation 时并发 dispatch，修复前得到 ACP_CODEX_RECOVERY_REQUIRED，修复后两调用均得到 REVIEW_VALIDATION_RETRY、只运行一次 worker、claim 已释放且未调用 requireRecovery。审核文件23项通过；完整 plugin verify 通过103文件905项测试及全部格式/类型/构建/契约检查，文档链接1175项零错误、git diff --check通过。
+
+Not Covered / Closure：确定性故障同步验证，不追加真实 ACP/模型、人工环境或跨进程恢复验收。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。

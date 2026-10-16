@@ -88,7 +88,7 @@ ACP root/worker 只使用外部 Agent 自身原生工具和 Skills，会议读�
 
 `createMeetingAgentOwner` 继续校验 Definition/资源/Skill/options/header/cwd、装配 Preset 和持久交付门禁，首次 warm 激活保留原 Agent/进程/绑定；provider 仅用 ACP 空 mcpServers 和原连接。宿主 Role/Skill 完整性校验不意味着向外部投影这些方法；provider 的 prompt projection 不传 system/developer。
 
-`createEvidenceReviewDispatcher` 为 ACP 分支仅在执行期间持有一次 Promise，通知原 root 后通过 `runAcpReviewWorker` 启动无 outputSchema 的原生 DSH spawn。原 worker parent/model、取消、checkpoint 和 disposer 由 DSH adapter 管理；Runtime 校验完整 JSON、Schema/version 后，使用原 claim/caller/application 提交，并发出只读 accepted 事件。既有工具 Reviewer 流程只供非 ACP。已知 dispatch_failed 的重试只在 root 交付 completed、无 block 且预算允许时重新领取 claim，跳过原 root 输入，仅启动新 worker；其余已消费原交付且无持久 Review/原 Promise 时持久阻断，不复活或替换 worker；正常空闲点保留原 ID 冷 load。
+`createEvidenceReviewDispatcher` 为 ACP 分支持有覆盖执行及 claim 结算的完整 Promise，结算完成后删除，通知原 root 后通过 `runAcpReviewWorker` 启动无 outputSchema 的原生 DSH spawn。原 worker parent/model、取消、checkpoint 和 disposer 由 DSH adapter 管理；Runtime 校验完整 JSON、Schema/version 后，使用原 claim/caller/application 提交，并发出只读 accepted 事件。既有工具 Reviewer 流程只供非 ACP。已知 dispatch_failed 的重试只在 root 交付 completed、无 block 且预算允许时重新领取 claim，跳过原 root 输入，仅启动新 worker；其余已消费原交付且无持久 Review/原 Promise 时持久阻断，不复活或替换 worker；正常空闲点保留原 ID 冷 load。
 
 provider 的 agent/created hook 仍只准备已准备 root 下的 fresh spawn，核查继承的 CodexCompactionBoundary；不新增全局默认 ACP 用户 Session，不安装第二个 compaction Service。未知结果继续传播到所属根、保持真实 deadline、不自动暂停。stopSession(root) 停所属子树，stopSession(worker) 不反向停父；cleanup 不 load，不做 GC。
 

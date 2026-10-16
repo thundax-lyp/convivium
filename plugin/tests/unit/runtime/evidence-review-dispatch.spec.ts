@@ -1255,3 +1255,29 @@ it("retries a failed native review under a new claim without replaying the root 
     expect(f.accepted).toHaveBeenCalledOnce();
     expect(f.acpCodex.requireRecovery).not.toHaveBeenCalled();
 });
+
+it("shares native failure settlement with concurrent dispatch without blocking recovery", async () => {
+    const f = nativeFixture({ ...nativeOutput(), dimensions: {} });
+    const settlement = Promise.withResolvers();
+    const entered = Promise.withResolvers();
+    const execute = f.application.execute.getMockImplementation()!;
+    f.application.execute.mockImplementation(async (command, context, signal) => {
+        if (command.action.kind === "fail_evidence_validation") {
+            entered.resolve(undefined);
+            await settlement.promise;
+        }
+        return execute(command, context, signal);
+    });
+    const dispatcher = createEvidenceReviewDispatcher(f.dependencies);
+    const first = dispatcher.dispatch(f.input);
+    const firstResult = first.catch((error) => error);
+    await entered.promise;
+    const repeated = dispatcher.dispatch(f.input).catch((error) => error);
+    await Promise.resolve();
+    settlement.resolve(undefined);
+    expect(await firstResult).toMatchObject({ code: "REVIEW_VALIDATION_RETRY" });
+    expect(await repeated).toMatchObject({ code: "REVIEW_VALIDATION_RETRY" });
+    expect(f.acpCodex.requireRecovery).not.toHaveBeenCalled();
+    expect(f.nativeReview).toHaveBeenCalledOnce();
+    expect(f.state.reviewClaims).toEqual([]);
+});
