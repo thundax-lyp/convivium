@@ -102,6 +102,8 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 
 完整类型复核：前次只核对 Session 扁平化日志中的 error={name,code}，误当成 tools/result 的 ToolFailure，造成 timeout-result 第一轮三份 Review/发布后仍未识别环境拒绝。已同时核对 rc.2 ToolFailure 与 ToolErrorInfo 公开声明，以及 dsh-tools::toolErrorResult/materializeFinalResult，唯一映射是 result.error.info.code；不采用模糊文本 fallback。原 fFMhgE 根保留，无 checkpoint，不复用已消费输入。新的唯一目录固定 /tmp/convivium-acp-codex-evidence-timeout-observed；修正该 E2 白名单内的一行后继续原全部验证，先两册链接/diff 审计通过再执行。
 
+只读服务装配审计：timeout-observed 已通过真实 Web 非公网拒绝分类、三份 Review 和发布；随后 settled 访问 ctx.storageDomain 报 cannot get property "storageDomain" without inject。缺口位于 E2 白名单内 probe/index.mjs::inject，固定新增必需 storageDomain，不使用 ctx.get 绕过注入、不改生产依赖。已逐项核对场景访问 agents/sessions/tools/storageDomain，前三已声明，只有 storageDomain 遗漏；所有 smoke profile 都装载 SQLite Storage Domain。原 osdKN0 根保留且不重放，新 randomUUID 任务唯一目录 /tmp/convivium-acp-codex-evidence-timeout-outbox。只改既有 probe 依赖声明，lint/format 和既有部署契约通过后执行原真实门禁；两册链接/diff检查通过，Author/Audit Executable。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。
@@ -137,8 +139,8 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-timeout-observed
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-observed CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-timeout-outbox
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-outbox CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/全部实际 Evidence 合法 Review 与超时记录、真实搜索/两域正文或明确环境未覆盖记录、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

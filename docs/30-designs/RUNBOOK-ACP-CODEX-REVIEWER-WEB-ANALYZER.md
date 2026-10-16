@@ -10,6 +10,8 @@
 
 采证字段审计已核对 rc.2 ToolExecutionFailure.error.info.code；此前第一轮三份 Review 已完成，DNS 分类脚本错误不推定为业务失败。原根保留，完整声明复核已纠正 Session 扁平化 error 与 runtime ToolFailure 的混淆；新任务证据目录唯一为 timeout-observed，继续按 E 册执行。
 
+只读 outbox probe 已核对缺失 storageDomain 必需 inject；E2 白名单内补声明，保留所有生产门禁。此前 DNS 分类、三份 Review 与发布已验证；新任务唯一目录 timeout-outbox，原场景保留不重放。
+
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |
