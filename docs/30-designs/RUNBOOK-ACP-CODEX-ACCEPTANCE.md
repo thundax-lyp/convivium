@@ -96,6 +96,8 @@ rg -n 'mcpServers: \[bridge.mcpServer\]' plugin/src/dsh/acp-codex/provider.ts
 
 E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Evidence 且所有已提交版本都有正式 Review，Review/accepted/独立 worker/committed 数量等于实际 Evidence 数，不再固定六个；冷阶段必须至少一个新 worker 且数量等于第二轮 Evidence，禁止旧 worker/request/tool call 重放。最终两轮发布、原绑定 cold load、权限拒绝与归档仍必须成功；没有真实 Evidence/Review、未审包、未知 ACP block、模型/RPC/Schema 错误导致不能收敛或总软时限到达仍 STOP。输出 reviewer.hostValidatedReviews 为实际正整数，observed.timedOutContributions:number 为 round.contributions 中 submission_missing 的真实计数（含 0），严格 JSON 验证；readiness 如实记录实际 Review 数和超时，不把缺失 Evidence 当成功。最终结果是原 Runtime publication/archive，不是纯模型自报。无生产契约变化，不新增测试脚本测试；复用部署契约、脚本 lint/format、build、真实验收和 E3 全集合。审计：路径/symbol/公开 limits 已核对；链接/diff 检查通过后 Executable。
 
+预检恢复审计：timeout-compatible 首次启动在 preflight 返回 Internal error，尚未 mkdtemp 场景根/创建会议/发送 prompt，证据目录文件数=0，原日志和空目录保留。随后仅运行既有无 prompt 的 preflight，成功返回 gpt-6.1-sol/low 且 binary hash 与原证据同值，记录 /tmp/convivium-native-host-20261016/e2-timeout-preflight-diagnostic.json；不是重投会议输入。按用户兼容暂时性网络失败的授权，作者将本次正式命令唯一目录改为 /tmp/convivium-acp-codex-evidence-timeout-compatible-ready，仍要求不存在；不删除或覆盖旧目录。两册修订链接/diff通过，审计 Executable。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。
@@ -131,8 +133,8 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-timeout-compatible
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-compatible CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-timeout-compatible-ready
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-timeout-compatible-ready CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/全部实际 Evidence 合法 Review 与超时记录、真实搜索/两域正文或明确环境未覆盖记录、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。
