@@ -39,6 +39,7 @@ const fixture = async (acpCodex?) => {
         content: (await readFile(path, "utf8")).replace(/^---\n[\s\S]*?\n---\n/, "").trim()
     };
     const restrictions = [];
+    const gateDisposals = [];
     const instructions = [];
     const handles = [];
     const listeners = new Map();
@@ -59,7 +60,16 @@ const fixture = async (acpCodex?) => {
     const agentCtx = {
         agent: { session: { header } },
         systemPrompt: { section: vi.fn((value) => instructions.push(value)) },
-        tools: { restrict: vi.fn((value) => restrictions.push(value)) },
+        tools: {
+            restrict: vi.fn((value) => {
+                restrictions.push(value);
+                const dispose = vi.fn();
+                if (value.allow?.length === 0) {
+                    gateDisposals.push(dispose);
+                }
+                return dispose;
+            })
+        },
         skills
     };
     const factory = async (options) => {
@@ -141,6 +151,7 @@ const fixture = async (acpCodex?) => {
         ownership,
         signal,
         restrictions,
+        gateDisposals,
         instructions,
         handles,
         emit,
@@ -186,7 +197,16 @@ describe("meeting Agent owner", () => {
         acpCodex.prepareSession.mockImplementation(async () => {});
         const ownership = { ...f.ownership, lifecycleStatus: "active" };
         await f.owner.resume({ ...f, ownership, purpose: "delivery" });
-        const agent = f.handles[1].agent;
+        expect(f.handles).toHaveLength(1);
+        expect(f.ctx.agents.resume).not.toHaveBeenCalled();
+        expect(acpCodex.stopSession).not.toHaveBeenCalled();
+        expect(f.gateDisposals[0]).toHaveBeenCalledOnce();
+        expect(acpCodex.prepareSession).toHaveBeenLastCalledWith(
+            f.handles[0].agent,
+            "delivery",
+            f.signal
+        );
+        const agent = f.handles[0].agent;
         agent.followup.mockImplementation(() => {
             expect(state).toBe("pending");
         });
@@ -214,7 +234,7 @@ describe("meeting Agent owner", () => {
         await f.owner.disposeAll();
         expect(acpCodex.stopSession).toHaveBeenLastCalledWith("session");
         expect(acpCodex.stopSession.mock.invocationCallOrder.at(-1)).toBeLessThan(
-            f.handles[1].dispose.mock.invocationCallOrder[0]
+            f.handles[0].dispose.mock.invocationCallOrder[0]
         );
     });
 
@@ -490,4 +510,26 @@ describe("meeting Agent owner", () => {
         expect(f.handles[0].dispose).toHaveBeenCalledTimes(1);
         await f.owner.disposeAll();
     });
+});
+
+it("keeps ACP provisioning restricted if ownership is not active or provider preparation fails", async () => {
+    const acpCodex = { prepareSession: vi.fn(async () => {}), stopSession: vi.fn(async () => {}) };
+    const f = await fixture(acpCodex);
+    await f.owner.create(f);
+    await expect(f.owner.resume({ ...f, purpose: "delivery" })).rejects.toThrow(
+        "invalid ownership purpose"
+    );
+    expect(f.gateDisposals[0]).not.toHaveBeenCalled();
+    acpCodex.prepareSession.mockRejectedValue(new Error("ACP_CODEX_RECOVERY_REQUIRED"));
+    await expect(
+        f.owner.resume({
+            ...f,
+            ownership: { ...f.ownership, lifecycleStatus: "active" },
+            purpose: "delivery"
+        })
+    ).rejects.toThrow("ACP_CODEX_RECOVERY_REQUIRED");
+    expect(f.gateDisposals[0]).not.toHaveBeenCalled();
+    expect(f.ctx.agents.resume).not.toHaveBeenCalled();
+    expect(acpCodex.stopSession).not.toHaveBeenCalled();
+    await f.owner.disposeAll();
 });

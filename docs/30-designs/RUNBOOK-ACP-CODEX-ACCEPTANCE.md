@@ -32,7 +32,7 @@
 
 随后修复阶段固定 8 文件：`plugin/src/dsh/meeting-agent-owner.ts`、`plugin/src/dsh/acp-codex/provider.ts`、`plugin/tests/unit/dsh/meeting-agent-owner.spec.ts`、`plugin/tests/integration/dsh/acp-reviewer.spec.ts`、ACP Interface、Peer Meeting Agents Design、本册、总入口。只对同 owner 已持有的 ACP provisioning Agent，在 durable ownership 已 active 且 capability active、原 header/options/资源/Skill 全部同值时，原地移除 provisioning 的独立 allow=[] restriction。setup 保存该 restriction 的 disposer 到 WeakMap<Agent,()=>void>；角色原 toolFilter 不移除。先 await provider.prepareSession(agent,delivery)，成功后才解除 gate 并标记 owner purpose=delivery。provider 对同一 Agent 的无 active request 的 warm provisioning lease，仅在既有绑定/模型/指纹/reconcile/block 校验后把 purpose 升级为 delivery，不关闭进程/MCP、不 load、不 new、不改任何 durable ID。非 ACP、cleanup、cold resume 保持原机制；冷恢复仍只能 load 原 ID，禁止 fallback、清锁或自动重放。失败保持 restriction，记录原错误并 STOP。
 
-固定验证：owner unit、ACP Reviewer MCP integration、provider integration、ACP recovery、Host typecheck、改动文件 lint/format、build、文档链接和 diff。反例：未 active 提前放权、prepare 失败解除 gate、误移除角色 filter、首发前重启导致原空会话无法 load、冷恢复换新 ID。全部通过后单独提交该修复，之后 E2 使用新 evidence-warm-activation 目录先确认真实创建 accepted，再进入两轮专项；原失败根全部保留。
+固定验证：owner unit、ACP Reviewer MCP integration、provider integration、ACP recovery、Host typecheck、改动文件 lint/format、build、文档链接和 diff。反例：未 active 提前放权、prepare 失败解除 gate、误移除角色 filter、首发前重启导致原空会话无法 load、冷恢复换新 ID。实际验证：先观察 owner 新建第二个 handle/失败时释放 scope 的行为 RED；修复后 owner/MCP/provider/recovery 四文件 33 项通过，Host typecheck、改动 lint/format、build、链接/diff 通过（lint 仅长度警告）。审计 Executable。全部通过后单独提交该修复，之后 E2 使用新 evidence-warm-activation 目录先确认真实创建 accepted，再进入两轮专项；原失败根全部保留。
 
 ## Formal Inputs And Evidence
 
@@ -73,8 +73,8 @@
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence-storage-diagnostic-logger
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-storage-diagnostic-logger CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-warm-activation
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-warm-activation CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/六Review、真实搜索/两域正文、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。

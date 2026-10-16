@@ -1,6 +1,6 @@
 import { MessageId, ReasoningEffortId } from "@deepseek-ai/dsh-llm";
 import type { Context } from "@deepseek-ai/cordis";
-import type { AgentHandle, AgentSetup } from "@deepseek-ai/dsh-agent";
+import type { Agent, AgentHandle, AgentSetup } from "@deepseek-ai/dsh-agent";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import type {} from "@deepseek-ai/dsh-system-prompt";
 import type {} from "@deepseek-ai/dsh-agent-preset-registry";
@@ -182,6 +182,7 @@ export const createMeetingAgentOwner = ({
         string,
         { handle: AgentHandle; purpose: Purpose; sessionId: string; compositionHash: string }
     >();
+    const provisioningRestrictions = new WeakMap<Agent, () => void>();
     const pending = new Map<string, Promise<unknown>>();
     let closing = false;
     const serial = <T>(key: string, run: () => Promise<T>): Promise<T> => {
@@ -274,7 +275,10 @@ export const createMeetingAgentOwner = ({
                 agentCtx.tools.restrict(definition.toolFilter);
             }
             if (purpose !== "delivery") {
-                agentCtx.tools.restrict({ allow: [] });
+                const releaseRestriction = agentCtx.tools.restrict({ allow: [] });
+                if (purpose === "provisioning" && ownership.agentOptions.provider === "acp-codex") {
+                    provisioningRestrictions.set(agent, releaseRestriction);
+                }
             }
             await validateRoleSkills({
                 skills: ctx.skills,
@@ -326,6 +330,42 @@ export const createMeetingAgentOwner = ({
         }
         const current = entry(ownership);
         if (current?.purpose === purpose) {
+            return;
+        }
+        if (
+            current?.purpose === "provisioning" &&
+            purpose === "delivery" &&
+            ownership.agentOptions.provider === "acp-codex"
+        ) {
+            const agent = current.handle.agent;
+            const header = agent.session.header;
+            const releaseRestriction = provisioningRestrictions.get(agent);
+            if (
+                !acpCodex ||
+                !releaseRestriction ||
+                agent.id !== ownership.sessionId ||
+                header.cwd !== (await directory(ownership)) ||
+                header.agentPreset !== ownership.resources.presetId ||
+                header.parentSession !== undefined ||
+                agent.options.provider !== ownership.agentOptions.provider ||
+                agent.options.model !== ownership.agentOptions.model ||
+                agent.options.reasoningEffort !== ownership.agentOptions.reasoningEffort
+            ) {
+                throw new Error("RECOVERY_UNAVAILABLE: ACP warm activation binding differs");
+            }
+            await verifyResources(ownership, definition);
+            await validateRoleSkills({
+                skills: ctx.skills,
+                definition,
+                packageRoot,
+                view: { scope: agent, cwd: header.cwd, signal }
+            });
+            signal.throwIfAborted();
+            await acpCodex.prepareSession(agent, "delivery", signal);
+            signal.throwIfAborted();
+            releaseRestriction();
+            provisioningRestrictions.delete(agent);
+            current.purpose = "delivery";
             return;
         }
         if (current) {

@@ -582,6 +582,17 @@ export class CodexAcpProvider extends LlmAdapter implements CodexAcpProviderPort
             if (current?.agent === agent && current.purpose === purpose) {
                 return;
             }
+            if (
+                current?.agent === agent &&
+                current.purpose === "provisioning" &&
+                purpose === "delivery"
+            ) {
+                if (current.active || current.closing || current.lifetime.signal.aborted) {
+                    throw error("ACP_CODEX_RECOVERY_REQUIRED", "ACP warm activation is not idle");
+                }
+                current.purpose = "delivery";
+                return;
+            }
             if (current) {
                 await this.stopLease(agent.id, current);
             }

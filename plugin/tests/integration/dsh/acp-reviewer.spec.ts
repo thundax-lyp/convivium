@@ -31,7 +31,7 @@ import { preflightMeetingIdentity } from "@/role-composition/dsh-capabilities.ts
 import { registerMeetingTools } from "@/tools/register-tools.ts";
 import type { SessionOwnership } from "@/repository/index.ts";
 
-it("keeps the Reviewer identity and durable delivery across MCP, scope replacement and cold load", async () => {
+it("keeps the Reviewer identity and durable delivery across MCP, warm activation and cold load", async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "convivium-acp-owner-")));
     const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
     const script = fileURLToPath(new URL("../../fixtures/scripted-acp-agent.mjs", import.meta.url));
@@ -228,6 +228,13 @@ it("keeps the Reviewer identity and durable delivery across MCP, scope replaceme
         ).toBe(await readFile(join(root, "config/agents/verification_reviewer/AGENTS.md"), "utf8"));
         ownership = { ...ownership, lifecycleStatus: "active" };
         await first.owner.resume({ ownership, definition, purpose: "delivery", signal });
+        expect(first.ctx.agents.get(SessionId(ownership.sessionId)) === created).toBe(true);
+        const activationTrace = (await readFile(join(root, "scripted-rpc.jsonl"), "utf8"))
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line));
+        expect(activationTrace.filter((entry) => entry.method === "session/load")).toHaveLength(0);
         const input = {
             ownership,
             deliveryId: "first-delivery",

@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，E1 官方环境预检与 build 已 PASS；E2 只读采证入口已补齐；Captain 创建与 Host 统一消费临时 Definition 快照，角色解析验证已通过；STORAGE_UNAVAILABLE 已定位为首发前原 ACP 空会话 reload 失败；先修复 warm activation，再继续 E2，下一入口 E2。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E1 已通过（bridge 1.11.0、Codex 0.161.0、默认 gpt-6.1-sol/low）；E2 真实验收与 E3 全组收口尚未完成。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，E1 官方环境预检与 build 已 PASS；E2 只读采证入口已补齐；Captain 创建与 Host 统一消费临时 Definition 快照，角色解析验证已通过；STORAGE_UNAVAILABLE 已定位为首发前原 ACP 空会话 reload 失败；warm activation 修复通过确定性门禁，下一入口为 E2 真实创建与两轮验收，下一入口 E2。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E1 已通过（bridge 1.11.0、Codex 0.161.0、默认 gpt-6.1-sol/low）；E2 真实验收与 E3 全组收口尚未完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
