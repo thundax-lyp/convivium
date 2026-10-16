@@ -18,6 +18,10 @@
 
 入口反例：把 leased 当 delivered；读取时调用 recover 导致 lease 改写；泄露 payload/leaseToken；未知 delivery 当成功；读错 meeting；损坏提交链仍返回成功。固定验证：registry/projection/checkpoint 三文件测试、Host typecheck、改动源码 ESLint/Prettier、build、安装包导出检查、文档链接和 diff 检查。当前入口实现不代表 E2 真实验收。实际验证：先观察 pending 状态返回空数组的行为 RED，修复后 registry/projection/checkpoint 三文件 31 项通过，Host typecheck、改动源码 ESLint/Prettier、build、包导出、文档链接及 diff 检查通过。审计结论 Executable；真实模型与冷恢复仍 Not Covered。
 
+## Captain 创建阻断修订
+
+2026-10-16 用户授权修复阻断并继续。上次 E2 在创建前被 `CaptainMeetingCommandSchema` 拒绝，无 Meeting 身份或待判定外部执行；保留原失败记录目录，不覆盖。本轮用户授权继续修复；两个既有失败目录均保留，当前固定命令使用新 evidence-definition-snapshot 目录。修订只涉及临时 smoke 创建请求与角色别名，不改变产品接口；E2 白名单增补 business-loop 场景文件，共 10 个允许文件。文档链接/diff 检查通过后审计 Executable；真实验收仍未通过。
+
 ## Formal Inputs And Evidence
 
 读取 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)、A2 的 ACP interface 与 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。官方binary/model选择沿正式ACP interface；本次专项结果JSON/来源断言见E2，不升为产品公开接口；不再从已删除草稿取值。权限/恢复确定性证据复用P/D册；真实专项不能用fixture替代。
@@ -25,7 +29,7 @@
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1 PASS；真实测试用量已获Execute授权。
-允许修改（9 个文件；新增、修改和删除合计，实际须 2–10 个）：
+允许修改（10 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/scripts/smoke-profile/index.mjs`
 - `plugin/scripts/smoke-profile/environment.mjs`
@@ -33,6 +37,7 @@
 - `plugin/scripts/smoke-profile/probe/index.mjs`
 - `plugin/scripts/smoke-profile/probe/support.mjs`
 - `plugin/scripts/smoke-profile/probe/scenarios/acp-codex-reviewer-web.mjs`
+- `plugin/scripts/smoke-profile/probe/scenarios/meeting-business-loop.mjs`
 - `plugin/tests/contract/meeting-roles-deployment.spec.ts`
 - `docs/30-designs/RUNBOOK-ACP-CODEX-ACCEPTANCE.md`
 - `docs/30-designs/RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md`
@@ -41,7 +46,7 @@
 
 执行：
 
-1. 按正式合同修改原三个lane的临时Definition配置，退役脚本中的overrides；CORE_SCENARIOS继续原显式角色，SMOKE_SCENARIOS加入acp-codex-reviewer-web。
+1. 修正创建契约漂移：`support.mjs::peerCreateCommand` 仅构造 CaptainCreateMeeting，`index.mjs::writeSmokePatch` 将同一 targetDefinitions 数组写入 patch.agentDefinitions 和临时根 smoke-definitions.json，返回该 JSON 的绝对路径；runScenario 通过 CONVIVIUM_SMOKE_DEFINITIONS_PATH 传给 probe，hot/cold 共用同一路径。`support.mjs::peerCreateCommand` 必须从该路径读取，使用临时 Definition 的 displayName 形成 participantRoleNames，不回退发行资源，不提交 identities/managerIdentityKey/evidenceReviewerIdentityKey；Manager/Reviewer 由 Runtime 选取。`index.mjs::writeSmokePatch` 对 peer/identity/ACP 场景将临时 Definition.displayName 固定为 roleDefinitionId，business-loop 场景将四角色分别固定为 manager/reviewer/contributor-a/contributor-b；仅影响临时 profile。`meeting-business-loop.mjs::runMeetingBusinessLoopScenario` 改用 participantRoleNames=["contributor-a","contributor-b"] 和 ownerRoleName="manager"，保留原轮次、事实、权限与审核断言。创建拒绝断言必须保存完整 rejected result（不含凭据）。启动真实会议前，用生产 Captain Schema 与 resolveCaptainCommand 对四 lane 的临时快照逐项验证 names、系统角色和最终 identity definitionId 一致；临时验证不写永久脚本测试。ACP probe 检查三个 participant role names，不再读取内部 identities。沿正式 Meeting Interface Captain Control Surface，不放宽生产 Schema。按正式合同修改原三个lane的临时Definition配置，退役脚本中的overrides；CORE_SCENARIOS继续原显式角色，SMOKE_SCENARIOS加入acp-codex-reviewer-web。
 2. `plugin/scripts/smoke-profile/index.mjs::runScenario`复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实caller/tools/result/checkpoint采证。
 3. 一场会议两轮，Manager/Reviewer/GitHub/arXiv/Web五独立root；每轮每contributor一份Evidence，目标六个合法Review，worker机制spawn且模型继承Codex。失败重试另按原预算；20分钟软时限失败STOP，不能宣传费用/token上限。
 4. 议题固定“DSH通过ACP连接外部Agent的公开机制、权限和恢复边界”。Web每轮至少一次真实search和两个不同域名正文读取，限定agentclientprotocol.com及deepseek-harness.github.io。保存URL/标题/发布时间（缺失unknown）/访问时间/正文sha256，实际工具事件和正式证据相互印证，不硬编码措辞。起始页面固定为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 与 [DSH Architecture](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，只作为实际搜索后读取的定位起点，不预填正文或claim；DSH域名根路径返回404，禁止把域名直接拼成根URL作为读取成功条件。
@@ -56,8 +61,8 @@
 ```bash
 pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir plugin build
-test ! -e /tmp/convivium-acp-codex-evidence
-CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+test ! -e /tmp/convivium-acp-codex-evidence-definition-snapshot
+CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-definition-snapshot CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
 ```
 
 PASS：strict JSON、五Session/两轮/六Review、真实搜索/两域正文、同绑定cold后真正新执行、跨身份拒绝及归档/Restore全部成立；本步实际变更路径 2–10 个且均在清单内。
