@@ -108,6 +108,20 @@ E2 不因单人 submission_missing 提前 STOP。每轮至少一份真实 Eviden
 
 原 n0HSJH 根保留，不重放；新 randomUUID 任务唯一证据目录 /tmp/convivium-acp-codex-evidence-timeout-session。两册 Author/Audit 链接/diff检查后 Executable，修正 collectWeb 后执行脚本 lint/format 和原真实门禁；既有部署契约/build复用。未扩大 E2 10 文件预算，不新增测试脚本的测试。
 
+冷启动凭据与原 checkpoint 续接审计：timeout-session 已通过第一轮三份 Review、DNS 环境未覆盖分类、权限拒绝、outbox delivered、暂停/checkpoint，并以原目录重启。冷 Manager 的 turn/end 明确 MISSING_CREDENTIAL；index.mjs::runScenario 的 createSmokeEnvironment(hostEnv, overrides) 按既有规范删除 DEEPSEEK_API_KEY，却未第三参重新注入。固定改为 createSmokeEnvironment(hostEnv, overrides, deepSeekApiKey)，不复制凭据文件或写入配置/日志。只读技术表为四个 ready binding、十个 committed request，无未知结果阻断；原会议 version=24、第一轮已 published、第二轮尚未开启。
+
+E2 白名单保持十文件。index.mjs 唯一新增 runAcpColdCheckpoint(root:string,deepSeekApiKey:string,recordRoot:string):Promise<void>，仅用于已存在的临时 ACP checkpoint：验证原根在 tmpdir 内且名称以 convivium-dsh-smoke- 开头，读取原 checkpoint 和原配置，用原发布物/SQLite/Session/Definition，仅备份并替换自身已安装 probe 脚本，不重新安装产品包或调用 create；预检模型必须与原 Reviewer Definition 相同。重用 bootHost/waitForJson/stageScenarioRecord/stopHost/assertPortReleased，启动同 profile 的 cold-reopen，Host env 仅通过既有 API key 注入；成功严格验证、先脱敏采证再 Restore，失败停稳并保留根。main 仅在单一 ACP 场景且 CONVIVIUM_SMOKE_ACP_COLD_ROOT 已设置时调用该入口，不进入新会议路径。probe 冷 resume requestId 改为 acp-cold-resume- 加 randomUUID，表示新一轮受控生命周期动作，不重投已消费通知。checkpoint 可新增 priorCommittedRequestIds:string[]，来自原 SQLite requests.phase=committed 的真实 requestId；冷阶段额外拒绝这些 ID 的重放，不能生成历史 checkpoint 事件。
+
+恢复动作唯一顺序：先以原 loopback 用户连接读取并提交新的 pause_meeting（独立 UUID，expectedMeetingVersion 来自即时 read）；accepted 后读回 paused，保存原 checkpoint 字节，再将 checkpoint.version 写为实际 paused.version，并加入上述已提交 ID 列表；原 events/reviewEvidence/calls/bindingSha256 保持原字节值。向自己的 smoke-result.json 写 ok=false 的 MISSING_CREDENTIAL 恢复停止原因，使原 runner 停稳并保留现场；确认原冷端口 53096 释放后才执行新入口。任何 executionBlock、非 committed 请求、第二轮已开启、暂停拒绝或原 checkpoint 证据不符均 STOP，不重放输入/修改 receipt/清门禁。恢复期间只追加新用户生命周期动作。
+
+固定恢复命令（仓库根）：
+```bash
+CONVIVIUM_SMOKE_ACP_COLD_ROOT=/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/convivium-dsh-smoke-9L1cR5 CONVIVIUM_SMOKE_RECORD_DIR=/tmp/convivium-acp-codex-evidence-cold-credential-resume CONVIVIUM_SMOKE_SCENARIO=acp-codex-reviewer-web pnpm --dir plugin smoke:profile --json
+```
+该证据目录必须不存在，原 /tmp/convivium-acp-codex-evidence-timeout-session 保留失败阶段。验证：七脚本 lint/format、部署契约、实际原 binding cold load/新第二轮/无旧 requestId 重放/正常归档，E3 全集合仍不变。数据结构仅临时 checkpoint/env，无产品行为/接口改变。两册链接/diff审计通过后 Executable；恢复 PASS 计入 E2，删除 E2 任务段落后单独提交。
+
+续接装配补充审计：重装 probe 时 pnpm 要求已被原 Restore 清理的产品 tgz，失败发生在 Host 启动前，无新会议输入；原 root 仍 paused，四 ready/十 committed。runAcpColdCheckpoint 不再调用 installProbe，固定验证 installed probe package.name=PROBE_PACKAGE，将自身原 node_modules/@convivium/smoke-profile-probe 目录 rename 到 root/probe-installed-before-recovery，再 cp 当前 root/probe 到原 installed 路径；备份已存在则 STOP，不修改第三方包，不运行包管理器、不恢复或替换产品 tgz。已只读逐文件核对原解包产品与当前安装包全量发布文件同字节。index.mjs 仅新增 node:fs/promises::rename import，仍原白名单。前次空启动/失败证据保留；本次唯一记录目录改为 cold-credential-resume，原 checkpoint/version/priorCommittedRequestIds 不再修改。两册链接/diff通过后 Executable，原验证集合不变。
+
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1、H1–H4 PASS；真实测试用量沿用既有授权；不重放已消费输入。

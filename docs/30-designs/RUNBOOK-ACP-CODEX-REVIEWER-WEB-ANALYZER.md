@@ -14,6 +14,8 @@
 
 Web 环境拒绝的只读采证已固定为公开 Session.snapshotEvents 的原 tool/call/result，校验原 callId/error/time，不重执行工具或模型输入；新任务唯一目录 timeout-session，详见 E 册审计。
 
+当前已真实通过第一轮全部 gate 并保存 checkpoint；冷启动漏注入 DeepSeek key，修复限 E2 脚本。按 E 册审计用原 checkpoint/原绑定续接，新增用户 pause/resume 生命周期动作，不重放旧输入；恢复证据目录 cold-credential-resume；自身 probe 使用备份/目录替换，不重装产品包或运行包管理器。
+
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
 | 顺序 | RUNBOOK                                                | 步骤 / 文件预算              | 交接门禁                               |
