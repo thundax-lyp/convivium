@@ -537,6 +537,7 @@ const createDeliveryManager = (input: {
     rolePackageRoot: string;
     registry: StorageDomainRepositoryRegistry<MeetingState>;
     agentOwner: ReturnType<typeof createMeetingAgentOwner>;
+    acpCodex?: CodexAcpProviderPort;
     definitions: ReturnType<typeof parseAgentDefinitions>;
     application: MeetingCommandApplication;
 }) => {
@@ -551,6 +552,7 @@ const createDeliveryManager = (input: {
             return;
         }
         const notice = createMeetingNoticeDispatcher({
+            acpCodex: input.acpCodex,
             owner: agentOwner,
             definitions,
             repository,
@@ -737,6 +739,7 @@ export const activateTargetMeetingApplication = async (
     });
     const { deliveryWorkers, deadlinePollers, ensureDelivery, stopDelivery } =
         createDeliveryManager({
+            acpCodex: options.acpCodex,
             ctx,
             config,
             rolePackageRoot,

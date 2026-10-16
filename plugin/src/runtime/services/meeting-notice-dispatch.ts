@@ -1,12 +1,18 @@
 import { isRoundClosable, type MeetingIdentity, type MeetingState } from "@/domain/index.ts";
 import type { MeetingAgentDefinition } from "@/role-composition/index.ts";
-import { type MeetingAgentOwner, type MeetingIdentitySessionLabel } from "@/dsh/index.ts";
+import {
+    type CodexAcpProviderPort,
+    type MeetingAgentOwner,
+    type MeetingIdentitySessionLabel
+} from "@/dsh/index.ts";
 import type { MeetingRepository } from "@/repository/index.ts";
 import type { OutboxItem, SessionOwnership } from "@/repository/index.ts";
 import {
     RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplication
 } from "@/runtime/application-service/index.ts";
+
+import { runDueContributionDeadline } from "./contribution-deadline.ts";
 
 const supported = new Set([
     "meeting_started",
@@ -22,7 +28,8 @@ class NoticeDispatchError extends Error {
     constructor(
         readonly code: string,
         readonly retryable: boolean,
-        readonly terminalOnAttemptLimit = !retryable
+        readonly terminalOnAttemptLimit = !retryable,
+        readonly retryAt?: number
     ) {
         super(code);
     }
@@ -243,6 +250,7 @@ const findOwnership = (
 };
 
 export interface MeetingNoticeDispatcherDependencies {
+    readonly acpCodex?: CodexAcpProviderPort;
     readonly owner: MeetingAgentOwner;
     readonly definitions: readonly MeetingAgentDefinition[];
     readonly repository: Pick<MeetingRepository<MeetingState>, "recover">;
@@ -306,11 +314,49 @@ export const createMeetingNoticeDispatcher = (
                 ownership,
                 details,
                 meetingId: snapshot.meetingId,
-                contributionFailureRecorded
+                contributionFailureRecorded,
+                contributionResolved:
+                    noticeKind === "hand_disposition" &&
+                    payload.disposition === "accepted" &&
+                    snapshot.state.contributions.some(
+                        (contribution) =>
+                            contribution.id === payload.contributionId &&
+                            (contribution.status !== "preparing" ||
+                                contribution.packageId !== undefined)
+                    )
             };
         };
         const initial = await resolve();
-        if (initial.contributionFailureRecorded) {
+        const isAcp =
+            dependencies.acpCodex !== undefined &&
+            initial.ownership.agentOptions.provider === "acp-codex";
+        if (initial.contributionFailureRecorded || (isAcp && initial.contributionResolved)) {
+            return;
+        }
+        const checkAcp = async (): Promise<boolean> => {
+            let current = await resolve();
+            if (current.contributionResolved) {
+                return true;
+            }
+            if (noticeKind === "hand_disposition" && payload.disposition === "accepted") {
+                await runDueContributionDeadline(
+                    dependencies.repository,
+                    dependencies.application,
+                    Date.now(),
+                    signal
+                );
+                current = await resolve();
+                if (current.contributionResolved) {
+                    return true;
+                }
+            }
+            const block = dependencies.acpCodex?.blockFor(current.ownership.sessionId);
+            if (block) {
+                throw new NoticeDispatchError(block.code, true, false, Date.now() + 30000);
+            }
+            return false;
+        };
+        if (isAcp && (await checkAcp())) {
             return;
         }
         const definition = dependencies.definitions.find(
@@ -329,35 +375,51 @@ export const createMeetingNoticeDispatcher = (
                 fail("NOTICE_OWNERSHIP_INVALID");
             }
         };
-        await dependencies.owner.resume({
-            ownership: initial.ownership,
-            definition,
-            purpose: "delivery",
-            signal
-        });
-        const deliveryInput = {
-            ownership: initial.ownership,
-            deliveryId: outboxItem.deliveryId,
-            text: JSON.stringify({
-                effectId: outboxItem.id,
-                meetingId: initial.meetingId,
-                noticeKind,
-                agendaId,
-                ...initial.details
-            }),
-            authorize,
-            signal
+        let delivery: {
+            durable: boolean;
+            outcome: "completed" | "failed";
+            failureCode?: string;
+            failureSummary?: string;
         };
-        const observesContribution =
-            noticeKind === "hand_disposition" &&
-            payload.disposition === "accepted" &&
-            typeof payload.contributionId === "string";
-        const delivery = observesContribution
-            ? await dependencies.owner.deliverObserved(deliveryInput)
-            : {
-                  durable: await dependencies.owner.deliver(deliveryInput),
-                  outcome: "completed" as const
-              };
+        try {
+            await dependencies.owner.resume({
+                ownership: initial.ownership,
+                definition,
+                purpose: "delivery",
+                signal
+            });
+            const deliveryInput = {
+                ownership: initial.ownership,
+                deliveryId: outboxItem.deliveryId,
+                text: JSON.stringify({
+                    effectId: outboxItem.id,
+                    meetingId: initial.meetingId,
+                    noticeKind,
+                    agendaId,
+                    ...initial.details
+                }),
+                authorize,
+                signal
+            };
+            const observesContribution =
+                noticeKind === "hand_disposition" &&
+                payload.disposition === "accepted" &&
+                typeof payload.contributionId === "string";
+            delivery = observesContribution
+                ? await dependencies.owner.deliverObserved(deliveryInput)
+                : {
+                      durable: await dependencies.owner.deliver(deliveryInput),
+                      outcome: "completed" as const
+                  };
+        } catch (cause) {
+            if (isAcp && (await checkAcp())) {
+                return;
+            }
+            throw cause;
+        }
+        if (isAcp && (await checkAcp())) {
+            return;
+        }
         if (!delivery.durable) {
             throw new NoticeDispatchError("SESSION_FLUSH_FAILED", true);
         }

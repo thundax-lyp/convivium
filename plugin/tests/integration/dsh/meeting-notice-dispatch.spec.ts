@@ -69,3 +69,70 @@ it.each(["flush-false", "post-revoke", "after-flush-crash"])(
         ]);
     }
 );
+
+it("does not replay accepted ACP input when an outbox lease is reacquired after an unknown outcome", async () => {
+    const state = makeRunningMeetingStateV1();
+    state.identities[0].sessionOwnershipId = "owner";
+    const ownership = {
+        id: "owner",
+        meetingId: state.id,
+        identityId: state.identities[0].id,
+        sessionId: "peer-session",
+        definition: { agentDefinitionId: "fixture" },
+        role: "manager",
+        agentOptions: { provider: "acp-codex", model: "scripted-codex" },
+        lifecycleStatus: "active",
+        capabilityStatus: "active"
+    };
+    let block: { code: "ACP_CODEX_OUTCOME_UNKNOWN"; since: number } | undefined;
+    const owner = {
+        resume: vi.fn(async () => {}),
+        deliver: vi.fn(async () => {
+            block = { code: "ACP_CODEX_OUTCOME_UNKNOWN", since: Date.now() };
+            throw new Error("connection lost after input acceptance");
+        })
+    };
+    const execute = vi.fn();
+    const dispatcher = createMeetingNoticeDispatcher({
+        owner,
+        definitions: [{ agentDefinitionId: "fixture" }],
+        repository: {
+            recover: async () => ({
+                snapshot: { meetingId: state.id, state },
+                sessionOwnership: [ownership]
+            })
+        },
+        application: { execute },
+        acpCodex: { blockFor: () => block }
+    });
+    for (const [attempts, leaseToken] of [
+        [1, "original"],
+        [999, "reacquired"]
+    ]) {
+        await expect(
+            dispatcher.dispatch({
+                outboxItem: {
+                    id: "effect",
+                    deliveryId: "stable-delivery",
+                    kind: "dispatch",
+                    attempts,
+                    leaseToken,
+                    payload: {
+                        kind: "agent_notice",
+                        noticeKind: "meeting_started",
+                        recipientId: ownership.identityId,
+                        agendaId: "agenda-v1"
+                    }
+                },
+                signal: new AbortController().signal
+            })
+        ).rejects.toMatchObject({
+            code: "ACP_CODEX_OUTCOME_UNKNOWN",
+            retryable: true,
+            terminalOnAttemptLimit: false
+        });
+    }
+    expect(owner.deliver).toHaveBeenCalledOnce();
+    expect(owner.resume).toHaveBeenCalledOnce();
+    expect(execute).not.toHaveBeenCalled();
+});

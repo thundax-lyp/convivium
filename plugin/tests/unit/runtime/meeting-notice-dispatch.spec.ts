@@ -693,3 +693,139 @@ describe("public transcript notice dispatch", () => {
         }
     );
 });
+
+const acpNoticeFixture = () => {
+    const { state, ownership } = fixture();
+    for (const record of ownership) {
+        record.agentOptions = { provider: "acp-codex", model: "scripted-codex" };
+    }
+    const now = Date.now();
+    state.rounds = [
+        {
+            id: "round-1",
+            agendaId: "agenda-v1",
+            publicBaselinePublicationIds: [],
+            openedAt: now,
+            status: "open",
+            contributionIds: ["contribution-1"],
+            invitedContributorIds: ["contributor-v1"],
+            participationResponses: [
+                { contributorId: "contributor-v1", status: "raised", recordedAt: now }
+            ]
+        }
+    ];
+    state.contributions = [
+        {
+            id: "contribution-1",
+            roundId: "round-1",
+            contributorId: "contributor-v1",
+            handRaise: { raisedAt: now, purpose: "Contribute" },
+            acceptedAt: now,
+            status: "preparing"
+        }
+    ];
+    const block = { code: "ACP_CODEX_OUTCOME_UNKNOWN", since: now };
+    const acpCodex = { blockFor: vi.fn(() => block) };
+    const owner = {
+        resume: vi.fn(async () => {}),
+        deliver: vi.fn(async () => true),
+        deliverObserved: vi.fn(async () => ({
+            durable: true,
+            outcome: "failed",
+            failureCode: block.code
+        }))
+    };
+    const execute = vi.fn(async (command) => {
+        if (command.action.kind === "close_contribution") {
+            state.contributions[0].status = "submission_missing";
+        }
+        return { kind: "accepted" };
+    });
+    const repository = {
+        recover: async () => ({
+            snapshot: { meetingId: state.id, version: state.version, state },
+            sessionOwnership: ownership
+        })
+    };
+    const input = {
+        outboxItem: item({
+            kind: "agent_notice",
+            noticeKind: "hand_disposition",
+            recipientId: "contributor-v1",
+            agendaId: "agenda-v1",
+            requestKind: "initial",
+            roundId: "round-1",
+            contributorId: "contributor-v1",
+            disposition: "accepted",
+            reason: "Proceed",
+            contributionId: "contribution-1"
+        }),
+        signal: new AbortController().signal
+    };
+    return {
+        state,
+        owner,
+        execute,
+        acpCodex,
+        input,
+        dispatcher: createMeetingNoticeDispatcher({
+            owner,
+            definitions: [{ agentDefinitionId: "fixture" }],
+            repository,
+            application: { execute },
+            acpCodex
+        })
+    };
+};
+
+it("rechecks an unknown ACP notice after 30 seconds without replay or consuming the outbox attempt budget", async () => {
+    const f = acpNoticeFixture();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+        for (const attempts of [1, 1000]) {
+            await expect(
+                f.dispatcher.dispatch({
+                    ...f.input,
+                    outboxItem: { ...f.input.outboxItem, attempts }
+                })
+            ).rejects.toMatchObject({
+                code: "ACP_CODEX_OUTCOME_UNKNOWN",
+                retryable: true,
+                terminalOnAttemptLimit: false,
+                retryAt: now + 30000
+            });
+        }
+        expect(f.owner.resume).not.toHaveBeenCalled();
+        expect(f.owner.deliverObserved).not.toHaveBeenCalled();
+        expect(f.execute).not.toHaveBeenCalled();
+        expect(f.state.contributions[0].status).toBe("preparing");
+    } finally {
+        clock.mockRestore();
+    }
+});
+
+it("uses the real contribution deadline before checking ACP block and does not convert it into execution failure", async () => {
+    const f = acpNoticeFixture();
+    f.state.contributions[0].acceptedAt = Date.now() - f.state.limits.taskDeadlineMs - 1;
+    await f.dispatcher.dispatch(f.input);
+    expect(f.execute).toHaveBeenCalledOnce();
+    expect(f.execute.mock.calls[0][0].action).toMatchObject({
+        kind: "close_contribution",
+        exit: "submission_missing"
+    });
+    expect(f.acpCodex.blockFor).not.toHaveBeenCalled();
+    expect(f.owner.resume).not.toHaveBeenCalled();
+});
+
+it("preserves a settled contribution when a late ACP delivery error arrives", async () => {
+    const f = acpNoticeFixture();
+    f.acpCodex.blockFor.mockReturnValue(undefined);
+    f.owner.deliverObserved.mockImplementation(async () => {
+        f.state.contributions[0].status = "withdrawn";
+        throw new Error("late delivery error");
+    });
+    await expect(f.dispatcher.dispatch(f.input)).resolves.toBeUndefined();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.state.contributions[0].status).toBe("withdrawn");
+});

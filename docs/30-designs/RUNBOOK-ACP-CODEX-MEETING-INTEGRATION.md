@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；D1–D2 已 PASS 并删除任务段落，下一入口 D3。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1–D3 已 PASS 并删除任务段落，下一入口 D4。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 
@@ -27,33 +27,6 @@
 阶段不做真实模型、互联网或固定人工部署，留 E 册；纯技术诊断不写领域事件/receipt/Archive，因此新增领域格式迁移与事务写入 Not Applicable。固定完整门禁为每步下列命令、文档链接和 diff 检查；不缩减既有测试。最终 D5 同步 coverage 的实际证据/Not Covered，不宣称 E 阶段已完成。失败保留工作树与持久门禁，Restore 只清本次临时 profile/进程；不能删 unknown 或自动重放。
 
 审计结论：Executable；本次为契约一致性与执行范围复核，不代表 D2–D5 行为已实现。文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
-
-### D3：通知投递识别未知与既有贡献事实
-
-前置状态：D2 PASS。
-允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
-
-- `plugin/src/runtime/services/meeting-notice-dispatch.ts`
-- `plugin/src/runtime/meeting-lifecycle.ts`
-- `plugin/tests/unit/runtime/meeting-notice-dispatch.spec.ts`
-- `plugin/tests/integration/dsh/meeting-notice-dispatch.spec.ts`
-
-禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
-
-执行：
-
-1. 显式传port，先查正式Evidence/既有结算与撤权/真实期限，再查block，最后才投递。
-2. 未知不合成贡献失败；抛现有dispatch错误code=block.code、retryable=true、terminalOnAttemptLimit=false、retryAt=now+30000。只核对不重发，沿原deadline handler真正超时。
-3. 证明outbox lease重获/尝试耗尽不授予重发权，迟到错误不回滚已提交事实；不修改通用outbox worker。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-notice-dispatch.spec.ts tests/integration/dsh/meeting-notice-dispatch.spec.ts
-```
-
-PASS：unknown/重试/真实deadline/已有事实的反例成立，无重复输入或伪造终态；本步实际变更路径 2–10 个且均在清单内。
-STOP：冻结期限、普通投递失败误结算未知或新建投递队列；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
 
 ### D4：接通 Reviewer spawn worker 与审核失败边界
 
