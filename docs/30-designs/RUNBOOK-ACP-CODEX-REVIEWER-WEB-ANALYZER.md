@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Author/Audit；**H1–H4 PASS；E2 延长预算并兼容超时后继续；E3 待执行**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；装配前置修复 H4 已 PASS 并提交 `89da4c10`；新的 E2 已完成真实创建、第一轮三份正式 Review 和发布，但 Web 正文读取均因非公网解析触发 `WEB_BLOCKED_URL` 而 STOP；E3 未执行。记录 `/tmp/convivium-native-host-20261016/e2-assembly-stop.json`，现场保留且不重放。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H4 PASS；H5 Executable，PASS 后原 checkpoint E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。宿主承担会议读取、审核提交和 worker 生命周期。已确认边界为 `514c607d`；装配前置修复 H4 已 PASS 并提交 `89da4c10`；新的 E2 已完成真实创建、第一轮三份正式 Review 和发布，但 Web 正文读取均因非公网解析触发 `WEB_BLOCKED_URL` 而 STOP；E3 未执行。记录 `/tmp/convivium-native-host-20261016/e2-assembly-stop.json`，现场保留且不重放。普通分支 `codex/acp-acceptance`，原基线 `69ff4424`；现有七个 E2 脚本改动保留到 E2，不混入 H 步。历史 MCP 证据只证明旧实现，新 H 步及 E2 必须重新验证。不创建 worktree、不 push/PR/merge、不改固定人工环境。
 
 2026-10-16 用户明确底层 DNS 不属于 Convivium 范畴且不构成阻塞；按 E 册修订判据继续新隔离任务，非公网拒绝只记环境未覆盖，不放宽 SSRF、不伪造正文成功、不重放旧输入。原 STOP 记录仍保留。修订范围的新验收已创建五身份，但首位 Contributor 未在原截止前提交 Evidence，持久状态 submission_missing；本次 STOP 与 DNS 无关，Host 已停稳，E3 未执行。证据 `/tmp/convivium-native-host-20261016/e2-scoped-stop.json`；不重放旧输入。
 
@@ -15,6 +15,10 @@
 Web 环境拒绝的只读采证已固定为公开 Session.snapshotEvents 的原 tool/call/result，校验原 callId/error/time，不重执行工具或模型输入；新任务唯一目录 timeout-session，详见 E 册审计。
 
 当前已真实通过第一轮全部 gate 并保存 checkpoint；冷启动漏注入 DeepSeek key，修复限 E2 脚本。按 E 册审计用原 checkpoint/原绑定续接，新增用户 pause/resume 生命周期动作，不重放旧输入；恢复证据目录 cold-credential-resume；自身 probe 使用备份/目录替换，不重装产品包或运行包管理器。
+
+延长预算后第一轮三 Evidence/三 Review/发布及 checkpoint 已通过；冷凭据修复后同原会议恢复至 version26，但已发布轮次的 resume 不产生 Manager 续行通知，第二轮无新执行。生产接线不在 E2 白名单，STOP；Host 已停稳、原现场保留、不重放输入，E3 未执行。证据 `/tmp/convivium-native-host-20261016/e2-timeout-resume-stop.json`。
+
+用户已授权 H5 恢复续行：正式契约采用无 agendaId 的 meeting_resumed 定向通知，原事务与权限/防重放门禁不变。D 册固定10文件，H5 PASS 后单独提交，再固定原 checkpoint E2 装配，不新建会议、不重放旧输入。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 

@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Author/Audit；**H1–H4 PASS；E2 延长预算并兼容超时后继续；E3 待执行**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
+2026-10-16；Author/Audit；**H1–H4 PASS；H5 Executable，PASS 后原 checkpoint E2→E3**。ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。会议读取、审核提交及 worker 生命周期由宿主适配；具体契约见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。不 push/PR/merge、不改固定人工环境。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -121,6 +121,18 @@ CONVIVIUM_SMOKE_ACP_COLD_ROOT=/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/c
 该证据目录必须不存在，原 /tmp/convivium-acp-codex-evidence-timeout-session 保留失败阶段。验证：七脚本 lint/format、部署契约、实际原 binding cold load/新第二轮/无旧 requestId 重放/正常归档，E3 全集合仍不变。数据结构仅临时 checkpoint/env，无产品行为/接口改变。两册链接/diff审计通过后 Executable；恢复 PASS 计入 E2，删除 E2 任务段落后单独提交。
 
 续接装配补充审计：重装 probe 时 pnpm 要求已被原 Restore 清理的产品 tgz，失败发生在 Host 启动前，无新会议输入；原 root 仍 paused，四 ready/十 committed。runAcpColdCheckpoint 不再调用 installProbe，固定验证 installed probe package.name=PROBE_PACKAGE，将自身原 node_modules/@convivium/smoke-profile-probe 目录 rename 到 root/probe-installed-before-recovery，再 cp 当前 root/probe 到原 installed 路径；备份已存在则 STOP，不修改第三方包，不运行包管理器、不恢复或替换产品 tgz。已只读逐文件核对原解包产品与当前安装包全量发布文件同字节。index.mjs 仅新增 node:fs/promises::rename import，仍原白名单。前次空启动/失败证据保留；本次唯一记录目录改为 cold-credential-resume，原 checkpoint/version/priorCommittedRequestIds 不再修改。两册链接/diff通过后 Executable，原验证集合不变。
+
+## 延长预算后的实际结果与续行 STOP
+
+2026-10-16；临时 taskDeadlineMs=900000、reviewDeadlineMs=600000、maxDurationMs=3600000、总软时限4500000；单人超时不再提前终止验收。真实原会议 meeting-bcdce35f3f2bfa6ce39e380d10353a52 已完成第一轮三份 Evidence、三份独立 worker 的合法 Host Review、发布、权限拒绝、outbox delivered、暂停和原 checkpoint；Web 两域非公网拒绝已从原 Session 事件识别为环境未覆盖，非正文成功。当前轮没有贡献超时，不将其宣传为完整真实超时收敛验收。
+
+修复冷 Host 漏注入 API key 并按原 checkpoint 续接后，用户恢复 accepted，Meeting version=26/running，第一轮 published，第二轮未开启。Manager 的最后模型步骤仍是旧冷启动的 MISSING_CREDENTIAL，本次恢复后未收到新模型任务。只读生产 loadProjection/decodeMeetingState 确认 Evidence=3/Review=3/publication=1，outbox delivered=35/failed=1；唯一 failed 是第一轮已过时 hand_request 的 NOTICE_VISIBILITY_INVALID，不将它误认作本次恢复通知失败。源代码 meeting-action-transition.ts 的 resume_meeting effectRequests 仅包含 resumedRoundEffects（只选 open Round）和 resumedEvidenceReviewEffects（只选 validation_cancelled），本现场无适用条目，也没有 Manager 续行通知。等待更长不会自行形成第二轮任务；不手工向 Agent 注入绕过 Runtime 的催促 prompt。
+
+实际 STOP：原两轮冷恢复后的新执行门禁不能满足；修复涉及白名单外生产接线，需下一作者步骤固定正式依据、文件、symbol 和直接正反例测试后审计。保留 E2 完整任务段落和七脚本未提交，不执行 E3。最后提交的作者审计为 c9c92816；实际 E2 未 PASS，不作失败提交。恢复 helper 曾有四处 curly lint 错误，已修复后七脚本 ESLint/Prettier 通过；暂停准备动作先于该 lint 修复完成，但 Host 续接在检查通过后才启动，未放宽门禁。恢复过程中只提交了新的用户 pause/resume 生命周期动作，不重投旧 Session 输入或改写技术 receipt。
+
+证据 `/tmp/convivium-native-host-20261016/e2-timeout-resume-stop.json`；原 root `/var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/convivium-dsh-smoke-9L1cR5`、原 checkpoint 备份、更新后 checkpoint、失败冷日志及所有先前失败根均保留。runner 已退出1，所属恢复端口57346释放；持久业务状态仍 running，不冒充已暂停或归档。只读技术表四 ready binding、十 committed request，无未知结果；不重放已消费输入。冷原绑定后的第二轮真实新执行及最终归档仍 Not Covered。
+
+H5 前置修复：用户已授权补齐恢复后的 Manager 持久续行通知；唯一实现/测试白名单和精确判据见 D 册 H5，不能混入 E2 脚本。H5 PASS 后仅由 E2 恢复阶段在停止的原临时 profile 更新产品发布物，先逐文件固定/核对新旧职责范围，保持原 Definition/角色资源/模型/cwd/SQLite/Session 和技术门禁；再通过新的用户 pause/resume 生命周期动作续接原 checkpoint，禁止重做第一轮或重放输入。E2 恢复装配与唯一命令在 H5 PASS 后作者核对原现场再固定，不让机械执行者猜测；在此之前不启动现场。
 
 ### E2：实现专项脚本并完成真实两轮冷恢复
 

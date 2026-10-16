@@ -1186,6 +1186,7 @@ interface AgentNoticeBase {
   agendaId: OpaqueId;
 }
 type AgentNoticePayload =
+  | { kind: "agent_notice"; noticeKind: "meeting_resumed"; meetingId: OpaqueId; recipientId: OpaqueId }
   | (AgentNoticeBase & { noticeKind: "meeting_started" })
   | (AgentNoticeBase & { noticeKind: "agenda_stopped"; planId: OpaqueId })
   | (AgentNoticeBase & { noticeKind: "round_opened"; roundId: OpaqueId })
@@ -1238,6 +1239,8 @@ type AgentNoticePayload =
 `activate_agenda` 允许 Captain 或当前 Meeting Manager 提交；Agent 入口为 `convivium_activate_agenda`，沿用相同命令字段、版本、幂等与事务。只接受本会议已有 pending Agenda，拒绝非 running、旧议题有 open Round、未知或非 pending 目标；Manager 的 fact/event actor 保留真实 identity，不冒充 Captain。切换同事务将目标加入有显式责任列表的专职 Manager，不改变其角色、Session、Definition 或工具能力，不扩张 Contributor 责任；空列表仍表示全部议题。切换不提升 candidate、不完成目标或解除阻塞，保留旧议题 plan 与记录。
 
 Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` 说明受影响结论、解除条件及仍可推进的路径；它随 plan 原子提交并进入 `manager_plan.recorded` 事件，不新增异常实体或改变 Issue/Agenda/lifecycle。`blockingReason` 可与 `open_round` 或 `continue_agenda` 同时存在，不隐式触发 `stop_agenda`、结束或议题激活。记录只表示阻塞判断，不自动满足目标、处置 Issue 或解除依赖。局部阻塞后的继续与正常停止条件见 [ER-FR-7](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划)。
+
+`meeting_resumed` 由 accepted `resume_meeting` 的同一事务为当前唯一 Manager 生成一次 durable outbox effect。内部 effect 为 `{kind:"agent_notice",noticeKind:"meeting_resumed",recipientId:OpaqueId}`，字段全部 required；不携带 `agendaId`，用于扫描整场会议而非恢复某个旧轮次；原 MeetingState 的活动议题合法性门禁保持不变。内部 effect 不接收 caller 提交的身份、Session、版本或 prompt；recipientId 来自已验证 MeetingState 的 Manager，outbox/deliveryId 沿同一 command commit 的既有生成机制，meetingId 在投递时由原 snapshot 补齐。沿既有 delivery text 格式只输出 `{effectId,meetingId,noticeKind:"meeting_resumed"}`。dispatcher 必须验证 running 生命周期、接收方当前唯一 manager 角色，以及原同 Meeting active ownership、精确 Session ID 和 active capability；投递前后授权复核、flush/原 deliveryId、ACP unknown 阻断均保持。暂停/终态不投递，撤权或错身份拒绝，不通过延长 descriptor 或替换 Session 继续。Manager 仅据此重读当前事实并自行选择后续操作，通知不是自动开轮或结束命令。相同 resume requestId 重放复用原 receipt，不追加 effect；不同已接受的恢复请求各有自己的通知，不重发已消费输入。
 
 `agenda_stopped` 由接受 `stop_agenda` 的同一事务为当前 Manager 生成一次 durable outbox effect；payload 仅含 `planId`、`agendaId` 和接收方 ID。dispatcher 只在该计划仍是当前 active `stop_agenda` 且接收方仍为负责该 Agenda 的 Manager 时投递；失效通知不得驱动后续动作。Manager 收到后另行读取会议、扫描后续工作并决定继续或正常结束；通知本身不改变议题或会议状态。
 

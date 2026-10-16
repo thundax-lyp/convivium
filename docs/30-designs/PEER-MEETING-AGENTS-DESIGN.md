@@ -133,3 +133,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Design](./MEETING-DESIGN.md)
 - [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)
+
+## Resume Continuation
+
+依据 MO-FR-9，`runMeetingActionTransition` 在接受 `resume_meeting` 的同一事务中，为当前 Manager 追加 `meeting_resumed` notice，并保留原开放轮次/取消审核的恢复 effects。该 notice 不绑定议题、不依赖开放轮次；`createMeetingNoticeDispatcher` 在 running 状态与原 Manager ownership/capability 校验通过后，仅向原 Session 投递定位信息。Manager 另行重读会议并决定后续工作。重复 command 沿原 receipt 去重；投递重试沿原 deliveryId，已消费或未知 ACP 输入不再投递。没有新的状态字段、数据库迁移或权限；其它 notice 的 Agenda 可见性和角色门禁保持原样。
