@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，下一入口为 E1。执行分支 `codex/acp-meeting-integration`，仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；本次复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E 阶段官方预检、真实验收与全组收口尚未完成。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，下一入口为 E1。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E 阶段官方预检、真实验收与全组收口尚未完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -12,7 +12,7 @@
 | C    | [配置与角色](./RUNBOOK-ACP-CODEX-CONFIGURATION.md)     | 已实现 / 无剩余任务 | Definition/快照/八角色资源聚焦验证通过 |
 | P    | [ACP provider](./RUNBOOK-ACP-CODEX-PROVIDER.md)        | P1–P5 / 9、5、4、9、3        | 连接/MCP/技术存储/确定性恢复通过       |
 | D    | [会议接线](./RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md) | 已实现 / 无剩余任务        | 身份/投递/审核/可见阻断通过            |
-| E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 2、7、9              | 官方预检、真实专项、完整门禁、删除六册 |
+| E    | [验收与收口](./RUNBOOK-ACP-CODEX-ACCEPTANCE.md)        | E1–E3 / 4、9、9              | 官方预检、真实专项、完整门禁、删除六册 |
 
 ## Scope And Invariants
 
@@ -26,7 +26,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 ## Executor Contract And File Budget
 
-- 仅用户授权 Execute 后从第一项未完成任务开始；2026-10-16 用户授权先复核 P 阶段并修正文档，再串行执行 D1–D5，每步 PASS 后删除当前册对应任务段落并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。任务删除所涉及的当前册文件计入每步文件预算，本次 A1/A2/A3 实际分别为 4/4/5 个文件；其它步骤白名单不变。
+- 2026-10-16 用户授权先治理 RUNBOOK 漂移，再按 E1→E2→E3 串行 Execute，并授权真实模型测试用量。使用普通独立分支 `codex/acp-acceptance`；治理修订单独提交，每步 PASS 后删除 E 册对应任务段落、更新总入口与 E 册状态并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。E1/E2 的两份 RUNBOOK 状态更新计入各步白名单与预算；E3 删除六册。
 - **每步实际仓库交付文件变更2–10个**；源码、测试、文档、lockfile、新增和删除全部计数，rename按旧/新两路径计。清单是固定允许上限，不是可顺便改动的文件池。相同文件在不同步骤再次修改分别计入；不得以拆补丁、先临时文件再搬回绕过计数。
 - ignored构建物与仓库外临时profile/脱敏日志不计为交付文件，但必须执行Restore；不能把它们拿来凑2个。生成声明只由指定build/generate脚本更新，若出现新的非ignored交付文件也计入并须在清单内。
 - 每步前记录工作树文件内容快照，完成后按**该步前后内容差异**列实际路径（包括当时已存在的未跟踪文件），与白名单/2–10核对；不能用相对HEAD累计diff当本步计数。范围外变化、实际不足2或超过10均STOP，由作者调整步骤，不人为改无关文件凑数。

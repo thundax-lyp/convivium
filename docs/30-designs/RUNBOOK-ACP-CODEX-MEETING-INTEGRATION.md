@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；D1–D5 及 D4a 已 PASS，任务段落已删除；下一入口 E1。D5 实际交付 10 个文件，用户授权补齐 host-plugin-lifecycle 测试替身的订阅/注销并保留总预算。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。用户已授权每步 PASS 后删除任务段落并单独提交；不授权安装到人工环境或额外模型用量。
+2026-10-16；Execute；D1–D5 及 D4a 已 PASS，任务段落已删除；下一入口 E1。D5 实际交付 10 个文件，用户授权补齐 host-plugin-lifecycle 测试替身的订阅/注销并保留总预算。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本册无剩余任务；本轮授权及执行边界以总入口为准。
 
 前置：P5 PASS。Scope：启用装配、owner交付、防误结算、Reviewer worker与诊断。Non-goals 沿总入口，不新增业务决定。
 

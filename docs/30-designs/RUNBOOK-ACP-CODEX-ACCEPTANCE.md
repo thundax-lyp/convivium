@@ -2,13 +2,15 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-15；Author / Audit；**Executable（实施计划，尚未执行）**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本册不授权提交、安装到人工环境或额外模型用量。
+2026-10-16；Execute；**Executable；下一入口 E1，尚未执行**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
 当前断点：尚无新lane或官方安装组合的实际运行证据。输入、精确字段、owner 和失败语义在 A 册迁入正式文档后消费；生产文件/symbol 与本册每步白名单一一对应。新文件明确为计划新增，不代表已实现。
 
 ## Mechanical Steps
+
+每步 PASS 后先保存仓库外脱敏执行记录，删除本册该步完整任务段落并更新本册/总入口的下一入口，执行文档链接和 diff 检查，阅读完整待提交 diff 后单独 commit；失败保留任务段落且不提交失败步骤。E3 以删除六册代替删除单个段落。E1/E2 的 RUNBOOK 更新已列入允许文件。
 
 ## Formal Inputs And Evidence
 
@@ -17,10 +19,12 @@
 ### E1：编写并执行官方环境预检
 
 前置状态：D5 PASS；允许本次官方环境探测，不发模型prompt。
-允许修改（2 个文件；新增、修改和删除合计，实际须 2–10 个）：
+允许修改（4 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/scripts/acp-codex-preflight.mjs`
 - `plugin/package.json`
+- `docs/30-designs/RUNBOOK-ACP-CODEX-ACCEPTANCE.md`
+- `docs/30-designs/RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md`
 
 禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
 
@@ -38,13 +42,13 @@ pnpm --dir plugin acp:preflight
 pnpm --dir plugin build
 ```
 
-PASS：精确版本/binary hash/合法默认选择输出且无session/prompt；构建通过，只证明可开始真实验收；本步实际变更路径 2–10 个且均在清单内。
+PASS：精确版本/binary hash/合法默认选择输出；允许临时 ACP probe session，不创建 DSH/Meeting session、不发 prompt；构建通过，只证明可开始真实验收；本步实际变更路径 2–10 个且均在清单内。
 STOP：认证/目录/能力失败、缺binary或需重新登录/复制凭据；文件预算不符、需要额外文件或人为凑改动均停止。保留原数据/最后 PASS/脱敏复现，按入口 Restore 收敛，不自行扩张。
 
 ### E2：实现专项脚本并完成真实两轮冷恢复
 
 前置状态：E1 PASS；真实测试用量已获Execute授权。
-允许修改（7 个文件；新增、修改和删除合计，实际须 2–10 个）：
+允许修改（9 个文件；新增、修改和删除合计，实际须 2–10 个）：
 
 - `plugin/scripts/smoke-profile/index.mjs`
 - `plugin/scripts/smoke-profile/environment.mjs`
@@ -53,6 +57,8 @@ STOP：认证/目录/能力失败、缺binary或需重新登录/复制凭据；�
 - `plugin/scripts/smoke-profile/probe/support.mjs`
 - `plugin/scripts/smoke-profile/probe/scenarios/acp-codex-reviewer-web.mjs`
 - `plugin/tests/contract/meeting-roles-deployment.spec.ts`
+- `docs/30-designs/RUNBOOK-ACP-CODEX-ACCEPTANCE.md`
+- `docs/30-designs/RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md`
 
 禁止修改：禁止超出文件清单、相邻功能及入口所列 Non-goals；不修改第三方源码或固定人工环境。
 
@@ -100,7 +106,7 @@ STOP：模型/网络/未知block/软时限/任一断言失败；证据目录已�
 1. readiness分开记录静态/确定性/真实验收、版本/binary/model、恢复注入与Not Covered；操作文档记录安装/Definition迁移/预检/失败处置。草稿已在A3删除，此处不得重建“已迁移”草稿。
 2. 运行下列完整verify与原三lane；E2新lane证据仅在源码、配置、构建物、binary/model未变时复用，避免重复用量。任一失败保留全部RUNBOOK，不先删除。
 3. rg核对本组RUNBOOK与草稿文件名引用。存活正式文档只能指向长期正式来源；本组之外出现残留引用且不在本步清单时STOP，由作者调整，禁止直接扩大文件数。
-4. 所有scope/门禁/迁移证据齐全后一次删除本组六份RUNBOOK，计入本步9个文件预算。删除前保留仓库外可恢复字节；删除后再运行链接/diff检查，失败恢复六册和相应引用并STOP。不留completed/archive副本，不提交/PR/merge。
+4. 所有scope/门禁/迁移证据齐全后一次删除本组六份RUNBOOK，计入本步9个文件预算。删除前保留仓库外可恢复字节；删除后再运行链接/diff检查，失败恢复六册和相应引用并STOP。不留completed/archive副本；PASS 后单独 commit，不 push/PR/merge。
 
 验证：
 
