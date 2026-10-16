@@ -2,9 +2,15 @@
 
 ## Status, Authority And Executor Contract
 
-2026-10-16；Author/Audit；Executable，下一步骤 H1。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
+2026-10-16；Author/Audit；**H1 白名单修订 Executable；H1 待验证，H2/H3/E2/E3 未执行**。契约/RUNBOOK 修订已提交 `d303da41`。普通分支 `codex/acp-acceptance`，源码起点 `0d1518ba`、边界确认 `514c607d`。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)。按 H1→H2→H3→E2→E3 串行，不创建 worktree。每步 PASS 保存仓库外脱敏记录、删除本册该步完整段落并单独提交；任何 STOP 保留任务与现场。只提交当前步文件，不混入现有七个 E2 脚本改动。
 
 **ACP Agent 只使用自身原生工具和 Skills，沿用真实模型用量授权，不重放已消费输入。** H1–H3 仅确定性测试不付费；E2/E3 才使用既有真实用量授权。不 push/PR/merge、不改固定人工环境、不自动登录、不清锁、不覆盖历史 evidence。
+
+## H1 前次 STOP 与本轮修订
+
+`pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts`：provider 9 项通过；recovery 6 项通过、3 项失败。load-fail/fingerprint 两项仍以 `mcpCount===1` 识别正式 newSession，而新边界为 0；worker 子树取消用例未观察到 `session/cancel`（期望 1、实际 0），原因未确证，不能按旧断言漂移一并豁免。`plugin/tests/recovery/acp-codex.spec.ts` 不在 H1 白名单，按 STOP 停止，未修改该文件。
+
+Host typecheck、H1 ESLint/Prettier、文档链接与 diff 检查通过；未付费、未重放。执行记录 `/tmp/convivium-native-host-20261016/h1-stop.json`，原失败输出 `h1-tests.log`，原工作树快照 `original-worktree/`。保留未提交 H1 和原七个 E2 脚本；不得删除 H1 任务段落或宣称通过。继续需作者把该 recovery 文件纳入 H1（总预算仍不超过 10），保留 no-replacement 与子树 cancel/drain 不变量，查明取消 RPC 未观察到的原因后重新验证。产品边界及真实用量授权无须重复确认。本轮用户已授权纳入 recovery 测试、修正旧 MCP 判据并修复取消 RPC；H1 白名单增加该文件，共 9 文件，取消后先等待原 prompt 结算再停进程，最长 5000ms，保持持久 unknown 与零重放。
 
 ## Scope, Breakpoints And Formal Contract
 
@@ -27,6 +33,7 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 - `plugin/src/dsh/acp-codex/tool-bridge.ts`（删除）
 - `plugin/tests/integration/dsh/acp-codex-tool-bridge.spec.ts`（删除）
 - `plugin/tests/integration/dsh/acp-codex-provider.spec.ts`
+- `plugin/tests/recovery/acp-codex.spec.ts`
 - `plugin/package.json`
 - `plugin/pnpm-lock.yaml`
 - 本册 `docs/30-designs/RUNBOOK-ACP-CODEX-MEETING-INTEGRATION.md`
@@ -35,14 +42,15 @@ Scope：删除旧 Convivium MCP bridge；外部 prompt 不透传宿主 system/de
 执行：
 1. 先改 provider 测试，使现有真实 scoped read 工具执行次数为 0，检查正常 new/load 的 mcpCount=0；运行该文件观察旧 bridge 导致 RED。
 2. provider 删除 bridge import/Lease 字段、创建、request 上下文和关闭逻辑，new/load 固定 mcpServers=[]；保留进程 cancel/drain、binding/receipt/checkpoint/block 逻辑。删除仅服务旧 bridge 的类型、文件与专用测试。
-3. 从 package.json 删除旧直接依赖，运行 `pnpm --dir plugin install --lockfile-only --offline --ignore-scripts` 更新 lockfile，不改变其它版本；如果命令造成其它交付路径变化 STOP。原 ACP reviewer 旧 MCP 测试将在 H3 原位替换，不在此声称全工程完成。
+3. recovery 不再用 mcpCount 区分 probe/正式 newSession；从原 prompt 的 sessionId 识别原绑定并断言从未创建替代绑定，所有 new/load 的 mcpCount=0。cancel notification 发送后等待原 prompt 正常结算或 5000ms 取消宽限到期，随后 close/drain；保持未知 block、子树隔离、取消计数和无重发断言，不以 sleep 或放宽断言修复。
+4. 从 package.json 删除旧直接依赖，运行 `pnpm --dir plugin install --lockfile-only --offline --ignore-scripts` 更新 lockfile，不改变其它版本；如果命令造成其它交付路径变化 STOP。原 ACP reviewer 旧 MCP 测试将在 H3 原位替换，不在此声称全工程完成。
 
 验证（仓库根）：
 ```bash
 pnpm --dir plugin exec vitest run tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
 pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec eslint src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts
-pnpm --dir plugin exec prettier --check src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts package.json pnpm-lock.yaml
+pnpm --dir plugin exec eslint src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts
+pnpm --dir plugin exec prettier --check src/dsh/acp-codex/provider.ts src/dsh/acp-codex/types.ts tests/integration/dsh/acp-codex-provider.spec.ts tests/recovery/acp-codex.spec.ts package.json pnpm-lock.yaml
 node .github/scripts/check-doc-links.mjs
 git diff --check
 ```
