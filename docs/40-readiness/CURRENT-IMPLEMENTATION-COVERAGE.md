@@ -36,6 +36,14 @@ Executed Validation：三项参数化反例在修复前均错误返回 valid，�
 
 Not Covered / Closure：未追加真实模型或人工 Web 验收，未提供旧持久数据迁移；仅修复引用拒读与当前文档口径。
 
+## 2026-10-16：初始六个 Contributor 的需求确认
+
+Scope / Validated Contract：处理 PR #132 的 Codex comment #4290223527。用户明确确认允许全部六个 Contributor、最多八个初始身份；MO-FR-2 已补入结构化 Captain 的 0–6 与 Host 默认配置的 1–6 选择范围。原接口 0–5/2–7 与新增资源不一致，按本次确认更新口径，不新增五人代码门禁。
+
+Executed Validation：静态核对 Config 以 contributorRoleDefinitionIds 闭集及去重约束 Host 配置，Captain adapter 按名称解析可选 Contributor；本地文档链接与 git diff --check 通过。
+
+Not Covered / Closure：本次仅明确需求和已检查代码的适用边界，未新增运行行为，未实际创建八身份会议；既有 verify 证据不能代替该场景真实验收。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。

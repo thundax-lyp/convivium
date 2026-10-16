@@ -48,7 +48,7 @@
 3. 不同会议、身份和授权范围的 Meeting Agent 不共享 Session；Captain 是本地用户，可控制当前 Host 中多场 Meeting。输入 Session 仅作来源记录，不是会议身份或权限绑定。
 4. 主持身份不得伪装成普通参与者，也不得以参与者名义形成正式发言或立场。
 5. 同一个底层 Agent 承担多个会议身份时，各身份必须保持可区分、可审计。
-6. 会议由可信本地用户入口创建；Runtime 注入用户来源，payload 不得伪造 actor、Session 或 authority。结构化 Captain 创建接口只允许用角色 Definition 的唯一 `displayName` 选择初始 Contributor，参数可省略且默认空数组；用户不得提交 `identityKey`、Definition ID 或正式 identity ID。Captain adapter 精确解析名称后补齐唯一专职 `manager` 和唯一专职 `evidence_reviewer`，为内部创建命令生成引用并原子分配正式 identity ID；未知、重复、歧义或指向 Manager/Reviewer 的参会角色名称必须整条拒绝。Manager、Reviewer 与所选 Contributor 均为必需身份、负责全部初始议题且默认无 Captain 风险处置权；Manager 与 Reviewer 不能兼任 Captain、Contributor 或彼此。Manager 必须绑定 `meeting_manager`，Reviewer 必须绑定 `verification_reviewer`。无效或相互矛盾的配置不得产生部分可用的会议。
+6. 会议由可信本地用户入口创建；Runtime 注入用户来源，payload 不得伪造 actor、Session 或 authority。结构化 Captain 创建接口只允许用角色 Definition 的唯一 `displayName` 选择初始 Contributor，参数可省略且默认空数组。当前八角色资源中的六个 Contributor 均可同时被选中，结构化 Captain 允许选择 0–6 个；Host `initialContributorRoleIds` 允许配置 1–6 个不同 Contributor。连同唯一 Manager 和 Reviewer，初始身份总数分别为 2–8 和 3–8，不保留最多五个 Contributor 的旧限制；用户不得提交 `identityKey`、Definition ID 或正式 identity ID。Captain adapter 精确解析名称后补齐唯一专职 `manager` 和唯一专职 `evidence_reviewer`，为内部创建命令生成引用并原子分配正式 identity ID；未知、重复、歧义或指向 Manager/Reviewer 的参会角色名称必须整条拒绝。Manager、Reviewer 与所选 Contributor 均为必需身份、负责全部初始议题且默认无 Captain 风险处置权；Manager 与 Reviewer 不能兼任 Captain、Contributor 或彼此。Manager 必须绑定 `meeting_manager`，Reviewer 必须绑定 `verification_reviewer`。无效或相互矛盾的配置不得产生部分可用的会议。
 7. 新建会议的目标、议题和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
