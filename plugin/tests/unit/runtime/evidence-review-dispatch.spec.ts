@@ -1237,3 +1237,21 @@ it("blocks consumed native review input without an original task instead of spaw
     expect(f.owner.deliverObserved).not.toHaveBeenCalled();
     expect(f.application.execute).not.toHaveBeenCalled();
 });
+
+it("retries a failed native review under a new claim without replaying the root input", async () => {
+    const f = nativeFixture({ ...nativeOutput(), dimensions: {} });
+    const dispatcher = createEvidenceReviewDispatcher(f.dependencies);
+    await expect(dispatcher.dispatch(f.input)).rejects.toMatchObject({
+        code: "REVIEW_VALIDATION_RETRY"
+    });
+    f.nativeReview.mockResolvedValueOnce({
+        workerSessionId: "next-worker",
+        model: "codex",
+        output: nativeOutput()
+    });
+    await dispatcher.dispatch({ ...f.input, outboxItem: { ...f.input.outboxItem, attempts: 2 } });
+    expect(f.nativeReview).toHaveBeenCalledTimes(2);
+    expect(f.owner.deliverObserved).toHaveBeenCalledOnce();
+    expect(f.accepted).toHaveBeenCalledOnce();
+    expect(f.acpCodex.requireRecovery).not.toHaveBeenCalled();
+});

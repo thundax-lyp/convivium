@@ -52,6 +52,14 @@ Executed Validation：两项回归在修复前分别观察到 stop 错误提前�
 
 Not Covered / Closure：故障注入验证错误后的清理调用与错误保留，不证明真实外部进程必定终止；未追加真实模型、固定人工环境或操作系统故障验收。
 
+## 2026-10-16：已知失败审核重试与恢复快照
+
+Scope / Validated Contract：处理 PR #135 的 comments #4292309379、#4292309391。原生审核 Promise 只缓存 in-flight 任务；root 交付 completed、当前版本持久 validation_failed/dispatch_failed 且没有技术 block 时，按原预算领取新 claim 并启动新 worker，跳过 root 通知。其它消费后无原任务、超时、中断或未知结果仍保守阻断。冷恢复在启动前按原始字节保存 checkpoint 快照，独占创建避免覆盖已有快照。
+
+Executed Validation：非法输出后的第二次 dispatch 在修复前重复抛缓存错误；修复后新 claim 成功提交、root 通知仍只投递一次。聚焦审核文件22项通过，最终 plugin verify 通过103文件901项测试及全部格式/类型/构建/契约检查；smoke 脚本 node --check、文档链接1175项及 git diff --check 通过。
+
+Not Covered / Closure：未执行真实冷恢复或付费模型；快照路径仅经静态检查，审核重试为确定性证据，不扩大真实验收结论。
+
 ## ACP Native Execution Migration
 
 2026-10-16，普通分支 `codex/acp-acceptance`，以 `69ff4424` 为原始基线。ACP Agent 只使用自身原生工具和 Skills；Host 负责会议上下文、逐版本 worker、完整 JSON 校验与正式 Review 提交，见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#reviewer-and-worker)。旧 MCP bridge 已退役，下文旧 MCP 结果仅作为历史证据。
