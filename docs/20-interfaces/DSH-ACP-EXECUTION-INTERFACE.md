@@ -185,3 +185,7 @@ dispatchers 固定顺序：重读正式事实，已有合法 Review/Evidence 按
 Host 显式提供锁定 CLI 的 CODEX_PATH，计算实际 binary 版本/hash，不经 shell、不从 PATH 静默选替代 CLI。省略 acpCodex 不增加新的必需服务；启用需要 agents、llm、tools、sessions、sessionPersistence、subprocess、storageDomain，缺失、重复 route 或 domain 打开失败拒绝启动。发行包不内置 bridge、不自动安装/登录或打开浏览器，不透传 OPENAI_API_KEY、DEEPSEEK_API_KEY、DSH_*。
 
 专项未给模型输入时精确选 probe 公开的 model.currentValue 和该模型 reasoning_effort.currentValue，均须为目录成员；显式输入严格验证。probe 不发 prompt，并关闭进程/MCP lease。身份指令在 ACP 中作为标注 text 发送，必须分别验证字节到达和真实模型遵循，不宣称原生 system 优先级。
+
+## Acceptance Outbox Read
+
+仅供可信本地验收插件使用的包导出 `readMeetingOutboxForAcceptance(input: {storageDomain: {get(name: string): {table(name: string): Pick<KvTable<string, unknown>, "get" | "entries">} | undefined}; meetingId: string; deliveryIds: readonly string[]}): readonly {id: string; deliveryId: string; status: "pending" | "leased" | "delivered" | "failed"}[]`。它通过 Host 公开 `storageDomain.get` 借用已打开的 catalog/meeting domain，复用 Repository 的 Schema 和提交链/checkpoint 校验；不 open、close、recover、claim、put、delete，不修改 lease 或领域 version。调用者不取得 Repository/domain handle。缺少已打开 domain、catalog 非 ready、会议身份不匹配、空/重复输入、未知 deliveryId 或损坏提交链均拒绝；每个 deliveryId 必须恰有一项 outbox，返回顺序沿输入，返回值为冻结的字段白名单。只允许本地同进程插件传入 Host facility；不注册模型工具或 Web/Remote API，不代表用户或 Meeting authority。停稳/冷恢复仍由原 Host 生命周期负责。

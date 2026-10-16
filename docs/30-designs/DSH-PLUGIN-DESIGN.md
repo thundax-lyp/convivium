@@ -314,3 +314,7 @@ Runtime read 用当前 ownership 关联 provider.blockFor 生成 [MeetingView ex
 ## ACP 实施与验证边界
 
 ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合复核见 Current Implementation Coverage；D1–D5 会议装配已完成并通过确定性验证，真实专项未执行。DSH 0.2.0-rc.2 的公开 LlmAdapter、SessionPersistence、ToolRuntime、subprocess 和 Storage Domain 可以支撑限定的正常冷 load 与保守阻断；这不证明自动续执行接口存在，也不证明跨进程实际成功。确定性与真实专项的固定范围见 Peer Meeting Agents Design；长期运行证据后续进入 readiness，运行安装与失败处置后续进入 operations。本期不改固定人工 dsh-workspace、物理数据库或已有会议的模型绑定。
+
+### Acceptance-only Outbox Reader
+
+包入口具名导出 `readMeetingOutboxForAcceptance`，实现位于 `plugin/src/repository/storage-domain/acceptance-read.ts`，通过 Repository 目录入口逐级导出。唯一消费者是隔离 smoke probe；通过 Host 公开 `storageDomain.get` 借用已经打开的 domain，只读 catalog 与 `loadProjection` 校验后的提交链/checkpoint，并按 deliveryId 返回冻结字段白名单。`loadProjection` 接受只含 table/get/entries 的读取面，对未知记录执行已有 Schema 校验。入口不 open/close domain、不执行 recover，不持有额外租约，不开放 Web/Remote 或模型工具；字段及拒绝语义见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acceptance-outbox-read)。

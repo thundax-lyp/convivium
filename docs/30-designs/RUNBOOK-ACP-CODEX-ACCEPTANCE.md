@@ -2,7 +2,7 @@
 
 ## Status, Dependency And Boundary
 
-2026-10-16；Execute；**Executable；E1 已 PASS；下一入口 E2**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
+2026-10-16；Execute；**Executable；E1 已 PASS；E2 入口修复已 PASS；Executable，下一入口 E2**。必读[总入口](./RUNBOOK-ACP-CODEX-REVIEWER-WEB-ANALYZER.md)的执行者契约、文件计数、共同依据、不变量和失败收口；本册补齐当前范围，不能跳过前序册。本轮用户已授权 E1→E2→E3、真实模型测试用量及每步 PASS 后删除任务段落并单独提交；不授权 push/PR/merge 或固定人工环境安装。
 
 前置：D5 PASS。Scope：官方环境预检、专项脚本与真实两轮、完整验证及删除全组。Non-goals 沿总入口，不新增业务决定。
 
@@ -11,6 +11,12 @@
 ## Mechanical Steps
 
 每步 PASS 后先保存仓库外脱敏执行记录，删除本册该步完整任务段落并更新本册/总入口的下一入口，执行文档链接和 diff 检查，阅读完整待提交 diff 后单独 commit；失败保留任务段落且不提交失败步骤。E3 以删除六册代替删除单个段落。E1/E2 的 RUNBOOK 更新已列入允许文件。
+
+## 2026-10-16 E2 Author Audit
+
+本轮先核查现有入口：`LocalMeetingWebRuntime` 无 outbox 读取；Repository `recover()` 会回收过期 lease；diagnostic 日志不能代替持久状态。Host `storageDomain.get(name)` 是公开的已打开 domain 诊断入口，复用其读取面而不再次 open（同名 open 会 already-open）。新增最小包导出 `readMeetingOutboxForAcceptance`，正式契约见 ACP Interface 的 Acceptance Outbox Read。此治理与入口修复单独提交，允许文件固定为：本册、总入口、ACP Interface、DSH Plugin Design、`plugin/src/repository/storage-domain/acceptance-read.ts`、`plugin/src/repository/storage-domain/meeting/projection.ts`、`plugin/src/repository/storage-domain/index.ts`、`plugin/src/repository/index.ts`、`plugin/src/index.ts`、`plugin/tests/contract/storage-domain-repository-registry.spec.ts`，实际 10 个文件。
+
+入口反例：把 leased 当 delivered；读取时调用 recover 导致 lease 改写；泄露 payload/leaseToken；未知 delivery 当成功；读错 meeting；损坏提交链仍返回成功。固定验证：registry/projection/checkpoint 三文件测试、Host typecheck、改动源码 ESLint/Prettier、build、安装包导出检查、文档链接和 diff 检查。当前入口实现不代表 E2 真实验收。实际验证：先观察 pending 状态返回空数组的行为 RED，修复后 registry/projection/checkpoint 三文件 31 项通过，Host typecheck、改动源码 ESLint/Prettier、build、包导出、文档链接及 diff 检查通过。审计结论 Executable；真实模型与冷恢复仍 Not Covered。
 
 ## Formal Inputs And Evidence
 
@@ -36,12 +42,14 @@
 执行：
 
 1. 按正式合同修改原三个lane的临时Definition配置，退役脚本中的overrides；CORE_SCENARIOS继续原显式角色，SMOKE_SCENARIOS加入acp-codex-reviewer-web。
-2. runScenario复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实caller/tools/result/checkpoint采证。
+2. `plugin/scripts/smoke-profile/index.mjs::runScenario`复用现有hot/cold启动方式，新增runAcpCodexReviewerWebScenario(runtime)和validateAcpCodexReviewerWebResult(value)；preflight从E1脚本import。临时profile仅Reviewer选Codex，真实caller/tools/result/checkpoint采证。
 3. 一场会议两轮，Manager/Reviewer/GitHub/arXiv/Web五独立root；每轮每contributor一份Evidence，目标六个合法Review，worker机制spawn且模型继承Codex。失败重试另按原预算；20分钟软时限失败STOP，不能宣传费用/token上限。
 4. 议题固定“DSH通过ACP连接外部Agent的公开机制、权限和恢复边界”。Web每轮至少一次真实search和两个不同域名正文读取，限定agentclientprotocol.com及deepseek-harness.github.io。保存URL/标题/发布时间（缺失unknown）/访问时间/正文sha256，实际工具事件和正式证据相互印证，不硬编码措辞。起始页面固定为 [ACP Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup) 与 [DSH Architecture](https://deepseek-harness.github.io/deepseek-harness/en/reference/)，只作为实际搜索后读取的定位起点，不预填正文或claim；DSH域名根路径返回404，禁止把域名直接拼成根URL作为读取成功条件。
-5. 第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate不重复工具；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
+5. probe 从安装包根具名 import `readMeetingOutboxForAcceptance`，通过 ctx.storageDomain.get 借用当前 Runtime 已打开 domain。订阅 `convivium/acp-checkpoint` 必须在创建会议/冷恢复前完成；热阶段保存事件、绑定 hash、工具调用 ID、结构化结果和第一轮事实到原 checkpoint，冷阶段读取原 checkpoint 后合并本进程新事件。deliveryId 沿 owner 原 deliveryId，不派生新 ID；以原事件 deliveryId 精确查同 meeting 的 outbox.deliveryId，要求每项恰一条且 status=delivered；仅采用当前 Reviewer root 的 delivery-completed，worker 只核对 committed 与 structured_output。不读取 owner/provider 私有字段。第一轮发布后等待每个已观察发送的原deliveryId都有delivery-completed、对应请求有committed事件，且相关outbox已delivered；使用事件和Repository交叉检查，不访问owner私有字段，暂停并停稳隔离Host；同目录重启load原ACP ID，hydrate不重复工具；第二轮真正再经Reviewer和新spawn worker审核，最终正常结束/归档。未知故障恢复由P5/D3/D4确定性测试承担，不强迫付费真实请求中重复kill。
 6. result必须为严格JSON：`{ok:true,scenario:"acp-codex-reviewer-web",meetingId:string,observed:{sessionIds:Record<string,string>,reviewer:{provider:"acp-codex",model:string,reasoningEffort?:string,workerProvider:"spawn",workerModel:string,structuredReviews:number},web:{searchCalls:number,sources:Array<{roundId:string,url:string,title:string,publishedAt:string,accessedAt:string,contentSha256:string}>},rounds:number,coldRecovery:boolean,authorizationRejected:boolean,archiveComplete:boolean}}`；sessionIds键精确五role，structuredReviews=6、rounds=2，其余boolean=true；每轮域名集合都含两个指定域，workerModel=model。验证器拒绝未知/缺失字段，不接受模型自述代替事件。
-7. Prepare/Execute/Assert/Restore：隔离mkdtemp profile，不复制Codex凭据；停止/等待本次进程，脱敏证据先保存到CONVIVIUM_SMOKE_RECORD_DIR；只清理自己创建的临时根，失败也保存并收敛。
+7. E1 预检在创建隔离 Host 前执行；environment.mjs 从锁定 Codex 包解析当前 macOS 平台 binary，设置 CODEX_PATH 并核对其 hash 等于 preflight.binarySha256.codex，保留 HOME/CODEX_HOME，不复制凭据。新场景临时 Definition 只为 Reviewer 写完整 agentOptions，Web 不设覆盖；旧三 lane 的 Reviewer 沿原 deepseek-official/deepseek-v4-flash 选择写入 Definition.agentOptions。新场景 contributor 闭集为 GitHub/arXiv/Web，maxParticipants=4。
+8. evidence 目录必须不存在，index.mjs 在检查后仅为显式新场景 mkdir 创建该固定目录，再调用现有 createRecordRoot；不得覆盖已有证据。
+9. Prepare/Execute/Assert/Restore：隔离mkdtemp profile，不复制Codex凭据；停止/等待本次进程，脱敏证据先保存到CONVIVIUM_SMOKE_RECORD_DIR；只清理自己创建的临时根，失败也保存并收敛。
 
 验证：
 

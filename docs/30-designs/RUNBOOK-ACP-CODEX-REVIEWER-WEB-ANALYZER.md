@@ -2,7 +2,7 @@
 
 ## Status And Execution Entry
 
-2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，E1 官方环境预检与 build 已 PASS；下一入口为 E2。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E1 已通过（bridge 1.11.0、Codex 0.161.0、默认 gpt-6.1-sol/low）；E2 真实验收与 E3 全组收口尚未完成。
+2026-10-16；Execute；契约迁移 A1–A3、配置角色 C1–C7 与 provider P1–P5 已通过，D1–D5 与 D4a 已通过，E1 官方环境预检与 build 已 PASS；E2 只读采证入口已补齐并审计 Executable；下一入口 E2。执行分支 `codex/acp-acceptance`，基线 `69ff4424`（PR #134 已合并，工作树干净，核对时 HEAD 与 origin/main 一致），仅使用普通分支，不创建 worktree。P 阶段已随 PR #133 合并；既有 P 阶段复核 ACP 聚焦 7 文件、48 项测试、Host typecheck 和 lint 通过（lint 有两条现存长度警告）。插件生命周期、owner/dispatcher、Reviewer worker 和诊断已完成确定性接线；E1 已通过（bridge 1.11.0、Codex 0.161.0、默认 gpt-6.1-sol/low）；E2 真实验收与 E3 全组收口尚未完成。
 
 本文件是本组短入口与共同契约，没有独立机械步骤。执行时读取本入口、当前册和它引用的正式来源，逐册顺序执行，不能并行跳步；不要求每次加载全部后续册。
 
@@ -26,7 +26,7 @@ Non-goals：通用ACP平台、其它Agent/Teams、原生Codex子Agent投影、�
 
 ## Executor Contract And File Budget
 
-- 2026-10-16 用户授权先治理 RUNBOOK 漂移，再按 E1→E2→E3 串行 Execute，并授权真实模型测试用量。使用普通独立分支 `codex/acp-acceptance`；治理修订单独提交，每步 PASS 后删除 E 册对应任务段落、更新总入口与 E 册状态并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。E1/E2 的两份 RUNBOOK 状态更新计入各步白名单与预算；E3 删除六册。
+- 2026-10-16 用户追加授权先核查受控只读入口，缺失时新增最小验收入口并修订 E2/白名单，审计通过后单独提交，再继续 E2→E3。入口修复固定 10 文件见 E 册；不改变真实用量授权。2026-10-16 用户授权先治理 RUNBOOK 漂移，再按 E1→E2→E3 串行 Execute，并授权真实模型测试用量。使用普通独立分支 `codex/acp-acceptance`；治理修订单独提交，每步 PASS 后删除 E 册对应任务段落、更新总入口与 E 册状态并单独 commit。未授权 push/PR/merge；不 git clean/reset，不改固定人工 dsh-workspace。E1/E2 的两份 RUNBOOK 状态更新计入各步白名单与预算；E3 删除六册。
 - **每步实际仓库交付文件变更2–10个**；源码、测试、文档、lockfile、新增和删除全部计数，rename按旧/新两路径计。清单是固定允许上限，不是可顺便改动的文件池。相同文件在不同步骤再次修改分别计入；不得以拆补丁、先临时文件再搬回绕过计数。
 - ignored构建物与仓库外临时profile/脱敏日志不计为交付文件，但必须执行Restore；不能把它们拿来凑2个。生成声明只由指定build/generate脚本更新，若出现新的非ignored交付文件也计入并须在清单内。
 - 每步前记录工作树文件内容快照，完成后按**该步前后内容差异**列实际路径（包括当时已存在的未跟踪文件），与白名单/2–10核对；不能用相对HEAD累计diff当本步计数。范围外变化、实际不足2或超过10均STOP，由作者调整步骤，不人为改无关文件凑数。

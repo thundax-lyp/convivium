@@ -9,12 +9,15 @@ import {
 } from "@/utils/index.ts";
 import { seqKey, type SeqKey } from "@/repository/storage-domain/format/index.ts";
 import {
+    CheckpointPointerSchema,
+    CheckpointRootSchema,
+    CheckpointPageSchema,
     CommitRecordSchema,
     PersistenceProjectionSchema,
     type CommitRecord,
     type PersistenceProjection
 } from "@/repository/storage-domain/format/index.ts";
-import type { MeetingDomain } from "@/repository/storage-domain/format/index.ts";
+import type { KvTable } from "@deepseek-ai/dsh-storage-domain";
 import { UnsupportedMeetingStateFormatError } from "@/repository/storage-domain/format/index.ts";
 
 export const MAX_COMMIT_VALUE_BYTES = 65_536;
@@ -147,13 +150,17 @@ export const foldCommitTail = (input: {
 };
 
 export const loadProjection = (input: {
-    readonly domain: MeetingDomain;
+    readonly domain: { table(name: string): Pick<KvTable<string, unknown>, "get" | "entries"> };
 }): PersistenceProjection => {
-    const pointer = input.domain.table("checkpoint_pointer").get("current");
+    const rawPointer = input.domain.table("checkpoint_pointer").get("current");
+    const pointer =
+        rawPointer === undefined ? undefined : CheckpointPointerSchema.parse(rawPointer);
     let baseProjection: PersistenceProjection | null = null;
     let baseSeq = 0;
     if (pointer) {
-        const root = input.domain.table("checkpoint_roots").get(pointer.generation);
+        const root = CheckpointRootSchema.parse(
+            input.domain.table("checkpoint_roots").get(pointer.generation)
+        );
         if (
             !root ||
             root.baseSeq !== pointer.baseSeq ||
@@ -163,9 +170,11 @@ export const loadProjection = (input: {
         }
         const pages: Uint8Array[] = [];
         for (let index = 0; index < root.pageCount; index++) {
-            const page = input.domain
-                .table("checkpoint_pages")
-                .get(`${root.generation}_${index.toString().padStart(10, "0")}`);
+            const page = CheckpointPageSchema.parse(
+                input.domain
+                    .table("checkpoint_pages")
+                    .get(`${root.generation}_${index.toString().padStart(10, "0")}`)
+            );
             if (
                 !page ||
                 page.pageIndex !== index ||
@@ -195,7 +204,10 @@ export const loadProjection = (input: {
     return foldCommitTail({
         baseProjection,
         baseSeq,
-        commits: [...input.domain.table("commits").entries()]
+        commits: [...input.domain.table("commits").entries()].map(([key, record]) => [
+            key,
+            CommitRecordSchema.parse(record)
+        ])
     });
 };
 

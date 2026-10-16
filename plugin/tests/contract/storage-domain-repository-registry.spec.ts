@@ -1,3 +1,5 @@
+import { createMeetingDomainSpec } from "@/repository/storage-domain/format/index.ts";
+import { readMeetingOutboxForAcceptance } from "@/repository/index.ts";
 import { peerBindings } from "../fixtures/peer-ownership.ts";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { describe, expect, it } from "vitest";
@@ -294,4 +296,86 @@ describe("StorageDomainRepositoryRegistry contract", () => {
             "convivium_catalog"
         ]);
     });
+});
+
+it("reads requested durable outbox states without recovering expired leases or exposing payloads", async () => {
+    const { facility, catalog } = fixture();
+    facility.register(createFakeMeetingDomain({ name: meetingDomainName("meeting-read") }));
+    const registry = await StorageDomainRepositoryRegistry.open({
+        storageDomain: facility,
+        authorizationValidator: allow
+    });
+    const identities = [
+        { id: "manager", roles: ["manager"] },
+        { id: "reviewer", roles: ["evidence_reviewer"] }
+    ];
+    const input = {
+        requestId: "create-read",
+        requestHash: "hash-read",
+        authorization: { callerBinding: "local", capabilityId: "local" },
+        initialState: { count: 0, identities },
+        ...peerBindings("meeting-read", identities),
+        outbox: [
+            {
+                id: "item",
+                deliveryId: "delivery",
+                kind: "dispatch" as const,
+                payload: { secret: "hidden" }
+            }
+        ],
+        createdAt: 1
+    };
+    const repository = await registry.openMeeting({ meetingId: "meeting-read", create: input });
+    for (const ownership of input.initialOwnership) {
+        await repository.recordSessionOwnership({ ...ownership, lifecycleStatus: "active" }, 2);
+    }
+    await repository.completeCreate(input);
+    const meeting = await facility.open(createMeetingDomainSpec(meetingDomainName("meeting-read")));
+    const storageDomain = {
+        get: (name: string) =>
+            name === catalog.name ? catalog : name === meeting.name ? meeting : undefined
+    };
+    const read = (deliveryIds = ["delivery"]) =>
+        readMeetingOutboxForAcceptance({ storageDomain, meetingId: "meeting-read", deliveryIds });
+    const writes = () => [
+        catalog.putCalls.length,
+        catalog.deleteCalls.length,
+        meeting.putCalls.length,
+        meeting.deleteCalls.length,
+        catalog.closeCalls,
+        meeting.closeCalls
+    ];
+    const before = writes();
+    expect(read()).toEqual([{ id: "item", deliveryId: "delivery", status: "pending" }]);
+    expect(writes()).toEqual(before);
+    const [lease] = await repository.claimOutbox({
+        owner: "worker",
+        ttlMs: 1,
+        batchSize: 1,
+        now: 1000
+    });
+    const leasedBefore = writes();
+    expect(read()).toEqual([{ id: "item", deliveryId: "delivery", status: "leased" }]);
+    expect(writes()).toEqual(leasedBefore);
+    await repository.completeOutbox({
+        id: lease.id,
+        leaseOwner: lease.leaseOwner,
+        leaseToken: lease.leaseToken,
+        completion: { status: "delivered" },
+        now: 1000
+    });
+    const result = read();
+    expect(result).toEqual([{ id: "item", deliveryId: "delivery", status: "delivered" }]);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result[0])).toBe(true);
+    expect(() => read(["missing"])).toThrow();
+    expect(() => read(["delivery", "delivery"])).toThrow();
+    expect(() =>
+        readMeetingOutboxForAcceptance({
+            storageDomain,
+            meetingId: "other",
+            deliveryIds: ["delivery"]
+        })
+    ).toThrow();
+    await registry.close();
 });
