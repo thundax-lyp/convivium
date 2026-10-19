@@ -158,7 +158,11 @@ export const SubmitManagerPlanActionSchema = z
                 question: text,
                 evidenceGap: text,
                 expectedOutput: text,
-                researchObjectIds: z.array(text).min(1).optional()
+                researchObjectIds: z
+                    .array(text)
+                    .min(1)
+                    .refine((values) => new Set(values).size === values.length)
+                    .optional()
             })
             .optional(),
         rationale: text,

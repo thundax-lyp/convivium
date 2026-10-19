@@ -323,6 +323,12 @@ it("does not open a research round while target planning is unvalidated", () => 
 it("requires an accepted object reference when opening a research-planned round", () => {
     const state = makeRunningMeetingStateV1();
     state.objective.researchPlanning = acceptedResearchPlanning(state.objective.statement);
+    state.objective.requiredOutputs.push({
+        id: "research-O1",
+        text: "领域机制：机制如何成立？",
+        status: "pending"
+    });
+    state.agenda[0]!.requiredOutputIds.push("research-O1");
     const input = {
         roundId: "round-targets",
         agendaId: state.agenda[0]!.id,
@@ -353,6 +359,12 @@ it("requires an accepted object reference when opening a research-planned round"
     };
     expect(openRoundWithPlan(scoped, input).kind).toBe("accepted");
     scoped.managerPlans[0]!.roundGoal.researchObjectIds = ["unknown"];
+    expect(openRoundWithPlan(scoped, input)).toMatchObject({
+        kind: "rejected",
+        error: { code: "PRECONDITION_FAILED" }
+    });
+    scoped.managerPlans[0]!.roundGoal.researchObjectIds = ["O1"];
+    scoped.agenda[0]!.requiredOutputIds = ["output-v1"];
     expect(openRoundWithPlan(scoped, input)).toMatchObject({
         kind: "rejected",
         error: { code: "PRECONDITION_FAILED" }

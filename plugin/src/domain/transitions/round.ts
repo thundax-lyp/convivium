@@ -80,7 +80,9 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
         research?.status === "accepted" &&
         (!plan.roundGoal.researchObjectIds?.length ||
             plan.roundGoal.researchObjectIds.some(
-                (id) => !research.plan.researchObjects.some((o) => o.id === id)
+                (id) =>
+                    !research.plan.researchObjects.some((object) => object.id === id) ||
+                    !agenda.requiredOutputIds.includes(`research-${id}`)
             ))
     ) {
         return rejected(
