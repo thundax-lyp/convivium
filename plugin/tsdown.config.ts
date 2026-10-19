@@ -14,6 +14,7 @@ export default defineConfig([
         entry: {
             index: "src/index.ts",
             "research-planning": "src/research-planning-execution/index.ts",
+            "web-evidence": "src/evidence-content/index.ts",
             "acp-compaction": "src/dsh/acp-codex/compaction.ts",
             "remote/types": "src/remote/types.ts"
         },
