@@ -49,17 +49,17 @@ export const roleCompositionModelOverrides = {
 
 // Identity hashes captured from the unchanged fe886643 baseline before agentOptions.
 export const packagedDefinitionHashes: Readonly<Record<string, string>> = {
-    "convivium.meeting_manager": "c5228a9e6e3636ff3df65385e388198943b5a1e817849a3023a8aa4c24e96cf0",
+    "convivium.meeting_manager": "08d3594eb423302b51a5e2894be22e1fad7975de95d882644bd3aaee63f977f8",
     "convivium.domain_architect":
-        "0ef7f40f2b1ed2d24b1bfb060e974c008131925534845e8ced0eb1ae79aa37e9",
+        "9a34a78ca674e802b4338a8e1ccf3a687ad534401e019c0eb0026dda06469548",
     "convivium.runtime_engineer":
-        "ea1445fbb682d1cbbd47926c51220bd0b31035e524210759d17ba634475724b0",
+        "3b9fd56f57b7510fff8b91a433c6fce2455f7dd93ad3991637a849c472fff7df",
     "convivium.protocol_ui_engineer":
-        "8015c7c759e49987fb36b156b4fed82e366b0effb4b26589ba01f0ba44d1835d",
+        "c62283c10d51a9e669bb0a848572062e7ba831b2580804df25aa1f666789fd41",
     "convivium.verification_reviewer":
         "790c4c4fd9cd0b63e9b9724a398222e4ef5135ea211cde72ce3e182f2ce1d344",
     "convivium.github_research_analyst":
-        "665332d2918ce24e70f66148caa82eea4f4255c02b6b5d3906cfc4d1cf771dcc",
+        "df60fcdaf42f2de14d22fb2d53c79954f2e42dcd451220eccabc79423eaed09a",
     "convivium.arxiv_research_analyst":
-        "2f5aa641b110e17386fdb361b774fbdfd9202fd9843323c3454b35ecd2326e59"
+        "e731d7a95031e89e5bfdbd045aea7d3889756d36c4d6e806301384cdfeccd23d"
 };

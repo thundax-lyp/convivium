@@ -36,6 +36,7 @@ it("publishes only the current contribution tools for Manager", () => {
                 "skill",
                 "convivium_read_meeting",
                 "convivium_submit_manager_plan",
+                "convivium_plan_research",
                 "convivium_activate_agenda",
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
@@ -54,6 +55,7 @@ it("publishes only the current contribution tools for Manager", () => {
     });
     const contributorDeniedTools = [
         "convivium_submit_manager_plan",
+        "convivium_plan_research",
         "convivium_activate_agenda",
         "convivium_open_round",
         "convivium_dispose_hand_raise",

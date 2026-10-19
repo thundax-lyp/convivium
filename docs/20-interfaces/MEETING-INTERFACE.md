@@ -1273,3 +1273,11 @@ Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` �
 `MeetingView.executionBlocks` 为可选技术诊断，由 Runtime 将 provider 技术记录与当前 Meeting ownership 关联生成；空时省略，按 identityId 排序。仅公开该读取入口有权查看的身份、稳定 code、安全非负整数毫秒 since 和固定 allowedActions，不暴露 Session ID、模型、路径、凭据或隐藏推理。不是领域状态或权限授予，不增加 Meeting version、领域事件、receipt 或 Archive 事实。精确技术状态见 [ACP Execution Interface](./DSH-ACP-EXECUTION-INTERFACE.md)。
 
 provider 持久阻断后通知 Runtime 的 refreshListeners，用当前 committedVersion 发刷新；Client 即使 version 相同也重新读取技术诊断。提示受影响身份、已停止自动执行以及可暂停/异常结束；复用现有 Captain 控制，仍按真实 caller/lifecycle 校验，不自动暂停、不增加清锁动作，resume 不解除阻断。原生非 ACP 路径保持原行为。
+
+## Structured Research Targets
+
+聊天创建 objective 保存原始 statement、`researchPlanning:{status:"pending"}`，requiredOutputs、acceptanceCriteria、hardConstraints 初始为空，不注入通用模板；显式结构化创建仍保留用户提供的目标契约。创建契约只接受 pending 规划，不能提交 accepted 或自造校验凭据。既有无此字段的会议保留原契约，不自动改写。
+
+objective.researchPlanning 为 pending / failed / accepted 闭集。failed 保存 reason、skillSha256 和每稿原始 draft/review、parseError/reviewError、generatorModel/reviewerModel；accepted 保存同样来源及 plan。plan 使用 Skill 解析字段 originalQuestion、requirements、researchObjects（id/name/discussionGoal/includes/excludes/coversRequirementIds/dependencyInputs/boundaryWithOthers）、sharedRequirements、unresolvedPremises、nextStep、coverageCheck。不得手工补字段。研究对象作为 pending requiredOutputs（research-对象ID）建立成果引用，active Agenda 引用这些产出；未自动接受成果或风险。
+
+Host 受控工具将验证结果随 submit_manager_plan 的内部执行上下文原子提交，载入公开 objective；原始失败候选随最终执行结果保存，提交日志保留历史，不经模型 payload 写入。roundGoal 增加 researchObjectIds；具有研究规划的会议必须 accepted 且引用存在的对象才能 open_round。研究路径可重新规划，对象范围不被普通计划改写。页面对新会议直接展示已保存研究对象及边界/依赖，区分原问题、横贯要求和未决前提；旧会议继续展示已有目标。

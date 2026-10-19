@@ -1,3 +1,4 @@
+import { acceptedResearchPlanning } from "../../fixtures/research-planning.ts";
 import { captainActorIdFor } from "@/domain/control-actor.ts";
 import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state.ts";
@@ -304,5 +305,56 @@ describe("round transitions", () => {
         });
         expect(result.state.pendingHandRaises).toEqual([]);
         expect(result.state.publications).toEqual([]);
+    });
+});
+
+it("does not open a research round while target planning is unvalidated", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective.researchPlanning = { status: "pending" };
+    const result = openRoundWithPlan(state, {
+        roundId: "round-planning",
+        agendaId: state.agenda[0]!.id,
+        managerId: state.identities.find((i) => i.roles.includes("manager"))!.id,
+        now: 1
+    });
+    expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
+});
+
+it("requires an accepted object reference when opening a research-planned round", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective.researchPlanning = acceptedResearchPlanning(state.objective.statement);
+    const input = {
+        roundId: "round-targets",
+        agendaId: state.agenda[0]!.id,
+        managerId: state.identities.find((i) => i.roles.includes("manager"))!.id,
+        now: 1
+    };
+    expect(openRoundWithPlan(state, input)).toMatchObject({
+        kind: "rejected",
+        error: { code: "PRECONDITION_FAILED" }
+    });
+    const planned = openRoundWithPlan(
+        { ...state, objective: { ...state.objective, researchPlanning: undefined } },
+        input
+    );
+    if (planned.kind !== "accepted") {
+        throw new Error("fixture did not open");
+    }
+    const plan = planned.state.managerPlans[0]!;
+    const scoped = {
+        ...state,
+        managerPlans: [
+            {
+                ...plan,
+                status: "active" as const,
+                roundGoal: { ...plan.roundGoal!, researchObjectIds: ["O1"] }
+            }
+        ]
+    };
+    expect(openRoundWithPlan(scoped, input).kind).toBe("accepted");
+    scoped.managerPlans[0]!.roundGoal.researchObjectIds = ["unknown"];
+    expect(openRoundWithPlan(scoped, input)).toMatchObject({
+        kind: "rejected",
+        error: { code: "PRECONDITION_FAILED" }
     });
 });

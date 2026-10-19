@@ -1,3 +1,4 @@
+import { ResearchPlanningSchema } from "@/research-planning/index.ts";
 import { z } from "zod";
 import { RoleErrorCodeSchema } from "./meeting-identity.ts";
 import { MeetingDeletionStatusSchema } from "./meeting-deletion.ts";
@@ -251,6 +252,7 @@ const target = z.object({
 });
 
 export const ObjectiveViewSchema = z.object({
+    researchPlanning: ResearchPlanningSchema.optional(),
     statement: text,
     requiredOutputs: z.array(target),
     acceptanceCriteria: z.array(target),
@@ -316,7 +318,12 @@ export const RoundViewSchema = z.object({
     id,
     agendaId: id,
     planId: id,
-    roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }),
+    roundGoal: z.object({
+        question: text,
+        evidenceGap: text,
+        expectedOutput: text,
+        researchObjectIds: z.array(text).min(1).optional()
+    }),
     status: z.enum(["open", "published", "aborted"]),
     baselinePublicationIds: z.array(id),
     openedAt: epoch,
@@ -663,7 +670,14 @@ export const ManagerPlanViewSchema = z.object({
     agendaId: id,
     managerId: id,
     basedOnPublicationId: id.optional(),
-    roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }).optional(),
+    roundGoal: z
+        .object({
+            question: text,
+            evidenceGap: text,
+            expectedOutput: text,
+            researchObjectIds: z.array(text).min(1).optional()
+        })
+        .optional(),
     kind: z.enum([
         "open_round",
         "continue_agenda",

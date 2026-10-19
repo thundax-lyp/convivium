@@ -3,6 +3,17 @@ import type { TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 export const MEETING_LOCALE_NS = "convivium.meeting";
 
 export const zh = {
+    "panel.research.candidate": "未通过的候选 {number}",
+    "panel.research.original": "原问题：",
+    "panel.research.pending": "正在规划讨论目标，尚未通过校验。",
+    "panel.research.failed": "讨论目标规划未通过，未开启研究轮次。",
+    "panel.research.includes": "包含：",
+    "panel.research.excludes": "排除：",
+    "panel.research.boundary": "责任边界：",
+    "panel.research.dependencies": "依赖：",
+    "panel.research.shared": "横贯要求：",
+    "panel.research.unresolved": "未决前提：",
+
     "panel.execution.unknown":
         "{identity}：执行结果未知，已停止自动执行。可暂停或异常结束会议；继续会议不会解除阻断。",
     "panel.execution.recovery":
@@ -372,6 +383,17 @@ export const zh = {
 export type MeetingLocaleKey = keyof typeof zh;
 
 export const en: Record<MeetingLocaleKey, string> = {
+    "panel.research.candidate": "Unaccepted candidate {number}",
+    "panel.research.original": "Original question:",
+    "panel.research.pending": "Planning discussion targets; validation is pending.",
+    "panel.research.failed": "Target planning failed; research rounds have not started.",
+    "panel.research.includes": "Includes:",
+    "panel.research.excludes": "Excludes:",
+    "panel.research.boundary": "Boundary:",
+    "panel.research.dependencies": "Dependencies:",
+    "panel.research.shared": "Shared requirements:",
+    "panel.research.unresolved": "Open premises:",
+
     "panel.execution.unknown":
         "{identity}: Execution outcome is unknown. Automatic execution is blocked. You can pause or end the meeting; resuming does not clear this block.",
     "panel.execution.recovery":

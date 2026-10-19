@@ -121,6 +121,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                     const [role, preset, assigned] = roles[i];
                     const contributorDeny = [
                         "convivium_submit_manager_plan",
+                        "convivium_plan_research",
                         "convivium_activate_agenda",
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
@@ -136,6 +137,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                       "skill",
                                       "convivium_read_meeting",
                                       "convivium_submit_manager_plan",
+                                      "convivium_plan_research",
                                       "convivium_activate_agenda",
                                       "convivium_open_round",
                                       "convivium_dispose_hand_raise",

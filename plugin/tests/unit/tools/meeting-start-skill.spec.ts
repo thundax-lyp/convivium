@@ -1,3 +1,4 @@
+import { MeetingCommandSchema } from "@/protocol/index.ts";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
@@ -46,8 +47,22 @@ describe("chat Meeting start", () => {
         ]);
         expect(command.action.identities.every((identity) => identity.required)).toBe(true);
         expect(command.action.initialAgenda).toHaveLength(1);
-        expect(command.action.objective.requiredOutputs).toHaveLength(1);
-        expect(command.action.objective.acceptanceCriteria).toHaveLength(1);
+        expect(command.action.objective.requiredOutputs).toEqual([]);
+        expect(command.action.objective.hardConstraints).toEqual([]);
+        expect(command.action.objective).toMatchObject({ researchPlanning: { status: "pending" } });
+        expect(command.action.objective.acceptanceCriteria).toEqual([]);
+        expect(
+            MeetingCommandSchema.safeParse({
+                ...command,
+                action: {
+                    ...command.action,
+                    objective: {
+                        ...command.action.objective,
+                        researchPlanning: { status: "accepted" }
+                    }
+                }
+            }).success
+        ).toBe(false);
     });
 
     it("selects contributors from deployment configuration", () => {

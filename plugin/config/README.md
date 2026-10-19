@@ -13,7 +13,7 @@
 | arxiv_research_analyst  | convivium-arxiv-research-analyst  | arxiv                                               |
 | web_research_analyst    | convivium-web-research-analyst    | web                                                 |
 
-`research-planning` 包含列表解析与 DeepSeek 独立审查脚本，加载 Skill 不执行脚本。当前 Manager 未获脚本或子代理工具，自动规划闭环尚未接线；可由已授权本地操作方独立运行，不能把 Skill 可加载视为闭环已执行。用法与产物见该 Skill 正文。
+`research-planning` 包含列表解析、独立审查与有限修订脚本。Manager 实际加载后调用受控 `convivium_plan_research`，Host 通过 DSH 模型服务运行同一规划实现并保存结构化讨论目标；加载本身不执行脚本。未通过不能开轮，不自动回退通用目标。
 
 每项能力使用 `skills/<能力名>/SKILL.md`，可以附带同目录 `scripts/`；加载 Skill 本身不执行脚本。角色 Preset 的 filesystem provider 关闭默认 Skill 根，只加载分配的目录。模型上下文、列表和按名称加载都受角色隔离；这不承诺本机静态文件保密。全局注册的工具也不等于角色获得业务权限：Definition 收窄模型工具面，Runtime 另行校验 MeetingIdentity 与持久 ownership。
 

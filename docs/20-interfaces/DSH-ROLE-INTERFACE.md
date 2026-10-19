@@ -101,7 +101,7 @@ interface ResourceBinding {
 
 以下 Definition 工具与 Skill 调用约束适用于 DSH 原生执行路径。ACP root/worker 不使用这些工具或 Skills，会议职责由宿主适配；当前迁移门禁及可信调用边界见 [ACP Native Execution Boundary](./DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。资源绑定和身份完整性仍须校验，不因 ACP 路由跳过。
 
-当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。六个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 专属用户控制不注册 Agent tool；已有 pending Agenda 的激活复用命令并注册 Manager 专用 `convivium_activate_agenda`；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
+当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_plan_research,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。六个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_plan_research,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 专属用户控制不注册 Agent tool；已有 pending Agenda 的激活复用命令并注册 Manager 专用 `convivium_activate_agenda`；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
 
 `meeting_manager` 与 `verification_reviewer` 只在创建时绑定唯一 Manager 与专职 reviewer；其它六个角色映射为 `roles:["contributor"]`，动态接纳只能使用这六个。Reviewer 只经专用 `convivium_run_review_worker` 启动固定 schema 的 one-shot DSH worker，不取得通用 subagent tool 或 worker Meeting authority。Definition 不授予 Meeting 控制权。
 
@@ -295,3 +295,13 @@ DSH adapter 从 Host 启动工作目录的真实绝对路径派生 `meetings/<me
 - [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [Meeting Interface](./MEETING-INTERFACE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+
+## Research Planning Execution
+
+Manager 增加 `convivium_plan_research({meetingId,expectedMeetingVersion,requestId})`。调用前须实际加载 research-planning；参数不接受候选、目标正文、审查或自报 PASS。Host 验证同 Meeting 的 active Manager ownership，读取已保存原问题和当前安装的 scoped Skill，经 DSH `llm` 的 deepseek-official route 执行 Flash 生成、V4 Pro 独立上下文审查和同一 Skill 脚本解析；不直接读取模型 key、不授予任意脚本或网络工具。无有效目标、版本冲突、暂停、open Round 或能力缺失时拒绝。结果作为同 Manager 的计划提交原子保存；未通过不允许开轮，失败不自动重新启动另一组修订。已接受规划只读复用，不允许静默替换。
+
+规划验证结果只能由 Host 执行上下文提供，普通 MeetingCommand 或模型工具参数不能注入；Runtime 仍校验 caller、Meeting version、生命周期和原问题。语义正确性由独立审查与人工复核提供，不宣称确定性结构检查证明语义。
+
+规划执行期间的每稿列表、审查及用量通过 Manager 自身 Session 的 `convivium/research-planning` 诊断事件追加并 flush，保留 name/content，不包含内部推理或凭据；该事件不是 Meeting 事实源。最终规划及失败原因仍由 Meeting 原子 commit 保存。每次辅助模型调用有四分钟期限，取消或版本变化后的结果不能提交。
+
+工具成功提交返回现有 MeetingCommandResult accepted（含 committedVersion）；已接受时返回 `{kind:"already_planned",meetingId,version}` 且不重复模型调用，已失败时返回 `{kind:"planning_failed",reason}` 且不突破预算。跨会议、非 Manager、旧版本、非 running 或已有 open Round 在生成前拒绝。当前切片不增加失败后的重置命令或已接受对象的编辑命令，用户处置不能被模型自行重试替代。

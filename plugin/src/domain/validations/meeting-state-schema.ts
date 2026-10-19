@@ -1,3 +1,4 @@
+import { ResearchPlanningSchema } from "@/research-planning/index.ts";
 import { z } from "zod";
 
 type RecordValue = Record<string, unknown>;
@@ -82,6 +83,7 @@ const hardConstraintSchema = z.object({
     status: constraintStatusSchema
 });
 const objectiveSchema = z.object({
+    researchPlanning: ResearchPlanningSchema.optional(),
     statement: textSchema,
     requiredOutputs: uniqueEntityArray(objectiveTargetSchema),
     acceptanceCriteria: uniqueEntityArray(objectiveTargetSchema),
@@ -212,7 +214,12 @@ const managerPlanSchema = z.object({
     managerId: opaqueIdSchema,
     basedOnPublicationId: opaqueIdSchema.optional(),
     roundGoal: z
-        .object({ question: textSchema, evidenceGap: textSchema, expectedOutput: textSchema })
+        .object({
+            question: textSchema,
+            evidenceGap: textSchema,
+            expectedOutput: textSchema,
+            researchObjectIds: uniqueIdArraySchema.min(1).optional()
+        })
         .optional(),
     kind: z.enum([
         "open_round",
@@ -242,7 +249,8 @@ const roundSchema = z
         roundGoal: z.object({
             question: textSchema,
             evidenceGap: textSchema,
-            expectedOutput: textSchema
+            expectedOutput: textSchema,
+            researchObjectIds: uniqueIdArraySchema.min(1).optional()
         }),
         publicBaselinePublicationIds: uniqueIdArraySchema,
         openedAt: epochSchema,

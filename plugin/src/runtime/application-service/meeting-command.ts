@@ -1,3 +1,4 @@
+import type { ResearchPlanning } from "@/research-planning/index.ts";
 import {
     runMeetingActionTransition,
     TransitionRejected,
@@ -47,6 +48,7 @@ export interface CallerBinding {
 
 export interface MeetingCommandExecutionContext {
     caller: CallerBinding;
+    researchPlanning?: ResearchPlanning;
     archiveEffect?: { effectId: string; archiveId: string };
     identityAdmissionResult?: IdentityAdmissionResultContext;
 }

@@ -1,3 +1,5 @@
+import { registerResearchPlanningTool } from "./research-planning.ts";
+import type { ResearchPlanning } from "@/research-planning/index.ts";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import {
@@ -44,6 +46,11 @@ export interface TargetMeetingToolReader {
 }
 
 export interface MeetingCommandToolDependencies {
+    readonly researchPlanner?: (input: {
+        agent: Agent;
+        question: string;
+        signal: AbortSignal;
+    }) => Promise<ResearchPlanning>;
     readonly acpCodex?: CodexAcpProviderPort;
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
@@ -127,6 +134,12 @@ const actionSchemas = {
         roundGoal: exactObject(
             {
                 question: requiredString("Question the round must answer."),
+                researchObjectIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                        "Accepted research object IDs advanced in this round; required for research-planned meetings."
+                },
                 evidenceGap: requiredString("Evidence gap the round must close."),
                 expectedOutput: requiredString("Concrete output expected from the round.")
             },
@@ -609,6 +622,7 @@ export function registerMeetingTools(
     ];
     return [
         registerReadTool(dependencies),
+        registerResearchPlanningTool(dependencies),
         registerReviewWorkerTool(dependencies),
         ...definitions.map((definition) => registerTool(dependencies, definition))
     ];

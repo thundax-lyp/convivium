@@ -52,6 +52,12 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
     if (state.messages.length + reservedFormalMessages(state) >= state.limits.maxFormalMessages) {
         return rejected(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
     }
+    if (
+        state.objective.researchPlanning &&
+        state.objective.researchPlanning.status !== "accepted"
+    ) {
+        return rejected(state, "PRECONDITION_FAILED", "Validated research targets are required");
+    }
     const agenda = state.agenda.find((item) => item.id === input.agendaId);
     if (!agenda) {
         return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
@@ -68,6 +74,20 @@ export const openRound = (state: MeetingState, input: OpenRoundInput): MeetingTr
     );
     if (!plan?.roundGoal) {
         return rejected(state, "PRECONDITION_FAILED", "active open-round plan is required");
+    }
+    const research = state.objective.researchPlanning;
+    if (
+        research?.status === "accepted" &&
+        (!plan.roundGoal.researchObjectIds?.length ||
+            plan.roundGoal.researchObjectIds.some(
+                (id) => !research.plan.researchObjects.some((o) => o.id === id)
+            ))
+    ) {
+        return rejected(
+            state,
+            "PRECONDITION_FAILED",
+            "Round must reference accepted research objects"
+        );
     }
     const manager = state.identities.find((identity) => identity.id === input.managerId);
     if (!manager || !manager.roles.includes("manager")) {
