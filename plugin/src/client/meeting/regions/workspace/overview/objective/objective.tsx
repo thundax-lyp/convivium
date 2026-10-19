@@ -74,48 +74,58 @@ export const OverviewObjective = ({ detail }: { detail: MeetingView }): ReactEle
                                     key={object.id}
                                     data-overview-key={`objective:research-${object.id}`}
                                 >
-                                    <span
-                                        aria-label={known(
-                                            "objectiveStatus",
-                                            objective.requiredOutputs.find(
-                                                (target) => target.id === `research-${object.id}`
-                                            )?.status ?? "pending",
-                                            t
+                                    <details>
+                                        <summary>
+                                            <span
+                                                aria-label={known(
+                                                    "objectiveStatus",
+                                                    objective.requiredOutputs.find(
+                                                        (target) =>
+                                                            target.id === `research-${object.id}`
+                                                    )?.status ?? "pending",
+                                                    t
+                                                )}
+                                            >
+                                                {
+                                                    statusIcon[
+                                                        objective.requiredOutputs.find(
+                                                            (target) =>
+                                                                target.id ===
+                                                                `research-${object.id}`
+                                                        )?.status ?? "pending"
+                                                    ]
+                                                }
+                                            </span>
+                                            <strong>
+                                                {object.id} · {object.name}
+                                            </strong>
+                                        </summary>
+                                        <p>{object.discussionGoal}</p>
+                                        <p>
+                                            {t("panel.research.includes")}{" "}
+                                            {object.includes.join("；")}
+                                        </p>
+                                        {object.excludes.length > 0 && (
+                                            <p>
+                                                {t("panel.research.excludes")}{" "}
+                                                {object.excludes.join("；")}
+                                            </p>
                                         )}
-                                    >
-                                        {
-                                            statusIcon[
-                                                objective.requiredOutputs.find(
-                                                    (target) =>
-                                                        target.id === `research-${object.id}`
-                                                )?.status ?? "pending"
-                                            ]
-                                        }
-                                    </span>
-                                    <strong>
-                                        {object.id} · {object.name}
-                                    </strong>
-                                    <p>{object.discussionGoal}</p>
-                                    <p>
-                                        {t("panel.research.includes")} {object.includes.join("；")}
-                                    </p>
-                                    {object.excludes.length > 0 && (
                                         <p>
-                                            {t("panel.research.excludes")}{" "}
-                                            {object.excludes.join("；")}
+                                            {t("panel.research.boundary")}{" "}
+                                            {object.boundaryWithOthers}
                                         </p>
-                                    )}
-                                    <p>
-                                        {t("panel.research.boundary")} {object.boundaryWithOthers}
-                                    </p>
-                                    {object.dependencyInputs.length > 0 && (
-                                        <p>
-                                            {t("panel.research.dependencies")}{" "}
-                                            {object.dependencyInputs
-                                                .map((d) => `${d.objectId}：${d.requiredResult}`)
-                                                .join("；")}
-                                        </p>
-                                    )}
+                                        {object.dependencyInputs.length > 0 && (
+                                            <p>
+                                                {t("panel.research.dependencies")}{" "}
+                                                {object.dependencyInputs
+                                                    .map(
+                                                        (d) => `${d.objectId}：${d.requiredResult}`
+                                                    )
+                                                    .join("；")}
+                                            </p>
+                                        )}
+                                    </details>
                                 </li>
                             ))}
                         />

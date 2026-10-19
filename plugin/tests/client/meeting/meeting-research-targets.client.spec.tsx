@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { OverviewObjective } from "@/client/meeting/regions/workspace/overview/objective/index.ts";
 import { withMeetingTranslation } from "./meeting-panel-locale-fixtures.ts";
@@ -12,10 +12,18 @@ it("shows the persisted research objects and their boundaries instead of generic
     view.objective.researchPlanning = acceptedResearchPlanning(view.objective.statement);
     render(withMeetingTranslation(<OverviewObjective detail={view} />, "zh"));
     expect(screen.getByText("O1 · 领域机制")).toBeTruthy();
+    const title = screen.getByText("O1 · 领域机制").closest("summary");
+    const disclosure = title?.closest("details");
+    expect(title).not.toBeNull();
+    expect(disclosure?.open).toBe(false);
+    fireEvent.click(title!);
+    expect(disclosure?.open).toBe(true);
     expect(screen.getByText("机制如何成立？")).toBeTruthy();
     expect(screen.getByText(/责任边界：.*机制责任/)).toBeTruthy();
     expect(screen.getByText(/未决前提：/)).toBeTruthy();
     expect(screen.queryByText(view.objective.requiredOutputs[0]!.text)).toBeNull();
+    fireEvent.click(title!);
+    expect(disclosure?.open).toBe(false);
 });
 it("keeps unvalidated targets pending without showing generic rows", () => {
     const { view } = meetingProjectionFixture();
