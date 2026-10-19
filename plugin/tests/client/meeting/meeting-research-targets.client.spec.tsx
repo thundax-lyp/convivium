@@ -7,9 +7,14 @@ import { meetingProjectionFixture } from "./meeting-panel-fixtures.ts";
 import { acceptedResearchPlanning } from "../../fixtures/research-planning.ts";
 
 afterEach(cleanup);
-it("shows the persisted research objects and their boundaries instead of generic output rows", () => {
+it("shows persisted research objects alongside caller-provided target rows", () => {
     const { view } = meetingProjectionFixture();
     view.objective.researchPlanning = acceptedResearchPlanning(view.objective.statement);
+    view.objective.requiredOutputs.push({
+        id: "research-O1",
+        text: "领域机制：机制如何成立？",
+        status: "pending"
+    });
     render(withMeetingTranslation(<OverviewObjective detail={view} />, "zh"));
     expect(screen.getByText("O1 · 领域机制")).toBeTruthy();
     const title = screen.getByText("O1 · 领域机制").closest("summary");
@@ -21,16 +26,17 @@ it("shows the persisted research objects and their boundaries instead of generic
     expect(screen.getByText("机制如何成立？")).toBeTruthy();
     expect(screen.getByText(/责任边界：.*机制责任/)).toBeTruthy();
     expect(screen.getByText(/未决前提：/)).toBeTruthy();
-    expect(screen.queryByText(view.objective.requiredOutputs[0]!.text)).toBeNull();
+    expect(screen.getByText(view.objective.requiredOutputs[0]!.text)).toBeTruthy();
+    expect(screen.queryByText("领域机制：机制如何成立？")).toBeNull();
     fireEvent.click(title!);
     expect(disclosure?.open).toBe(false);
 });
-it("keeps unvalidated targets pending without showing generic rows", () => {
+it("keeps unvalidated research pending while showing caller-provided targets", () => {
     const { view } = meetingProjectionFixture();
     view.objective.researchPlanning = { status: "pending" };
     render(withMeetingTranslation(<OverviewObjective detail={view} />, "zh"));
     expect(screen.getByRole("status").textContent).toContain("尚未通过校验");
-    expect(screen.queryByText(view.objective.requiredOutputs[0]!.text)).toBeNull();
+    expect(screen.getByText(view.objective.requiredOutputs[0]!.text)).toBeTruthy();
 });
 it("shows failed candidates for inspection without presenting them as accepted targets", () => {
     const { view } = meetingProjectionFixture();
@@ -48,4 +54,5 @@ it("shows failed candidates for inspection without presenting them as accepted t
     expect(screen.getByRole("status").textContent).toContain("未通过");
     expect(screen.getByText(candidate.attempts[0]!.draft)).toBeTruthy();
     expect(screen.queryByText("O1 · 领域机制")).toBeNull();
+    expect(screen.getByText(view.objective.requiredOutputs[0]!.text)).toBeTruthy();
 });

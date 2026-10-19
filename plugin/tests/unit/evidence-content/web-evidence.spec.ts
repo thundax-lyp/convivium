@@ -22,3 +22,8 @@ it.each([
 ])("rejects malformed content rather than filling or relocating fields", (invalid) => {
     expect(() => parseWebEvidence(invalid)).toThrow();
 });
+it("rejects a claim without any material reference at the parsing boundary", () => {
+    expect(() => parseWebEvidence(draft.replace("@materialIds\nM1", "@materialIds\n"))).toThrow(
+        "C1: invalid materialIds"
+    );
+});

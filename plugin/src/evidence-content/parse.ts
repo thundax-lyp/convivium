@@ -111,6 +111,7 @@ export const parseWebEvidence = (draft: string) => {
         });
     for (const claim of claims) {
         if (
+            claim.materialIds.length === 0 ||
             new Set(claim.materialIds).size !== claim.materialIds.length ||
             claim.materialIds.some((id) => !materials.some((m) => m.id === id))
         ) {

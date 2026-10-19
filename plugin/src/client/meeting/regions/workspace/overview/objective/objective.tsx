@@ -39,6 +39,12 @@ export const OverviewObjective = ({ detail }: { detail: MeetingView }): ReactEle
     const planning = objective.researchPlanning;
     if (planning) {
         const plan = planning.status === "accepted" ? planning.plan : undefined;
+        const researchOutputIds = new Set(
+            plan?.researchObjects.map((object) => `research-${object.id}`) ?? []
+        );
+        const callerProvidedOutputs = objective.requiredOutputs.filter(
+            (target) => !researchOutputIds.has(target.id)
+        );
         return (
             <Section
                 label={t("panel.overview.objective")}
@@ -143,10 +149,12 @@ export const OverviewObjective = ({ detail }: { detail: MeetingView }): ReactEle
                         )}
                     </>
                 )}
-                {(objective.acceptanceCriteria.length > 0 ||
+                {(callerProvidedOutputs.length > 0 ||
+                    objective.acceptanceCriteria.length > 0 ||
                     objective.hardConstraints.length > 0) && (
                     <List
                         items={[
+                            ...callerProvidedOutputs.map(objectiveItem),
                             ...objective.acceptanceCriteria.map(objectiveItem),
                             ...objective.hardConstraints.map(objectiveItem)
                         ]}
