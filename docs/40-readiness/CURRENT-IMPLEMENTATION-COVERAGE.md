@@ -1,5 +1,14 @@
 # Current Implementation Coverage
 
+## 2026-10-19：举手版本冲突的有界恢复
+
+Scope：DSH convivium_raise_hand 工具在命令明确 VERSION_CONFLICT 后重新解析原身份、读取 caller-visible Meeting，仅 running、原 Round open 且本人尚未响应时，以同一 action/requestId 和新版本追加最多两次尝试；所有写入仍经原 command 授权与期限校验。其它拒绝、身份/绑定变化、未知结果与异常不自动重放，不适用于证据提交。
+
+Executed Validation：工具回归先观察到冲突后只执行一次的目标失败；修复后工具恢复、持续冲突预算、轮次关闭、已响应、暂停、身份失效、绑定变化、其它拒绝与未知结果场景通过。与已有工具注册和领域举手测试合计 3 文件 15 项通过；Host 与测试类型检查、lint（13 warning，无 error）、build 和插件契约通过，格式与 diff 检查通过。类型检查在重新生成 typert 后通过。
+
+Not Covered：未在真实模型会议中重跑恢复流程，未部署或重启人工 Host；现有会议与 Session 未修改，恢复不会追溯执行此前失败的举手。当前工作区另有目标展示改动，本项不将其纳入提交。
+
+
 
 ## 2026-10-19：原问题到结构化讨论目标的创建链路
 

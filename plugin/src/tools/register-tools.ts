@@ -1,3 +1,4 @@
+import { executeHandRaise } from "./hand-raise.ts";
 import { registerResearchPlanningTool } from "./research-planning.ts";
 import type { ResearchPlanning } from "@/research-planning/index.ts";
 import type { Agent } from "@deepseek-ai/dsh-agent";
@@ -359,6 +360,15 @@ function registerTool(
                         "UNAUTHORIZED",
                         "The caller is not an active Meeting identity."
                     ) as unknown as JsonValue;
+                }
+                if (command.action.kind === "raise_hand") {
+                    return (await executeHandRaise(
+                        dependencies,
+                        command,
+                        caller,
+                        exec.agent,
+                        exec.signal
+                    )) as unknown as JsonValue;
                 }
                 return (await dependencies.application.execute(
                     command,

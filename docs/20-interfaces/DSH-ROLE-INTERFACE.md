@@ -305,3 +305,7 @@ Manager 增加 `convivium_plan_research({meetingId,expectedMeetingVersion,reques
 规划执行期间的每稿列表、审查及用量通过 Manager 自身 Session 的 `convivium/research-planning` 诊断事件追加并 flush，保留 name/content，不包含内部推理或凭据；该事件不是 Meeting 事实源。最终规划及失败原因仍由 Meeting 原子 commit 保存。每次辅助模型调用有四分钟期限，取消或版本变化后的结果不能提交。
 
 工具成功提交返回现有 MeetingCommandResult accepted（含 committedVersion）；已接受时返回 `{kind:"already_planned",meetingId,version}` 且不重复模型调用，已失败时返回 `{kind:"planning_failed",reason}` 且不突破预算。跨会议、非 Manager、旧版本、非 running 或已有 open Round 在生成前拒绝。当前切片不增加失败后的重置命令或已接受对象的编辑命令，用户处置不能被模型自行重试替代。
+
+## Hand Raise Conflict Recovery
+
+`convivium_raise_hand` 的 DSH 工具适配仅在 application 明确返回 VERSION_CONFLICT 后重读并有限重试，初次调用加最多两次追加尝试；每次追加前重新解析 active caller，要求 Meeting、identity 和 ownership binding 与原请求一致，并经 caller-visible read 核对 running、原 Round open 及本人尚无 participationResponse。只更新 expectedMeetingVersion，保留 action 和 requestId；每次写入仍经过完整 command 授权、期限和乐观并发校验。停止条件成立时返回原冲突，身份失效返回 UNAUTHORIZED；异常与未知结果原样退出，不自动重放。其它命令不复用此恢复。
