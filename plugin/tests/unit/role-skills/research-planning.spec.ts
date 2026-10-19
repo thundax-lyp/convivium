@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import {
+    runPlanning,
+    parsePlan,
+    validateReview as checkReview
+} from "@/research-planning-execution/index.ts";
+import { describe, expect, it, vi } from "vitest";
 
-const parser = new URL(
-    "../../../config/skills/research-planning/scripts/parse.mjs",
-    import.meta.url
-);
 const draft = `[问题]
 原问题
 [要求 R1]
@@ -25,14 +25,7 @@ const draft = `[问题]
 对象：O1
 理由：先明确机制
 `;
-const parse = (text: string) =>
-    JSON.parse(
-        execFileSync(process.execPath, [parser.pathname], {
-            input: JSON.stringify({ question: "原问题", draft: text }),
-            encoding: "utf8",
-            stdio: ["pipe", "pipe", "pipe"]
-        })
-    );
+const parse = (text: string) => parsePlan("原问题", text);
 
 describe("research planning list conversion", () => {
     it("converts explicit fields without inventing content and computes coverage", () => {
@@ -84,14 +77,8 @@ const review = {
     })),
     findings: [] as { location: string; rule: string; evidence: string }[]
 };
-const validateReview = (value: unknown) =>
-    JSON.parse(
-        execFileSync(process.execPath, [parser.pathname, "review"], {
-            input: JSON.stringify(value),
-            encoding: "utf8",
-            stdio: ["pipe", "pipe", "pipe"]
-        })
-    );
+const validateReview = (value: unknown) => checkReview(value);
+
 describe("research planning review acceptance", () => {
     it("accepts a complete evidenced review", () => {
         expect(validateReview(review)).toEqual(review);
@@ -107,4 +94,49 @@ describe("research planning review acceptance", () => {
     ])("rejects missing evidence or inconsistent approval", (value) => {
         expect(() => validateReview(value)).toThrow();
     });
+});
+
+it("revises after independent rejection and preserves raw candidates without repairing fields", async () => {
+    const failed = {
+        ...review,
+        status: "FAIL",
+        checks: review.checks.map((c, i) => (i ? c : { ...c, status: "FAIL" })),
+        findings: [{ location: "O1", rule: "boundary", evidence: "需要重新划界" }]
+    };
+    let count = 0;
+    const generate = vi.fn(async ({ model }: { model: string }) => ({
+        text: model === "deepseek-flash" ? draft : JSON.stringify(count++ ? review : failed),
+        completed: true,
+        metadata: {}
+    }));
+    const result = await runPlanning({ question: "原问题", skill: "技能方法", generate });
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") {
+        throw new Error("not accepted");
+    }
+    expect(result.attempts.map((a) => a.draft)).toEqual([draft, draft]);
+    expect(result.attempts[0]!.review).toBe(JSON.stringify(failed));
+    const calls = generate.mock.calls as unknown as [
+        { model: string; messages: { content: string }[] }
+    ][];
+    expect(JSON.stringify(calls[3]![0].messages)).not.toContain("需要重新划界");
+    expect(calls[3]![0].messages).toHaveLength(2);
+});
+it("returns a bounded failure instead of a plan when all independent reviews reject", async () => {
+    let calls = 0;
+    const result = await runPlanning({
+        question: "原问题",
+        skill: "方法",
+        generate: async ({ model }) => {
+            calls++;
+            return {
+                text: model === "deepseek-flash" ? draft : "{}",
+                completed: true,
+                metadata: {}
+            };
+        }
+    });
+    expect(result).toMatchObject({ status: "failed", attempts: [{}, {}, {}] });
+    expect(result).not.toHaveProperty("plan");
+    expect(calls).toBe(6);
 });
