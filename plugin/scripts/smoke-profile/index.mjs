@@ -49,6 +49,7 @@ const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const ACP_SCENARIO = "acp-codex-reviewer-web";
 const COLD_SCENARIOS = ["meeting-business-loop", "peer-meeting-agents", ACP_SCENARIO];
 export const SMOKE_SCENARIOS = [
+    "research-targets",
     ACP_SCENARIO,
     "identity-admission",
     "meeting-business-loop",
@@ -248,7 +249,9 @@ export const writeScenarioRecord = async (recordRoot, result, deepSeekApiKey) =>
                     ? "actual Codex reviews and Web source reads required"
                     : result.scenario === "peer-meeting-agents"
                       ? "actual GitHub and arXiv tool reads required"
-                      : "not performed; fixture evidence only"
+                      : result.scenario === "research-targets"
+                        ? "not performed; actual DeepSeek target planning only"
+                        : "not performed; fixture evidence only"
         }
     };
     await writeFile(
@@ -375,8 +378,19 @@ export const writeSmokePatch = async (path, scenario, storagePath, acp) => {
     return definitionsPath;
 };
 
-async function writeProbePackage(probeDir) {
+async function writeProbePackage(probeDir, scenario) {
     await cp(probeSourceDir, probeDir, { recursive: true });
+    if (scenario === "research-targets") {
+        const questionDraft = await readFile(
+            resolve(pluginRoot, "../docs/60-human/QUESTIONS-DRAFT.md"),
+            "utf8"
+        );
+        const questions = questionDraft
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith("> ") && !line.startsWith("> 状态"))
+            .map((line) => line.slice(2));
+        await writeFile(join(probeDir, "research-questions.json"), JSON.stringify(questions));
+    }
     await writeFile(
         join(probeDir, "package.json"),
         JSON.stringify(
@@ -619,7 +633,7 @@ const runScenario = async (scenario, artifact, deepSeekApiKey, recordRoot, stora
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
     const definitionsPath = await writeSmokePatch(patchPath, scenario, storagePath, acp);
-    await writeProbePackage(probeDir);
+    await writeProbePackage(probeDir, scenario);
 
     let roleAssetRoot;
     {
@@ -823,7 +837,7 @@ const runAcpColdCheckpoint = async (root, deepSeekApiKey, recordRoot) => {
             CONVIVIUM_SMOKE_MEETING_ID: checkpoint.meetingId
         });
         const probeDir = join(root, "probe");
-        await writeProbePackage(probeDir);
+        await writeProbePackage(probeDir, ACP_SCENARIO);
         const installedProbe = join(
             root,
             "dsh-home",
@@ -973,6 +987,14 @@ const main = async () => {
                     activePort = undefined;
                 }
                 if (recordRoot !== undefined && tempRoot !== undefined) {
+                    const rawProbe = join(tempRoot, "smoke-result.json");
+                    if (await pathExists(rawProbe)) {
+                        await copyRecordedText(
+                            rawProbe,
+                            join(recordRoot, scenario, "failure", "probe-result.json"),
+                            deepSeekApiKey
+                        );
+                    }
                     for (const file of ["boot.stdout.log", "boot.stderr.log", "dump-config.yml"]) {
                         const source = join(tempRoot, "logs", file);
                         if (await pathExists(source)) {

@@ -97,6 +97,20 @@ pnpm --dir plugin smoke:profile --json
 - `CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS`：等待 Host 或 probe 结果，默认 600000 ms。
 - `CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS`：构建、安装和配置命令，默认 120000 ms。
 
+### 只验证讨论目标拆解
+
+```sh
+mkdir -p dsh-workspace/smoke-records
+CONVIVIUM_SMOKE_SCENARIO=research-targets \
+CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS=2100000 \
+CONVIVIUM_SMOKE_RECORD_DIR="$PWD/dsh-workspace/smoke-records" \
+  pnpm --dir plugin smoke:profile --json
+```
+
+此显式场景读取 QUESTIONS-DRAFT 当前三个问题，在独立临时 DSH_HOME/SQLite 创建三场 pending 目标规划会议，真实 Manager 自行加载 research-planning 并调用受控规划工具；默认三场景不包含它。生成与审查走 deepseek-official，Flash 生成、V4 Pro 独立上下文审查。probe 在规划工具返回后拦截后续模型步骤，Reviewer 不运行，Contributor 不创建；断言三场均保存 accepted 研究对象、发生实际 Skill/规划调用且 Round/Evidence 为零。失败保留原文和诊断，不改写规划字段。Restore 只清理该临时环境，不刷新人工 Host 或写入人工数据库。
+
+summary.json 的 probe.cases 包含每稿原始列表、审查、结构诊断与最终目标。该场景通过只证明真实接线和模型审查结果；仍须从原题独立检查覆盖、边界、方法研究、依赖及前提。页面组件另用相同目标 projection 验证，不把此场景声明为 Browser 端到端验收。
+
 ### 显式保留 business-loop Meeting
 
 只有用户明确授权把 smoke Meeting 写入持久存储时，才设置 `CONVIVIUM_SMOKE_STORAGE_PATH`。该值必须是已存在普通文件的绝对路径，并且只能与精确的 `meeting-business-loop` selector 同时使用；默认三场景、`--all`、其他 selector、相对路径、目录和不存在的路径都会在构建或 Host 启动前失败。

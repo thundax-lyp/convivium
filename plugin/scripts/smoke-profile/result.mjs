@@ -11,7 +11,23 @@ function exact(object, keys) {
 }
 
 export const validateScenarioResult = (value, expectedScenario) => {
-    if (expectedScenario === "acp-codex-reviewer-web") {
+    if (expectedScenario === "research-targets") {
+        if (
+            value?.ok !== true ||
+            value.scenario !== "research-targets" ||
+            value.cases?.length !== 3 ||
+            value.cases.some(
+                (c) =>
+                    c.planning?.status !== "accepted" ||
+                    c.roundCount !== 0 ||
+                    c.planning.plan.originalQuestion !== c.question ||
+                    !c.skillLoaded ||
+                    !c.planningCalled
+            )
+        ) {
+            throw new Error("Research targets smoke did not validate three real planning flows");
+        }
+    } else if (expectedScenario === "acp-codex-reviewer-web") {
         validateAcpCodexReviewerWebResult(value);
     } else if (expectedScenario === "identity-admission") {
         validateIdentityAdmissionResult(value);

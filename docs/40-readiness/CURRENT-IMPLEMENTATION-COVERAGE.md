@@ -1,5 +1,18 @@
 # Current Implementation Coverage
 
+
+## 2026-10-19：原问题到结构化讨论目标的创建链路
+
+Scope：按 MO-FR-18/20 移除聊天创建的通用产出、验收和限制模板，保存原问题与 pending 规划。Manager 实际加载 research-planning 后调用受控 convivium_plan_research；Host 通过 DSH llm 服务执行 DeepSeek Flash 生成、V4 Pro 独立审查与共享 TypeScript 解析实现，有限修订后原子保存研究对象及 pending 产出引用，页面直接展示边界、包含/排除、依赖、横贯要求与未决前提。失败保留原文、原因及候选查看，不回退模板；未校验不能开轮，也不能因目标数组为空而宣布完成。已接受对象不被普通重规划静默改写，轮次须引用有效对象。
+
+Executed Validation：创建模板、未校验开轮、空目标错误完成及失败候选缺失均先观察到目标失败，再完成修复。完整 `pnpm --dir plugin verify` 通过，107 文件 940 项测试，含角色装配与隔离、原问题绑定与旧版本拒绝、闭集解析、独立审查接受、有限修订、目标 codec 往返与页面成功/待定/失败展示；格式、lint（13 warning，无 error）、Host/Client/Remote 类型、构建、环境、契约、八角色及包检查通过。Skill quick_validate 与 git diff --check 通过。
+
+真实目标冒烟：新增显式 research-targets 场景，读取 QUESTIONS-DRAFT 三个原问题，在独立临时 DSH_HOME/SQLite 由真实 Manager 自主调用 Skill 和规划工具；每个规划工具返回后 probe 阻止后续模型步骤，Reviewer 不执行，未创建 Contributor。多轮迭代保留原始列表和审查，发现并修正方法/效果总包、能力机制遗漏、总题综合判断误作子题要求、依赖责任与共同验证混淆等问题；首次接线的真实路径误拒绝已修复，后续失败的原始 probe 结果纳入保留范围。
+
+最终一轮 source baseline 为 c106f83b 加本工作区改动，DSH 0.2.0-rc.2、DeepSeek high、生成和审查为独立上下文。Jev 为 3 对象/2 稿，受限语言为 5 对象/3 稿，TTS 为 3 对象/1 稿，三场均 accepted、实际成功加载 Skill、成功提交结构化目标且 Round/Evidence 均为 0；本次耗时 644265ms，Restore=PASS。独立脚本检查原题保留、闭集字段、覆盖引用、无环前置依赖、审查结构与 pending 目标投影，并经发行包 CLI 重解析，与持久目标逐字段相等，未手工补字段。助手独立复核认可研究对象的覆盖、责任边界、必要方法与开放前提；第二例的语义内容界定属于领域问题，非通用评分流程。共同组合划分用于总题联合验证，不作为各对象开始研究的硬前置。原始结果与独立评价在本地 smoke-records 留存，不把模型 PASS 当成普遍语义保证。
+
+Not Covered：本次验收止于会议目标拆解；没有执行研究轮次、来源检索、贡献/审核/发布、Browser 端到端或远端 CI，未刷新人工环境或改写既有会议。nextStep 只作建议，未验证为可执行轮次计划；第二例并行建议尚未细分可独立推进部分，“单轮即可”的预测不作为完成标准或固定轮数。后续开轮须重新核对依赖、能力与信息价值。失败后的重置和已接受对象编辑入口未加入；三个样例通过不证明统计稳定性。
+
 ## Scope And Status
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
