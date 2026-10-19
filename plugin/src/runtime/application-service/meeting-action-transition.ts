@@ -1,6 +1,7 @@
 import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import {
     captainActorIdFor,
+    applyResearchPlanning,
     abortRound,
     disposeRisk,
     recordCompletionFact,
@@ -395,9 +396,22 @@ const runManagerPlanTransition = (
     if (result.kind === "rejected") {
         throw new TransitionRejected(result.code, result.code);
     }
+    const researchPlanning = input.context.researchPlanning;
+    if (
+        researchPlanning &&
+        (input.scope.role !== "manager" || input.scope.caller.channel !== "dsh_tool")
+    ) {
+        throw new TransitionRejected(
+            "UNAUTHORIZED",
+            "Host planning result requires the bound Manager"
+        );
+    }
+    const state = researchPlanning
+        ? applyResearchPlanning(result.state, researchPlanning)
+        : result.state;
     return {
         kind: "accepted",
-        state: result.state,
+        state,
         relatedIds: result.facts[0].relatedIds,
         effectRequests:
             action.planKind === "stop_agenda"

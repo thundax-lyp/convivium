@@ -158,6 +158,32 @@ it("rejects planning while any round is open", () => {
     });
 });
 
+it("rejects duplicate research object references before persisting a manager plan", () => {
+    const current = publishedQuestionState(false);
+    const result = transitionMeetingState(
+        current,
+        planNextStep({
+            planKind: "open_round",
+            roundGoal: {
+                question: "q",
+                evidenceGap: "gap",
+                expectedOutput: "output",
+                researchObjectIds: ["O1", "O1"]
+            }
+        }),
+        manager,
+        10,
+        "fact-10",
+        "plan-new"
+    );
+    expect(result).toEqual({
+        kind: "rejected",
+        state: current,
+        code: "INVALID_ARGUMENT",
+        facts: []
+    });
+});
+
 it("appends a plan when the agenda has no active plan", () => {
     const current = publishedQuestionState(false);
     const result = transitionMeetingState(

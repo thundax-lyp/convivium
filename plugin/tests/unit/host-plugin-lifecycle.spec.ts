@@ -169,7 +169,7 @@ describe("Convivium local Meeting route lifecycle", () => {
             acpCodex: { command: "/scripted-acp", args: [] }
         });
         expect(createProvider).toHaveBeenCalledTimes(1);
-        expect(fixture.toolDisposers).toHaveLength(14);
+        expect(fixture.toolDisposers).toHaveLength(16);
         close.mockImplementation(() => {
             expect(() => getLocalMeetingWebRuntime(providerContext)).toThrow();
         });
@@ -237,7 +237,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(14);
+        expect(fixture.toolDisposers).toHaveLength(16);
         for (const disposer of fixture.toolDisposers) {
             expect(disposer).toHaveBeenCalledTimes(1);
         }
@@ -246,7 +246,7 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(14);
+        expect(fixture.toolDisposers).toHaveLength(16);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) {
             expect(disposer).toHaveBeenCalledTimes(1);
@@ -274,7 +274,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(14);
+        expect(fixture.toolDisposers).toHaveLength(16);
         for (const disposer of fixture.toolDisposers) {
             expect(disposer).toHaveBeenCalledTimes(1);
         }
@@ -284,7 +284,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         const fixture = await host("localhost");
         expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(14);
+        expect(fixture.toolDisposers).toHaveLength(16);
     });
 });
 
@@ -341,7 +341,7 @@ describe("Convivium Cordis service lifecycle", () => {
                         ctx.provide(lateService, {});
                     }
                 });
-                await vi.waitFor(() => expect(meetingTools()).toHaveLength(14));
+                await vi.waitFor(() => expect(meetingTools()).toHaveLength(16));
                 expect(createProvider).toHaveBeenCalledTimes(initialCalls + 1);
                 const providerContext = createProvider.mock.calls.at(-1)![0];
                 close.mockImplementation(() => {
@@ -420,7 +420,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(14)
+                    ).toBe(16)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -433,7 +433,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(14);
+                ).toBe(16);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {

@@ -82,7 +82,9 @@ const validateAgendaRoundsAndContributions = (parsedState: MeetingState): string
             plan.roundGoal === undefined ||
             plan.roundGoal.question !== r.roundGoal.question ||
             plan.roundGoal.evidenceGap !== r.roundGoal.evidenceGap ||
-            plan.roundGoal.expectedOutput !== r.roundGoal.expectedOutput
+            plan.roundGoal.expectedOutput !== r.roundGoal.expectedOutput ||
+            JSON.stringify(plan.roundGoal.researchObjectIds) !==
+                JSON.stringify(r.roundGoal.researchObjectIds)
         ) {
             return fail(`${path}.planId`);
         }

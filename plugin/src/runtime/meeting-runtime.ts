@@ -59,6 +59,9 @@ const targetCreateState = (
               }),
         objective: {
             statement: action.objective.statement,
+            ...(action.objective.researchPlanning === undefined
+                ? {}
+                : { researchPlanning: action.objective.researchPlanning }),
             requiredOutputs: action.objective.requiredOutputs.map((item) => ({
                 ...item,
                 status: "pending" as const

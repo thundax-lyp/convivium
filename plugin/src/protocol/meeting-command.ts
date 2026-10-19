@@ -9,6 +9,7 @@ const text = z.string().trim().min(1);
 const epoch = z.number().int().nonnegative();
 const target = z.object({ id, text });
 const objective = z.object({
+    researchPlanning: z.strictObject({ status: z.literal("pending") }).optional(),
     statement: text,
     requiredOutputs: z.array(target),
     acceptanceCriteria: z.array(target),
@@ -152,7 +153,18 @@ export const SubmitManagerPlanActionSchema = z
             "raise_agenda_candidate",
             "wait_for_required_identity"
         ]),
-        roundGoal: z.object({ question: text, evidenceGap: text, expectedOutput: text }).optional(),
+        roundGoal: z
+            .object({
+                question: text,
+                evidenceGap: text,
+                expectedOutput: text,
+                researchObjectIds: z
+                    .array(text)
+                    .min(1)
+                    .refine((values) => new Set(values).size === values.length)
+                    .optional()
+            })
+            .optional(),
         rationale: text,
         blockingReason: text.optional()
     })

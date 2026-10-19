@@ -155,12 +155,14 @@ const assertNoticeReferences = (
             if (requestKind === "initial") {
                 const roundId = stringField(payload, "roundId");
                 const contributorId = stringField(payload, "contributorId");
+                const round = state.rounds.find(
+                    (candidate) => candidate.id === roundId && candidate.agendaId === agendaId
+                );
+                // Disposition removes the pending raise, but not the committed participation fact.
                 if (
-                    !state.rounds.some(
-                        (round) => round.id === roundId && round.agendaId === agendaId
-                    ) ||
-                    !state.pendingHandRaises.some(
-                        (hand) => hand.roundId === roundId && hand.contributorId === contributorId
+                    !round?.participationResponses.some(
+                        (response) =>
+                            response.contributorId === contributorId && response.status === "raised"
                     )
                 ) {
                     fail("NOTICE_VISIBILITY_INVALID");

@@ -328,6 +328,86 @@ describe("meeting notice dispatcher v1", () => {
     );
 });
 
+describe("hand request notice after disposition", () => {
+    it.each(["before delivery", "during delivery"])(
+        "keeps a committed raise visible when disposed %s",
+        async (timing) => {
+            const { state, ownership } = fixture();
+            state.rounds = [
+                {
+                    id: "round-1",
+                    agendaId: "agenda-v1",
+                    publicBaselinePublicationIds: [],
+                    openedAt: 1,
+                    status: "open",
+                    contributionIds: [],
+                    invitedContributorIds: ["contributor-v1"],
+                    participationResponses: [
+                        { contributorId: "contributor-v1", status: "raised", recordedAt: 1 }
+                    ]
+                }
+            ];
+            state.pendingHandRaises =
+                timing === "before delivery"
+                    ? []
+                    : [
+                          {
+                              roundId: "round-1",
+                              contributorId: "contributor-v1",
+                              purpose: "Contribute",
+                              raisedAt: 1
+                          }
+                      ];
+            const deliver = vi.fn(async (input) => {
+                await input.authorize();
+                state.pendingHandRaises = [];
+                await input.authorize();
+                return true;
+            });
+            const dispatcher = createMeetingNoticeDispatcher({
+                owner: { deliver, resume: vi.fn(async () => {}) },
+                definitions: [{ agentDefinitionId: "fixture" }],
+                repository: {
+                    recover: async () => ({
+                        snapshot: {
+                            meetingId: state.id,
+                            version: 3,
+                            state,
+                            createdAt: 0,
+                            updatedAt: 3
+                        },
+                        sessionOwnership: ownership
+                    })
+                } as never
+            });
+            const notice = item({
+                kind: "agent_notice",
+                noticeKind: "hand_request",
+                recipientId: "manager-v1",
+                agendaId: "agenda-v1",
+                requestKind: "initial",
+                roundId: "round-1",
+                contributorId: "contributor-v1"
+            });
+            await expect(
+                dispatcher.dispatch({ outboxItem: notice, signal: new AbortController().signal })
+            ).resolves.toBeUndefined();
+            expect(deliver).toHaveBeenCalledOnce();
+            for (const status of ["declined", "no_response"] as const) {
+                state.rounds[0]!.participationResponses = [
+                    { contributorId: "contributor-v1", status, recordedAt: 1 }
+                ];
+                await expect(
+                    dispatcher.dispatch({
+                        outboxItem: notice,
+                        signal: new AbortController().signal
+                    })
+                ).rejects.toMatchObject({ code: "NOTICE_VISIBILITY_INVALID" });
+            }
+        }
+    );
+});
+
 describe("committed meeting notice shapes", () => {
     it("validates and delivers the remaining committed notice shapes", async () => {
         const { state, ownership } = fixture();

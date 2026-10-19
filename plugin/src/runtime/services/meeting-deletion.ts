@@ -12,31 +12,8 @@ export const meetingDeletionStatus = (
     recovery: Pick<RecoveryResult<MeetingState>, "snapshot" | "sessionOwnership" | "pendingOutbox">
 ): MeetingDeletionStatus => {
     const state = recovery.snapshot?.state;
-    if (!state || !["terminal", "archived"].includes(state.lifecycle.status)) {
+    if (!state || ["running", "paused", "converging"].includes(state.lifecycle.status)) {
         return "active";
-    }
-    if (
-        recovery.pendingOutbox > 0 ||
-        state.reviewClaims.length > 0 ||
-        state.identityRecommendations.some((i) => i.status === "provisioning")
-    ) {
-        return "pending_work";
-    }
-    if (
-        recovery.sessionOwnership.some(
-            (o) => o.lifecycleStatus !== "closed" || o.capabilityStatus !== "revoked"
-        ) ||
-        state.identities.some(
-            (i) =>
-                !recovery.sessionOwnership.some(
-                    (o) =>
-                        o.id === i.sessionOwnershipId &&
-                        o.identityId === i.id &&
-                        o.meetingId === state.id
-                )
-        )
-    ) {
-        return "sessions_open";
     }
     return "allowed";
 };
@@ -60,7 +37,7 @@ export const deleteMeeting = async (
                         "INVALID_STATE",
                         false,
                         request.meetingId,
-                        "Meeting cleanup is not complete"
+                        "Meeting is in progress"
                     );
                 }
                 const snapshot = recovery.snapshot!;
@@ -85,7 +62,7 @@ export const deleteMeeting = async (
                         error.code === "VERSION_CONFLICT"
                             ? "VERSION_CONFLICT"
                             : "PRECONDITION_FAILED",
-                    message: "Meeting changed or cleanup is not complete."
+                    message: "Meeting changed or is in progress."
                 }
             };
         }

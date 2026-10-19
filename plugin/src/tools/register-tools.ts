@@ -1,3 +1,7 @@
+import { registerWebEvidenceTool } from "./web-evidence.ts";
+import { executeHandRaise } from "./hand-raise.ts";
+import { registerResearchPlanningTool } from "./research-planning.ts";
+import type { ResearchPlanning } from "@/research-planning/index.ts";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import {
@@ -44,6 +48,12 @@ export interface TargetMeetingToolReader {
 }
 
 export interface MeetingCommandToolDependencies {
+    readonly readWebEvidence?: (agent: Agent, signal: AbortSignal) => Promise<string>;
+    readonly researchPlanner?: (input: {
+        agent: Agent;
+        question: string;
+        signal: AbortSignal;
+    }) => Promise<ResearchPlanning>;
     readonly acpCodex?: CodexAcpProviderPort;
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplication;
@@ -127,6 +137,12 @@ const actionSchemas = {
         roundGoal: exactObject(
             {
                 question: requiredString("Question the round must answer."),
+                researchObjectIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                        "Accepted research object IDs advanced in this round; required for research-planned meetings."
+                },
                 evidenceGap: requiredString("Evidence gap the round must close."),
                 expectedOutput: requiredString("Concrete output expected from the round.")
             },
@@ -346,6 +362,25 @@ function registerTool(
                         "UNAUTHORIZED",
                         "The caller is not an active Meeting identity."
                     ) as unknown as JsonValue;
+                }
+                if (
+                    command.action.kind === "submit_evidence" &&
+                    caller.ownership.definition?.agentDefinitionId ===
+                        "convivium.web_research_analyst"
+                ) {
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "Web evidence must use convivium_submit_web_evidence with web-evidence.txt"
+                    ) as unknown as JsonValue;
+                }
+                if (command.action.kind === "raise_hand") {
+                    return (await executeHandRaise(
+                        dependencies,
+                        command,
+                        caller,
+                        exec.agent,
+                        exec.signal
+                    )) as unknown as JsonValue;
                 }
                 return (await dependencies.application.execute(
                     command,
@@ -609,6 +644,8 @@ export function registerMeetingTools(
     ];
     return [
         registerReadTool(dependencies),
+        registerWebEvidenceTool(dependencies),
+        registerResearchPlanningTool(dependencies),
         registerReviewWorkerTool(dependencies),
         ...definitions.map((definition) => registerTool(dependencies, definition))
     ];

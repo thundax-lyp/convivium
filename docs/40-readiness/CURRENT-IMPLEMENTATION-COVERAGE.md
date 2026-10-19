@@ -1,5 +1,49 @@
 # Current Implementation Coverage
 
+## 2026-10-19：Web 证据内容由程序组装提交
+
+Scope：按 ER-FR-9，Web AI 仅编写自身 cwd 的 web-evidence.txt 受限内容文本；同包 CLI 与 Host 工具共用 TypeScript 闭集解析器，必填、重复/未知字段和材料引用均校验后才生成原 evidence JSON。convivium_submit_web_evidence 仅接受三个定位参数，校验原 Web ownership、running、本人获接纳未提交的 Contribution 与开放轮次后读取固定普通文件，组装当前版本的原 submit_evidence。缺项只给诊断，不代填、不手补 JSON、不自动调用模型；未知结果不重放。Web 原始大 JSON 入口禁用，其它角色入口保留，专用工具被隔离。
+
+Executed Validation：内容转换与工具接线均先观察到预期失败后完成修复。完整 pnpm --dir plugin verify 通过，111 文件、963 项测试；涵盖特殊字符和多行序列化、缺项/未知/重复字段与错误材料引用拒绝、跨会议/错误角色/已提交/已关闭拒绝、Web 原始工具拒绝、提交版本冲突不自动重放，以及固定文件读取、链接/目录拒绝与取消。格式、lint（13 warning，无 error）、类型、构建、环境、契约、八角色装配与发布包检查通过；Web Skill quick_validate 通过。构建后 CLI 与 Host 使用同一实现。
+
+真实模型隔离验证：源码基线 d281ce9b 加本任务改动，DeepSeek Flash/high 在无 Meeting authority 的离线进程中，仅用先前失败的原始 Web 参数和内容格式说明生成正文；首稿直接经发行包 CLI 解析通过，保留 9 条主张、6 份材料、原来源定位集合及 5 条不确定性。脚本直接输出 evidence.json，未手工修补字段。独立检查字段闭集、引用、来源与数量保留及无协议字段通过；原始正文、模型/用量、解析结果与独立报告保存在 dsh-workspace/smoke-records/web-evidence-content-20261019/。
+
+Not Covered：未在真实 Host 的新 Web 身份中执行提交端到端验证，未部署/重启人工 Host、投递当前会议或修改既有 Session/会议数据。离线验证只证明内容到结构的转换，不重新检索或证明来源和结论；原作者 summary 的“真合规”与屈折许可未确认的 uncertainty 仍有张力，留给语义审核，不能因结构通过而宣称证据成立。未自动恢复旧失败 Contribution，既有身份资源保持固化。并行协作已提交的目标展示改动保留。
+
+
+## 2026-10-19：Web 证据提交 MALFORMED_RESPONSE 离线定位
+
+Scope：只读分析 meeting-e761169cf4da9c6f36d9264991b43f50 第二轮 Web Contributor 的原 Session 日志，未重放输入、调用模型、提交证据或操作会议。按 assistant/attempt 事件 424 的 tool-call-chunks 原序拼接 convivium_submit_evidence 参数，不包含 reasoning。原文共 14650 字符、22714 UTF-8 字节，SHA-256 为 5b868c159182c95c7c5ef72063268ae74ac853f62a6c0a7fdede29a502400b10。
+
+Executed Validation：原文分别通过 Python JSON decoder 与 Node JSON.parse 离线复现失败，均定位到字符偏移 14501（第 1 行第 14502 列）。根对象此处已闭合，仅含 action，随后仍有逗号及 expectedMeetingVersion、meetingId、protocolVersion、requestId，形成根对象外的多余数据。Session 末尾有参数尾部与 finish(error)，无该 callId 对应 tool/call；DSH 在工具执行前报 MALFORMED_RESPONSE，不是取证站点错误或 Meeting Runtime 拒绝。原文结构另缺 action.kind=submit_evidence，uncertainties 在 action 而非 evidence 内，verificationConditions 被放在 action 层（契约定义在 materials 项内）；因此只删除多余括号仍不能符合原提交契约。
+
+Evidence：原始参数、无推理的 diagnosis.json 和可重复运行的 reproduce.mjs 保存在本地忽略目录 dsh-workspace/smoke-records/web-malformed-20261019/。未手工修复候选或将私有材料升级为会议事实。此诊断不新增针对通用 JSON.parse 的永久测试。
+
+Not Covered：日志能证明此返回的语法与结构错误，不能证明模型产生错误的唯一原因；没有直接证据将其归因于长度、采样或 provider 截断。未修改上游 DSH 解析器、未实现证据组装新入口或自动重试、未调用模型重新生成。本项仅完成复现与定位。
+
+
+## 2026-10-19：举手版本冲突的有界恢复
+
+Scope：DSH convivium_raise_hand 工具在命令明确 VERSION_CONFLICT 后重新解析原身份、读取 caller-visible Meeting，仅 running、原 Round open 且本人尚未响应时，以同一 action/requestId 和新版本追加最多两次尝试；所有写入仍经原 command 授权与期限校验。其它拒绝、身份/绑定变化、未知结果与异常不自动重放，不适用于证据提交。
+
+Executed Validation：工具回归先观察到冲突后只执行一次的目标失败；修复后工具恢复、持续冲突预算、轮次关闭、已响应、暂停、身份失效、绑定变化、其它拒绝与未知结果场景通过。与已有工具注册和领域举手测试合计 3 文件 15 项通过；Host 与测试类型检查、lint（13 warning，无 error）、build 和插件契约通过，格式与 diff 检查通过。类型检查在重新生成 typert 后通过。
+
+Not Covered：未在真实模型会议中重跑恢复流程，未部署或重启人工 Host；现有会议与 Session 未修改，恢复不会追溯执行此前失败的举手。当前工作区另有目标展示改动，本项不将其纳入提交。
+
+
+
+## 2026-10-19：原问题到结构化讨论目标的创建链路
+
+Scope：按 MO-FR-18/20 移除聊天创建的通用产出、验收和限制模板，保存原问题与 pending 规划。Manager 实际加载 research-planning 后调用受控 convivium_plan_research；Host 通过 DSH llm 服务执行 DeepSeek Flash 生成、V4 Pro 独立审查与共享 TypeScript 解析实现，有限修订后原子保存研究对象及 pending 产出引用，页面直接展示边界、包含/排除、依赖、横贯要求与未决前提。失败保留原文、原因及候选查看，不回退模板；未校验不能开轮，也不能因目标数组为空而宣布完成。已接受对象不被普通重规划静默改写，轮次须引用有效对象。
+
+Executed Validation：创建模板、未校验开轮、空目标错误完成及失败候选缺失均先观察到目标失败，再完成修复。完整 `pnpm --dir plugin verify` 通过，107 文件 940 项测试，含角色装配与隔离、原问题绑定与旧版本拒绝、闭集解析、独立审查接受、有限修订、目标 codec 往返与页面成功/待定/失败展示；格式、lint（13 warning，无 error）、Host/Client/Remote 类型、构建、环境、契约、八角色及包检查通过。Skill quick_validate 与 git diff --check 通过。
+
+真实目标冒烟：新增显式 research-targets 场景，读取 QUESTIONS-DRAFT 三个原问题，在独立临时 DSH_HOME/SQLite 由真实 Manager 自主调用 Skill 和规划工具；每个规划工具返回后 probe 阻止后续模型步骤，Reviewer 不执行，未创建 Contributor。多轮迭代保留原始列表和审查，发现并修正方法/效果总包、能力机制遗漏、总题综合判断误作子题要求、依赖责任与共同验证混淆等问题；首次接线的真实路径误拒绝已修复，后续失败的原始 probe 结果纳入保留范围。
+
+最终一轮 source baseline 为 c106f83b 加本工作区改动，DSH 0.2.0-rc.2、DeepSeek high、生成和审查为独立上下文。Jev 为 3 对象/2 稿，受限语言为 5 对象/3 稿，TTS 为 3 对象/1 稿，三场均 accepted、实际成功加载 Skill、成功提交结构化目标且 Round/Evidence 均为 0；本次耗时 644265ms，Restore=PASS。独立脚本检查原题保留、闭集字段、覆盖引用、无环前置依赖、审查结构与 pending 目标投影，并经发行包 CLI 重解析，与持久目标逐字段相等，未手工补字段。助手独立复核认可研究对象的覆盖、责任边界、必要方法与开放前提；第二例的语义内容界定属于领域问题，非通用评分流程。共同组合划分用于总题联合验证，不作为各对象开始研究的硬前置。原始结果与独立评价在本地 smoke-records 留存，不把模型 PASS 当成普遍语义保证。
+
+Not Covered：本次验收止于会议目标拆解；没有执行研究轮次、来源检索、贡献/审核/发布、Browser 端到端或远端 CI，未刷新人工环境或改写既有会议。nextStep 只作建议，未验证为可执行轮次计划；第二例并行建议尚未细分可独立推进部分，“单轮即可”的预测不作为完成标准或固定轮数。后续开轮须重新核对依赖、能力与信息价值。失败后的重置和已接受对象编辑入口未加入；三个样例通过不证明统计稳定性。
+
 ## Scope And Status
 
 本文件只记录当前 checkout 可由生产入口与验证证据证明的功能覆盖，不以设计、协议类型或 command core 的存在代替已交付能力。
@@ -9,6 +53,66 @@
 - `已实现`：已有目标生产入口，并有自动化验证覆盖主要契约。
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
+
+## 2026-10-19：三例连续迭代与审查误放行修正
+
+Scope：加入用户的开放性 TTS 问题进行离线迭代。research-planning 增加原题要求溯源、领域对象删除/分界检验、禁止自动追加成本等独立目标，以及“下一步”单组字段规则。审查改为覆盖/边界/依赖/前提四项带依据的闭集结果，新增结构与结论一致性校验；生成使用 deepseek-flash，审查改用 deepseek-v4-pro，均 thinking enabled / high，独立上下文，不接收生成者自评或历史审查结论。无 Runtime 门禁或 Manager 权限扩张。
+
+真实测试：三问题至少经四项审查版、范围约束版及 Pro 审查版三批测试，TTS 另在格式说明后重测；每稿原始列表、审查、模型用量和诊断保留，未手工补字段。最终 Jev 一次修订后以 3 对象通过，受限语言两次修订后以 5 对象通过，TTS 新初稿以 4 对象通过；成本兼任净收益、语义判定依赖遗漏、训练职责重叠及重复下一步字段等旧失败未覆盖或抹除。独立脚本复核原问题保留、ID/覆盖、下一步引用和无环依赖，三个最终结果均通过；助手另行复核其领域边界、方法研究与前提，未发现阻塞项。前两例使用格式澄清前的技能快照，只补“下一步”单组字段后未重复生成；其最终输出符合补充格式规则。
+
+Executed Validation：审查接受规则先观察完整新审查因旧解析入口拒绝而失败，实现后 13 项列表/审查行为测试通过（含缺审查项、无依据及矛盾 PASS 拒绝）。`pnpm --dir plugin verify` 完整通过，104 文件 921 项测试及格式、lint（12 项既有 warning，无 error）、Host/Client/Remote 类型、构建、环境、契约、八角色资源和打包检查。最终 Skill Creator quick_validate、文档链接和 git diff --check 通过。
+
+Not Covered：三个离线样例通过不代表统计稳定性或领域实证。Manager 脚本执行与独立审查仍未自动接线，未刷新人工环境、未启动真实会议、未执行远端 CI；没有把显式加载技能等同于执行规划闭环。
+
+## 2026-10-19：列表生成、独立审查与脚本转换闭环
+
+Scope：research-planning 改为受限列表生成；新增同 Skill 下 parse.mjs 严格解析并计算覆盖、校验引用与依赖循环，run.mjs 用 DeepSeek 生成者和独立上下文审查者闭环，最多两次修订。审查接收原问题、技能与当前列表，不继承生成对话、自评或前次审查；每稿原始列表、审查、模型用量及结构诊断留存。只有结构和审查同时通过才输出 plan.json，不猜测补字段。同步资源闭集与部署说明，不扩张 Manager 工具或 Runtime。
+
+Executed Validation：列表转换及角色部署三文件 13 项测试通过（解析器 8 项含未知字段/引用、缺字段、自依赖、双对象环及原问题变化拒绝）；受影响 ESLint、Host typecheck、Skill Creator quick_validate、八角色资源与 package 检查通过，文档链接 1178 项和 git diff --check 通过。两例真实 DeepSeek deepseek-flash / thinking enabled / high 执行初稿加两次修订，各稿独立审查；均以 not_accepted / exit 2 收敛，未输出 plan.json。Jev 最终审查仍发现成本对象越界作净收益取舍；受限语言例最终解析与审查发现循环依赖，审查另指出训练机制责任重叠。失败输出原样保留，不以闭环执行成功替代研究质量验收。
+
+Not Covered：真实会议自动接线与接受路径的真实模型端到端成功、全量 verify 和远端 CI。当前 Manager 无脚本执行或独立审查工具，Skill 加载不等于闭环执行；本期仅已授权本地操作方可独立运行脚本。未刷新人工环境、未干预运行中的会议。
+
+## 2026-10-19：闭集字段与单一依赖事实源重测
+
+Scope：research-planning 将依赖仅保留在 dependencyInputs，去掉重复 dependsOnObjectIds；明确横贯评分/证据规范不得独立成题、效果/成本/归因分责，禁止 nextStep.expectedOutput 等多余字段，并规定独立校验失败后整份重生成。保留其他已有改动，不增加 Runtime 门禁。
+
+Executed Validation：DeepSeek 官方 API deepseek-flash、thinking enabled / high、20000 token，两例独立上下文实际调用 skill 后生成；先保留无反馈原文，再根据独立审阅反馈整份重生成（反馈只描述缺陷，不提供字段替代值）。两轮原文全部保留，未手工补字段。最终两例精确结构、原问题保留、唯一 ID、覆盖引用及自报差集、依赖有效性/无环与下一步引用检查均 PASS。语义审阅仍未通过：第二例 o5 正文仅在 o4 合格输出上评价语义却漏 o4 依赖，o6 未登记训练组合覆盖输入；第一例归因对象仍兼有替代方案相对价值判断。不得以机械校验通过宣称语义可靠。
+
+Skill Creator quick_validate、八角色资源、文档链接及 git diff --check 通过。Not Covered：全量 verify、人工部署、真实会议；反馈后的两例不证明一次生成稳定性，原始失败不抹除。
+
+## 2026-10-19：覆盖与依赖一致性的再次重测
+
+Scope：继续修订 research-planning 的单对象责任、最终覆盖并集计算、正文与依赖表双向核对；增加 dependencyInputs，要求逐条说明需要的前置结果，与 dependsOnObjectIds 精确对应。保留原有改动，不修改 Runtime 或运行中会议。
+
+Executed Validation：DeepSeek 官方 API deepseek-flash / thinking enabled / high，独立上下文实际调用 skill 后返回当前正文再生成 JSON，无示范答案、无手工补字段。第一次两例覆盖通过但人工发现 Jev 最终对象漏归因依赖，第二例首次因 10000 token 额度截断，原输出保留，以 20000 额度重跑。补充通用双向核对规则后，两例均从头以 20000 额度重测、finish_reason=stop；原始结果均未修改。最终第一例精确结构及覆盖检查通过，第二例因 nextStep 多出 expectedOutput 而结构 FAIL，覆盖通过；人工仍发现第二例 o5 正文取用 o4 标准但漏依赖、第一例衡量口径仍独立成题，以及第二例最终对象责任偏宽。不得标为可靠拆分已通过。
+
+Skill Creator quick_validate、八角色资源检查、文档链接及 git diff --check 通过。Not Covered：未重跑全量 verify、未刷新人工环境、未建立生成侧强制 schema 或 Runtime 门禁；单轮调用和模型自检不能保证语义或结构可靠。
+
+## 2026-10-19：研究对象边界、覆盖与 JSON 输出重测
+
+Scope：针对两例 DeepSeek 试用暴露的通用方法冒充课题、缺少实际效果对象及排除学习方法研究，修订 `research-planning`。输出固定 JSON 字段：原问题、实质要求、研究对象及边界/覆盖/依赖、横贯要求、未决前提、下一步与覆盖自检；会议中序列化到已有 plan rationale，不新增 MeetingCommand 字段或 Runtime 门禁。
+
+Executed Validation：使用 DeepSeek 官方 API `deepseek-flash`、thinking enabled / reasoning_effort high，在两个独立上下文中先实际调用 skill 并返回当前技能正文，再以 json_object 模式生成 QUESTIONS-DRAFT 两例规划；未提供示范答案、未检索、未启动会议。两例 JSON 字段/类型、原问题保留、唯一 ID、有效引用及依赖无环检查通过。第一例五对象，r6 未建立覆盖引用但模型自报全覆盖，覆盖校验 FAIL；第二例四对象，覆盖校验 PASS，保留学习机制与训练、约束及数据方案比较。结构通过不证明语义正确，单次试用不证明稳定性。Skill Creator quick_validate、八角色资源检查、文档链接及 git diff --check 通过。
+
+Not Covered：未重跑完整 verify、未部署人工环境或修改运行中会议；未验证真实 Manager 会按该 JSON 组织 rationale。模型自报覆盖不作为已通过证据，第一例缺陷原样保留，尚不能宣称可靠拆分已验收。
+
+## 2026-10-19：research-planning Skill 与 Manager 显式加载
+
+Scope：新增 `research-planning`，在技能正文注明 LangChain Open Deep Research、Anthropic Scientific Problem Selection、Obra Superpowers 的来源与取舍；总目标和验收边界稳定，子问题先探索候选与反例，再聚焦验证、收拢并整合，不固定轮数。Manager 身份指令要求首次拆分及重新规划前通过 `skill` 显式加载，精简 Prompt 和主持 Skill 中重复的研究方法，保留身份、权限、生命周期和命令约束；不增加 Runtime 门禁。同步 Manager Definition/指纹、Preset 技能目录、能力闭集及 smoke 精确资源断言。
+
+Executed Validation：先更新角色装载契约并观察 Manager 缺少该技能的失败，完成装配后聚焦六文件 59 项通过；Skill Creator `quick_validate.py` 通过。`pnpm --dir plugin verify` 完整通过：格式、lint（12 项既有 warning，无 error）、Host/Client/Remote test 类型、103 文件 908 项测试、构建、环境、插件契约、八角色资源与包检查；smoke 两脚本语法检查、文档本地链接和 `git diff --check` 通过。
+
+Not Covered：未运行新的真实模型会议、未刷新固定人工环境、未执行真实 smoke 或远端 CI。显式调用为身份指令要求，资源与装配验证不证明模型实际调用或研究质量；既有会议保持原绑定，不因源码更新热换技能或身份资源。
+
+## 2026-10-19：已处置举手的延迟通知
+
+Scope：修复 `hand_request` 在 Manager 处置后仍以 `pendingHandRaises` 校验、误报 `NOTICE_VISIBILITY_INVALID`。按 ER-FR-2 保留的同 Agenda/Round、同 Contributor 的 `raised` 参与记录校验；不改变 Manager 权限、ownership、生命周期及正式命令门禁。接口语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
+
+实际现场：固定人工环境的 `meeting-4a6ab3cd771e40b505054a97b7f121e7` 第二轮，2026-10-19 上海时间 11:33:07.443 记录 arXiv 举手、11:33:14.891 接纳，原通知 11:39:03.103 以该错误失败；接纳后待处置举手已移除。会议最终两轮发布并以 partial 结束、归档 complete，不把通知失败解释为贡献失败。
+
+Executed Validation：投递前已处置、投递中处置两种回归均先观察到该错误，再在修复后通过；同时拒绝 declined/no_response 充当举手记录。通知 dispatcher、举手领域与 Agent owner 三文件 52 项通过；Host/Client typecheck、受影响文件 ESLint、1176 项文档本地链接与 git diff --check 通过。
+
+Not Covered：未刷新固定人工环境、未追加真实模型会议、未重放或改写历史失败 outbox；未运行完整 verify 或远端 CI。
 
 ## 2026-10-16：需求、设计与实现口径核对
 
@@ -595,3 +699,15 @@ Executed Validation：基于 `6d85ed43` 的 `codex/retire-deliberation` 工作�
 Not Covered：未刷新固定人工 DSH 环境，未执行 Browser、真实模型会议或远端 CI。当前没有 Browser 插件，仓库 Playwright 命令不可用；前端结论仅由现有 Client 测试支持。旧持久数据兼容不在当前范围。
 
 Closure：独立提案、立场、候选与正式决策链已退役；正式轮次、Captain 成果确认、风险处置与完成判定保持独立。需求、接口、设计、身份指令和 READINESS 已同步。本次未发布。
+
+## 2026-10-19：非进行中会议删除
+
+Scope / Validated Contract：按用户确认同步 MO-FR-19、接口与设计。`running`、`converging`、`paused` 禁止删除；`preparing`、`ending`、`terminal`、`archiving`、`archived` 可发起删除，不因 pending outbox 或未关闭 ownership 禁用。删除意图在 Repository 写队列内重验版本与生命周期并持久化，随后停止目标会议投递、期限扫描与 Agent handle；失败保留意图和显式重试。保留 Session、聊天历史和 Agent 工作目录。
+
+Executed Validation：基于 `618e91b4` 的 `codex/meeting-deletion-states` 工作区，Node v22.23.2。先运行状态回归，旧实现对五种允许状态返回 active/pending_work 而失败；实现后通过。根 `pnpm test` 104 files / 923 tests、`pnpm typecheck`、`pnpm lint`（0 errors）、构建、插件 format:check、verify:contract、verify:package 和本地文档链接检查（1178 项零错误）通过。随后补充的 Host/ACP 定向释放及失败重试测试 19 项、Navigator 三种禁用状态和五种允许状态的确认/取消测试 22 项分别直接运行通过。删除契约和面板生命周期在相关五文件验证中共 62 项通过。
+
+固定人工环境通过 `install-from-source.sh --dev-refresh` 更新，构建物 SHA-256 为 `27b8feb544459784c3afb69394e2c859b70744cc109579ba40c2687d0662aeb1`。重启后 Browser 读回既有会议，暂停会议菜单禁用“删除会议”并显示“会议正在进行或已暂停，不能删除”；未执行会议删除或直接改写持久数据，验收结束后停止 Host，保留固定目录。
+
+Not Covered：人工环境只有进行中与暂停会议，未执行真实会议删除或完整模型会议；新增 ACP 释放行为使用受控 provider 替身，不等同于真实 ACP 进程删除链路验收。未运行远端 CI。
+
+Closure：后端许可、目标工作清理、Web 提示和回归已同步；旧 pending_work / sessions_open 删除许可状态退役，历史删除证据中的旧许可范围不再代表当前规则。

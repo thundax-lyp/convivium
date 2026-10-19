@@ -249,6 +249,7 @@ const planNextStepSchema = z
             .object({
                 question: z.string().refine((value) => value.trim().length > 0),
                 evidenceGap: z.string().refine((value) => value.trim().length > 0),
+                researchObjectIds: uniqueActionIds.min(1).optional(),
                 expectedOutput: z.string().refine((value) => value.trim().length > 0)
             })
             .optional(),

@@ -4,7 +4,7 @@
 
 | 角色                    | Preset                            | 可见 Skills                                         |
 | ----------------------- | --------------------------------- | --------------------------------------------------- |
-| meeting_manager         | convivium-manager                 | meeting-facilitation                                |
+| meeting_manager         | convivium-manager                 | meeting-facilitation、research-planning             |
 | domain_architect        | convivium-domain-architect        | repository-analysis                                 |
 | runtime_engineer        | convivium-runtime-engineer        | repository-analysis                                 |
 | protocol_ui_engineer    | convivium-protocol-ui-engineer    | repository-analysis                                 |
@@ -12,6 +12,8 @@
 | github_research_analyst | convivium-github-research-analyst | github                                              |
 | arxiv_research_analyst  | convivium-arxiv-research-analyst  | arxiv                                               |
 | web_research_analyst    | convivium-web-research-analyst    | web                                                 |
+
+`research-planning` 包含列表解析、独立审查与有限修订脚本。Manager 实际加载后调用受控 `convivium_plan_research`，Host 通过 DSH 模型服务运行同一规划实现并保存结构化讨论目标；加载本身不执行脚本。未通过不能开轮，不自动回退通用目标。
 
 每项能力使用 `skills/<能力名>/SKILL.md`，可以附带同目录 `scripts/`；加载 Skill 本身不执行脚本。角色 Preset 的 filesystem provider 关闭默认 Skill 根，只加载分配的目录。模型上下文、列表和按名称加载都受角色隔离；这不承诺本机静态文件保密。全局注册的工具也不等于角色获得业务权限：Definition 收窄模型工具面，Runtime 另行校验 MeetingIdentity 与持久 ownership。
 
@@ -26,3 +28,5 @@ Host 可配置可选 `acpCodex: {command, args}`：command 必须是绝对可执
 额外 Host patch 必须完整保留 provider、maxParticipants、initialContributorRoleIds 和同源 agentDefinitions 表达式；Cordis 不自动合并 config。发行默认 contributors 按 GitHub/arXiv/Web 排序，maxParticipants 为 8。动态准入的首份 descriptor/ownership 固定不可变选择；provisioning 到期撤权清理，不刷新同 admissionId；active 恢复不受旧准入 TTL 影响。
 
 自动验收入口为 `smoke:profile --all --json`，包含 `identity-admission`、`meeting-business-loop`、`peer-meeting-agents`。实际通过记录与未覆盖边界见仓库 readiness；资源存在不等于真实模型、来源读取或冷恢复通过。
+
+Web Contributor 依据 web Skill 编写自身 cwd 的 web-evidence.txt，通过同包解析脚本检查内容，再由 convivium_submit_web_evidence 组装并校验原提交 JSON；不再让模型生成大型嵌套 MeetingCommand。缺字段或引用无效时返回诊断，不代填事实；普通 Web 检索无需该会议入口。

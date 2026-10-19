@@ -34,6 +34,7 @@ type AgentRoleDefinitionId =
   | "web_research_analyst";
 type AbilityName =
   | "meeting-facilitation"
+  | "research-planning"
   | "repository-analysis"
   | "evidence-review"
   | "github"
@@ -89,7 +90,7 @@ interface ResourceBinding {
 
 | roleDefinitionId                                               | requiredSkillNames（精确集合）                              |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
-| `meeting_manager`                                              | `meeting-facilitation`                                      |
+| `meeting_manager`                                              | `meeting-facilitation`、`research-planning`                 |
 | `domain_architect`、`runtime_engineer`、`protocol_ui_engineer` | `repository-analysis`                                       |
 | `verification_reviewer`                                        | `repository-analysis`、`evidence-review`、`github`、`arxiv` |
 | `github_research_analyst`                                      | `github`                                                    |
@@ -100,7 +101,7 @@ interface ResourceBinding {
 
 以下 Definition 工具与 Skill 调用约束适用于 DSH 原生执行路径。ACP root/worker 不使用这些工具或 Skills，会议职责由宿主适配；当前迁移门禁及可信调用边界见 [ACP Native Execution Boundary](./DSH-ACP-EXECUTION-INTERFACE.md#acp-native-execution-boundary)。资源绑定和身份完整性仍须校验，不因 ACP 路由跳过。
 
-当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。六个 Contributor 的 deny 精确为 `convivium_submit_manager_plan,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 专属用户控制不注册 Agent tool；已有 pending Agenda 的激活复用命令并注册 Manager 专用 `convivium_activate_agenda`；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand/submit_evidence 和 Host 原有非 Meeting 工具；Runtime 每次独立授权，toolFilter 不授予权限。
+当前 Definition 的 Meeting tool 过滤固定如下。Manager 的 allow 精确为 `skill,convivium_read_meeting,convivium_submit_manager_plan,convivium_plan_research,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting`；Reviewer allow 精确为 `skill,convivium_read_meeting,convivium_run_review_worker`。六个 Contributor 的公共 deny 为 `convivium_submit_manager_plan,convivium_plan_research,convivium_activate_agenda,convivium_open_round,convivium_dispose_hand_raise,convivium_publish_round,convivium_recommend_identity,convivium_end_meeting,convivium_run_review_worker`。创建与 Captain 专属用户控制不注册 Agent tool；已有 pending Agenda 的激活复用命令并注册 Manager 专用 `convivium_activate_agenda`；正常结束注册为 Manager 专用 `convivium_end_meeting`。Contributor 保留 read/raise_hand 和 Host 原有非 Meeting 工具；Web 仅用 convivium_submit_web_evidence，禁止原 convivium_submit_evidence；其它 Contributor 保留原 submit_evidence 并禁止 Web 专用入口。Runtime 每次独立授权，toolFilter 不授予权限。
 
 `meeting_manager` 与 `verification_reviewer` 只在创建时绑定唯一 Manager 与专职 reviewer；其它六个角色映射为 `roles:["contributor"]`，动态接纳只能使用这六个。Reviewer 只经专用 `convivium_run_review_worker` 启动固定 schema 的 one-shot DSH worker，不取得通用 subagent tool 或 worker Meeting authority。Definition 不授予 Meeting 控制权。
 
@@ -253,6 +254,8 @@ Runtime owner 私有 Map 持有 live handle 与装配 purpose（精确结构见�
 
 Meeting Runtime 的 outbox 在每次投递前重新检查目标 Meeting、identity、active ownership、Session ID、lifecycle 与 notice 可见性；只经 Runtime 获取已持有或恢复的 handle，使用 `handle.agent.followup(UserMessage)`。消息 ID 固定为 effect deliveryId，`source` 为 Convivium plugin，内容仅含当前 caller 可见的会议提示和读取指令。调用后通过 `ctx.sessions.flush(handle.agent.session)` 等待至少一个持久化 listener 成功，再标记 outbox delivered；返回 false、抛错或进程在 delivered commit 前退出时保留 effect 重试。重复通知可能出现，Session inbox 接受不代表业务完成；Meeting command 的 requestId、version、review claim 与 effect ID 仍决定事实幂等。目标未驻留则先按 ownership 恢复；不能恢复时 effect 保持 retryable，Meeting 报 `RECOVERY_UNAVAILABLE`。
 
+`hand_request` 以同一 Agenda/Round 中该 Contributor 已提交的 `raised` 参与记录校验引用，不以仍有待处置举手为条件。Manager 接纳、拒绝或暂缓后，旧通知仍可投递并完成持久化确认；通知仅提示读取当前状态，不表示举手仍待处置，也不重新授予参与资格。未提交举手、跨轮次或跨议题引用仍拒绝。
+
 对于已接纳 `hand_disposition` 与 `review_request`，dispatcher 不能以 `followup` 接受或 `flush=true` 推定业务 turn 成功；owner 须订阅消息被 claim 的 turn，并等待该 Agent 重新 idle。若 Agent 因此前活动 turn 异常而 idle、当前 deliveryId 仍未被 claim，owner 使用公开 `steer` API 注入一条只用于唤醒且不形成会议事实的 next-step 消息，使已经排队的原通知进入下一 turn；再次 idle 后仍未 claim 则投递失败并保留重试。只有同一 Agent、同一 deliveryId 所在 turn 的 `agent/error` 才形成观察到的失败：Contributor 且尚无登记证据时由 Runtime 记录 `execution_failed` Contribution 事实；Reviewer 则立即以 `review_interrupted` 释放精确 claim，沿 EvidenceVersion 自身失败预算重试。此前正在运行的其它 turn 失败、尚未 claim 当前消息或普通通知失败均不得误记为该项业务失败。
 
 投递的 `UserMessage` 精确为 `{id:deliveryId,role:"user",content:[{type:"text",text}],source:{kind:"plugin",plugin:"convivium"}}`；`deliveryId` 来自已提交 outbox item，`text` 由该 effect 的 caller-visible projection 生成且须非空，不把原始私有 payload 或 Session ID 拼进消息。`followup` 是同步 inbox 接受；随后 `flush` 的 `true` 只证明至少一个持久化 listener 成功，不证明模型 turn 或业务完成。Runtime 必须在 `followup` 前和 `flush` 后重验同一 Meeting/identity/active ownership/sessionId/effect；后验失败不写 delivered。owner 只能投递到由自己创建或恢复、仍在私有 handle map 的目标 Session；不得向任意 `ctx.agents.get` 裸 Agent 投递或调用跨 Agent 直接消息 API。
@@ -292,3 +295,23 @@ DSH adapter 从 Host 启动工作目录的真实绝对路径派生 `meetings/<me
 - [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [Meeting Interface](./MEETING-INTERFACE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+
+## Research Planning Execution
+
+Manager 增加 `convivium_plan_research({meetingId,expectedMeetingVersion,requestId})`。调用前须实际加载 research-planning；参数不接受候选、目标正文、审查或自报 PASS。Host 验证同 Meeting 的 active Manager ownership，读取已保存原问题和当前安装的 scoped Skill，经 DSH `llm` 的 deepseek-official route 执行 Flash 生成、V4 Pro 独立上下文审查和同一 Skill 脚本解析；不直接读取模型 key、不授予任意脚本或网络工具。无有效目标、版本冲突、暂停、open Round 或能力缺失时拒绝。结果作为同 Manager 的计划提交原子保存；未通过不允许开轮，失败不自动重新启动另一组修订。已接受规划只读复用，不允许静默替换。
+
+规划验证结果只能由 Host 执行上下文提供，普通 MeetingCommand 或模型工具参数不能注入；Runtime 仍校验 caller、Meeting version、生命周期和原问题。语义正确性由独立审查与人工复核提供，不宣称确定性结构检查证明语义。
+
+规划执行期间的每稿列表、审查及用量通过 Manager 自身 Session 的 `convivium/research-planning` 诊断事件追加并 flush，保留 name/content，不包含内部推理或凭据；该事件不是 Meeting 事实源。最终规划及失败原因仍由 Meeting 原子 commit 保存。每次辅助模型调用有四分钟期限，取消或版本变化后的结果不能提交。
+
+工具成功提交返回现有 MeetingCommandResult accepted（含 committedVersion）；已接受时返回 `{kind:"already_planned",meetingId,version}` 且不重复模型调用，已失败时返回 `{kind:"planning_failed",reason}` 且不突破预算。跨会议、非 Manager、旧版本、非 running 或已有 open Round 在生成前拒绝。当前切片不增加失败后的重置命令或已接受对象的编辑命令，用户处置不能被模型自行重试替代。
+
+## Hand Raise Conflict Recovery
+
+`convivium_raise_hand` 的 DSH 工具适配仅在 application 明确返回 VERSION_CONFLICT 后重读并有限重试，初次调用加最多两次追加尝试；每次追加前重新解析 active caller，要求 Meeting、identity 和 ownership binding 与原请求一致，并经 caller-visible read 核对 running、原 Round open 及本人尚无 participationResponse。只更新 expectedMeetingVersion，保留 action 和 requestId；每次写入仍经过完整 command 授权、期限和乐观并发校验。停止条件成立时返回原冲突，身份失效返回 UNAUTHORIZED；异常与未知结果原样退出，不自动重放。其它命令不复用此恢复。
+
+## Web Evidence Content Submission
+
+`convivium_submit_web_evidence({meetingId,contributionId,requestId})` 仅对绑定的 web_research_analyst Contributor 有效。Host 先解析 active caller 并读取同 Meeting 的 caller-visible 状态，确认 running、原 Round open、本人 Contribution preparing 且无 package；再读取原 Agent cwd 的固定 web-evidence.txt 普通文件（不跟随文件链接，不能传入路径）。解析器按 Web Skill 的闭集文本格式生成 evidence，不接受协议、身份、版本或自报验证字段；拒绝缺项、重复、未知字段和无效材料引用。错误返回 INVALID_ARGUMENT 和诊断，不执行 application。
+
+成功解析后以读取的 Meeting version、原 contributionId/requestId 和固定 kind/protocolVersion 组装原 submit_evidence；执行前响应取消，命令仍执行全部授权、期限、幂等和并发校验。工具不自动重试提交，不把文件持久化等同证据已登记；accepted 回执才表示成功。未知结果只能重读事实，不能自行换 requestId 重投。纯 CLI 脚本只输出校验后的 evidence JSON，不具有会议提交权限。Web Definition 禁用原 convivium_submit_evidence；其它 Contributor 禁用本新入口。

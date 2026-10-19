@@ -31,3 +31,5 @@ export {
     changeCompletionFact,
     recalculateMeetingCompletion
 } from "./outcome.ts";
+
+export { applyResearchPlanning } from "./research-planning.ts";

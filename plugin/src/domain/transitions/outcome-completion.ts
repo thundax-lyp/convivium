@@ -71,6 +71,8 @@ export const recalculateMeetingCompletion = (
         acceptanceCriteria: criteria
     };
     const satisfied =
+        (!state.objective.researchPlanning ||
+            state.objective.researchPlanning.status === "accepted") &&
         outputs.every((t) => t.status === "satisfied") &&
         criteria.every((t) => t.status === "satisfied") &&
         state.objective.hardConstraints.every((t) => t.status === "satisfied") &&
@@ -100,6 +102,8 @@ export const isObjectiveSatisfied = (state: MeetingState): boolean => {
         state.lifecycle.changedAt
     );
     return (
+        (!state.objective.researchPlanning ||
+            state.objective.researchPlanning.status === "accepted") &&
         recalculated.objective.requiredOutputs.every((t) => t.status === "satisfied") &&
         recalculated.objective.acceptanceCriteria.every((t) => t.status === "satisfied") &&
         recalculated.objective.hardConstraints.every((t) => t.status === "satisfied") &&

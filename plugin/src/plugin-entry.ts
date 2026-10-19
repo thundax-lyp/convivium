@@ -3,7 +3,12 @@ import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { Config as ConfigType } from "./config.ts";
-import { createCodexAcpProvider, resolveMeetingCaller } from "./dsh/index.ts";
+import {
+    createCodexAcpProvider,
+    resolveMeetingCaller,
+    createResearchPlanner,
+    readWebEvidence
+} from "./dsh/index.ts";
 import { ConviviumRemoteService } from "./remote/index.ts";
 import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.ts";
 import {
@@ -45,6 +50,11 @@ const meetingConsumerPlugin = {
                     onBeforeRecovery: ({ runtime, reader, application, reviewPrompts }) => {
                         registerMeetingTools({
                             acpCodex,
+                            readWebEvidence,
+                            researchPlanner: createResearchPlanner(
+                                ctx,
+                                fileURLToPath(new URL("../", import.meta.url))
+                            ),
                             registry: ctx.tools,
                             application,
                             reviewWorkers: ctx.subagents,

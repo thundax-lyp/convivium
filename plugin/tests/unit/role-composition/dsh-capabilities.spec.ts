@@ -179,6 +179,7 @@ describe("role resource preflight", () => {
             "github",
             "meeting-facilitation",
             "repository-analysis",
+            "research-planning",
             "web"
         ]);
     });

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state.ts";
 import type { MeetingState } from "@/domain/index.ts";
-import { MeetingCommandResultSchema, MeetingCommandSchema } from "@/protocol/meeting-command.ts";
+import {
+    MeetingCommandResultSchema,
+    MeetingCommandSchema,
+    SubmitManagerPlanActionSchema
+} from "@/protocol/meeting-command.ts";
 import {
     decodeMeetingState,
     encodeMeetingState
@@ -159,6 +163,23 @@ describe("target Meeting command core", () => {
 
     it("rejects unknown command kinds and invalid envelopes", () => {
         expect(MeetingCommandSchema.safeParse({ kind: "unknown" }).success).toBe(false);
+    });
+
+    it("rejects duplicate research object references at the command boundary", () => {
+        expect(
+            SubmitManagerPlanActionSchema.safeParse({
+                kind: "submit_manager_plan",
+                agendaId: "agenda-v1",
+                planKind: "open_round",
+                roundGoal: {
+                    question: "q",
+                    evidenceGap: "gap",
+                    expectedOutput: "output",
+                    researchObjectIds: ["O1", "O1"]
+                },
+                rationale: "next"
+            }).success
+        ).toBe(false);
     });
 
     it("requires the create envelope to use meetingId new and version zero", () => {

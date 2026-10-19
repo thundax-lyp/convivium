@@ -42,3 +42,28 @@ describe("meeting end", () => {
         ).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
     });
 });
+
+it("does not treat an empty pending research plan as a completed objective", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective = {
+        statement: "原问题",
+        requiredOutputs: [],
+        acceptanceCriteria: [],
+        hardConstraints: [],
+        acceptableRiskLevel: "low",
+        researchPlanning: { status: "pending" }
+    };
+    state.agenda = state.agenda.map((a) => ({ ...a, requiredOutputIds: [] }));
+    expect(
+        endMeeting(state, {
+            terminationId: "termination-planning",
+            outcome: "completed",
+            reason: "空数组不能表示完成",
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            actorId: "local",
+            now: 10
+        })
+    ).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
+});

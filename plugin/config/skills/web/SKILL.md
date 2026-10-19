@@ -15,3 +15,7 @@ description: 搜索、读取并交叉核验公开互联网资料，记录来源�
 ## 工具与权限
 
 仅使用当前 Host 实际授予的工具。Skill 不授予会议身份、管理/审核权限或额外网络权限；读取本文件不执行脚本。
+
+## Convivium Web 证据提交
+
+仅作为 Convivium Web Contributor 提交已获接纳贡献时，按 [证据内容格式](references/evidence-content.md) 将证据写入自身 cwd 的 web-evidence.txt。AI 只生成证据内容，由同包 scripts/parse.mjs 严格解析并序列化 evidence JSON；缺字段或引用错误修正原内容，不手补目标 JSON。校验通过后调用 convivium_submit_web_evidence，Host 读取同一原文并组装原协议提交。普通 Web 研究不调用会议工具；Skill 不授予额外文件或会议权限。

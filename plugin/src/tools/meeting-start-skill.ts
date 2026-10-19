@@ -194,11 +194,10 @@ export const createMeetingStartCommand = (
             kind: "create_meeting",
             objective: {
                 statement,
-                requiredOutputs: [{ id: "primary", text: `完成目标：${statement}` }],
-                acceptanceCriteria: [
-                    { id: "verifiable", text: "给出可核验的产出、依据与未解决的限制。" }
-                ],
-                hardConstraints: [{ id: "evidence", text: "不得将未经验证的推断表述为既成事实。" }],
+                researchPlanning: { status: "pending" },
+                requiredOutputs: [],
+                acceptanceCriteria: [],
+                hardConstraints: [],
                 acceptableRiskLevel: "low"
             },
             identities: roles
@@ -225,7 +224,7 @@ export const createMeetingStartCommand = (
                     id: "initial",
                     title: statement,
                     question: statement,
-                    requiredOutputIds: ["primary"]
+                    requiredOutputIds: []
                 }
             ],
             initialActiveAgendaId: "initial",

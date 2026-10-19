@@ -1,4 +1,3 @@
-import { Writable } from "node:stream";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-subprocess";
 import {
@@ -71,8 +70,58 @@ export const openCodexAcpConnection = async (
     const stdin = child.stdin;
     const stdout = child.stdout;
     const iterator = stdout[Symbol.asyncIterator]();
+    let stdinError: Error | undefined;
+    let rejectStdinOperation: ((reason?: unknown) => void) | undefined;
+    stdin.on("error", (error) => {
+        stdinError = error;
+        rejectStdinOperation?.(error);
+    });
+    const writable = new WritableStream<Uint8Array>({
+        write: (bytes) => {
+            if (stdinError) {
+                return Promise.reject(stdinError);
+            }
+            return new Promise<void>((resolve, reject) => {
+                rejectStdinOperation = reject;
+                stdin.write(bytes, (error) => {
+                    if (rejectStdinOperation === reject) {
+                        rejectStdinOperation = undefined;
+                    }
+                    if (error) {
+                        stdinError = error;
+                        reject(error);
+                    } else if (stdinError) {
+                        reject(stdinError);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        },
+        close: () => {
+            if (stdinError) {
+                return Promise.reject(stdinError);
+            }
+            return new Promise<void>((resolve, reject) => {
+                rejectStdinOperation = reject;
+                stdin.end(() => {
+                    if (rejectStdinOperation === reject) {
+                        rejectStdinOperation = undefined;
+                    }
+                    if (stdinError) {
+                        reject(stdinError);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        },
+        abort: (reason) => {
+            stdin.destroy(reason instanceof Error ? reason : undefined);
+        }
+    });
     const stream = ndJsonStream(
-        Writable.toWeb(stdin),
+        writable,
         new ReadableStream<Uint8Array>({
             pull: async (controller) => {
                 const next = await iterator.next();

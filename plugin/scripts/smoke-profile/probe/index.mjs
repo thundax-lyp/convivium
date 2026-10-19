@@ -1,3 +1,4 @@
+import { runResearchTargetsScenario } from "./scenarios/research-targets.mjs";
 import { runAcpCodexReviewerWebScenario } from "./scenarios/acp-codex-reviewer-web.mjs";
 import { request as httpRequest } from "node:http";
 import { runPeerMeetingAgentsScenario } from "./scenarios/peer-meeting-agents.mjs";
@@ -115,6 +116,7 @@ const run = async (ctx) => {
     if (
         ![
             "identity-admission",
+            "research-targets",
             "meeting-business-loop",
             "peer-meeting-agents",
             "acp-codex-reviewer-web"
@@ -269,7 +271,9 @@ const run = async (ctx) => {
             reviewEvidence,
             toolEvidence
         };
-        if (scenario === "acp-codex-reviewer-web") {
+        if (scenario === "research-targets") {
+            await runResearchTargetsScenario(runtime);
+        } else if (scenario === "acp-codex-reviewer-web") {
             await runAcpCodexReviewerWebScenario(runtime);
         } else if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
@@ -325,7 +329,23 @@ export const apply = (ctx) => {
             reviewEvidence.push({ ...event, parentSession: worker?.session.header.parentSession });
         }
     });
+    const plannedAgents = new Set();
     const recordTool = (exec, result) => {
+        if (scenario === "research-targets" && exec.agent) {
+            if (exec.name === "skill" || exec.name === "convivium_plan_research") {
+                toolEvidence.set(String(exec.callId), {
+                    name: exec.name,
+                    sessionId: String(exec.agent.id),
+                    arguments: exec.arguments,
+                    isError: result.isError === true,
+                    value: result.value
+                });
+            }
+            if (exec.name === "convivium_plan_research") {
+                plannedAgents.add(String(exec.agent.id));
+            }
+            return;
+        }
         if (scenario !== "acp-codex-reviewer-web" || toolEvidence.has(String(exec.callId))) {
             return;
         }
@@ -357,6 +377,14 @@ export const apply = (ctx) => {
     // The probe drives these fixture roles through real tools. Do not let their
     // model turns race the fixed four-round sequence; reviewers remain live.
     ctx.on("agent/pre-step", async ({ agent }, next) => {
+        if (
+            scenario === "research-targets" &&
+            agent.session.header.agentPreset &&
+            (agent.session.header.agentPreset !== "convivium-manager" ||
+                plannedAgents.has(String(agent.id)))
+        ) {
+            return { kind: "reject" };
+        }
         if (
             scenario === "meeting-business-loop" &&
             [

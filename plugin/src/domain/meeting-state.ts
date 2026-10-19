@@ -1,3 +1,4 @@
+import type { ResearchPlanning } from "@/research-planning/index.ts";
 /**
  * Target Meeting aggregate.  It is intentionally independent from the legacy
  * Turn/SpeakerAttempt model: no target object may contain a legacy object.
@@ -38,6 +39,7 @@ export interface HardConstraint {
 }
 
 export interface ObjectiveContract {
+    researchPlanning?: ResearchPlanning;
     statement: string;
     requiredOutputs: readonly ObjectiveTarget[];
     acceptanceCriteria: readonly ObjectiveTarget[];
@@ -160,6 +162,7 @@ export interface Round {
 }
 
 export interface RoundGoal {
+    researchObjectIds?: readonly string[];
     question: string;
     evidenceGap: string;
     expectedOutput: string;

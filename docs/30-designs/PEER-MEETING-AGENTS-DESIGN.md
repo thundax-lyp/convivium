@@ -12,7 +12,7 @@
 
 角色资源按“AGENTS 说明身份与权限，Skill 说明可复用方法”分工。八份 `AGENTS.md` 分别写明自身 `roleDefinitionId`、职责、可调用的 Convivium 工具、收到 notice 后先读取当前 caller-visible Meeting View、不能代行 Captain/其他 MeetingIdentity，以及在会话恢复后继续使用原 Definition。Manager 负责议题内计划、开轮、举手处置、发布、推荐和正常结束判断；三个工程角色分别从领域、Runtime 和协议/UI 视角工作；GitHub、arXiv 与 Web 研究角色负责对应来源的证据；Reviewer 从独立验证视角处理待审 version，并以专用 one-shot worker 取得结构化结果。AGENTS 不包含研究/核验步骤的重复正文，也不声称拥有 Host 尚未授予的工具。
 
-六项 Skill 的工作方法固定为：`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。`web` 实际搜索、读取原始资料、跨来源核验，记录时间窗口、来源定位、事实/推断与限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
+七项 Skill 的工作方法固定为：`research-planning` 在稳定总目标下拆分必要子问题，先探索候选和反例，再聚焦验证及收拢，不固定轮数；Manager 首次拆分及重新规划前显式调用，方法产出先为受限列表，默认由 DeepSeek Flash 生成、DeepSeek V4 Pro 的独立上下文审查；审查须对覆盖、边界、依赖、前提四项给出逐项依据，脚本拒绝缺项或结论不一致。最多两次修订后以 Skill 脚本严格解析为 JSON；只在结构与审查同时通过时交付目标 JSON。Manager 通过受控 convivium_plan_research 调用 DSH 模型服务完成闭环，保存后页面展示研究对象；未通过不能开轮，Runtime 只检查确定性契约。`meeting-facilitation` 从当前目标、阻塞、职责与证据缺口形成有界计划，标明依据和停止条件；`repository-analysis` 先读正式需求/接口，再核对代码、提交、测试和反例，分开目标行为与已实现证据；`evidence-review` 针对单个版本逐主张核验来源、方法、反例、适用范围和不确定性，输出证据界限；`github` 定位 repository/ref/文件/commit/issue/PR/release，区分已合并事实、未合并提案和 fork；`arxiv` 核对 arXiv ID 与版本、方法、数据集、指标、实验结论及外推限制。`web` 实际搜索、读取原始资料、跨来源核验，记录时间窗口、来源定位、事实/推断与限制。各 Skill 的 frontmatter `name` 精确等于能力名且有非空 `description`；Skill 可以包含同目录 `scripts/`，加载本身不运行脚本。工具调用示例不得把 Skill 变成 Meeting authority；Reviewer 的 worker 调用顺序留在其 AGENTS，而不写成所有使用 `evidence-review` 的角色的普遍方法。
 
 | 责任                | 唯一 owner                        | 输入与输出                                                               |
 | ------------------- | --------------------------------- | ------------------------------------------------------------------------ |
@@ -137,3 +137,13 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 ## Resume Continuation
 
 依据 MO-FR-9，`runMeetingActionTransition` 在接受 `resume_meeting` 的同一事务中，为当前 Manager 追加 `meeting_resumed` notice，并保留原开放轮次/取消审核的恢复 effects。该 notice 不绑定议题、不依赖开放轮次；`createMeetingNoticeDispatcher` 在 running 状态与原 Manager ownership/capability 校验通过后，仅向原 Session 投递定位信息。Manager 另行重读会议并决定后续工作。重复 command 沿原 receipt 去重；投递重试沿原 deliveryId，已消费或未知 ACP 输入不再投递。没有新的状态字段、数据库迁移或权限；其它 notice 的 Agenda 可见性和角色门禁保持原样。
+
+## Structured Target Planning
+
+MO-FR-18/20 的新会议由原问题创建 pending 规划，Manager 实际加载技能后调用受控 convivium_plan_research。Host adapter 通过 DSH llm 服务执行 research-planning 的共享 TypeScript 实现，与安装包本地 run.mjs 共用有限修订、独立审查和解析逻辑，不读 key 或绕过 provider。结果在原子 Manager plan command 中更新 objective 和 active Agenda 的产出引用；失败保留候选且禁止开轮。已接受对象保持稳定；roundGoal 通过 researchObjectIds 选定推进对象。Runtime 只做确定性门禁，不执行领域语义裁判。首次拆分后的普通路径重新规划继续显式加载 Skill，但复用有效研究对象。
+
+隔离的 research-targets 冒烟读取 QUESTIONS-DRAFT 三个问题，真实 Manager 自行加载 Skill 并调用规划工具；probe 在工具返回后停止该 Agent 的后续模型步骤，不开启 Round 或来源检索，不作用于人工 Host。保存最终原始列表、独立审查及持久目标投影用于逐题语义复核。
+
+## Web Evidence Content Assembly
+
+ER-FR-9 的 Web Contributor 只编写自身 cwd 的 web-evidence.txt。web Skill 的 CLI 与 Host 受控工具共用 evidence-content TypeScript 解析器；闭集节/字段映射为原 evidence 契约并核对材料引用，JSON 转义交由序列化完成。dsh adapter 只读取固定普通文件、不跟随文件链接；tools adapter 校验当前 Web ownership、同会话 Contribution 和开放轮次后组装原 submit_evidence，仍经原 application 事务提交。解析错误只返回诊断，没有部分写入、字段修补或模型修复回路。专用入口与原始 Web JSON 入口互斥，其它 Contributor 不迁移。已有会议身份资源保持固化，不通过源码刷新改写原 Session 绑定。

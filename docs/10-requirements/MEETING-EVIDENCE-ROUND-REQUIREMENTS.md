@@ -33,6 +33,8 @@
 3. 获得安排后，贡献者整理一份准备公开的证据包并直接提交给 Meeting Runtime，不把私有草稿交给 Manager。已接纳的举手从接纳时起属于本轮待收口参与，即使尚无证据包；本人未主动选定和提交的私有取证材料不进入会议。若准备任务的适用期限届满或该身份不可用且仍未提交，记录为“未提交退出”及原因，不生成空证据包，不把该身份所需证据判为已满足；其他贡献者可继续工作。若 Runtime 已观察到承接该 Contribution 的 Contributor turn 以执行异常终止且尚未登记证据，则记录 `execution_failed` 退出及结构化失败事实；该事实不生成 EvidenceVersion 或 Review，也不需要 Evidence Reviewer 审核。
 4. Contributor 只在开放轮次内申请贡献，由 Manager 接纳后取得 Contribution；没有 open Round 时由 Manager 按目标与已有公开结果规划新轮，不建立独立的开轮前取证申请。新 Round 不在原 Contribution 内补证；需要更多证据时由 Manager 规划下一轮。
 
+Contributor 举手命令被明确拒绝为 VERSION_CONFLICT 时，受控工具须重新校验原身份并读取当前会议；仅原轮次仍开放、本人尚未作参与选择且会议仍 running 时，使用新版本对同一意图最多追加两次尝试。身份变化、已响应、轮次关闭或其它拒绝立即停止；传输异常或结果未知不得自动重放。此恢复不适用于证据提交，不改变现有授权、期限与幂等约束。
+
 ### ER-FR-3：每人每轮唯一证据包及格式
 
 新提交必须含贡献者撰写的独立非空 `summary`，表达本轮观点、关键依据和重要限制。摘要与完整证据属于同一不可变版本，审核须覆盖其一致性、支撑度及重要遗漏；轮末发布时 `FormalMessage.body` 原样使用该摘要，每个贡献者仍独立计入正式消息预算，完整证据及最终 Review 不可拆分地保留。WebUI 可在轮末发布前向作者展示已登记版本的摘要，公开范围继续遵守轮次隔离；证据 Modal 展示同版本摘要与完整证据。
@@ -80,6 +82,7 @@
 ### ER-FR-6：审核送达与跨轮补证
 
 1. 每个 Round 中，获接纳的贡献者最多合法登记一份最终 EvidenceVersion。首次登记前的结构、必填项、引用或权限校验失败不写入会议，作者可在原准备期限内修正重试；成功登记后，本轮不再进行实质补证或改写该版本。
+
 2. 审核意见须送达该证据包作者。送达成功时，该 Contribution 直接结算；送达失败继续可观察地重试，不把失败当成作者沉默或轮次完成。
 3. 作者或 Manager 发现证据缺口、负面审核或需回应的问题，应在后续 Round 中提出有明确问题和固定新基线的取证计划。同一 Contributor 的前轮 Contribution 已关闭不限制其在新 Round 重新举手；Reviewer 不能作为 Contributor 补证也不排除 Contributor 提交新证据后由 Reviewer 审核。新 Round 的证据独立登记、审核和公开；前一 Round 已登记的证据与审核保持可追溯，不改写历史。
 
@@ -212,3 +215,7 @@ flowchart TD
 ACP 结果未知时，先保留已合法提交的 Review/Evidence 并补本地结算；没有正式结果则持久阻断根 Session，不据异常合成 `dispatch_failed`、`review_interrupted` 或 Contribution 执行失败，不派 replacement worker、不自动重投。重复 active claim 只等待原进程内任务；重启没有原任务时不能重建执行。ACP worker 的 JSON 文本必须经宿主完整解析、固定 schema 与 version 校验，并通过原 claim/caller 的 Runtime 提交；非 ACP 路径继续使用 DSH 结构化输出。worker 无 Meeting ownership，不能直接提交会议事实。
 
 阻断不冻结真实业务时钟。Contribution 到期按原 deadline handler 处理；claim 真正到期仍以 `review_timeout` 幂等结算一次并按既有规则计失败预算，但不向 blocked Session 派新任务。暂停/异常结束继续使用原撤权和 claim 取消规则，不清除技术阻断或改写正式结果。
+
+### ER-FR-9：Web 证据内容与提交结构分离
+
+Web Contributor 在自身工作目录的固定 web-evidence.txt 中生成受限文本证据内容，不生成 MeetingCommand JSON。受控提交工具读取该文件，以确定性程序解析和校验全部必需内容、闭集字段及材料引用，再从当前身份可见会议取得版本并组装原 submit_evidence 命令。原始内容缺失、格式错误或引用无效时返回定位诊断，不自动补字段、不调用模型修复、不登记部分结果。只有该会议当前获接纳且尚未提交的 Web Contribution 可以使用此入口；身份、期限、幂等和一次登记约束仍由原命令执行器校验。文件读取仅限原身份 cwd 内固定普通文件，禁止链接或指定其它路径；校验本身不提交会议。Web 角色不再使用大型原始 JSON 提交工具，其它角色入口不变。

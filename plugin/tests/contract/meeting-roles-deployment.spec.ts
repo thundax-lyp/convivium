@@ -36,6 +36,7 @@ it("publishes only the current contribution tools for Manager", () => {
                 "skill",
                 "convivium_read_meeting",
                 "convivium_submit_manager_plan",
+                "convivium_plan_research",
                 "convivium_activate_agenda",
                 "convivium_open_round",
                 "convivium_dispose_hand_raise",
@@ -54,6 +55,7 @@ it("publishes only the current contribution tools for Manager", () => {
     });
     const contributorDeniedTools = [
         "convivium_submit_manager_plan",
+        "convivium_plan_research",
         "convivium_activate_agenda",
         "convivium_open_round",
         "convivium_dispose_hand_raise",
@@ -70,9 +72,16 @@ it("publishes only the current contribution tools for Manager", () => {
                     roleDefinitionId !== "verification_reviewer"
             )
             .every(
-                ({ toolFilter }) =>
+                ({ toolFilter, roleDefinitionId }) =>
                     JSON.stringify(toolFilter) ===
-                    JSON.stringify({ deny: contributorDeniedTools.sort() })
+                    JSON.stringify({
+                        deny: [
+                            ...contributorDeniedTools,
+                            roleDefinitionId === "web_research_analyst"
+                                ? "convivium_submit_evidence"
+                                : "convivium_submit_web_evidence"
+                        ].sort()
+                    })
             )
     ).toBe(true);
 

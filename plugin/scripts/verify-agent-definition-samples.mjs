@@ -6,7 +6,7 @@ import process from "node:process";
 import { createHash } from "node:crypto";
 
 const roles = [
-    ["meeting_manager", "manager", ["meeting-facilitation"]],
+    ["meeting_manager", "manager", ["meeting-facilitation", "research-planning"]],
     ["domain_architect", "domain-architect", ["repository-analysis"]],
     ["runtime_engineer", "runtime-engineer", ["repository-analysis"]],
     ["protocol_ui_engineer", "protocol-ui-engineer", ["repository-analysis"]],
@@ -25,6 +25,10 @@ export const definitionAssetFiles = [
     "definitions.json",
     "cordis.patch.yml",
     "skills/convivium/SKILL.md",
+    "skills/web/scripts/parse.mjs",
+    "skills/web/references/evidence-content.md",
+    "skills/research-planning/scripts/parse.mjs",
+    "skills/research-planning/scripts/run.mjs",
     ...roles.flatMap(([role, preset]) => [
         `agents/${role}/AGENTS.md`,
         `presets/convivium-${preset}/preset.yml`,
@@ -119,13 +123,17 @@ export async function verifyMeetingAgentDefinitions(root) {
                     const [role, preset, assigned] = roles[i];
                     const contributorDeny = [
                         "convivium_submit_manager_plan",
+                        "convivium_plan_research",
                         "convivium_activate_agenda",
                         "convivium_open_round",
                         "convivium_dispose_hand_raise",
                         "convivium_publish_round",
                         "convivium_end_meeting",
                         "convivium_run_review_worker",
-                        "convivium_recommend_identity"
+                        "convivium_recommend_identity",
+                        role === "web_research_analyst"
+                            ? "convivium_submit_evidence"
+                            : "convivium_submit_web_evidence"
                     ];
                     const toolFilter =
                         role === "meeting_manager"
@@ -134,6 +142,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                                       "skill",
                                       "convivium_read_meeting",
                                       "convivium_submit_manager_plan",
+                                      "convivium_plan_research",
                                       "convivium_activate_agenda",
                                       "convivium_open_round",
                                       "convivium_dispose_hand_raise",

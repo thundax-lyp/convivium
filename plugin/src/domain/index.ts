@@ -66,3 +66,4 @@ export {
     type MeetingEventPayload,
     type MeetingEventInput
 } from "./meeting-event.ts";
+export { applyResearchPlanning } from "./transitions/index.ts";

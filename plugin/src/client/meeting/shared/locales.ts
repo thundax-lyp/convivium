@@ -3,6 +3,16 @@ import type { TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 export const MEETING_LOCALE_NS = "convivium.meeting";
 
 export const zh = {
+    "panel.research.candidate": "未通过的候选 {number}",
+    "panel.research.pending": "正在规划讨论目标，尚未通过校验。",
+    "panel.research.failed": "讨论目标规划未通过，未开启研究轮次。",
+    "panel.research.includes": "包含：",
+    "panel.research.excludes": "排除：",
+    "panel.research.boundary": "责任边界：",
+    "panel.research.dependencies": "依赖：",
+    "panel.research.shared": "横贯要求：",
+    "panel.research.unresolved": "未决前提：",
+
     "panel.execution.unknown":
         "{identity}：执行结果未知，已停止自动执行。可暂停或异常结束会议；继续会议不会解除阻断。",
     "panel.execution.recovery":
@@ -100,13 +110,11 @@ export const zh = {
     "panel.delete.deleting": "删除清理未完成，可重试删除",
     "panel.delete.title": "删除会议：{objective}？",
     "panel.delete.description":
-        "永久删除该会议的业务数据，包括正式记录、证据、审核和归档，且无法撤销。保留已关闭的 Session 和聊天历史。",
+        "永久删除该会议的业务数据，包括正式记录、证据、审核和归档，且无法撤销。删除前停止关联工作及 Session，保留 Session 和聊天历史。",
     "panel.delete.acknowledge": "我理解此操作无法撤销",
     "panel.delete.cancel": "取消",
     "panel.delete.unavailable": "离线、数据陈旧或提交期间不可删除",
-    "panel.delete.active": "会议尚未终止或仍在归档，不能删除",
-    "panel.delete.pending_work": "仍有待处理后台工作，不能删除",
-    "panel.delete.sessions_open": "关联 Session 尚未关闭并撤权，不能删除",
+    "panel.delete.active": "会议正在进行或已暂停，不能删除",
     "panel.delete.failed": "未确认删除完成。会议可能已变化或清理未完成，请刷新后重试。",
     "panel.navigator.searchPlaceholder": "搜索会话…",
     "panel.navigator.noMatches": "没有匹配的会话。",
@@ -374,6 +382,16 @@ export const zh = {
 export type MeetingLocaleKey = keyof typeof zh;
 
 export const en: Record<MeetingLocaleKey, string> = {
+    "panel.research.candidate": "Unaccepted candidate {number}",
+    "panel.research.pending": "Planning discussion targets; validation is pending.",
+    "panel.research.failed": "Target planning failed; research rounds have not started.",
+    "panel.research.includes": "Includes:",
+    "panel.research.excludes": "Excludes:",
+    "panel.research.boundary": "Boundary:",
+    "panel.research.dependencies": "Dependencies:",
+    "panel.research.shared": "Shared requirements:",
+    "panel.research.unresolved": "Open premises:",
+
     "panel.execution.unknown":
         "{identity}: Execution outcome is unknown. Automatic execution is blocked. You can pause or end the meeting; resuming does not clear this block.",
     "panel.execution.recovery":
@@ -472,13 +490,11 @@ export const en: Record<MeetingLocaleKey, string> = {
     "panel.delete.deleting": "Deletion cleanup is incomplete; retry deletion",
     "panel.delete.title": "Delete meeting: {objective}?",
     "panel.delete.description":
-        "Permanently delete this meeting's business data, including formal records, evidence, reviews and archive. This cannot be undone. Closed Sessions and chat history are retained.",
+        "Permanently delete this meeting's business data, including formal records, evidence, reviews and archive. This cannot be undone. Associated work and Sessions are stopped first. Sessions and chat history are retained.",
     "panel.delete.acknowledge": "I understand this cannot be undone",
     "panel.delete.cancel": "Cancel",
     "panel.delete.unavailable": "Deletion is unavailable while offline, stale or submitting",
-    "panel.delete.active": "The meeting is active or still archiving",
-    "panel.delete.pending_work": "Background work is still pending",
-    "panel.delete.sessions_open": "Associated Sessions are not closed and revoked",
+    "panel.delete.active": "The meeting is running, converging or paused",
     "panel.delete.failed":
         "Deletion was not confirmed. The meeting may have changed or cleanup may be incomplete. Refresh before retrying.",
     "panel.navigator.searchPlaceholder": "Search sessions…",

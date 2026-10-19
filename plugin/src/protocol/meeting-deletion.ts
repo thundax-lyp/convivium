@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-export const MeetingDeletionStatusSchema = z.enum([
-    "allowed",
-    "active",
-    "pending_work",
-    "sessions_open",
-    "deleting"
-]);
+export const MeetingDeletionStatusSchema = z.enum(["allowed", "active", "deleting"]);
 export type MeetingDeletionStatus = z.infer<typeof MeetingDeletionStatusSchema>;
 export const DeleteMeetingRequestSchema = z.strictObject({
     protocolVersion: z.literal(1),

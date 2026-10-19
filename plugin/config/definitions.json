@@ -7,12 +7,13 @@
             "displayName": "Meeting Manager",
             "summary": "规划证据轮次、判断正常收口，并在职责或证据不足时提出参会推荐。",
             "dshPresetId": "convivium-manager",
-            "requiredSkillNames": ["meeting-facilitation"],
+            "requiredSkillNames": ["meeting-facilitation", "research-planning"],
             "toolFilter": {
                 "allow": [
                     "skill",
                     "convivium_read_meeting",
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
@@ -25,7 +26,7 @@
             "evidenceScopes": [],
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
-                "sha256": "ce0d429b1a56d43a426f253cb1261fbeef61fe5ec9e4a756b447fb4e006811d4"
+                "sha256": "eace782d0bb4034181f7df1b4e7665052ccd74e6f5d16f3ace0b0886be08d6e6"
             }
         },
         {
@@ -38,13 +39,15 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["domain-model", "requirements", "architecture"],
@@ -64,13 +67,15 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["dsh-runtime", "transactions", "recovery"],
@@ -90,13 +95,15 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["protocol", "tools", "client-ui"],
@@ -133,13 +140,15 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["github", "source-analysis", "release-evidence"],
@@ -159,13 +168,15 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["arxiv", "paper-analysis", "research-evidence"],
@@ -185,20 +196,22 @@
             "toolFilter": {
                 "deny": [
                     "convivium_submit_manager_plan",
+                    "convivium_plan_research",
                     "convivium_activate_agenda",
                     "convivium_open_round",
                     "convivium_dispose_hand_raise",
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_evidence"
                 ]
             },
             "expertiseTags": ["web-research", "source-verification", "information-analysis"],
             "evidenceScopes": ["web"],
             "agentInstructions": {
                 "roleDefinitionId": "web_research_analyst",
-                "sha256": "50f0e0e187f631db47d10dc13d5e20a730c35a94906781dbe9745774c727fef3"
+                "sha256": "3eb391fb9fe6cbd0faa880c132c911458569c43fb64cae9f0d9542b1a9457206"
             }
         }
     ]

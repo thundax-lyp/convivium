@@ -655,7 +655,7 @@ interface MeetingError {
 
 清理未完成的 catalog 意图保留最小 `deletionSummary: { objective, version, lifecycle }`，仅用于显示目标与显式重试；不作为可恢复业务 snapshot。列表将其映射为 `deletionStatus: "deleting"`，Client 显示未完成提示并允许可信用户再次确认同一删除；不开放业务修改、详情恢复或 Session 权限。成功清理后删除该摘要与 catalog 登记，仅保留上述布尔标记。旧意图缺少摘要时不解析残缺 projection，仍由冷启动清理。
 
-MO-FR-19 的删除入口只接受可信本地用户的显式确认，不向 Meeting Agent 或用户 Skill 授予删除权限。服务端重新检查指定会议已终止、无待处理后台工作，且关联 Session 已关闭和撤权；运行中、暂停中和归档清理中的会议拒绝删除。
+MO-FR-19 的删除入口只接受可信本地用户的显式确认，不向 Meeting Agent 或用户 Skill 授予删除权限。服务端重新检查当前生命周期；`running`、`converging`、`paused` 拒绝删除，其余状态可发起删除。提交持久删除意图后，禁止该会议继续业务读写与身份授权，停止投递和期限扫描，取消并释放该会议的 Agent handle，然后清理业务数据；Session 和聊天历史保留。清理失败保留删除意图供显式重试。
 
 删除范围为该会议的业务持久记录：catalog 登记、creation、正式事实与状态、证据与审核、归档、receipt、outbox、Session ownership 与 checkpoint。Host 所有的已关闭 Agent/worker Session 及其聊天历史必须保留，不调用 Session 物理删除接口；删除 ownership 后，这些历史 Session 不再取得会议身份权限。普通用户聊天、其它会议和共享配置不受影响。
 
@@ -663,7 +663,7 @@ MO-FR-19 的删除入口只接受可信本地用户的显式确认，不向 Meet
 
 `conviviumMeetings.deleteMeeting(request, signal)` 是独立于 `MeetingAction` 的本地资源删除操作，不追加随后就会被删除的业务 receipt 或 event。输入为严格对象 `{ protocolVersion: 1, meetingId, expectedMeetingVersion }`，不接受 actor、Session ID 或权限字段。服务端在目标 Repository 的写队列内重验版本和删除条件；版本不匹配返回 `rejected / VERSION_CONFLICT`，条件不满足返回 `rejected / PRECONDITION_FAILED`。清理全部完成后返回 `{ kind: "deleted", meetingId }`；目标已不存在时返回同样结果，使网络结果未知后的显式重试幂等。结构错误及存储失败仍按 Remote 错误契约报告，不伪装为成功。
 
-Runtime 为摘要提供可选 `deletionStatus: "allowed" | "active" | "pending_work" | "sessions_open" | "deleting"`：已提交的删除意图仅显示为 deleting 并允许显式重试；普通可恢复会议的终态之外（包括 archiving）为 active；仍有 pending/leased outbox、review claim 或 provisioning intent 为 pending_work；任何 ownership 未 closed/revoked，或任何 identity 缺少匹配的 ownership，为 sessions_open；其余为 allowed。旧摘要缺少此字段时 Client 禁用删除，不能仅从生命周期推断许可。此字段不暴露 Session 标识或私有运行内容。
+Runtime 为摘要提供可选 `deletionStatus: "allowed" | "active" | "deleting"`：已提交的删除意图仅显示为 deleting 并允许显式重试；`running`、`converging`、`paused` 为 active；其他具有 snapshot 的会议为 allowed，不再因待处理工作或未关闭 ownership 禁止发起删除。旧摘要缺少此字段时 Client 禁用删除，不能仅从生命周期推断许可。此字段不暴露 Session 标识或私有运行内容。
 
 Catalog 的 `deleting` 是持久删除意图，不是 Meeting lifecycle 或业务 event。写入意图后禁止该会议的新业务读写，先停止其投递和期限扫描，再按公开 Storage Domain 表 API 清理 commits、checkpoint pages/roots/pointer 和 creation，关闭领域句柄，最后删除 catalog 登记。清理失败保留意图；同一删除重试或冷启动仅依据已确认的意图继续清理，不解析不完整的业务 projection，也不重新启动该会议或重验已清除的事实。未写入意图的失败不改变可读数据。目录与业务领域不具备跨域事务，因此不能先移除登记后丢失清理目标。
 
@@ -689,7 +689,7 @@ interface MeetingSummary {
   activeAgenda?: { id: OpaqueId; title: string };
   updatedAt: EpochMs;
   unavailableReason?: string;
-  deletionStatus?: "allowed" | "active" | "pending_work" | "sessions_open" | "deleting";
+  deletionStatus?: "allowed" | "active" | "deleting";
 }
 interface ReadMeetingRequest {
   protocolVersion: 1;
@@ -1273,3 +1273,11 @@ Manager 的局部阻塞记录复用 `ManagerPlan.blockingReason`，`rationale` �
 `MeetingView.executionBlocks` 为可选技术诊断，由 Runtime 将 provider 技术记录与当前 Meeting ownership 关联生成；空时省略，按 identityId 排序。仅公开该读取入口有权查看的身份、稳定 code、安全非负整数毫秒 since 和固定 allowedActions，不暴露 Session ID、模型、路径、凭据或隐藏推理。不是领域状态或权限授予，不增加 Meeting version、领域事件、receipt 或 Archive 事实。精确技术状态见 [ACP Execution Interface](./DSH-ACP-EXECUTION-INTERFACE.md)。
 
 provider 持久阻断后通知 Runtime 的 refreshListeners，用当前 committedVersion 发刷新；Client 即使 version 相同也重新读取技术诊断。提示受影响身份、已停止自动执行以及可暂停/异常结束；复用现有 Captain 控制，仍按真实 caller/lifecycle 校验，不自动暂停、不增加清锁动作，resume 不解除阻断。原生非 ACP 路径保持原行为。
+
+## Structured Research Targets
+
+聊天创建 objective 保存原始 statement、`researchPlanning:{status:"pending"}`，requiredOutputs、acceptanceCriteria、hardConstraints 初始为空，不注入通用模板；显式结构化创建仍保留用户提供的目标契约。创建契约只接受 pending 规划，不能提交 accepted 或自造校验凭据。既有无此字段的会议保留原契约，不自动改写。
+
+objective.researchPlanning 为 pending / failed / accepted 闭集。failed 保存 reason、skillSha256 和每稿原始 draft/review、parseError/reviewError、generatorModel/reviewerModel；accepted 保存同样来源及 plan。plan 使用 Skill 解析字段 originalQuestion、requirements、researchObjects（id/name/discussionGoal/includes/excludes/coversRequirementIds/dependencyInputs/boundaryWithOthers）、sharedRequirements、unresolvedPremises、nextStep、coverageCheck。不得手工补字段。研究对象作为 pending requiredOutputs（research-对象ID）建立成果引用，active Agenda 引用这些产出；未自动接受成果或风险。
+
+Host 受控工具将验证结果随 submit_manager_plan 的内部执行上下文原子提交，载入公开 objective；原始失败候选随最终执行结果保存，提交日志保留历史，不经模型 payload 写入。roundGoal 增加 researchObjectIds；具有研究规划的会议必须 accepted 且引用存在的对象才能 open_round。研究路径可重新规划，对象范围不被普通计划改写。页面对新会议直接展示已保存研究对象及边界/依赖，区分原问题、横贯要求和未决前提；旧会议继续展示已有目标。

@@ -28,7 +28,7 @@ const recovery = () => {
 };
 
 describe("Meeting deletion eligibility", () => {
-    it.each(["running", "paused", "converging", "archiving"] as const)(
+    it.each(["running", "paused", "converging"] as const)(
         "rejects %s even with closed Sessions",
         (status) => {
             const input = recovery();
@@ -36,17 +36,14 @@ describe("Meeting deletion eligibility", () => {
             expect(meetingDeletionStatus(input)).toBe("active");
         }
     );
-    it("requires completed delivery and closed, revoked ownership for every identity", () => {
-        const input = recovery();
-        input.snapshot.state.lifecycle.status = "archived";
-        expect(meetingDeletionStatus({ ...input, pendingOutbox: 1 })).toBe("pending_work");
-        expect(meetingDeletionStatus({ ...input, sessionOwnership: [] })).toBe("sessions_open");
-        input.sessionOwnership[0]!.capabilityStatus = "active";
-        expect(meetingDeletionStatus(input)).toBe("sessions_open");
-    });
-    it("allows a terminated meeting only after Sessions are closed and revoked", () => {
-        const input = recovery();
-        input.snapshot.state.lifecycle.status = "terminal";
-        expect(meetingDeletionStatus(input)).toBe("allowed");
-    });
+    it.each(["preparing", "ending", "terminal", "archiving", "archived"] as const)(
+        "allows %s even with pending work and open Sessions",
+        (status) => {
+            const input = recovery();
+            input.snapshot.state.lifecycle.status = status;
+            input.pendingOutbox = 1;
+            input.sessionOwnership[0]!.capabilityStatus = "active";
+            expect(meetingDeletionStatus(input)).toBe("allowed");
+        }
+    );
 });
