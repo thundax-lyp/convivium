@@ -62,6 +62,7 @@ export interface MeetingAgentOwner {
         reason: string;
         signal: AbortSignal;
     }): Promise<void>;
+    disposeMeeting(meetingId: string): Promise<void>;
     disposeAll(): Promise<void>;
 }
 
@@ -180,7 +181,13 @@ export const createMeetingAgentOwner = ({
     });
     const handles = new Map<
         string,
-        { handle: AgentHandle; purpose: Purpose; sessionId: string; compositionHash: string }
+        {
+            handle: AgentHandle;
+            purpose: Purpose;
+            sessionId: string;
+            compositionHash: string;
+            meetingId: string;
+        }
     >();
     const provisioningRestrictions = new WeakMap<Agent, () => void>();
     const pending = new Map<string, Promise<unknown>>();
@@ -309,7 +316,8 @@ export const createMeetingAgentOwner = ({
             handle,
             purpose,
             sessionId: ownership.sessionId,
-            compositionHash: ownership.resources.compositionHash
+            compositionHash: ownership.resources.compositionHash,
+            meetingId: ownership.meetingId
         });
     };
     const resume = async (input: ResumeInput) => {
@@ -506,6 +514,31 @@ export const createMeetingAgentOwner = ({
                 }
                 await release(input.ownership, input.reason);
             }),
+        disposeMeeting: async (meetingId) => {
+            const errors: unknown[] = [];
+            for (const [id, current] of handles) {
+                if (current.meetingId !== meetingId) {
+                    continue;
+                }
+                try {
+                    current.handle.agent.cancel({ kind: "hook", reason: "Meeting deleted" });
+                    if (current.handle.agent.options.provider === "acp-codex") {
+                        if (!acpCodex) {
+                            throw new Error("ACP_CODEX_CONFIG_INVALID: provider unavailable");
+                        }
+                        await acpCodex.stopSession(current.sessionId);
+                    }
+                    await current.handle.agent.whenIdle();
+                    await current.handle.dispose();
+                    handles.delete(id);
+                } catch (error) {
+                    errors.push(error);
+                }
+            }
+            if (errors.length) {
+                throw new AggregateError(errors, "Meeting Session cleanup failed");
+            }
+        },
         disposeAll: async () => {
             closing = true;
             const errors: unknown[] = [];

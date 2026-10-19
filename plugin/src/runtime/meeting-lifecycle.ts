@@ -768,9 +768,22 @@ export const activateTargetMeetingApplication = async (
         });
     const runtime = {
         async deleteMeeting(request: DeleteMeetingRequest, signal: AbortSignal) {
-            const result = await deleteMeeting(registry, request, signal, () =>
-                stopDelivery(request.meetingId)
-            );
+            const result = await deleteMeeting(registry, request, signal, async () => {
+                const stopped = stopDelivery(request.meetingId);
+                // Stop active prompts before waiting for delivery to settle.
+                const results = await Promise.allSettled([
+                    agentOwner.disposeMeeting(request.meetingId),
+                    stopped
+                ]);
+                const errors = results.flatMap((result) =>
+                    result.status === "rejected" ? [result.reason] : []
+                );
+                if (errors.length) {
+                    throw new AggregateError(errors, "Meeting deletion cleanup failed");
+                }
+                // A provisioning operation may have completed while delivery drained.
+                await agentOwner.disposeMeeting(request.meetingId);
+            });
             if (result.kind === "deleted") {
                 for (const listener of refreshListeners) {
                     listener(request.meetingId, request.expectedMeetingVersion);

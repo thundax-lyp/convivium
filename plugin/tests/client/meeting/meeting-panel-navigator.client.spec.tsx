@@ -63,16 +63,16 @@ function layoutProps() {
 describe("Meeting navigator", () => {
     beforeEach(() => vi.unstubAllGlobals());
 
-    it.each(["active", "pending_work", "sessions_open"] as const)(
-        "disables deletion when the server reports %s",
-        (status) => {
+    it.each(["running", "paused", "converging"] as const)(
+        "disables deletion for %s when the server reports active",
+        (lifecycle) => {
             const { props, summary } = layoutProps();
             const remove = vi.fn(async () => {});
             render(
                 translatedLayout(
                     {
                         ...props,
-                        meetings: [{ ...summary, deletionStatus: status }],
+                        meetings: [{ ...summary, lifecycle, deletionStatus: "active" }],
                         deleteMeeting: remove,
                         deleteDisabled: false
                     },
@@ -91,16 +91,23 @@ describe("Meeting navigator", () => {
         }
     );
 
-    it.each(["allowed", "deleting"] as const)(
-        "requires confirmation for %s and preserves selection on cancel",
-        async (deletionStatus) => {
+    it.each([
+        ["preparing", "allowed"],
+        ["ending", "allowed"],
+        ["terminal", "allowed"],
+        ["archiving", "allowed"],
+        ["archived", "allowed"],
+        ["terminal", "deleting"]
+    ] as const)(
+        "requires confirmation for %s / %s and preserves selection on cancel",
+        async (lifecycle, deletionStatus) => {
             const { props, summary } = layoutProps();
             const remove = vi.fn(async () => {});
             render(
                 translatedLayout(
                     {
                         ...props,
-                        meetings: [{ ...summary, deletionStatus }],
+                        meetings: [{ ...summary, lifecycle, deletionStatus }],
                         deleteMeeting: remove,
                         deleteDisabled: false
                     },
@@ -112,7 +119,7 @@ describe("Meeting navigator", () => {
             );
             expect(within(screen.getByRole("menu")).getByRole("separator")).toBeTruthy();
             fireEvent.click(screen.getByRole("menuitem", { name: "Delete meeting" }));
-            expect(screen.getByText(/Closed Sessions and chat history are retained/)).toBeTruthy();
+            expect(screen.getByText(/Sessions and chat history are retained/)).toBeTruthy();
             fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[1]!);
             expect(remove).not.toHaveBeenCalled();
             expect(props.selectMeeting).not.toHaveBeenCalled();

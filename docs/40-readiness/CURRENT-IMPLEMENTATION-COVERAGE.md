@@ -655,3 +655,15 @@ Executed Validation：基于 `6d85ed43` 的 `codex/retire-deliberation` 工作�
 Not Covered：未刷新固定人工 DSH 环境，未执行 Browser、真实模型会议或远端 CI。当前没有 Browser 插件，仓库 Playwright 命令不可用；前端结论仅由现有 Client 测试支持。旧持久数据兼容不在当前范围。
 
 Closure：独立提案、立场、候选与正式决策链已退役；正式轮次、Captain 成果确认、风险处置与完成判定保持独立。需求、接口、设计、身份指令和 READINESS 已同步。本次未发布。
+
+## 2026-10-19：非进行中会议删除
+
+Scope / Validated Contract：按用户确认同步 MO-FR-19、接口与设计。`running`、`converging`、`paused` 禁止删除；`preparing`、`ending`、`terminal`、`archiving`、`archived` 可发起删除，不因 pending outbox 或未关闭 ownership 禁用。删除意图在 Repository 写队列内重验版本与生命周期并持久化，随后停止目标会议投递、期限扫描与 Agent handle；失败保留意图和显式重试。保留 Session、聊天历史和 Agent 工作目录。
+
+Executed Validation：基于 `618e91b4` 的 `codex/meeting-deletion-states` 工作区，Node v22.23.2。先运行状态回归，旧实现对五种允许状态返回 active/pending_work 而失败；实现后通过。根 `pnpm test` 104 files / 923 tests、`pnpm typecheck`、`pnpm lint`（0 errors）、构建、插件 format:check、verify:contract、verify:package 和本地文档链接检查（1178 项零错误）通过。随后补充的 Host/ACP 定向释放及失败重试测试 19 项、Navigator 三种禁用状态和五种允许状态的确认/取消测试 22 项分别直接运行通过。删除契约和面板生命周期在相关五文件验证中共 62 项通过。
+
+固定人工环境通过 `install-from-source.sh --dev-refresh` 更新，构建物 SHA-256 为 `27b8feb544459784c3afb69394e2c859b70744cc109579ba40c2687d0662aeb1`。重启后 Browser 读回既有会议，暂停会议菜单禁用“删除会议”并显示“会议正在进行或已暂停，不能删除”；未执行会议删除或直接改写持久数据，验收结束后停止 Host，保留固定目录。
+
+Not Covered：人工环境只有进行中与暂停会议，未执行真实会议删除或完整模型会议；新增 ACP 释放行为使用受控 provider 替身，不等同于真实 ACP 进程删除链路验收。未运行远端 CI。
+
+Closure：后端许可、目标工作清理、Web 提示和回归已同步；旧 pending_work / sessions_open 删除许可状态退役，历史删除证据中的旧许可范围不再代表当前规则。

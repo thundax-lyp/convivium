@@ -578,3 +578,36 @@ it("drains non-ACP delivery before cancelling its handle on shutdown", async () 
     expect(f.handles[0].agent.cancel).toHaveBeenCalledOnce();
     expect(f.handles[0].dispose).toHaveBeenCalledOnce();
 });
+
+it.each(["host", "acp-codex"])(
+    "disposes only the deleted meeting %s handles and allows retry",
+    async (provider) => {
+        const acp =
+            provider === "acp-codex"
+                ? { prepareSession: vi.fn(async () => {}), stopSession: vi.fn(async () => {}) }
+                : undefined;
+        const f = await fixture(acp);
+        await f.owner.create(f);
+        await f.owner.disposeMeeting("another-meeting");
+        expect(f.handles[0].dispose).not.toHaveBeenCalled();
+        await f.owner.disposeMeeting(f.ownership.meetingId);
+        expect(f.handles[0].agent.cancel).toHaveBeenCalledOnce();
+        expect(f.handles[0].dispose).toHaveBeenCalledOnce();
+        if (acp) {
+            expect(acp.stopSession).toHaveBeenCalledWith(f.ownership.sessionId);
+        }
+        await f.owner.disposeMeeting(f.ownership.meetingId);
+        expect(f.handles[0].dispose).toHaveBeenCalledOnce();
+    }
+);
+
+it("keeps a failed handle available for explicit deletion retry", async () => {
+    const f = await fixture();
+    await f.owner.create(f);
+    f.handles[0].dispose.mockRejectedValueOnce(new Error("dispose failed"));
+    await expect(f.owner.disposeMeeting(f.ownership.meetingId)).rejects.toThrow(
+        "Meeting Session cleanup failed"
+    );
+    await f.owner.disposeMeeting(f.ownership.meetingId);
+    expect(f.handles[0].dispose).toHaveBeenCalledTimes(2);
+});
