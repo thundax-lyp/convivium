@@ -44,9 +44,6 @@ export const OverviewObjective = ({ detail }: { detail: MeetingView }): ReactEle
                 label={t("panel.overview.objective")}
                 focusKey={`lifecycle:${detail.meetingId}`}
             >
-                <p>
-                    <strong>{t("panel.research.original")}</strong> {objective.statement}
-                </p>
                 {!plan && (
                     <p role="status">
                         {t(

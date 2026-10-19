@@ -4,7 +4,6 @@ export const MEETING_LOCALE_NS = "convivium.meeting";
 
 export const zh = {
     "panel.research.candidate": "未通过的候选 {number}",
-    "panel.research.original": "原问题：",
     "panel.research.pending": "正在规划讨论目标，尚未通过校验。",
     "panel.research.failed": "讨论目标规划未通过，未开启研究轮次。",
     "panel.research.includes": "包含：",
@@ -384,7 +383,6 @@ export type MeetingLocaleKey = keyof typeof zh;
 
 export const en: Record<MeetingLocaleKey, string> = {
     "panel.research.candidate": "Unaccepted candidate {number}",
-    "panel.research.original": "Original question:",
     "panel.research.pending": "Planning discussion targets; validation is pending.",
     "panel.research.failed": "Target planning failed; research rounds have not started.",
     "panel.research.includes": "Includes:",
