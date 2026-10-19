@@ -8,6 +8,7 @@ it("persists validated research objects as pending targets without changing the 
     const state = makeRunningMeetingStateV1();
     state.objective.researchPlanning = { status: "pending" };
     state.objective.requiredOutputs = [];
+    state.agenda.find((agenda) => agenda.status === "active")!.requiredOutputIds = [];
     const result = acceptedResearchPlanning(state.objective.statement);
     const after = applyResearchPlanning(state, result);
     expect(after.objective.researchPlanning).toEqual(result);
@@ -25,4 +26,34 @@ it("persists validated research objects as pending targets without changing the 
     expect(() => applyResearchPlanning(state, acceptedResearchPlanning("另一问题"))).toThrow(
         /Original question changed/
     );
+});
+
+it("preserves the active Agenda scope when appending research targets", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective.researchPlanning = { status: "pending" };
+    state.objective.requiredOutputs = [
+        { id: "active-output", text: "当前议题产出", status: "pending" },
+        { id: "other-output", text: "其它议题产出", status: "pending" }
+    ];
+    const activeAgenda = state.agenda.find((agenda) => agenda.status === "active")!;
+    activeAgenda.requiredOutputIds = ["active-output"];
+
+    const after = applyResearchPlanning(state, acceptedResearchPlanning(state.objective.statement));
+
+    expect(after.agenda.find((agenda) => agenda.status === "active")?.requiredOutputIds).toEqual([
+        "active-output",
+        "research-O1"
+    ]);
+});
+
+it("rejects a research target ID that conflicts with an existing required output", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective.researchPlanning = { status: "pending" };
+    state.objective.requiredOutputs = [
+        { id: "research-O1", text: "调用方已有产出", status: "pending" }
+    ];
+
+    expect(() =>
+        applyResearchPlanning(state, acceptedResearchPlanning(state.objective.statement))
+    ).toThrow(/Research target ID conflicts with an existing required output: research-O1/);
 });

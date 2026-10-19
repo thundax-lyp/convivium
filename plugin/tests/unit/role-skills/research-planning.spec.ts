@@ -140,3 +140,40 @@ it("returns a bounded failure instead of a plan when all independent reviews rej
     expect(result).not.toHaveProperty("plan");
     expect(calls).toBe(6);
 });
+
+it("returns a bounded failure when model execution rejects", async () => {
+    const result = await runPlanning({
+        question: "原问题",
+        skill: "方法",
+        generate: async () => {
+            throw new Error("MODEL_EXECUTION_FAILED");
+        }
+    });
+
+    expect(result).toMatchObject({
+        status: "failed",
+        attempts: [],
+        reason: "模型执行未完成，未取得通过双重校验的研究目标。"
+    });
+});
+
+it("propagates diagnostic persistence failures instead of returning a planning result", async () => {
+    const persistenceError = new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
+    const generate = vi.fn(async () => ({
+        text: draft,
+        completed: true,
+        metadata: {}
+    }));
+
+    await expect(
+        runPlanning({
+            question: "原问题",
+            skill: "方法",
+            generate,
+            save: async () => {
+                throw persistenceError;
+            }
+        })
+    ).rejects.toBe(persistenceError);
+    expect(generate).toHaveBeenCalledTimes(1);
+});
