@@ -10,6 +10,16 @@
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
+## 2026-10-19：已处置举手的延迟通知
+
+Scope：修复 `hand_request` 在 Manager 处置后仍以 `pendingHandRaises` 校验、误报 `NOTICE_VISIBILITY_INVALID`。按 ER-FR-2 保留的同 Agenda/Round、同 Contributor 的 `raised` 参与记录校验；不改变 Manager 权限、ownership、生命周期及正式命令门禁。接口语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
+
+实际现场：固定人工环境的 `meeting-4a6ab3cd771e40b505054a97b7f121e7` 第二轮，2026-10-19 上海时间 11:33:07.443 记录 arXiv 举手、11:33:14.891 接纳，原通知 11:39:03.103 以该错误失败；接纳后待处置举手已移除。会议最终两轮发布并以 partial 结束、归档 complete，不把通知失败解释为贡献失败。
+
+Executed Validation：投递前已处置、投递中处置两种回归均先观察到该错误，再在修复后通过；同时拒绝 declined/no_response 充当举手记录。通知 dispatcher、举手领域与 Agent owner 三文件 52 项通过；Host/Client typecheck、受影响文件 ESLint、1176 项文档本地链接与 git diff --check 通过。
+
+Not Covered：未刷新固定人工环境、未追加真实模型会议、未重放或改写历史失败 outbox；未运行完整 verify 或远端 CI。
+
 ## 2026-10-16：需求、设计与实现口径核对
 
 Scope：基于 `fd7d8602`，核对当前角色创建、ACP 原生执行/审核与恢复续行，以及既有覆盖矩阵中的生产入口缺口。此次仅修正文档漂移，不改变产品行为或提升历史验收结论。
