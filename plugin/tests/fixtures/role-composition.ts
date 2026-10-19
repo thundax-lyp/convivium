@@ -49,7 +49,7 @@ export const roleCompositionModelOverrides = {
 
 // Identity hashes captured from the unchanged fe886643 baseline before agentOptions.
 export const packagedDefinitionHashes: Readonly<Record<string, string>> = {
-    "convivium.meeting_manager": "31aa91b12105e77260d358395063a9d761d75935fb465232de3b955647ff4e67",
+    "convivium.meeting_manager": "c5228a9e6e3636ff3df65385e388198943b5a1e817849a3023a8aa4c24e96cf0",
     "convivium.domain_architect":
         "0ef7f40f2b1ed2d24b1bfb060e974c008131925534845e8ced0eb1ae79aa37e9",
     "convivium.runtime_engineer":

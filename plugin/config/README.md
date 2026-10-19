@@ -4,7 +4,7 @@
 
 | 角色                    | Preset                            | 可见 Skills                                         |
 | ----------------------- | --------------------------------- | --------------------------------------------------- |
-| meeting_manager         | convivium-manager                 | meeting-facilitation                                |
+| meeting_manager         | convivium-manager                 | meeting-facilitation、research-planning             |
 | domain_architect        | convivium-domain-architect        | repository-analysis                                 |
 | runtime_engineer        | convivium-runtime-engineer        | repository-analysis                                 |
 | protocol_ui_engineer    | convivium-protocol-ui-engineer    | repository-analysis                                 |
@@ -12,6 +12,8 @@
 | github_research_analyst | convivium-github-research-analyst | github                                              |
 | arxiv_research_analyst  | convivium-arxiv-research-analyst  | arxiv                                               |
 | web_research_analyst    | convivium-web-research-analyst    | web                                                 |
+
+`research-planning` 包含列表解析与 DeepSeek 独立审查脚本，加载 Skill 不执行脚本。当前 Manager 未获脚本或子代理工具，自动规划闭环尚未接线；可由已授权本地操作方独立运行，不能把 Skill 可加载视为闭环已执行。用法与产物见该 Skill 正文。
 
 每项能力使用 `skills/<能力名>/SKILL.md`，可以附带同目录 `scripts/`；加载 Skill 本身不执行脚本。角色 Preset 的 filesystem provider 关闭默认 Skill 根，只加载分配的目录。模型上下文、列表和按名称加载都受角色隔离；这不承诺本机静态文件保密。全局注册的工具也不等于角色获得业务权限：Definition 收窄模型工具面，Runtime 另行校验 MeetingIdentity 与持久 ownership。
 

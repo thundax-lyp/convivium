@@ -176,7 +176,7 @@ function validateIdentityAdmissionResult(value) {
 }
 
 export const PEER_SKILLS = Object.freeze({
-    meeting_manager: ["meeting-facilitation"],
+    meeting_manager: ["meeting-facilitation", "research-planning"],
     verification_reviewer: ["arxiv", "evidence-review", "github", "repository-analysis"],
     github_research_analyst: ["github"],
     arxiv_research_analyst: ["arxiv"]

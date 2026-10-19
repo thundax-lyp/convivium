@@ -7,7 +7,7 @@
             "displayName": "Meeting Manager",
             "summary": "规划证据轮次、判断正常收口，并在职责或证据不足时提出参会推荐。",
             "dshPresetId": "convivium-manager",
-            "requiredSkillNames": ["meeting-facilitation"],
+            "requiredSkillNames": ["meeting-facilitation", "research-planning"],
             "toolFilter": {
                 "allow": [
                     "skill",
@@ -25,7 +25,7 @@
             "evidenceScopes": [],
             "agentInstructions": {
                 "roleDefinitionId": "meeting_manager",
-                "sha256": "ce0d429b1a56d43a426f253cb1261fbeef61fe5ec9e4a756b447fb4e006811d4"
+                "sha256": "aa9740fd5f7aab208e4ac8cc55a4e5ac55103d90764bf5a08f9867bbb3ab2c99"
             }
         },
         {

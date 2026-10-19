@@ -6,7 +6,7 @@ import process from "node:process";
 import { createHash } from "node:crypto";
 
 const roles = [
-    ["meeting_manager", "manager", ["meeting-facilitation"]],
+    ["meeting_manager", "manager", ["meeting-facilitation", "research-planning"]],
     ["domain_architect", "domain-architect", ["repository-analysis"]],
     ["runtime_engineer", "runtime-engineer", ["repository-analysis"]],
     ["protocol_ui_engineer", "protocol-ui-engineer", ["repository-analysis"]],
@@ -25,6 +25,8 @@ export const definitionAssetFiles = [
     "definitions.json",
     "cordis.patch.yml",
     "skills/convivium/SKILL.md",
+    "skills/research-planning/scripts/parse.mjs",
+    "skills/research-planning/scripts/run.mjs",
     ...roles.flatMap(([role, preset]) => [
         `agents/${role}/AGENTS.md`,
         `presets/convivium-${preset}/preset.yml`,

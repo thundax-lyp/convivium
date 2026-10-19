@@ -34,6 +34,7 @@ type AgentRoleDefinitionId =
   | "web_research_analyst";
 type AbilityName =
   | "meeting-facilitation"
+  | "research-planning"
   | "repository-analysis"
   | "evidence-review"
   | "github"
@@ -89,7 +90,7 @@ interface ResourceBinding {
 
 | roleDefinitionId                                               | requiredSkillNames（精确集合）                              |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
-| `meeting_manager`                                              | `meeting-facilitation`                                      |
+| `meeting_manager`                                              | `meeting-facilitation`、`research-planning`                 |
 | `domain_architect`、`runtime_engineer`、`protocol_ui_engineer` | `repository-analysis`                                       |
 | `verification_reviewer`                                        | `repository-analysis`、`evidence-review`、`github`、`arxiv` |
 | `github_research_analyst`                                      | `github`                                                    |

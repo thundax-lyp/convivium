@@ -10,6 +10,56 @@
 - `部分实现`：已有部分运行链或内部实现，但仍缺正式入口、必要子能力或完整运行证据。
 - `未覆盖`：当前 target activity graph 没有实现，或没有足以声明覆盖的证据。
 
+## 2026-10-19：三例连续迭代与审查误放行修正
+
+Scope：加入用户的开放性 TTS 问题进行离线迭代。research-planning 增加原题要求溯源、领域对象删除/分界检验、禁止自动追加成本等独立目标，以及“下一步”单组字段规则。审查改为覆盖/边界/依赖/前提四项带依据的闭集结果，新增结构与结论一致性校验；生成使用 deepseek-flash，审查改用 deepseek-v4-pro，均 thinking enabled / high，独立上下文，不接收生成者自评或历史审查结论。无 Runtime 门禁或 Manager 权限扩张。
+
+真实测试：三问题至少经四项审查版、范围约束版及 Pro 审查版三批测试，TTS 另在格式说明后重测；每稿原始列表、审查、模型用量和诊断保留，未手工补字段。最终 Jev 一次修订后以 3 对象通过，受限语言两次修订后以 5 对象通过，TTS 新初稿以 4 对象通过；成本兼任净收益、语义判定依赖遗漏、训练职责重叠及重复下一步字段等旧失败未覆盖或抹除。独立脚本复核原问题保留、ID/覆盖、下一步引用和无环依赖，三个最终结果均通过；助手另行复核其领域边界、方法研究与前提，未发现阻塞项。前两例使用格式澄清前的技能快照，只补“下一步”单组字段后未重复生成；其最终输出符合补充格式规则。
+
+Executed Validation：审查接受规则先观察完整新审查因旧解析入口拒绝而失败，实现后 13 项列表/审查行为测试通过（含缺审查项、无依据及矛盾 PASS 拒绝）。`pnpm --dir plugin verify` 完整通过，104 文件 921 项测试及格式、lint（12 项既有 warning，无 error）、Host/Client/Remote 类型、构建、环境、契约、八角色资源和打包检查。最终 Skill Creator quick_validate、文档链接和 git diff --check 通过。
+
+Not Covered：三个离线样例通过不代表统计稳定性或领域实证。Manager 脚本执行与独立审查仍未自动接线，未刷新人工环境、未启动真实会议、未执行远端 CI；没有把显式加载技能等同于执行规划闭环。
+
+## 2026-10-19：列表生成、独立审查与脚本转换闭环
+
+Scope：research-planning 改为受限列表生成；新增同 Skill 下 parse.mjs 严格解析并计算覆盖、校验引用与依赖循环，run.mjs 用 DeepSeek 生成者和独立上下文审查者闭环，最多两次修订。审查接收原问题、技能与当前列表，不继承生成对话、自评或前次审查；每稿原始列表、审查、模型用量及结构诊断留存。只有结构和审查同时通过才输出 plan.json，不猜测补字段。同步资源闭集与部署说明，不扩张 Manager 工具或 Runtime。
+
+Executed Validation：列表转换及角色部署三文件 13 项测试通过（解析器 8 项含未知字段/引用、缺字段、自依赖、双对象环及原问题变化拒绝）；受影响 ESLint、Host typecheck、Skill Creator quick_validate、八角色资源与 package 检查通过，文档链接 1178 项和 git diff --check 通过。两例真实 DeepSeek deepseek-flash / thinking enabled / high 执行初稿加两次修订，各稿独立审查；均以 not_accepted / exit 2 收敛，未输出 plan.json。Jev 最终审查仍发现成本对象越界作净收益取舍；受限语言例最终解析与审查发现循环依赖，审查另指出训练机制责任重叠。失败输出原样保留，不以闭环执行成功替代研究质量验收。
+
+Not Covered：真实会议自动接线与接受路径的真实模型端到端成功、全量 verify 和远端 CI。当前 Manager 无脚本执行或独立审查工具，Skill 加载不等于闭环执行；本期仅已授权本地操作方可独立运行脚本。未刷新人工环境、未干预运行中的会议。
+
+## 2026-10-19：闭集字段与单一依赖事实源重测
+
+Scope：research-planning 将依赖仅保留在 dependencyInputs，去掉重复 dependsOnObjectIds；明确横贯评分/证据规范不得独立成题、效果/成本/归因分责，禁止 nextStep.expectedOutput 等多余字段，并规定独立校验失败后整份重生成。保留其他已有改动，不增加 Runtime 门禁。
+
+Executed Validation：DeepSeek 官方 API deepseek-flash、thinking enabled / high、20000 token，两例独立上下文实际调用 skill 后生成；先保留无反馈原文，再根据独立审阅反馈整份重生成（反馈只描述缺陷，不提供字段替代值）。两轮原文全部保留，未手工补字段。最终两例精确结构、原问题保留、唯一 ID、覆盖引用及自报差集、依赖有效性/无环与下一步引用检查均 PASS。语义审阅仍未通过：第二例 o5 正文仅在 o4 合格输出上评价语义却漏 o4 依赖，o6 未登记训练组合覆盖输入；第一例归因对象仍兼有替代方案相对价值判断。不得以机械校验通过宣称语义可靠。
+
+Skill Creator quick_validate、八角色资源、文档链接及 git diff --check 通过。Not Covered：全量 verify、人工部署、真实会议；反馈后的两例不证明一次生成稳定性，原始失败不抹除。
+
+## 2026-10-19：覆盖与依赖一致性的再次重测
+
+Scope：继续修订 research-planning 的单对象责任、最终覆盖并集计算、正文与依赖表双向核对；增加 dependencyInputs，要求逐条说明需要的前置结果，与 dependsOnObjectIds 精确对应。保留原有改动，不修改 Runtime 或运行中会议。
+
+Executed Validation：DeepSeek 官方 API deepseek-flash / thinking enabled / high，独立上下文实际调用 skill 后返回当前正文再生成 JSON，无示范答案、无手工补字段。第一次两例覆盖通过但人工发现 Jev 最终对象漏归因依赖，第二例首次因 10000 token 额度截断，原输出保留，以 20000 额度重跑。补充通用双向核对规则后，两例均从头以 20000 额度重测、finish_reason=stop；原始结果均未修改。最终第一例精确结构及覆盖检查通过，第二例因 nextStep 多出 expectedOutput 而结构 FAIL，覆盖通过；人工仍发现第二例 o5 正文取用 o4 标准但漏依赖、第一例衡量口径仍独立成题，以及第二例最终对象责任偏宽。不得标为可靠拆分已通过。
+
+Skill Creator quick_validate、八角色资源检查、文档链接及 git diff --check 通过。Not Covered：未重跑全量 verify、未刷新人工环境、未建立生成侧强制 schema 或 Runtime 门禁；单轮调用和模型自检不能保证语义或结构可靠。
+
+## 2026-10-19：研究对象边界、覆盖与 JSON 输出重测
+
+Scope：针对两例 DeepSeek 试用暴露的通用方法冒充课题、缺少实际效果对象及排除学习方法研究，修订 `research-planning`。输出固定 JSON 字段：原问题、实质要求、研究对象及边界/覆盖/依赖、横贯要求、未决前提、下一步与覆盖自检；会议中序列化到已有 plan rationale，不新增 MeetingCommand 字段或 Runtime 门禁。
+
+Executed Validation：使用 DeepSeek 官方 API `deepseek-flash`、thinking enabled / reasoning_effort high，在两个独立上下文中先实际调用 skill 并返回当前技能正文，再以 json_object 模式生成 QUESTIONS-DRAFT 两例规划；未提供示范答案、未检索、未启动会议。两例 JSON 字段/类型、原问题保留、唯一 ID、有效引用及依赖无环检查通过。第一例五对象，r6 未建立覆盖引用但模型自报全覆盖，覆盖校验 FAIL；第二例四对象，覆盖校验 PASS，保留学习机制与训练、约束及数据方案比较。结构通过不证明语义正确，单次试用不证明稳定性。Skill Creator quick_validate、八角色资源检查、文档链接及 git diff --check 通过。
+
+Not Covered：未重跑完整 verify、未部署人工环境或修改运行中会议；未验证真实 Manager 会按该 JSON 组织 rationale。模型自报覆盖不作为已通过证据，第一例缺陷原样保留，尚不能宣称可靠拆分已验收。
+
+## 2026-10-19：research-planning Skill 与 Manager 显式加载
+
+Scope：新增 `research-planning`，在技能正文注明 LangChain Open Deep Research、Anthropic Scientific Problem Selection、Obra Superpowers 的来源与取舍；总目标和验收边界稳定，子问题先探索候选与反例，再聚焦验证、收拢并整合，不固定轮数。Manager 身份指令要求首次拆分及重新规划前通过 `skill` 显式加载，精简 Prompt 和主持 Skill 中重复的研究方法，保留身份、权限、生命周期和命令约束；不增加 Runtime 门禁。同步 Manager Definition/指纹、Preset 技能目录、能力闭集及 smoke 精确资源断言。
+
+Executed Validation：先更新角色装载契约并观察 Manager 缺少该技能的失败，完成装配后聚焦六文件 59 项通过；Skill Creator `quick_validate.py` 通过。`pnpm --dir plugin verify` 完整通过：格式、lint（12 项既有 warning，无 error）、Host/Client/Remote test 类型、103 文件 908 项测试、构建、环境、插件契约、八角色资源与包检查；smoke 两脚本语法检查、文档本地链接和 `git diff --check` 通过。
+
+Not Covered：未运行新的真实模型会议、未刷新固定人工环境、未执行真实 smoke 或远端 CI。显式调用为身份指令要求，资源与装配验证不证明模型实际调用或研究质量；既有会议保持原绑定，不因源码更新热换技能或身份资源。
+
 ## 2026-10-19：已处置举手的延迟通知
 
 Scope：修复 `hand_request` 在 Manager 处置后仍以 `pendingHandRaises` 校验、误报 `NOTICE_VISIBILITY_INVALID`。按 ER-FR-2 保留的同 Agenda/Round、同 Contributor 的 `raised` 参与记录校验；不改变 Manager 权限、ownership、生命周期及正式命令门禁。接口语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。

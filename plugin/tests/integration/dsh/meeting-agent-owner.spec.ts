@@ -170,6 +170,7 @@ it("isolates eight role scopes through native Presets and unpublished Agent fact
             for (const name of [
                 "meeting-facilitation",
                 "repository-analysis",
+                "research-planning",
                 "evidence-review",
                 "github",
                 "arxiv",

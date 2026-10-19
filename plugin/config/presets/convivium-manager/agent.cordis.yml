@@ -24,6 +24,7 @@
       watch: false
       customSkillDirs:
           - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('../../skills/meeting-facilitation/', baseUrl))"
+          - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('../../skills/research-planning/', baseUrl))"
 - id: tool-skill
   name: "@deepseek-ai/dsh-tool-skill"
 - id: tool-web

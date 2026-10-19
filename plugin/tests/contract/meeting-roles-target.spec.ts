@@ -6,7 +6,7 @@ import { expect, it } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.ts";
 
 const expected = {
-    meeting_manager: ["meeting-facilitation"],
+    meeting_manager: ["meeting-facilitation", "research-planning"],
     domain_architect: ["repository-analysis"],
     runtime_engineer: ["repository-analysis"],
     protocol_ui_engineer: ["repository-analysis"],
