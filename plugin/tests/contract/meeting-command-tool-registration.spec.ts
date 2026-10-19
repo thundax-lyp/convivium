@@ -166,6 +166,7 @@ describe("target Meeting tool registration", () => {
 
         expect(definitions.map(({ name }) => name)).toEqual([
             "convivium_read_meeting",
+            "convivium_submit_web_evidence",
             "convivium_plan_research",
             "convivium_run_review_worker",
             "convivium_activate_agenda",
@@ -180,6 +181,17 @@ describe("target Meeting tool registration", () => {
             "convivium_recommend_identity"
         ]);
         for (const definition of definitions) {
+            if (definition.name === "convivium_submit_web_evidence") {
+                expect(definition.parameters).toMatchObject({
+                    properties: {
+                        meetingId: { type: "string" },
+                        contributionId: { type: "string" },
+                        requestId: { type: "string" }
+                    },
+                    required: ["meetingId", "contributionId", "requestId"]
+                });
+                continue;
+            }
             if (definition.name === "convivium_plan_research") {
                 expect(definition.parameters).toMatchObject({
                     properties: {

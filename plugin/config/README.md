@@ -28,3 +28,5 @@ Host 可配置可选 `acpCodex: {command, args}`：command 必须是绝对可执
 额外 Host patch 必须完整保留 provider、maxParticipants、initialContributorRoleIds 和同源 agentDefinitions 表达式；Cordis 不自动合并 config。发行默认 contributors 按 GitHub/arXiv/Web 排序，maxParticipants 为 8。动态准入的首份 descriptor/ownership 固定不可变选择；provisioning 到期撤权清理，不刷新同 admissionId；active 恢复不受旧准入 TTL 影响。
 
 自动验收入口为 `smoke:profile --all --json`，包含 `identity-admission`、`meeting-business-loop`、`peer-meeting-agents`。实际通过记录与未覆盖边界见仓库 readiness；资源存在不等于真实模型、来源读取或冷恢复通过。
+
+Web Contributor 依据 web Skill 编写自身 cwd 的 web-evidence.txt，通过同包解析脚本检查内容，再由 convivium_submit_web_evidence 组装并校验原提交 JSON；不再让模型生成大型嵌套 MeetingCommand。缺字段或引用无效时返回诊断，不代填事实；普通 Web 检索无需该会议入口。

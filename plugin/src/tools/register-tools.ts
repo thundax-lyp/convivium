@@ -1,3 +1,4 @@
+import { registerWebEvidenceTool } from "./web-evidence.ts";
 import { executeHandRaise } from "./hand-raise.ts";
 import { registerResearchPlanningTool } from "./research-planning.ts";
 import type { ResearchPlanning } from "@/research-planning/index.ts";
@@ -47,6 +48,7 @@ export interface TargetMeetingToolReader {
 }
 
 export interface MeetingCommandToolDependencies {
+    readonly readWebEvidence?: (agent: Agent, signal: AbortSignal) => Promise<string>;
     readonly researchPlanner?: (input: {
         agent: Agent;
         question: string;
@@ -361,6 +363,16 @@ function registerTool(
                         "The caller is not an active Meeting identity."
                     ) as unknown as JsonValue;
                 }
+                if (
+                    command.action.kind === "submit_evidence" &&
+                    caller.ownership.definition?.agentDefinitionId ===
+                        "convivium.web_research_analyst"
+                ) {
+                    return rejected(
+                        "UNAUTHORIZED",
+                        "Web evidence must use convivium_submit_web_evidence with web-evidence.txt"
+                    ) as unknown as JsonValue;
+                }
                 if (command.action.kind === "raise_hand") {
                     return (await executeHandRaise(
                         dependencies,
@@ -632,6 +644,7 @@ export function registerMeetingTools(
     ];
     return [
         registerReadTool(dependencies),
+        registerWebEvidenceTool(dependencies),
         registerResearchPlanningTool(dependencies),
         registerReviewWorkerTool(dependencies),
         ...definitions.map((definition) => registerTool(dependencies, definition))

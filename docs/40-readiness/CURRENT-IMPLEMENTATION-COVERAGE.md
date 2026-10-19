@@ -1,5 +1,16 @@
 # Current Implementation Coverage
 
+## 2026-10-19：Web 证据内容由程序组装提交
+
+Scope：按 ER-FR-9，Web AI 仅编写自身 cwd 的 web-evidence.txt 受限内容文本；同包 CLI 与 Host 工具共用 TypeScript 闭集解析器，必填、重复/未知字段和材料引用均校验后才生成原 evidence JSON。convivium_submit_web_evidence 仅接受三个定位参数，校验原 Web ownership、running、本人获接纳未提交的 Contribution 与开放轮次后读取固定普通文件，组装当前版本的原 submit_evidence。缺项只给诊断，不代填、不手补 JSON、不自动调用模型；未知结果不重放。Web 原始大 JSON 入口禁用，其它角色入口保留，专用工具被隔离。
+
+Executed Validation：内容转换与工具接线均先观察到预期失败后完成修复。完整 pnpm --dir plugin verify 通过，111 文件、963 项测试；涵盖特殊字符和多行序列化、缺项/未知/重复字段与错误材料引用拒绝、跨会议/错误角色/已提交/已关闭拒绝、Web 原始工具拒绝、提交版本冲突不自动重放，以及固定文件读取、链接/目录拒绝与取消。格式、lint（13 warning，无 error）、类型、构建、环境、契约、八角色装配与发布包检查通过；Web Skill quick_validate 通过。构建后 CLI 与 Host 使用同一实现。
+
+真实模型隔离验证：源码基线 d281ce9b 加本任务改动，DeepSeek Flash/high 在无 Meeting authority 的离线进程中，仅用先前失败的原始 Web 参数和内容格式说明生成正文；首稿直接经发行包 CLI 解析通过，保留 9 条主张、6 份材料、原来源定位集合及 5 条不确定性。脚本直接输出 evidence.json，未手工修补字段。独立检查字段闭集、引用、来源与数量保留及无协议字段通过；原始正文、模型/用量、解析结果与独立报告保存在 dsh-workspace/smoke-records/web-evidence-content-20261019/。
+
+Not Covered：未在真实 Host 的新 Web 身份中执行提交端到端验证，未部署/重启人工 Host、投递当前会议或修改既有 Session/会议数据。离线验证只证明内容到结构的转换，不重新检索或证明来源和结论；原作者 summary 的“真合规”与屈折许可未确认的 uncertainty 仍有张力，留给语义审核，不能因结构通过而宣称证据成立。未自动恢复旧失败 Contribution，既有身份资源保持固化。并行协作已提交的目标展示改动保留。
+
+
 ## 2026-10-19：Web 证据提交 MALFORMED_RESPONSE 离线定位
 
 Scope：只读分析 meeting-e761169cf4da9c6f36d9264991b43f50 第二轮 Web Contributor 的原 Session 日志，未重放输入、调用模型、提交证据或操作会议。按 assistant/attempt 事件 424 的 tool-call-chunks 原序拼接 convivium_submit_evidence 参数，不包含 reasoning。原文共 14650 字符、22714 UTF-8 字节，SHA-256 为 5b868c159182c95c7c5ef72063268ae74ac853f62a6c0a7fdede29a502400b10。

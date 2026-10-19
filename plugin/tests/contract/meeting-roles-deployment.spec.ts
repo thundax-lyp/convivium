@@ -72,9 +72,16 @@ it("publishes only the current contribution tools for Manager", () => {
                     roleDefinitionId !== "verification_reviewer"
             )
             .every(
-                ({ toolFilter }) =>
+                ({ toolFilter, roleDefinitionId }) =>
                     JSON.stringify(toolFilter) ===
-                    JSON.stringify({ deny: contributorDeniedTools.sort() })
+                    JSON.stringify({
+                        deny: [
+                            ...contributorDeniedTools,
+                            roleDefinitionId === "web_research_analyst"
+                                ? "convivium_submit_evidence"
+                                : "convivium_submit_web_evidence"
+                        ].sort()
+                    })
             )
     ).toBe(true);
 

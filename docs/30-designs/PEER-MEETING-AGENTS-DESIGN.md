@@ -143,3 +143,7 @@ Preset 以 GitHub Research Analyst 的既有 agent.cordis.yml 为基线，只替
 MO-FR-18/20 的新会议由原问题创建 pending 规划，Manager 实际加载技能后调用受控 convivium_plan_research。Host adapter 通过 DSH llm 服务执行 research-planning 的共享 TypeScript 实现，与安装包本地 run.mjs 共用有限修订、独立审查和解析逻辑，不读 key 或绕过 provider。结果在原子 Manager plan command 中更新 objective 和 active Agenda 的产出引用；失败保留候选且禁止开轮。已接受对象保持稳定；roundGoal 通过 researchObjectIds 选定推进对象。Runtime 只做确定性门禁，不执行领域语义裁判。首次拆分后的普通路径重新规划继续显式加载 Skill，但复用有效研究对象。
 
 隔离的 research-targets 冒烟读取 QUESTIONS-DRAFT 三个问题，真实 Manager 自行加载 Skill 并调用规划工具；probe 在工具返回后停止该 Agent 的后续模型步骤，不开启 Round 或来源检索，不作用于人工 Host。保存最终原始列表、独立审查及持久目标投影用于逐题语义复核。
+
+## Web Evidence Content Assembly
+
+ER-FR-9 的 Web Contributor 只编写自身 cwd 的 web-evidence.txt。web Skill 的 CLI 与 Host 受控工具共用 evidence-content TypeScript 解析器；闭集节/字段映射为原 evidence 契约并核对材料引用，JSON 转义交由序列化完成。dsh adapter 只读取固定普通文件、不跟随文件链接；tools adapter 校验当前 Web ownership、同会话 Contribution 和开放轮次后组装原 submit_evidence，仍经原 application 事务提交。解析错误只返回诊断，没有部分写入、字段修补或模型修复回路。专用入口与原始 Web JSON 入口互斥，其它 Contributor 不迁移。已有会议身份资源保持固化，不通过源码刷新改写原 Session 绑定。

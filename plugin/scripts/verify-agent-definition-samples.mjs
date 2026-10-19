@@ -25,6 +25,8 @@ export const definitionAssetFiles = [
     "definitions.json",
     "cordis.patch.yml",
     "skills/convivium/SKILL.md",
+    "skills/web/scripts/parse.mjs",
+    "skills/web/references/evidence-content.md",
     "skills/research-planning/scripts/parse.mjs",
     "skills/research-planning/scripts/run.mjs",
     ...roles.flatMap(([role, preset]) => [
@@ -128,7 +130,10 @@ export async function verifyMeetingAgentDefinitions(root) {
                         "convivium_publish_round",
                         "convivium_end_meeting",
                         "convivium_run_review_worker",
-                        "convivium_recommend_identity"
+                        "convivium_recommend_identity",
+                        role === "web_research_analyst"
+                            ? "convivium_submit_evidence"
+                            : "convivium_submit_web_evidence"
                     ];
                     const toolFilter =
                         role === "meeting_manager"

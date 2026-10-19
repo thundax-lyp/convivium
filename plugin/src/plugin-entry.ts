@@ -6,7 +6,8 @@ import type { Config as ConfigType } from "./config.ts";
 import {
     createCodexAcpProvider,
     resolveMeetingCaller,
-    createResearchPlanner
+    createResearchPlanner,
+    readWebEvidence
 } from "./dsh/index.ts";
 import { ConviviumRemoteService } from "./remote/index.ts";
 import { activateTargetMeetingApplication, getLocalMeetingWebRuntime } from "./runtime/index.ts";
@@ -49,6 +50,7 @@ const meetingConsumerPlugin = {
                     onBeforeRecovery: ({ runtime, reader, application, reviewPrompts }) => {
                         registerMeetingTools({
                             acpCodex,
+                            readWebEvidence,
                             researchPlanner: createResearchPlanner(
                                 ctx,
                                 fileURLToPath(new URL("../", import.meta.url))

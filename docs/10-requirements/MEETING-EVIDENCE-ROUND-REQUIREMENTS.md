@@ -215,3 +215,7 @@ flowchart TD
 ACP 结果未知时，先保留已合法提交的 Review/Evidence 并补本地结算；没有正式结果则持久阻断根 Session，不据异常合成 `dispatch_failed`、`review_interrupted` 或 Contribution 执行失败，不派 replacement worker、不自动重投。重复 active claim 只等待原进程内任务；重启没有原任务时不能重建执行。ACP worker 的 JSON 文本必须经宿主完整解析、固定 schema 与 version 校验，并通过原 claim/caller 的 Runtime 提交；非 ACP 路径继续使用 DSH 结构化输出。worker 无 Meeting ownership，不能直接提交会议事实。
 
 阻断不冻结真实业务时钟。Contribution 到期按原 deadline handler 处理；claim 真正到期仍以 `review_timeout` 幂等结算一次并按既有规则计失败预算，但不向 blocked Session 派新任务。暂停/异常结束继续使用原撤权和 claim 取消规则，不清除技术阻断或改写正式结果。
+
+### ER-FR-9：Web 证据内容与提交结构分离
+
+Web Contributor 在自身工作目录的固定 web-evidence.txt 中生成受限文本证据内容，不生成 MeetingCommand JSON。受控提交工具读取该文件，以确定性程序解析和校验全部必需内容、闭集字段及材料引用，再从当前身份可见会议取得版本并组装原 submit_evidence 命令。原始内容缺失、格式错误或引用无效时返回定位诊断，不自动补字段、不调用模型修复、不登记部分结果。只有该会议当前获接纳且尚未提交的 Web Contribution 可以使用此入口；身份、期限、幂等和一次登记约束仍由原命令执行器校验。文件读取仅限原身份 cwd 内固定普通文件，禁止链接或指定其它路径；校验本身不提交会议。Web 角色不再使用大型原始 JSON 提交工具，其它角色入口不变。

@@ -46,7 +46,8 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["domain-model", "requirements", "architecture"],
@@ -73,7 +74,8 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["dsh-runtime", "transactions", "recovery"],
@@ -100,7 +102,8 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["protocol", "tools", "client-ui"],
@@ -144,7 +147,8 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["github", "source-analysis", "release-evidence"],
@@ -171,7 +175,8 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_web_evidence"
                 ]
             },
             "expertiseTags": ["arxiv", "paper-analysis", "research-evidence"],
@@ -198,14 +203,15 @@
                     "convivium_publish_round",
                     "convivium_end_meeting",
                     "convivium_run_review_worker",
-                    "convivium_recommend_identity"
+                    "convivium_recommend_identity",
+                    "convivium_submit_evidence"
                 ]
             },
             "expertiseTags": ["web-research", "source-verification", "information-analysis"],
             "evidenceScopes": ["web"],
             "agentInstructions": {
                 "roleDefinitionId": "web_research_analyst",
-                "sha256": "50f0e0e187f631db47d10dc13d5e20a730c35a94906781dbe9745774c727fef3"
+                "sha256": "3eb391fb9fe6cbd0faa880c132c911458569c43fb64cae9f0d9542b1a9457206"
             }
         }
     ]
