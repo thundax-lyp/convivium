@@ -1,5 +1,16 @@
 # Current Implementation Coverage
 
+## 2026-10-19：Web 证据提交 MALFORMED_RESPONSE 离线定位
+
+Scope：只读分析 meeting-e761169cf4da9c6f36d9264991b43f50 第二轮 Web Contributor 的原 Session 日志，未重放输入、调用模型、提交证据或操作会议。按 assistant/attempt 事件 424 的 tool-call-chunks 原序拼接 convivium_submit_evidence 参数，不包含 reasoning。原文共 14650 字符、22714 UTF-8 字节，SHA-256 为 5b868c159182c95c7c5ef72063268ae74ac853f62a6c0a7fdede29a502400b10。
+
+Executed Validation：原文分别通过 Python JSON decoder 与 Node JSON.parse 离线复现失败，均定位到字符偏移 14501（第 1 行第 14502 列）。根对象此处已闭合，仅含 action，随后仍有逗号及 expectedMeetingVersion、meetingId、protocolVersion、requestId，形成根对象外的多余数据。Session 末尾有参数尾部与 finish(error)，无该 callId 对应 tool/call；DSH 在工具执行前报 MALFORMED_RESPONSE，不是取证站点错误或 Meeting Runtime 拒绝。原文结构另缺 action.kind=submit_evidence，uncertainties 在 action 而非 evidence 内，verificationConditions 被放在 action 层（契约定义在 materials 项内）；因此只删除多余括号仍不能符合原提交契约。
+
+Evidence：原始参数、无推理的 diagnosis.json 和可重复运行的 reproduce.mjs 保存在本地忽略目录 dsh-workspace/smoke-records/web-malformed-20261019/。未手工修复候选或将私有材料升级为会议事实。此诊断不新增针对通用 JSON.parse 的永久测试。
+
+Not Covered：日志能证明此返回的语法与结构错误，不能证明模型产生错误的唯一原因；没有直接证据将其归因于长度、采样或 provider 截断。未修改上游 DSH 解析器、未实现证据组装新入口或自动重试、未调用模型重新生成。本项仅完成复现与定位。
+
+
 ## 2026-10-19：举手版本冲突的有界恢复
 
 Scope：DSH convivium_raise_hand 工具在命令明确 VERSION_CONFLICT 后重新解析原身份、读取 caller-visible Meeting，仅 running、原 Round open 且本人尚未响应时，以同一 action/requestId 和新版本追加最多两次尝试；所有写入仍经原 command 授权与期限校验。其它拒绝、身份/绑定变化、未知结果与异常不自动重放，不适用于证据提交。
