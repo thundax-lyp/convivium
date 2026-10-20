@@ -164,11 +164,15 @@ export const loadProjection = (input: {
         if (
             !root ||
             root.baseSeq !== pointer.baseSeq ||
-            sha256Hex(encodeCanonicalJson(root)) !== pointer.rootDigest
+            sha256Hex(encodeCanonicalJson(root)) !== pointer.rootDigest ||
+            root.totalBytes <= 0 ||
+            root.totalBytes > MAX_APPLICATION_CHECKPOINT_BYTES ||
+            root.pageCount !== Math.ceil(root.totalBytes / CHECKPOINT_PAGE_RAW_BYTES)
         ) {
             throw new Error("invalid checkpoint root");
         }
-        const pages: Uint8Array[] = [];
+        const bytes = new Uint8Array(root.totalBytes);
+        let offset = 0;
         for (let index = 0; index < root.pageCount; index++) {
             const page = CheckpointPageSchema.parse(
                 input.domain
@@ -184,18 +188,20 @@ export const loadProjection = (input: {
             ) {
                 throw new Error("invalid checkpoint page");
             }
-            const bytes = Uint8Array.from(Buffer.from(page.payloadBase64, "base64"));
+            const pageBytes = Buffer.from(page.payloadBase64, "base64");
             if (
-                sha256Hex(bytes) !== page.payloadDigest ||
-                bytes.byteLength > CHECKPOINT_PAGE_RAW_BYTES ||
-                (index < root.pageCount - 1 && bytes.byteLength !== CHECKPOINT_PAGE_RAW_BYTES)
+                sha256Hex(pageBytes) !== page.payloadDigest ||
+                pageBytes.byteLength > CHECKPOINT_PAGE_RAW_BYTES ||
+                (index < root.pageCount - 1 &&
+                    pageBytes.byteLength !== CHECKPOINT_PAGE_RAW_BYTES) ||
+                offset + pageBytes.byteLength > bytes.byteLength
             ) {
                 throw new Error("invalid checkpoint page");
             }
-            pages.push(bytes);
+            bytes.set(pageBytes, offset);
+            offset += pageBytes.byteLength;
         }
-        const bytes = Uint8Array.from(pages.flatMap((page) => [...page]));
-        if (bytes.byteLength !== root.totalBytes || sha256Hex(bytes) !== root.projectionDigest) {
+        if (offset !== root.totalBytes || sha256Hex(bytes) !== root.projectionDigest) {
             throw new Error("invalid checkpoint projection");
         }
         baseProjection = decodeProjection(bytes);

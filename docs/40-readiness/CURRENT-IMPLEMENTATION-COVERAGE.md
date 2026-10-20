@@ -1,5 +1,13 @@
 # Current Implementation Coverage
 
+## 2026-10-20：64 MiB checkpoint 恢复避免数字数组膨胀
+
+Scope：PR #139 新增 P1。loadProjection 在校验 root 大小及页数后预分配字节缓冲区，逐页复制并保留长度、摘要及提交尾链验证，避免 flatMap 展开约 6710 万个 JavaScript number。持久格式与 64 MiB 上限不变。
+
+Executed Validation：新增独立 Node 子进程回归，固定 512 MiB V8 heap，实际执行 64 MiB projection 的 writeCheckpoint → loadProjection → 编码完整性校验；修复前复现 heap limit/OOM，修复后通过。checkpoint/projection 两文件 23 项通过，覆盖页/根/指针完整性、原子发布与已有容量边界。
+
+Not Covered：内存回归使用临时进程和内存 Domain 验证应用分页路径，不代表真实 Host 的整体内存、SQLite IO 或性能验收；未重启人工会议环境。
+
 ## 2026-10-20：离线 Session 修复支持备份落盘后重试
 
 Scope：PR #139 Review P2。原日志未替换但同哈希备份已存在时，原命令因独占创建备份返回 EEXIST 而无法重试；现仅在已有备份为普通文件且与当前原日志逐字节一致时复用，其他创建错误原样传播，备份不一致则停止且不改写两者。
