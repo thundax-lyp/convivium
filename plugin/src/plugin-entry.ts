@@ -44,6 +44,10 @@ const meetingConsumerPlugin = {
                 ? await createCodexAcpProvider(ctx, config.acpCodex)
                 : undefined;
             try {
+                const researchPlanner = await createResearchPlanner(
+                    ctx,
+                    fileURLToPath(new URL("../", import.meta.url))
+                );
                 const disposeTarget = await activateTargetMeetingApplication(ctx, config, {
                     rolePackageRoot: fileURLToPath(new URL("../", import.meta.url)),
                     acpCodex,
@@ -51,10 +55,7 @@ const meetingConsumerPlugin = {
                         registerMeetingTools({
                             acpCodex,
                             readWebEvidence,
-                            researchPlanner: createResearchPlanner(
-                                ctx,
-                                fileURLToPath(new URL("../", import.meta.url))
-                            ),
+                            researchPlanner,
                             registry: ctx.tools,
                             application,
                             reviewWorkers: ctx.subagents,

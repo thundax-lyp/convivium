@@ -28,9 +28,10 @@ type GenerateInput = {
     model: string;
     messages: { role: "system" | "user" | "assistant"; content: string }[];
 };
-export const createResearchPlanner =
-    (ctx: Context, packageRoot: string) =>
-    async (input: {
+export const createResearchPlanner = async (ctx: Context, packageRoot: string) => {
+    const domain = await ctx.storageDomain.open(diagnosticsSpec);
+    ctx.effect(() => () => domain.close());
+    return async (input: {
         agent: Agent;
         question: string;
         signal: AbortSignal;
@@ -95,25 +96,21 @@ export const createResearchPlanner =
             signal.throwIfAborted();
             return { text, completed, metadata };
         };
-        const domain = await ctx.storageDomain.open(diagnosticsSpec);
         const runId = randomUUID();
-        try {
-            return ResearchPlanningSchema.parse(
-                await runPlanning({
-                    question,
-                    skill: skill.content,
-                    generate,
-                    save: async (name, value) => {
-                        signal.throwIfAborted();
-                        await domain.table("diagnostics").put(`${runId}:${name}`, {
-                            sessionId: agent.session.id,
-                            name,
-                            content: typeof value === "string" ? value : JSON.stringify(value)
-                        });
-                    }
-                })
-            );
-        } finally {
-            await domain.close();
-        }
+        return ResearchPlanningSchema.parse(
+            await runPlanning({
+                question,
+                skill: skill.content,
+                generate,
+                save: async (name, value) => {
+                    signal.throwIfAborted();
+                    await domain.table("diagnostics").put(`${runId}:${name}`, {
+                        sessionId: agent.session.id,
+                        name,
+                        content: typeof value === "string" ? value : JSON.stringify(value)
+                    });
+                }
+            })
+        );
     };
+};

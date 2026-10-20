@@ -327,6 +327,6 @@ ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合�
 
 ## 研究规划诊断与冷恢复
 
-依据 MO-FR-20 和 DSH Role Interface，`dsh/research-planning.ts` 将每次规划执行的列表、生成/审查元数据及校验结果保存到 Host Storage Domain `convivium_research_planning`。每次执行以 UUID 隔离记录，key 为执行 UUID 与诊断 name，value 保留 sessionId/name/content；执行结束关闭 domain handle。持久化错误向调用方传播，不提交领域规划失败，也不自动重试。最终规划仍由 Meeting 原子提交保存。
+依据 MO-FR-20 和 DSH Role Interface，`dsh/research-planning.ts` 将每次规划执行的列表、生成/审查元数据及校验结果保存到 Host Storage Domain `convivium_research_planning`。每次执行以 UUID 隔离记录，key 为执行 UUID 与诊断 name，value 保留 sessionId/name/content；meeting consumer 初始化时异步打开一个类型化 domain handle，再注册工具和恢复会议；多个并发规划共享该句柄，每次规划结束不关闭，在 consumer 卸载时通过 ctx.effect 释放。持久化错误向调用方传播，不提交领域规划失败，也不自动重试。最终规划仍由 Meeting 原子提交保存。
 
 旧版本曾写入 `convivium/research-planning` 自定义 Session 事件，DSH 原生冷恢复会拒绝未标记 ignorable 的未知事件。离线修复仅对已确认的规划诊断添加 `ignorable: true`，不修改 seq/time/data、不删除记录；保留原始压缩日志备份。修复入口与回退见 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md#规划诊断导致的-session-冷恢复失败)。不自动忽略其他未知事件，不重建会议或 Session。

@@ -1,5 +1,13 @@
 # Current Implementation Coverage
 
+## 2026-10-20：并发研究规划复用诊断 Domain
+
+Scope：PR #139 新增 P2。planner 在 meeting consumer 初始化时异步打开一个类型化诊断 Domain，工具注册及会议恢复在初始化完成后执行。每次规划共享句柄，以执行 UUID/name 隔离记录，任务结束不关闭 Domain，consumer 卸载时释放。保留 Session 无自定义事件、诊断错误传播及不自动重放的边界。
+
+Executed Validation：新增真实 DomainFacility + SQLite 组合回归，第一场会议模型调用受控等待时启动第二场规划，先观察 already-open 目标失败；修复后三项规划/冷恢复回归通过，两场会议均保存原 Session ID 对应的诊断，consumer 卸载后句柄释放且拒绝继续写入（Storage Domain facility 本身仍活动）。受影响 Prettier/ESLint 通过。 本次 `pnpm --dir plugin verify` 完整通过：112 文件、980 项测试，格式、lint（13 项既有 warning、0 errors）、类型、构建、环境、契约、角色与发布包校验通过；文档本地链接 1185 项、0 errors，git diff --check 通过。
+
+Not Covered：模型响应受控，不代表真实双会议 LLM 并发验收；未重新部署或重启人工会议环境。远端 CI/Review 以 PR 最新 head 为准。
+
 ## 2026-10-20：64 MiB checkpoint 恢复避免数字数组膨胀
 
 Scope：PR #139 新增 P1。loadProjection 在校验 root 大小及页数后预分配字节缓冲区，逐页复制并保留长度、摘要及提交尾链验证，避免 flatMap 展开约 6710 万个 JavaScript number。持久格式与 64 MiB 上限不变。

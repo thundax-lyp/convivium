@@ -1,3 +1,6 @@
+import Storage from "@deepseek-ai/dsh-storage";
+import * as Domains from "@deepseek-ai/dsh-storage-domain";
+import * as Sqlite from "@deepseek-ai/dsh-storage-sqlite";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
@@ -36,6 +39,7 @@ it("cold opens a real persisted Manager Session after research planning without 
         let calls = 0;
         const plannerContext = {
             storageDomain: { open },
+            effect: ctx.effect.bind(ctx),
             skills: {
                 get: async () => ({
                     content: "planning skill",
@@ -56,10 +60,8 @@ it("cold opens a real persisted Manager Session after research planning without 
             },
             sessions: { flush: async () => true }
         } as unknown as Context;
-        const result = await createResearchPlanner(
-            plannerContext,
-            packageRoot
-        )({
+        const planner = await createResearchPlanner(plannerContext, packageRoot);
+        const result = await planner({
             agent: { session } as Agent,
             question: "original question",
             signal: new AbortController().signal
@@ -176,6 +178,115 @@ it("cold recovers a legacy Session after an interrupted repair and refuses a mis
             await reopened.close();
         }
     } finally {
+        await ctx.fiber.dispose();
+        await rm(root, { recursive: true, force: true });
+    }
+}, 20000);
+
+it("shares one real diagnostic Domain across overlapping meetings and closes it with the consumer", async () => {
+    const root = await mkdtemp(join(tmpdir(), "convivium-planning-concurrent-"));
+    const ctx = new Context();
+    let release = () => {};
+    let entered = () => {};
+    const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+        entered = resolve;
+    });
+    let first: Promise<unknown> | undefined;
+    try {
+        await ctx.plugin(Storage);
+        await ctx.plugin(Sqlite, { path: join(root, "storage.sqlite") });
+        await ctx.plugin(Domains, { backend: "sqlite" });
+        let consumerContext: Context | undefined;
+        const consumer = ctx.plugin({
+            name: "planning-consumer-test",
+            apply(owner: Context) {
+                consumerContext = owner;
+            }
+        });
+        await consumer;
+        const packageRoot = resolve(".");
+        let generations = 0;
+        const plannerContext = {
+            storageDomain: ctx.storageDomain,
+            effect: consumerContext!.effect.bind(consumerContext!),
+            skills: {
+                get: async () => ({
+                    content: "planning skill",
+                    resourceBase: {
+                        kind: "directory",
+                        path: join(packageRoot, "config/skills/research-planning")
+                    }
+                })
+            },
+            llm: {
+                stream: async function* (options: { model: string }) {
+                    if (options.model === "deepseek-v4-pro") {
+                        throw new Error("review unavailable");
+                    }
+                    const generation = generations++;
+                    if (generation === 0) {
+                        entered();
+                        await blocked;
+                    }
+                    yield { type: "text-delta", text: `candidate-${generation}` };
+                    yield { type: "finish", reason: { kind: "stop" } };
+                }
+            },
+            sessions: { flush: async () => true }
+        } as unknown as Context;
+        const planner = await createResearchPlanner(plannerContext, packageRoot);
+        const input = (id: string) => ({
+            agent: {
+                session: Session.create(SessionId(id), undefined, {
+                    id: SessionId(id),
+                    version: SESSION_FORMAT_VERSION,
+                    createdAt: 1,
+                    cwd: root,
+                    isSeeded: false
+                })
+            } as Agent,
+            question: id,
+            signal: new AbortController().signal
+        });
+        first = planner(input("meeting-a-manager"));
+        await started;
+        const second = await planner(input("meeting-b-manager"));
+        expect(second.status).toBe("failed");
+        release();
+        expect(await first).toMatchObject({ status: "failed" });
+        const domain = ctx.storageDomain.get("convivium_research_planning")!;
+        const records = [...domain.table("diagnostics").entries()].map(([, value]) => value);
+        expect(records).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    sessionId: "meeting-a-manager",
+                    name: "attempt-0.list.txt",
+                    content: "candidate-0"
+                }),
+                expect.objectContaining({
+                    sessionId: "meeting-b-manager",
+                    name: "attempt-0.list.txt",
+                    content: "candidate-1"
+                })
+            ])
+        );
+        await consumer.dispose();
+        expect(ctx.storageDomain.get("convivium_research_planning")).toBeUndefined();
+        await expect(
+            domain.table("diagnostics").put("after-close", {
+                sessionId: "meeting-a-manager",
+                name: "attempt-0.list.txt",
+                content: "late"
+            })
+        ).rejects.toThrow();
+    } finally {
+        release();
+        if (first) {
+            await Promise.allSettled([first]);
+        }
         await ctx.fiber.dispose();
         await rm(root, { recursive: true, force: true });
     }
