@@ -147,3 +147,9 @@ MO-FR-18/20 的新会议由原问题创建 pending 规划，Manager 实际加载
 ## Web Evidence Content Assembly
 
 ER-FR-9 的 Web Contributor 只编写自身 cwd 的 web-evidence.txt。web Skill 的 CLI 与 Host 受控工具共用 evidence-content TypeScript 解析器；闭集节/字段映射为原 evidence 契约并核对材料引用，JSON 转义交由序列化完成。dsh adapter 只读取固定普通文件、不跟随文件链接；tools adapter 校验当前 Web ownership、同会话 Contribution 和开放轮次后组装原 submit_evidence，仍经原 application 事务提交。解析错误只返回诊断，没有部分写入、字段修补或模型修复回路。专用入口与原始 Web JSON 入口互斥，其它 Contributor 不迁移。已有会议身份资源保持固化，不通过源码刷新改写原 Session 绑定。
+
+## Hand Raise Delivery And Conflict Recovery
+
+ER-FR-2 的 `hand_request` notice 引用同 Agenda/Round、同 Contributor 已持久化的 raised 参与选择；Manager 已处置后仍允许确认旧通知，不要求 pendingHandRaises 仍存在。通知只提示读取当前事实，不恢复已处置申请或授予发言权。
+
+`tools/hand-raise.ts` 只在明确 VERSION_CONFLICT 后重读 caller-visible 状态，最多追加两次；原 identity/ownership、running、原 Round open 和本人未响应条件须保持，只更新 expectedMeetingVersion，沿用 action/requestId。其它拒绝、异常和未知结果不重放；每次写入仍经 application 完整校验。精确返回与停止语义见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。

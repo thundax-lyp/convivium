@@ -81,6 +81,14 @@ local controller 是 Captain（本地用户）的入口实现名称；`manager` 
 
 `dispose_issue` 仅从 `open|deferred` 进入 `resolved|deferred|out_of_scope`；resolved/out_of_scope 清除 blocking，deferred 保留旧 blocking。未接受 high 风险不能借 deferred 变成 non-blocking；终结处置不能再次处置。理由、证据与旧/新 status/blocking 只保存在不可变 committed fact payload，不在当前 Issue 复制历史。
 
+### Research Planning
+
+MO-FR-18/20 的 `objective.researchPlanning?` 使用 `pending|failed|accepted` 闭集；省略时保留原结构化目标契约，聊天创建初值为 pending。字段结构由 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#structured-research-targets) 维护，Schema 位于 `plugin/src/research-planning/contract.ts`。failed 保留原因及候选/审查，accepted 另含原问题、要求、研究对象及覆盖/依赖、横贯要求、未决前提和下一步；不把自报通过当作领域凭据。
+
+`applyResearchPlanning` 只消费 Host 提供的执行结果，要求原状态 pending、结果非 pending；accepted 的 originalQuestion 必须与 objective.statement 一致，后续普通 Manager plan 不替换结果。accepted 将研究对象映射为 `research-<objectId>` 的 pending 产出，供成果确认引用；追加前检查生成 ID 与既有产出 ID 是否冲突，冲突抛出错误且输入 state 不变；成功仅向 active Agenda 原 requiredOutputIds 追加本批研究产出，不导入其它既有产出，不改变其它 Agenda。failed 只保存规划结果，不改变产出与议题引用。
+
+带研究规划的 Meeting 只有 accepted 才能开轮；`roundGoal.researchObjectIds` 必须非空、无重复且全部引用已接受对象，并要求对应 research-对象ID 属于当前 Agenda.requiredOutputIds。目标满足及正常完成重算同样要求规划 accepted，防止空产出数组使 pending/failed 会议被判完成。研究对象通过不等于产出 satisfied，仍需 Captain 的 CompletionFact。
+
 ## Round, Contribution And Evidence
 
 Round 固定 `invitedContributorIds[]` 与 `participationResponses[]`。每名受邀者至多一条 `raised|declined|no_response`；`raised` 对应一次举手选择，`declined` 是本人明确拒绝，`no_response` 只能由可信 deadline handler 在 `min(openedAt+taskDeadlineMs, deadlineAt?)` 到达后写入。每个 Round 的已登记 EvidencePackage 只有 ordinal 1，送达成功时对应 Contribution 直接 `closed`，`exitReason=review_delivered`，不在本轮补证或等待送达后响应。

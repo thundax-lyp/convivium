@@ -19,6 +19,12 @@
 - [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md)
 - [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)
 
+## Research Targets And Web Evidence Adapters
+
+研究目标区域读取已提交的 objective：新会议按研究对象显示子目标，默认收起、标题可键盘展开，展示核心问题、包含/排除及依赖；横贯要求与未决前提独立展示，不重复原问题。pending/failed 显示等待或失败原因及候选；无研究规划的历史会议继续展示原目标。结构化创建的既有 requiredOutputs 在 pending/failed/accepted 视图中仍展示，不因专用研究视图消失。Client 不生成或接受研究目标。
+
+Web 证据使用内容解析器、固定文件读取 adapter 与受控工具组装原命令，复用 application 写入口。装配与数据流由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md#web-evidence-content-assembly) 维护，角色隔离及失败语义以 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md#web-evidence-content-submission) 为准。
+
 ## Implementation Modules And Ports
 
 | 模块                    | 输入                                 | 输出                                       | 不变量                                 |

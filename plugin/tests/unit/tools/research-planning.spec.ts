@@ -76,4 +76,10 @@ it("binds planning to the stored question and refuses cross-meeting or stale cal
     view = { ...view, objective: { ...view.objective, researchPlanning: planning } };
     expect(await tool.execute(args, exec)).toMatchObject({ kind: "already_planned" });
     expect(researchPlanner).toHaveBeenCalledTimes(1);
+    view = { ...view, objective: { ...view.objective, researchPlanning: { status: "pending" } } };
+    execute.mockClear();
+    const failure = new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
+    researchPlanner.mockRejectedValueOnce(failure);
+    await expect(tool.execute(args, exec)).rejects.toBe(failure);
+    expect(execute).not.toHaveBeenCalled();
 });
