@@ -1,16 +1,18 @@
 # Current Implementation Coverage
 
-## 2026-10-20：合并后需求、设计与实现口径同步
+## 2026-10-20：合并后文档同步与研究规划回归补充
 
 Scope：以 `9a61fccc`（PR #137 merge commit）为基线，在普通分支 `codex/research-planning-followup` 核对需求、接口、设计和生产代码。诊断保存异常传播、研究产出 ID 冲突拒绝和活动议题引用保留均已由 #137 修复；本次不重复修改生产实现，也不以此前旧基线分支上的测试结果作为本分支验证。
 
 Validated Contract：同步 Web 角色启用、七项 Skill 分配、结构化研究目标与固定文件证据入口，以及诊断故障与领域规划失败的区分。补齐设计中的研究规划状态、提交与开轮门禁：roundGoal 对象引用非空、唯一且属于当前 Agenda。自定义产出继续展示。成果接受、权限、幂等及失败后的重置/编辑边界保持原契约。
 
-Executed Validation：静态对照已合并生产入口与正式需求/契约；本地文档链接检查 1184 项、0 errors，git diff --check 通过。产品自动化与新增回归结果由后续测试提交记录。
+Regression Scope：增强已有 save 故障用例，覆盖列表、生成元数据、审查正文、审查元数据、校验结果五个保存位置；补充独立审查执行失败保留候选、工具层 planner 抛错后不提交，以及规划失败不改议题引用。既有多议题测试增加其它 Agenda 不变和全局产出保留断言，ID 冲突测试增加输入状态不变断言。新增断言用于锁定已实现行为，不宣称在当前 main 复现了未修复缺陷。
 
-Not Covered：未执行真实 DSH append/flush 故障注入、模型、Browser、固定人工环境部署或新的完整会议；旧分支上的四个本地提交保留，但不重放进本分支。
+Executed Validation：三份研究规划定向测试 27 项通过；`pnpm --dir plugin verify` 本分支完整通过：111 文件/976 项测试，格式、lint（13 项既有 warning、0 errors）、Host/Client/Remote 类型、构建、环境、插件契约、八角色装配与发布包检查通过。本地文档链接检查 1184 项、0 errors，git diff --check 通过。以上均为本分支本次运行，不复用旧基线分支测试数量。
 
-Closure：本次为合并后的工程文档同步，不声明整体业务或发布就绪；远端 CI/review 以新 PR 当前提交为准。
+Not Covered：未执行真实 DSH append/flush 故障注入、模型、Browser、固定人工环境部署或新的完整会议；受控 save 故障和工具层隔离测试不等于真实存储故障端到端验收。旧分支上的四个本地提交保留，但不重放进本分支。
+
+Closure：本次为合并后的文档与回归补充，不声明整体业务或发布就绪；远端 CI/review 以新 PR 当前提交为准。
 
 ## 2026-10-19：Web 证据内容由程序组装提交
 

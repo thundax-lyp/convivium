@@ -38,10 +38,23 @@ it("preserves the active Agenda scope when appending research targets", () => {
     const activeAgenda = state.agenda.find((agenda) => agenda.status === "active")!;
     activeAgenda.requiredOutputIds = ["active-output"];
 
+    state.agenda.push({
+        ...activeAgenda,
+        id: "other-agenda",
+        status: "pending",
+        requiredOutputIds: ["other-output"]
+    });
+    const otherAgenda = structuredClone(state.agenda[1]);
     const after = applyResearchPlanning(state, acceptedResearchPlanning(state.objective.statement));
 
     expect(after.agenda.find((agenda) => agenda.status === "active")?.requiredOutputIds).toEqual([
         "active-output",
+        "research-O1"
+    ]);
+    expect(after.agenda[1]).toEqual(otherAgenda);
+    expect(after.objective.requiredOutputs.map((output) => output.id)).toEqual([
+        "active-output",
+        "other-output",
         "research-O1"
     ]);
 });
@@ -53,7 +66,29 @@ it("rejects a research target ID that conflicts with an existing required output
         { id: "research-O1", text: "调用方已有产出", status: "pending" }
     ];
 
+    state.agenda[0]!.requiredOutputIds = ["research-O1"];
+    const before = structuredClone(state);
     expect(() =>
         applyResearchPlanning(state, acceptedResearchPlanning(state.objective.statement))
     ).toThrow(/Research target ID conflicts with an existing required output: research-O1/);
+    expect(state).toEqual(before);
+});
+
+it("leaves agenda output references unchanged when planning fails", () => {
+    const state = makeRunningMeetingStateV1();
+    state.objective.researchPlanning = { status: "pending" };
+    state.objective.requiredOutputs.push({
+        id: "other-output",
+        text: "另一议题产出",
+        status: "pending"
+    });
+    const result = applyResearchPlanning(state, {
+        status: "failed",
+        skillSha256: "a".repeat(64),
+        attempts: [],
+        reason: "模型未完成"
+    });
+    expect(result.agenda).toEqual(state.agenda);
+    expect(result.objective.requiredOutputs).toEqual(state.objective.requiredOutputs);
+    expect(result.objective.researchPlanning?.status).toBe("failed");
 });

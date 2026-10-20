@@ -157,23 +157,46 @@ it("returns a bounded failure when model execution rejects", async () => {
     });
 });
 
-it("propagates diagnostic persistence failures instead of returning a planning result", async () => {
-    const persistenceError = new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
-    const generate = vi.fn(async () => ({
-        text: draft,
-        completed: true,
-        metadata: {}
-    }));
+it.each(["list.txt", "generation.json", "review.txt", "review-call.json", "validation.json"])(
+    "propagates diagnostic persistence failure at %s instead of returning a planning result",
+    async (suffix) => {
+        const persistenceError = new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
+        const generate = vi.fn(async ({ model }: { model: string }) => ({
+            text: model === "deepseek-flash" ? draft : JSON.stringify(review),
+            completed: true,
+            metadata: {}
+        }));
+        await expect(
+            runPlanning({
+                question: "原问题",
+                skill: "方法",
+                generate,
+                save: async (name) => {
+                    if (name.endsWith(suffix)) {
+                        throw persistenceError;
+                    }
+                }
+            })
+        ).rejects.toBe(persistenceError);
+        expect(generate).toHaveBeenCalledTimes(
+            ["list.txt", "generation.json"].includes(suffix) ? 1 : 2
+        );
+    }
+);
 
-    await expect(
-        runPlanning({
-            question: "原问题",
-            skill: "方法",
-            generate,
-            save: async () => {
-                throw persistenceError;
+it("preserves the generated draft when independent review execution rejects", async () => {
+    const result = await runPlanning({
+        question: "原问题",
+        skill: "方法",
+        generate: async ({ model }) => {
+            if (model === "deepseek-v4-pro") {
+                throw new Error("MODEL_EXECUTION_FAILED");
             }
-        })
-    ).rejects.toBe(persistenceError);
-    expect(generate).toHaveBeenCalledTimes(1);
+            return { text: draft, completed: true, metadata: {} };
+        }
+    });
+    expect(result).toMatchObject({
+        status: "failed",
+        attempts: [{ draft, review: "", reviewError: "Independent review did not complete" }]
+    });
 });
