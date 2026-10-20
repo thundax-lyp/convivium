@@ -41,6 +41,14 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 读路径只加载已提交 snapshot，再调用 projection。它不修复数据、不触发隐式转换，也不因读取推进 deadline。
 
+## Research Planning Command Path
+
+MO-FR-18/20 的聊天创建保留原问题，目标规划为 pending，不补通用产出/验收模板。Manager 显式加载 research-planning 后，由 `tools/research-planning.ts` 校验同会议 active ownership、读取版本、running 和无 open Round，再经 `dsh/research-planning.ts` 执行共享规划循环；模型调用与独立审查的装配由 [Peer Meeting Agents Design](./PEER-MEETING-AGENTS-DESIGN.md) 维护。
+
+Host 结果通过 `submit_manager_plan` 的内部执行上下文传给 application，不接受 MeetingCommand payload 注入。application 在原有 caller、版本、生命周期及事务门禁内应用 `applyResearchPlanning`，将结果、目标与 Manager plan 同次提交；生成期间版本变化或取消不得提交旧结果。失败结果保留候选及原因，禁止开轮；已接受结果只读复用。当前没有 failed 重置或 accepted 编辑命令，不能将“用户重试”描述为已有恢复入口。共享规划循环只在模型 generate 调用边界捕获执行异常并构造 failed；各处诊断 save 位于该 catch 外，append/flush 故障原样抛出，工具停止且不调用 application，Meeting 保持原 pending 事实，不自动重放。产出 ID 冲突在纯转换内拒绝；事务不得写入 Manager plan 或规划的部分结果。
+
+`open_round` 对研究会议另检查 accepted 规划及 roundGoal 的有效对象引用，引用不得重复且对应研究产出必须属于当前议题；研究路径和轮次安排可重新规划，对象及 ID 保持稳定。完成重算先检查研究规划状态，再检查原有成果、验收、硬约束与阻塞项。
+
 ## Authorization And Transition Families
 
 以下每项均是一组可实现的 action discriminant；精确字段、成功结果和错误码在 Meeting Interface 中定义。无论入口为何，调用相同 application handler 与 Domain command。
