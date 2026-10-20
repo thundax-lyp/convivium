@@ -1,5 +1,17 @@
 # Current Implementation Coverage
 
+## 2026-10-20：规划诊断隔离与原 Session 冷恢复修复
+
+Scope：`codex/meeting-capacity-64m` 工作区，保留已存在的 64 MiB 和删除许可改动。修复规划诊断越过 Session 持久事件边界的问题：新诊断使用独立 Host Storage Domain，不追加自定义 Session 事件；保留存储故障原样传播和禁止自动重放语义。同步 MO-FR-20、DSH Role Interface、DSH Plugin Design 和操作指引。
+
+Executed Validation：新增原生 JSONL backend 冷恢复组合回归，先复现 `SessionFormatUnsupportedError`，修复后通过；另一回归使用压缩旧日志验证 dry-run、原字节备份、精确添加 ignorable、幂等及销毁 Context 后重新打开。`pnpm --dir plugin verify` 通过：112 文件、978 项测试，格式、lint（13 项既有 warning、0 errors）、类型、构建、环境、契约、角色和发布包校验通过。文档本地链接 1185 项、0 errors。
+
+Data Preservation：停止人工 Host 后，将原 DSH_HOME 与 SQLite/sidecar 完整备份到 `dsh-workspace/backups/cold-recovery-20261020-124524/data-before-repair.tar.gz`。对 Manager 的原压缩 Session 日志进行内容对比：678 条记录前后相同，仅五条规划诊断添加 `ignorable: true`；seq/time/data 全部不变。原日志字节备份 SHA-256 为 `13d557d94cac0cb1963c0d019460d5d114694b341d8499dc0ac466c03fc65d16`。不删除或重建会议、Session，不修改会议数据库事实。
+
+Runtime Evidence：2026-10-20 12:47（Asia/Shanghai），原固定安装刷新为 `2a0085526880bccb2155b1fd0da38203c0215cc63b4356b38ad5d4ac5233531d`，SQLite inode 62250762 保持。原会议 `meeting-fc8b0dc2f95896157353ec3e2446a8e8`、原 Manager Session `meeting_agent_session-f4b16e54f85a2b075aab085541dfba43` 冷启动成功，认证 HTTP 200；原恢复 outbox 开始正常投递，会议从版本 76 推进至 78（running），新增两条 `hand_raise.disposed` 事实，原 Session 继续追加工具调用。重新比对原日志前缀，旧记录全部保留，兼容标记之外无更改。Host 保持运行，不手工重放命令。
+
+Not Covered：未执行远端 CI 或 PR review；本地验证不证明会议全部目标已完成，也不解决长会议累计容量增长。
+
 ## 2026-10-20：单会议持久投影上限临时提高到 64 MiB
 
 Scope / Validated Contract：基于 `4ac9442c` 的普通分支 `codex/meeting-capacity-64m`，按用户确认将 MAX_APPLICATION_CHECKPOINT_BYTES 从 16,777,216 提高为 67,108,864 bytes。该限制针对单会议完整 projection 的 canonical UTF-8 编码，非全部会议总和、非 SQLite 的 value 上限。单条 commit、page、tail 限制与数据格式不变；不修改历史事实结构、错误映射或自动重试机制。

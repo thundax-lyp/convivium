@@ -1,3 +1,6 @@
+import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { runPlanning } from "@/research-planning-execution/index.ts";
 import { realpath } from "node:fs/promises";
 import type { Context } from "@deepseek-ai/cordis";
@@ -11,11 +14,15 @@ import {
 import { resolve } from "node:path";
 import { ResearchPlanningSchema, type ResearchPlanning } from "@/research-planning/index.ts";
 
-declare module "@deepseek-ai/dsh-session/types" {
-    interface SessionEventMap {
-        "convivium/research-planning": { name: string; content: string };
+const diagnosticsSpec = defineDomain({
+    name: "convivium_research_planning",
+    version: 1,
+    tables: {
+        diagnostics: domainTable<string, { sessionId: string; name: string; content: string }>(
+            z.strictObject({ sessionId: z.string(), name: z.string(), content: z.string() })
+        )
     }
-}
+});
 
 type GenerateInput = {
     model: string;
@@ -88,21 +95,25 @@ export const createResearchPlanner =
             signal.throwIfAborted();
             return { text, completed, metadata };
         };
-        return ResearchPlanningSchema.parse(
-            await runPlanning({
-                question,
-                skill: skill.content,
-                generate,
-                save: async (name, value) => {
-                    signal.throwIfAborted();
-                    agent.session.append("convivium/research-planning", {
-                        name,
-                        content: typeof value === "string" ? value : JSON.stringify(value)
-                    });
-                    if (!(await ctx.sessions.flush(agent.session))) {
-                        throw new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
+        const domain = await ctx.storageDomain.open(diagnosticsSpec);
+        const runId = randomUUID();
+        try {
+            return ResearchPlanningSchema.parse(
+                await runPlanning({
+                    question,
+                    skill: skill.content,
+                    generate,
+                    save: async (name, value) => {
+                        signal.throwIfAborted();
+                        await domain.table("diagnostics").put(`${runId}:${name}`, {
+                            sessionId: agent.session.id,
+                            name,
+                            content: typeof value === "string" ? value : JSON.stringify(value)
+                        });
                     }
-                }
-            })
-        );
+                })
+            );
+        } finally {
+            await domain.close();
+        }
     };

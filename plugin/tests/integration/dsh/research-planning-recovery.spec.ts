@@ -1,0 +1,167 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { zstdCompressSync } from "node:zlib";
+const execFileAsync = promisify(execFile);
+import { Context } from "@deepseek-ai/cordis";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import { Session, SessionId, SESSION_FORMAT_VERSION } from "@deepseek-ai/dsh-session";
+import Persistence from "@deepseek-ai/dsh-session-persistence-jsonl";
+import { mkdtemp, rm, readFile, writeFile, readdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { it, expect, vi } from "vitest";
+import { createResearchPlanner } from "@/dsh/research-planning.ts";
+import { createFakeDomainFacility } from "../../fixtures/domain-storage.ts";
+
+it("cold opens a real persisted Manager Session after research planning without custom Session events", async () => {
+    const root = await mkdtemp(join(tmpdir(), "convivium-planning-cold-"));
+    let ctx = new Context();
+    try {
+        await ctx.plugin(Persistence, { root, compression: "none" });
+        const id = SessionId("manager-cold");
+        const header = {
+            id,
+            version: SESSION_FORMAT_VERSION,
+            createdAt: 1,
+            cwd: root,
+            isSeeded: false
+        };
+        const session = Session.create(id, undefined, header);
+        const append = vi.spyOn(session, "append");
+        const handle = await ctx.sessionPersistence.create(header);
+        const packageRoot = resolve(".");
+        const facility = createFakeDomainFacility();
+        const open = vi.fn(facility.open);
+        let calls = 0;
+        const plannerContext = {
+            storageDomain: { open },
+            skills: {
+                get: async () => ({
+                    content: "planning skill",
+                    resourceBase: {
+                        kind: "directory",
+                        path: join(packageRoot, "config/skills/research-planning")
+                    }
+                })
+            },
+            llm: {
+                stream: async function* () {
+                    if (calls++) {
+                        throw new Error("review unavailable");
+                    }
+                    yield { type: "text-delta", text: "original candidate" };
+                    yield { type: "finish", reason: { kind: "stop" } };
+                }
+            },
+            sessions: { flush: async () => true }
+        } as unknown as Context;
+        const result = await createResearchPlanner(
+            plannerContext,
+            packageRoot
+        )({
+            agent: { session } as Agent,
+            question: "original question",
+            signal: new AbortController().signal
+        });
+        expect(result.status).toBe("failed");
+        const events = append.mock.results.map((r) => r.value);
+        await handle.append(events);
+        await handle.flush();
+        await handle.close();
+        await ctx.fiber.dispose();
+        ctx = new Context();
+        await ctx.plugin(Persistence, { root, compression: "none" });
+        const reopened = await ctx.sessionPersistence.open(id, "read");
+        try {
+            const read = await reopened.read();
+            expect(read.events).toHaveLength(0);
+        } finally {
+            await reopened.close();
+        }
+        expect(open).toHaveBeenCalledOnce();
+        const domain = await open.mock.results[0]!.value;
+        const records = [...domain.table("diagnostics").entries()].map(([, value]) => value);
+        expect(records).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    sessionId: id,
+                    name: "attempt-0.list.txt",
+                    content: "original candidate"
+                })
+            ])
+        );
+    } finally {
+        await ctx.fiber.dispose();
+        await rm(root, { recursive: true, force: true });
+    }
+}, 20000);
+
+it("cold recovers a legacy compressed Session while preserving every original record and backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "convivium-legacy-cold-"));
+    let ctx = new Context();
+    try {
+        await ctx.plugin(Persistence, { root, compression: "none" });
+        const id = SessionId("legacy-manager");
+        const header = {
+            id,
+            version: SESSION_FORMAT_VERSION,
+            createdAt: 1,
+            cwd: root,
+            isSeeded: false
+        };
+        const handle = await ctx.sessionPersistence.create(header);
+        await handle.flush();
+        await handle.close();
+        await ctx.fiber.dispose();
+        const files = await readdir(root, { recursive: true });
+        const plain = join(
+            root,
+            files.find((path) => path.endsWith("session.v4.jsonl"))!
+        );
+        const legacy = {
+            type: "convivium/research-planning",
+            seq: 0,
+            time: 2,
+            data: { name: "attempt-0.list.txt", content: "original candidate" }
+        };
+        const original = Buffer.concat([
+            zstdCompressSync(Buffer.from(`${(await readFile(plain, "utf8")).trimEnd()}\n`)),
+            zstdCompressSync(Buffer.from(`${JSON.stringify(legacy)}\n`))
+        ]);
+        const file = `${plain}.zstd`;
+        await writeFile(file, original);
+        await rm(plain);
+        ctx = new Context();
+        await ctx.plugin(Persistence, { root, compression: "zstd" });
+        await expect(ctx.sessionPersistence.open(id, "read")).rejects.toThrow(
+            "unknown to this harness"
+        );
+        await ctx.fiber.dispose();
+        const backup = join(root, "backup");
+        const args = [
+            resolve("scripts/repair-research-planning-session.mjs"),
+            "--session-file",
+            file,
+            "--backup-dir",
+            backup
+        ];
+        await execFileAsync(process.execPath, args);
+        expect(await readFile(file)).toEqual(original);
+        await execFileAsync(process.execPath, [...args, "--apply"]);
+        expect(await readFile(join(backup, (await readdir(backup))[0]!))).toEqual(original);
+        const repaired = await readFile(file);
+        await execFileAsync(process.execPath, [...args, "--apply"]);
+        expect(await readFile(file)).toEqual(repaired);
+        ctx = new Context();
+        await ctx.plugin(Persistence, { root, compression: "zstd" });
+        const reopened = await ctx.sessionPersistence.open(id, "read");
+        try {
+            expect((await reopened.read()).events).toEqual([{ ...legacy, ignorable: true }]);
+        } finally {
+            await reopened.close();
+        }
+    } finally {
+        await ctx.fiber.dispose();
+        await rm(root, { recursive: true, force: true });
+    }
+}, 20000);
