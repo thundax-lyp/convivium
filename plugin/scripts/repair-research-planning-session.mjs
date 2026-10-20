@@ -54,10 +54,20 @@ const sha256 = createHash("sha256").update(original).digest("hex");
 if (args.includes("--apply") && changed) {
     const backupDir = resolve(args[backupArg + 1]);
     await mkdir(backupDir, { recursive: true, mode: 0o700 });
-    await writeFile(join(backupDir, `${basename(file)}.${sha256}.backup`), original, {
-        flag: "wx",
-        mode: 0o600
-    });
+    const backupFile = join(backupDir, `${basename(file)}.${sha256}.backup`);
+    try {
+        await writeFile(backupFile, original, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+        if (error.code !== "EEXIST") {
+            throw error;
+        }
+        const backupStat = await lstat(backupFile);
+        if (!backupStat.isFile() || !(await readFile(backupFile)).equals(original)) {
+            throw new Error("Existing backup does not match original Session; refusing repair", {
+                cause: error
+            });
+        }
+    }
     // Keep the header in its own zstd frame, as required by native Session listing.
     const header = Buffer.from(`${repaired[0]}\n`);
     const body = Buffer.from(`${repaired.slice(1).join("\n")}\n`);

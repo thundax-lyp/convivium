@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createHash } from "node:crypto";
 import { zstdCompressSync } from "node:zlib";
 const execFileAsync = promisify(execFile);
 import { Context } from "@deepseek-ai/cordis";
@@ -96,7 +97,7 @@ it("cold opens a real persisted Manager Session after research planning without 
     }
 }, 20000);
 
-it("cold recovers a legacy compressed Session while preserving every original record and backup", async () => {
+it("cold recovers a legacy Session after an interrupted repair and refuses a mismatched backup", async () => {
     const root = await mkdtemp(join(tmpdir(), "convivium-legacy-cold-"));
     let ctx = new Context();
     try {
@@ -148,7 +149,21 @@ it("cold recovers a legacy compressed Session while preserving every original re
         await execFileAsync(process.execPath, args);
         expect(await readFile(file)).toEqual(original);
         await execFileAsync(process.execPath, [...args, "--apply"]);
-        expect(await readFile(join(backup, (await readdir(backup))[0]!))).toEqual(original);
+        const backupFile = join(
+            backup,
+            `session.v4.jsonl.zstd.${createHash("sha256").update(original).digest("hex")}.backup`
+        );
+        expect(await readFile(backupFile)).toEqual(original);
+        // Recreate the on-disk state after backup succeeded but replacement was interrupted.
+        await writeFile(file, original);
+        const mismatched = Buffer.from("incomplete backup");
+        await writeFile(backupFile, mismatched);
+        await expect(execFileAsync(process.execPath, [...args, "--apply"])).rejects.toThrow();
+        expect(await readFile(file)).toEqual(original);
+        expect(await readFile(backupFile)).toEqual(mismatched);
+        await writeFile(backupFile, original);
+        await execFileAsync(process.execPath, [...args, "--apply"]);
+        expect(await readFile(backupFile)).toEqual(original);
         const repaired = await readFile(file);
         await execFileAsync(process.execPath, [...args, "--apply"]);
         expect(await readFile(file)).toEqual(repaired);

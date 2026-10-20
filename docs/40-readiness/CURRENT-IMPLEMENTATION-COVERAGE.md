@@ -1,5 +1,13 @@
 # Current Implementation Coverage
 
+## 2026-10-20：离线 Session 修复支持备份落盘后重试
+
+Scope：PR #139 Review P2。原日志未替换但同哈希备份已存在时，原命令因独占创建备份返回 EEXIST 而无法重试；现仅在已有备份为普通文件且与当前原日志逐字节一致时复用，其他创建错误原样传播，备份不一致则停止且不改写两者。
+
+Executed Validation：增强原生冷恢复组合回归，构造备份已存在、原日志仍未修复的磁盘状态，先观察 EEXIST 目标失败；修复后两项冷恢复回归通过，覆盖不一致备份拒绝且两文件不变、一致备份复用后修复成功、备份字节保留、重复执行与原生 backend 冷打开。受影响脚本和测试的 Prettier、ESLint 通过。
+
+Not Covered：未对正在运行的人工环境再次执行修复或重启；本次只修复离线运维重试，不变更运行中会议数据或插件业务代码。远端 CI 与 Review 以 PR 最新 head 为准。
+
 ## 2026-10-20：规划诊断隔离与原 Session 冷恢复修复
 
 Scope：`codex/meeting-capacity-64m` 工作区，保留已存在的 64 MiB 和删除许可改动。修复规划诊断越过 Session 持久事件边界的问题：新诊断使用独立 Host Storage Domain，不追加自定义 Session 事件；保留存储故障原样传播和禁止自动重放语义。同步 MO-FR-20、DSH Role Interface、DSH Plugin Design 和操作指引。

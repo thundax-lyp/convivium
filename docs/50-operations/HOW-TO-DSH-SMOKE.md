@@ -237,6 +237,6 @@ node plugin/scripts/repair-research-planning-session.mjs --session-file "$SESSIO
 node plugin/scripts/repair-research-planning-session.mjs --session-file "$SESSION_FILE" --backup-dir "$BACKUP_DIR" --apply
 ```
 
-首条命令只检查；第二条保存带原文件 SHA-256 的完整备份，仅为闭集命名的 name/content 规划诊断添加 ignorable。保留日志头独立 zstd frame、事件顺序和全部内容，重复执行无改动；遇到不符合记录则停止。不得扩大修复为忽略任意未知事件。
+首条命令只检查；第二条保存带原文件 SHA-256 的完整备份，仅为闭集命名的 name/content 规划诊断添加 ignorable。保留日志头独立 zstd frame、事件顺序和全部内容，重复执行无改动；备份落盘后若后续修复中断，可运行原命令重试：仅复用与当前原日志字节完全一致的已有普通备份文件，内容不一致或不是普通文件时停止，不覆盖备份或原日志。遇到不符合记录则停止。不得扩大修复为忽略任意未知事件。
 
 安装修复版后按本页固定目录启动。成功判据：原 Session 可冷打开，原会议 pending outbox 正常投递，出现新的已提交会议事实；端口监听不能代替这些判据。失败时停止 Host，保留错误证据，可将 SHA-256 对应日志备份原样复制回精确路径；如业务数据已推进，不得独立回滚 SQLite 或覆盖新的 Session 内容。禁止删除会议、Session、历史数据或重放结果未知的命令。
