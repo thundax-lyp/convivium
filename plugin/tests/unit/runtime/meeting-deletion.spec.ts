@@ -28,7 +28,7 @@ const recovery = () => {
 };
 
 describe("Meeting deletion eligibility", () => {
-    it.each(["running", "paused", "converging"] as const)(
+    it.each(["preparing", "running", "converging", "ending", "archiving"] as const)(
         "rejects %s even with closed Sessions",
         (status) => {
             const input = recovery();
@@ -36,7 +36,7 @@ describe("Meeting deletion eligibility", () => {
             expect(meetingDeletionStatus(input)).toBe("active");
         }
     );
-    it.each(["preparing", "ending", "terminal", "archiving", "archived"] as const)(
+    it.each(["paused", "terminal", "archived"] as const)(
         "allows %s even with pending work and open Sessions",
         (status) => {
             const input = recovery();

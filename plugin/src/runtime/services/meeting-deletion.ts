@@ -12,7 +12,7 @@ export const meetingDeletionStatus = (
     recovery: Pick<RecoveryResult<MeetingState>, "snapshot" | "sessionOwnership" | "pendingOutbox">
 ): MeetingDeletionStatus => {
     const state = recovery.snapshot?.state;
-    if (!state || ["running", "paused", "converging"].includes(state.lifecycle.status)) {
+    if (!state || !["paused", "terminal", "archived"].includes(state.lifecycle.status)) {
         return "active";
     }
     return "allowed";
@@ -37,7 +37,7 @@ export const deleteMeeting = async (
                         "INVALID_STATE",
                         false,
                         request.meetingId,
-                        "Meeting is in progress"
+                        "Meeting lifecycle does not allow deletion"
                     );
                 }
                 const snapshot = recovery.snapshot!;
@@ -62,7 +62,7 @@ export const deleteMeeting = async (
                         error.code === "VERSION_CONFLICT"
                             ? "VERSION_CONFLICT"
                             : "PRECONDITION_FAILED",
-                    message: "Meeting changed or is in progress."
+                    message: "Meeting changed or its lifecycle does not allow deletion."
                 }
             };
         }

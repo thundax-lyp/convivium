@@ -1,5 +1,17 @@
 # Current Implementation Coverage
 
+## 2026-10-20：会议删除改为暂停及终态白名单
+
+Scope：基于 `4ac9442c` 的普通分支 `codex/meeting-deletion-eligibility` 工作区，按用户确认更新 MO-FR-19。只有 paused、terminal、archived 可发起删除；preparing、running、converging、ending、archiving 禁止发起删除。不按名称 ing 后缀判断。同步需求验收条款、接口、DSH Plugin 设计和中英文禁用提示。
+
+Validated Contract：摘要投影和删除写队列内重验共用 meetingDeletionStatus 白名单；待处理工作及未关闭 ownership 不额外阻止三个允许状态，删除意图提交后仍先停止关联工作、释放句柄并撤权，再删除业务数据，保留 Session/聊天历史。既有 deleting 意图继续显式重试，不因状态规则变化重新授权业务操作。版本冲突、二次确认、陈旧/断线/提交中保护和删除后防复活边界保持。
+
+Executed Validation：先更新八种生命周期回归，观察到 paused 被拒绝及 preparing/ending/archiving 错误允许共四项目标失败；实现白名单后，Runtime 许可、Navigator 确认/取消及 Repository 删除契约三文件共 36 项通过。本次 `pnpm --dir plugin verify` 完整通过：111 文件/976 项测试，格式、lint（13 项既有 warning、0 errors）、Host/Client/Remote 类型、构建、环境、插件契约、八角色装配与发布包检查通过。文档本地链接 1184 项、0 errors，git diff --check 通过。
+
+Not Covered：未刷新或重启当前人工 Host，未真实删除任何既有会议；未执行 Browser 人工验收、模型会议或远端 CI。本次测试不等于真实 Session/ACP 进程清理端到端验证。
+
+Closure：源码与正式口径同步为本条白名单，较早“非进行中会议删除”条目的状态许可属于当时规则，不能作为当前许可依据；不声明发布或完整业务验收。
+
 ## 2026-10-20：合并后文档同步与研究规划回归补充
 
 Scope：以 `9a61fccc`（PR #137 merge commit）为基线，在普通分支 `codex/research-planning-followup` 核对需求、接口、设计和生产代码。诊断保存异常传播、研究产出 ID 冲突拒绝和活动议题引用保留均已由 #137 修复；本次不重复修改生产实现，也不以此前旧基线分支上的测试结果作为本分支验证。
