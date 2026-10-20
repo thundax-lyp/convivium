@@ -6,8 +6,7 @@ import {
     encodeProjection,
     foldCommitTail,
     projectionDigest,
-    MAX_COMMIT_VALUE_BYTES,
-    MAX_APPLICATION_CHECKPOINT_BYTES
+    MAX_COMMIT_VALUE_BYTES
 } from "@/repository/storage-domain/meeting/projection.ts";
 import { CommitRecordSchema } from "@/repository/storage-domain/format/schemas.ts";
 describe("Storage Domain projection", () => {
@@ -73,14 +72,23 @@ describe("Storage Domain projection", () => {
             ).byteLength
         ).toBeLessThan(MAX_COMMIT_VALUE_BYTES);
     });
-    it("rejects oversized commit and checkpoint projection values", () => {
-        const huge = createProjection({
+    it("accepts a 64 MiB projection and rejects one byte over the limit", () => {
+        const projection = createProjection({
             snapshot: null,
-            bootstrap: { ...bootstrap, requestHash: "x".repeat(MAX_APPLICATION_CHECKPOINT_BYTES) },
+            bootstrap,
             preparedDescriptors: [],
             sessionOwnership: {}
         });
-        expect(() => encodeProjection(huge)).toThrow();
+        const targetBytes = 64 * 1024 * 1024;
+        const overhead = encodeProjection(projection).byteLength - bootstrap.requestHash.length;
+        projection.bootstrap.requestHash = "x".repeat(targetBytes - overhead);
+        const encoded = encodeProjection(projection);
+        expect(encoded.byteLength).toBe(targetBytes);
+        expect(decodeProjection(encoded).bootstrap.requestHash).toBe(
+            projection.bootstrap.requestHash
+        );
+        projection.bootstrap.requestHash += "x";
+        expect(() => encodeProjection(projection)).toThrow("checkpoint projection is too large");
     });
     it("folds seq one and a continuous commit tail", () => {
         const p = createProjection({

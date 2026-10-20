@@ -1,5 +1,17 @@
 # Current Implementation Coverage
 
+## 2026-10-20：单会议持久投影上限临时提高到 64 MiB
+
+Scope / Validated Contract：基于 `4ac9442c` 的普通分支 `codex/meeting-capacity-64m`，按用户确认将 MAX_APPLICATION_CHECKPOINT_BYTES 从 16,777,216 提高为 67,108,864 bytes。该限制针对单会议完整 projection 的 canonical UTF-8 编码，非全部会议总和、非 SQLite 的 value 上限。单条 commit、page、tail 限制与数据格式不变；不修改历史事实结构、错误映射或自动重试机制。
+
+Executed Validation：先把既有容量用例改为恰好 64 MiB 可编码/解码且增加一字节拒绝，观察旧 16 MiB 实现拒绝合法容量的目标失败；修改常量后 projection/checkpoint 两文件 22 项通过，覆盖新上限编码/解码、超限拒绝及已有分页发布/恢复保护；本次 `pnpm --dir plugin verify` 完整通过（111 文件、976 项测试，格式、lint 13 项既有 warning/0 errors、类型、构建、环境、插件契约、八角色装配及发布包检查）。文档本地链接 1184 项零错误，git diff --check 通过。
+
+Deployment：按用户授权停止原 Host，经固定人工安装根 install-from-source.sh --dev-refresh 构建安装并重新启动；发布物 SHA-256 为 4b97f1383e66ed03e0b304c778f96198e7f7628bce0868e367efa437a31ffe34。部署前将已确认的 `17bb8801` 删除许可改动带入当前工作区，避免覆盖人工环境已有规则；两项改动联合定向验证五文件 58 项通过。读回安装包确认 67,108,864-byte 检查和暂停删除规则均存在；原 SQLite inode、会议 catalog、固定 workspace 与凭据链接保持，认证入口 HTTP 200。
+
+Not Covered：未向卡住会议重放任何命令，未直接改写会议数据，未验证接纳举手继续成功。本次不证明真实 Host 下 64 MiB 会议的性能或恢复耗时；历史事实重复保存完整 resultingState 的增长问题和容量异常被统一映射为 STORAGE_UNAVAILABLE 均未解决，提高上限仅为临时缓解。
+
+Closure：仅提高应用级容量保护阈值，不声明卡住会议已恢复或长会议容量问题已根治。
+
 ## 2026-10-20：会议删除改为暂停及终态白名单
 
 Scope：基于 `4ac9442c` 的普通分支 `codex/meeting-deletion-eligibility` 工作区，按用户确认更新 MO-FR-19。只有 paused、terminal、archived 可发起删除；preparing、running、converging、ending、archiving 禁止发起删除。不按名称 ing 后缀判断。同步需求验收条款、接口、DSH Plugin 设计和中英文禁用提示。
