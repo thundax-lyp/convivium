@@ -114,7 +114,7 @@ export const zh = {
     "panel.delete.acknowledge": "我理解此操作无法撤销",
     "panel.delete.cancel": "取消",
     "panel.delete.unavailable": "离线、数据陈旧或提交期间不可删除",
-    "panel.delete.active": "会议正在进行或已暂停，不能删除",
+    "panel.delete.active": "会议正在准备、运行、收敛、结束或归档，不能删除",
     "panel.delete.failed": "未确认删除完成。会议可能已变化或清理未完成，请刷新后重试。",
     "panel.navigator.searchPlaceholder": "搜索会话…",
     "panel.navigator.noMatches": "没有匹配的会话。",
@@ -494,7 +494,7 @@ export const en: Record<MeetingLocaleKey, string> = {
     "panel.delete.acknowledge": "I understand this cannot be undone",
     "panel.delete.cancel": "Cancel",
     "panel.delete.unavailable": "Deletion is unavailable while offline, stale or submitting",
-    "panel.delete.active": "The meeting is running, converging or paused",
+    "panel.delete.active": "The meeting is preparing, running, converging, ending or archiving",
     "panel.delete.failed":
         "Deletion was not confirmed. The meeting may have changed or cleanup may be incomplete. Refresh before retrying.",
     "panel.navigator.searchPlaceholder": "Search sessions…",

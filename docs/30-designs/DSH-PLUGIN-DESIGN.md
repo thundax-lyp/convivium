@@ -69,7 +69,7 @@ Convivium Client plugin 拥有 typed locale namespace `convivium.meeting`，依�
 
 删除清理失败后，Navigator 继续展示 catalog 意图的最小摘要与“删除未完成，可重试”状态；刷新、取消确认和重新打开菜单不会丢失显式重试入口。该状态只能再次删除，不能恢复详情或业务写权限。删除成功后以不含业务内容的持久标记阻止原创建请求重新登记，不删除或复用历史 Session。
 
-会议删除遵循 MO-FR-19 和 [Meeting Deletion Boundary](../20-interfaces/MEETING-INTERFACE.md#meeting-deletion-boundary)：Navigator 的打开动作后增加分隔线与危险删除动作，并在确认框明确“永久删除会议业务数据，保留已关闭的 Session 和聊天历史”。删除执行前由 Runtime 重验非进行中状态（排除 running、converging、paused）；持久删除意图禁止继续读写和授权，随后停止目标会议工作并释放关联 Session handle，保留聊天历史；业务 Repository 只清理精确会议的数据，不调用 Host 的 Session 删除服务。成功后清除被删除会议的选择和展示状态，不自动选择其它会议；失败或清理未完成不报告成功。
+会议删除遵循 MO-FR-19 和 [Meeting Deletion Boundary](../20-interfaces/MEETING-INTERFACE.md#meeting-deletion-boundary)：Navigator 的打开动作后增加分隔线与危险删除动作，并在确认框明确“永久删除会议业务数据，保留已关闭的 Session 和聊天历史”。删除执行前由 Runtime 在 Repository 写队列内重验状态白名单（仅 paused、terminal、archived 可发起删除；preparing、running、converging、ending、archiving 禁止）；持久删除意图禁止继续读写和授权，随后停止目标会议工作并释放关联 Session handle，保留聊天历史；业务 Repository 只清理精确会议的数据，不调用 Host 的 Session 删除服务。成功后清除被删除会议的选择和展示状态，不自动选择其它会议；失败或清理未完成不报告成功。
 
 Client 只注册一个 `conversation.view: convivium-meetings`，不注册独立 Timeline View：
 
@@ -324,3 +324,9 @@ ACP SDK/bridge 依赖与 provider 模块已随 PR #133 落地，确定性组合�
 ### Acceptance-only Outbox Reader
 
 包入口具名导出 `readMeetingOutboxForAcceptance`，实现位于 `plugin/src/repository/storage-domain/acceptance-read.ts`，通过 Repository 目录入口逐级导出。唯一消费者是隔离 smoke probe；通过 Host 公开 `storageDomain.get` 借用已经打开的 domain，只读 catalog 与 `loadProjection` 校验后的提交链/checkpoint，并按 deliveryId 返回冻结字段白名单。`loadProjection` 接受只含 table/get/entries 的读取面，对未知记录执行已有 Schema 校验。入口不 open/close domain、不执行 recover，不持有额外租约，不开放 Web/Remote 或模型工具；字段及拒绝语义见 [ACP Interface](../20-interfaces/DSH-ACP-EXECUTION-INTERFACE.md#acceptance-outbox-read)。
+
+## 研究规划诊断与冷恢复
+
+依据 MO-FR-20 和 DSH Role Interface，`dsh/research-planning.ts` 将每次规划执行的列表、生成/审查元数据及校验结果保存到 Host Storage Domain `convivium_research_planning`。每次执行以 UUID 隔离记录，key 为执行 UUID 与诊断 name，value 保留 sessionId/name/content；meeting consumer 初始化时异步打开一个类型化 domain handle，再注册工具和恢复会议；多个并发规划共享该句柄，每次规划结束不关闭，在 consumer 卸载时通过 ctx.effect 释放。持久化错误向调用方传播，不提交领域规划失败，也不自动重试。最终规划仍由 Meeting 原子提交保存。
+
+旧版本曾写入 `convivium/research-planning` 自定义 Session 事件，DSH 原生冷恢复会拒绝未标记 ignorable 的未知事件。离线修复仅对已确认的规划诊断添加 `ignorable: true`，不修改 seq/time/data、不删除记录；保留原始压缩日志备份。修复入口与回退见 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md#规划诊断导致的-session-冷恢复失败)。不自动忽略其他未知事件，不重建会议或 Session。

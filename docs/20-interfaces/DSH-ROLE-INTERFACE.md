@@ -302,7 +302,7 @@ Manager 增加 `convivium_plan_research({meetingId,expectedMeetingVersion,reques
 
 规划验证结果只能由 Host 执行上下文提供，普通 MeetingCommand 或模型工具参数不能注入；Runtime 仍校验 caller、Meeting version、生命周期和原问题。语义正确性由独立审查与人工复核提供，不宣称确定性结构检查证明语义。
 
-规划执行期间的每稿列表、审查及用量通过 Manager 自身 Session 的 `convivium/research-planning` 诊断事件追加并 flush，保留 name/content，不包含内部推理或凭据；该事件不是 Meeting 事实源。最终规划及模型执行/校验失败原因仍由 Meeting 原子 commit 保存；诊断 append/flush 失败则原样抛出并停止工具调用，不进入 application 提交、不将 pending 改为 failed，不自动重放。每次辅助模型调用有四分钟期限，取消或版本变化后的结果不能提交。
+规划执行期间的每稿列表、审查及用量通过 Host Storage Domain `convivium_research_planning` 的 diagnostics 表持久保存，同一 meeting consumer 生命周期内复用一个活动句柄，允许不同会议并发规划；按执行 UUID 和 name 隔离，保留 sessionId/name/content，不包含内部推理或凭据；不得写入自定义持久 Session 事件，诊断不是 Meeting 事实源。最终规划及模型执行/校验失败原因仍由 Meeting 原子 commit 保存；诊断存储失败则原样抛出并停止工具调用，不进入 application 提交、不将 pending 改为 failed，不自动重放。每次辅助模型调用有四分钟期限，取消或版本变化后的结果不能提交。
 
 工具成功提交返回现有 MeetingCommandResult accepted（含 committedVersion）；已接受时返回 `{kind:"already_planned",meetingId,version}` 且不重复模型调用，已失败时返回 `{kind:"planning_failed",reason}` 且不突破预算。跨会议、非 Manager、旧版本、非 running 或已有 open Round 在生成前拒绝。当前切片不增加失败后的重置命令或已接受对象的编辑命令，用户处置不能被模型自行重试替代。
 

@@ -1,3 +1,6 @@
+import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { runPlanning } from "@/research-planning-execution/index.ts";
 import { realpath } from "node:fs/promises";
 import type { Context } from "@deepseek-ai/cordis";
@@ -11,19 +14,24 @@ import {
 import { resolve } from "node:path";
 import { ResearchPlanningSchema, type ResearchPlanning } from "@/research-planning/index.ts";
 
-declare module "@deepseek-ai/dsh-session/types" {
-    interface SessionEventMap {
-        "convivium/research-planning": { name: string; content: string };
+const diagnosticsSpec = defineDomain({
+    name: "convivium_research_planning",
+    version: 1,
+    tables: {
+        diagnostics: domainTable<string, { sessionId: string; name: string; content: string }>(
+            z.strictObject({ sessionId: z.string(), name: z.string(), content: z.string() })
+        )
     }
-}
+});
 
 type GenerateInput = {
     model: string;
     messages: { role: "system" | "user" | "assistant"; content: string }[];
 };
-export const createResearchPlanner =
-    (ctx: Context, packageRoot: string) =>
-    async (input: {
+export const createResearchPlanner = async (ctx: Context, packageRoot: string) => {
+    const domain = await ctx.storageDomain.open(diagnosticsSpec);
+    ctx.effect(() => () => domain.close());
+    return async (input: {
         agent: Agent;
         question: string;
         signal: AbortSignal;
@@ -88,6 +96,7 @@ export const createResearchPlanner =
             signal.throwIfAborted();
             return { text, completed, metadata };
         };
+        const runId = randomUUID();
         return ResearchPlanningSchema.parse(
             await runPlanning({
                 question,
@@ -95,14 +104,13 @@ export const createResearchPlanner =
                 generate,
                 save: async (name, value) => {
                     signal.throwIfAborted();
-                    agent.session.append("convivium/research-planning", {
+                    await domain.table("diagnostics").put(`${runId}:${name}`, {
+                        sessionId: agent.session.id,
                         name,
                         content: typeof value === "string" ? value : JSON.stringify(value)
                     });
-                    if (!(await ctx.sessions.flush(agent.session))) {
-                        throw new Error("RESEARCH_PLANNING_PERSISTENCE_FAILED");
-                    }
                 }
             })
         );
     };
+};

@@ -63,7 +63,7 @@ function layoutProps() {
 describe("Meeting navigator", () => {
     beforeEach(() => vi.unstubAllGlobals());
 
-    it.each(["running", "paused", "converging"] as const)(
+    it.each(["preparing", "running", "converging", "ending", "archiving"] as const)(
         "disables deletion for %s when the server reports active",
         (lifecycle) => {
             const { props, summary } = layoutProps();
@@ -92,10 +92,8 @@ describe("Meeting navigator", () => {
     );
 
     it.each([
-        ["preparing", "allowed"],
-        ["ending", "allowed"],
+        ["paused", "allowed"],
         ["terminal", "allowed"],
-        ["archiving", "allowed"],
         ["archived", "allowed"],
         ["terminal", "deleting"]
     ] as const)(

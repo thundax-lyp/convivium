@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { encodeCanonicalJson, sha256Hex } from "@/utils/index.ts";
 import { generation, seqKey } from "@/repository/storage-domain/format/keys.ts";
@@ -83,6 +85,44 @@ describe("application checkpoint", () => {
         expect(domain.table("commits").get(seqKey(1))).toBeUndefined();
         expect(loadProjection({ domain })).toEqual(projection);
     });
+    it("restores a 64 MiB checkpoint within a 512 MiB V8 heap", async () => {
+        const { stdout } = await promisify(execFile)(
+            process.execPath,
+            [
+                "--max-old-space-size=512",
+                "--experimental-transform-types",
+                "--input-type=module",
+                "-e",
+                `
+            import { registerHooks } from "node:module";
+            import { resolve } from "node:path";
+            import { pathToFileURL } from "node:url";
+            import assert from "node:assert/strict";
+            registerHooks({ resolve(specifier, context, nextResolve) {
+                return nextResolve(specifier.startsWith("@/")
+                    ? pathToFileURL(resolve("src", specifier.slice(2))).href : specifier, context);
+            }});
+            const { createProjection, encodeProjection, loadProjection } = await import("./src/repository/storage-domain/meeting/projection.ts");
+            const { writeCheckpoint } = await import("./src/repository/storage-domain/meeting/checkpoint.ts");
+            const { createFakeMeetingDomain } = await import("./tests/fixtures/domain-storage.ts");
+            const domain = createFakeMeetingDomain();
+            const projection = createProjection({ snapshot: null,
+                bootstrap: { creator: { kind: "local_user", principalId: "local-controller" },
+                    status: "ready", createRequestId: "r", requestHash: "h", createdAt: 1, updatedAt: 1 },
+                preparedDescriptors: [], sessionOwnership: {} });
+            const overhead = encodeProjection(projection).byteLength - 1;
+            projection.bootstrap.requestHash = "x".repeat(64 * 1024 * 1024 - overhead);
+            await writeCheckpoint({ domain, projection, baseSeq: 1, createdAt: 1 });
+            const restored = loadProjection({ domain });
+            assert.equal(restored.bootstrap.requestHash, projection.bootstrap.requestHash);
+            assert.equal(restored.bootstrap.createRequestId, "r");
+            console.log(encodeProjection(restored).byteLength);
+            `
+            ],
+            { timeout: 30000, maxBuffer: 1024 * 1024 }
+        );
+        expect(stdout.trim()).toBe("67108864");
+    }, 35000);
     it("rejects a missing referenced page", async () => {
         const domain = createFakeMeetingDomain();
         const pointer = await writeCheckpoint({

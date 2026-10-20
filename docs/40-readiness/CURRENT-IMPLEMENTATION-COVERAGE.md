@@ -1,5 +1,65 @@
 # Current Implementation Coverage
 
+## 2026-10-20：并发研究规划复用诊断 Domain
+
+Scope：PR #139 新增 P2。planner 在 meeting consumer 初始化时异步打开一个类型化诊断 Domain，工具注册及会议恢复在初始化完成后执行。每次规划共享句柄，以执行 UUID/name 隔离记录，任务结束不关闭 Domain，consumer 卸载时释放。保留 Session 无自定义事件、诊断错误传播及不自动重放的边界。
+
+Executed Validation：新增真实 DomainFacility + SQLite 组合回归，第一场会议模型调用受控等待时启动第二场规划，先观察 already-open 目标失败；修复后三项规划/冷恢复回归通过，两场会议均保存原 Session ID 对应的诊断，consumer 卸载后句柄释放且拒绝继续写入（Storage Domain facility 本身仍活动）。受影响 Prettier/ESLint 通过。 本次 `pnpm --dir plugin verify` 完整通过：112 文件、980 项测试，格式、lint（13 项既有 warning、0 errors）、类型、构建、环境、契约、角色与发布包校验通过；文档本地链接 1185 项、0 errors，git diff --check 通过。
+
+Not Covered：模型响应受控，不代表真实双会议 LLM 并发验收；未重新部署或重启人工会议环境。远端 CI/Review 以 PR 最新 head 为准。
+
+## 2026-10-20：64 MiB checkpoint 恢复避免数字数组膨胀
+
+Scope：PR #139 新增 P1。loadProjection 在校验 root 大小及页数后预分配字节缓冲区，逐页复制并保留长度、摘要及提交尾链验证，避免 flatMap 展开约 6710 万个 JavaScript number。持久格式与 64 MiB 上限不变。
+
+Executed Validation：新增独立 Node 子进程回归，固定 512 MiB V8 heap，实际执行 64 MiB projection 的 writeCheckpoint → loadProjection → 编码完整性校验；修复前复现 heap limit/OOM，修复后通过。checkpoint/projection 两文件 23 项通过，覆盖页/根/指针完整性、原子发布与已有容量边界。
+
+Not Covered：内存回归使用临时进程和内存 Domain 验证应用分页路径，不代表真实 Host 的整体内存、SQLite IO 或性能验收；未重启人工会议环境。
+
+## 2026-10-20：离线 Session 修复支持备份落盘后重试
+
+Scope：PR #139 Review P2。原日志未替换但同哈希备份已存在时，原命令因独占创建备份返回 EEXIST 而无法重试；现仅在已有备份为普通文件且与当前原日志逐字节一致时复用，其他创建错误原样传播，备份不一致则停止且不改写两者。
+
+Executed Validation：增强原生冷恢复组合回归，构造备份已存在、原日志仍未修复的磁盘状态，先观察 EEXIST 目标失败；修复后两项冷恢复回归通过，覆盖不一致备份拒绝且两文件不变、一致备份复用后修复成功、备份字节保留、重复执行与原生 backend 冷打开。受影响脚本和测试的 Prettier、ESLint 通过。
+
+Not Covered：未对正在运行的人工环境再次执行修复或重启；本次只修复离线运维重试，不变更运行中会议数据或插件业务代码。远端 CI 与 Review 以 PR 最新 head 为准。
+
+## 2026-10-20：规划诊断隔离与原 Session 冷恢复修复
+
+Scope：`codex/meeting-capacity-64m` 工作区，保留已存在的 64 MiB 和删除许可改动。修复规划诊断越过 Session 持久事件边界的问题：新诊断使用独立 Host Storage Domain，不追加自定义 Session 事件；保留存储故障原样传播和禁止自动重放语义。同步 MO-FR-20、DSH Role Interface、DSH Plugin Design 和操作指引。
+
+Executed Validation：新增原生 JSONL backend 冷恢复组合回归，先复现 `SessionFormatUnsupportedError`，修复后通过；另一回归使用压缩旧日志验证 dry-run、原字节备份、精确添加 ignorable、幂等及销毁 Context 后重新打开。`pnpm --dir plugin verify` 通过：112 文件、978 项测试，格式、lint（13 项既有 warning、0 errors）、类型、构建、环境、契约、角色和发布包校验通过。文档本地链接 1185 项、0 errors。
+
+Data Preservation：停止人工 Host 后，将原 DSH_HOME 与 SQLite/sidecar 完整备份到 `dsh-workspace/backups/cold-recovery-20261020-124524/data-before-repair.tar.gz`。对 Manager 的原压缩 Session 日志进行内容对比：678 条记录前后相同，仅五条规划诊断添加 `ignorable: true`；seq/time/data 全部不变。原日志字节备份 SHA-256 为 `13d557d94cac0cb1963c0d019460d5d114694b341d8499dc0ac466c03fc65d16`。不删除或重建会议、Session，不修改会议数据库事实。
+
+Runtime Evidence：2026-10-20 12:47（Asia/Shanghai），原固定安装刷新为 `2a0085526880bccb2155b1fd0da38203c0215cc63b4356b38ad5d4ac5233531d`，SQLite inode 62250762 保持。原会议 `meeting-fc8b0dc2f95896157353ec3e2446a8e8`、原 Manager Session `meeting_agent_session-f4b16e54f85a2b075aab085541dfba43` 冷启动成功，认证 HTTP 200；原恢复 outbox 开始正常投递，会议从版本 76 推进至 78（running），新增两条 `hand_raise.disposed` 事实，原 Session 继续追加工具调用。重新比对原日志前缀，旧记录全部保留，兼容标记之外无更改。Host 保持运行，不手工重放命令。
+
+Not Covered：未执行远端 CI 或 PR review；本地验证不证明会议全部目标已完成，也不解决长会议累计容量增长。
+
+## 2026-10-20：单会议持久投影上限临时提高到 64 MiB
+
+Scope / Validated Contract：基于 `4ac9442c` 的普通分支 `codex/meeting-capacity-64m`，按用户确认将 MAX_APPLICATION_CHECKPOINT_BYTES 从 16,777,216 提高为 67,108,864 bytes。该限制针对单会议完整 projection 的 canonical UTF-8 编码，非全部会议总和、非 SQLite 的 value 上限。单条 commit、page、tail 限制与数据格式不变；不修改历史事实结构、错误映射或自动重试机制。
+
+Executed Validation：先把既有容量用例改为恰好 64 MiB 可编码/解码且增加一字节拒绝，观察旧 16 MiB 实现拒绝合法容量的目标失败；修改常量后 projection/checkpoint 两文件 22 项通过，覆盖新上限编码/解码、超限拒绝及已有分页发布/恢复保护；本次 `pnpm --dir plugin verify` 完整通过（111 文件、976 项测试，格式、lint 13 项既有 warning/0 errors、类型、构建、环境、插件契约、八角色装配及发布包检查）。文档本地链接 1184 项零错误，git diff --check 通过。
+
+Deployment：按用户授权停止原 Host，经固定人工安装根 install-from-source.sh --dev-refresh 构建安装并重新启动；发布物 SHA-256 为 4b97f1383e66ed03e0b304c778f96198e7f7628bce0868e367efa437a31ffe34。部署前将已确认的 `17bb8801` 删除许可改动带入当前工作区，避免覆盖人工环境已有规则；两项改动联合定向验证五文件 58 项通过。读回安装包确认 67,108,864-byte 检查和暂停删除规则均存在；原 SQLite inode、会议 catalog、固定 workspace 与凭据链接保持，认证入口 HTTP 200。
+
+Not Covered：未向卡住会议重放任何命令，未直接改写会议数据，未验证接纳举手继续成功。本次不证明真实 Host 下 64 MiB 会议的性能或恢复耗时；历史事实重复保存完整 resultingState 的增长问题和容量异常被统一映射为 STORAGE_UNAVAILABLE 均未解决，提高上限仅为临时缓解。
+
+Closure：仅提高应用级容量保护阈值，不声明卡住会议已恢复或长会议容量问题已根治。
+
+## 2026-10-20：会议删除改为暂停及终态白名单
+
+Scope：基于 `4ac9442c` 的普通分支 `codex/meeting-deletion-eligibility` 工作区，按用户确认更新 MO-FR-19。只有 paused、terminal、archived 可发起删除；preparing、running、converging、ending、archiving 禁止发起删除。不按名称 ing 后缀判断。同步需求验收条款、接口、DSH Plugin 设计和中英文禁用提示。
+
+Validated Contract：摘要投影和删除写队列内重验共用 meetingDeletionStatus 白名单；待处理工作及未关闭 ownership 不额外阻止三个允许状态，删除意图提交后仍先停止关联工作、释放句柄并撤权，再删除业务数据，保留 Session/聊天历史。既有 deleting 意图继续显式重试，不因状态规则变化重新授权业务操作。版本冲突、二次确认、陈旧/断线/提交中保护和删除后防复活边界保持。
+
+Executed Validation：先更新八种生命周期回归，观察到 paused 被拒绝及 preparing/ending/archiving 错误允许共四项目标失败；实现白名单后，Runtime 许可、Navigator 确认/取消及 Repository 删除契约三文件共 36 项通过。本次 `pnpm --dir plugin verify` 完整通过：111 文件/976 项测试，格式、lint（13 项既有 warning、0 errors）、Host/Client/Remote 类型、构建、环境、插件契约、八角色装配与发布包检查通过。文档本地链接 1184 项、0 errors，git diff --check 通过。
+
+Not Covered：未刷新或重启当前人工 Host，未真实删除任何既有会议；未执行 Browser 人工验收、模型会议或远端 CI。本次测试不等于真实 Session/ACP 进程清理端到端验证。
+
+Closure：源码与正式口径同步为本条白名单，较早“非进行中会议删除”条目的状态许可属于当时规则，不能作为当前许可依据；不声明发布或完整业务验收。
+
 ## 2026-10-20：合并后文档同步与研究规划回归补充
 
 Scope：以 `9a61fccc`（PR #137 merge commit）为基线，在普通分支 `codex/research-planning-followup` 核对需求、接口、设计和生产代码。诊断保存异常传播、研究产出 ID 冲突拒绝和活动议题引用保留均已由 #137 修复；本次不重复修改生产实现，也不以此前旧基线分支上的测试结果作为本分支验证。
